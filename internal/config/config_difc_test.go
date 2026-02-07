@@ -658,7 +658,6 @@ func TestParseGuardPolicyJSON_UpdatedRepoRegex(t *testing.T) {
 		assert.Contains(t, err.Error(), "invalid")
 	})
 }
-
 // Helper function for creating int pointers in tests
 func intPtrDIFC(i int) *int {
 	return &i
