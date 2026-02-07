@@ -126,22 +126,104 @@ Use the `--difc-mode` flag to specify the enforcement mode:
 ./awmg --enable-difc --difc-mode propagate
 ```
 
-**Environment Variables:**
-- `MCP_GATEWAY_ENABLE_DIFC=true` - Enable DIFC (equivalent to `--enable-difc`)
-- `MCP_GATEWAY_DIFC_MODE=strict|filter|propagate` - Set enforcement mode (equivalent to `--difc-mode`)
+### CLI Flags Reference
 
-**TOML Configuration:**
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--enable-difc` | Enable DIFC enforcement and session requirement | `false` |
+| `--difc-mode` | Enforcement mode: `strict`, `filter`, or `propagate` | `strict` |
+| `--enable-config-extensions` | Enable config extensions (guards, session labels) | `false` |
+| `--session-secrecy` | Comma-separated initial secrecy labels for sessions | `""` |
+| `--session-integrity` | Comma-separated initial integrity labels for sessions | `""` |
+
+**Note:** `--session-secrecy` and `--session-integrity` require `--enable-config-extensions` to be set.
+
+### Environment Variables Reference
+
+| Environment Variable | Description | Equivalent Flag |
+|---------------------|-------------|-----------------|
+| `MCP_GATEWAY_ENABLE_DIFC` | Enable DIFC (`true`, `1`, `yes`, `on`) | `--enable-difc` |
+| `MCP_GATEWAY_DIFC_MODE` | Enforcement mode: `strict`, `filter`, `propagate` | `--difc-mode` |
+| `MCP_GATEWAY_CONFIG_EXTENSIONS` | Enable config extensions (`true`, `1`, `yes`, `on`) | `--enable-config-extensions` |
+| `MCP_GATEWAY_SESSION_SECRECY` | Comma-separated initial secrecy labels | `--session-secrecy` |
+| `MCP_GATEWAY_SESSION_INTEGRITY` | Comma-separated initial integrity labels | `--session-integrity` |
+
+**Example:**
+```bash
+export MCP_GATEWAY_ENABLE_DIFC=true
+export MCP_GATEWAY_DIFC_MODE=filter
+export MCP_GATEWAY_CONFIG_EXTENSIONS=true
+export MCP_GATEWAY_SESSION_SECRECY=internal,confidential
+export MCP_GATEWAY_SESSION_INTEGRITY=trusted
+
+./awmg --config-stdin < config.json
+```
+
+### TOML Configuration
+
 ```toml
 [gateway]
 enable_difc = true
 difc_mode = "propagate"  # strict, filter, or propagate
 ```
 
+### JSON Configuration (with Config Extensions)
+
+When `MCP_GATEWAY_CONFIG_EXTENSIONS=true` or `--enable-config-extensions` is set, the JSON config schema supports additional fields for guards and session labels:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "container": "ghcr.io/github/github-mcp-server:latest",
+      "guard": "github-guard"
+    },
+    "filesystem": {
+      "type": "stdio", 
+      "container": "mcp/filesystem:latest",
+      "guard": "fs-guard"
+    }
+  },
+  "guards": {
+    "github-guard": {
+      "type": "wasm",
+      "path": "/guards/github.wasm",
+      "config": {}
+    },
+    "fs-guard": {
+      "type": "noop"
+    }
+  },
+  "gateway": {
+    "port": 3000,
+    "domain": "localhost",
+    "apiKey": "your-api-key",
+    "session": {
+      "secrecy": ["internal", "confidential"],
+      "integrity": ["trusted"]
+    }
+  }
+}
+```
+
+**Config Extension Fields:**
+- `mcpServers.<server>.guard` - Name of the guard to use for this server
+- `guards` - Map of guard name to guard configuration
+- `guards.<name>.type` - Guard type (`wasm`, `noop`, etc.)
+- `guards.<name>.path` - Path to guard implementation (for `wasm` type)
+- `guards.<name>.config` - Guard-specific configuration object
+- `gateway.session.secrecy` - Array of initial secrecy labels for new sessions
+- `gateway.session.integrity` - Array of initial integrity labels for new sessions
+
+**Important**: Config extensions are **not** part of the standard MCP Gateway JSON schema. When enabled, schema validation is relaxed to allow these extension fields.
+
+### Mode Configuration
+
 **Important**: Filter and propagate modes are mutually exclusive. Attempting to use both will result in an error:
 ```
 Error: invalid --difc-mode flag: invalid DIFC mode "both": must be one of: strict, filter, propagate
 ```
-
 
 The DIFC evaluator supports three enforcement modes:
 
