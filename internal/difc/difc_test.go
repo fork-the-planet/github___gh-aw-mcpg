@@ -404,17 +404,42 @@ func TestAgentRegistry(t *testing.T) {
 		assert.True(t, agent2.Secrecy.Label.Contains("secret"), "Expected agent to retain added tags")
 	})
 
-	t.Run("AccumulateFromRead updates agent labels", func(t *testing.T) {
+	t.Run("AccumulateFromRead updates agent labels with correct propagate semantics", func(t *testing.T) {
+		// Create agent with initial labels
 		agent := registry.GetOrCreate("agent-3")
+		agent.Secrecy.Label.Add("initial-secret")
+		agent.Integrity.Label.Add("trusted")
+		agent.Integrity.Label.Add("verified")
 
+		// Create resource with different labels
 		resource := NewLabeledResource("data-source")
 		resource.Secrecy.Label.Add("confidential")
-		resource.Integrity.Label.Add("verified")
+		resource.Integrity.Label.Add("verified") // Only overlaps with "verified"
 
 		agent.AccumulateFromRead(resource)
 
-		assert.True(t, agent.Secrecy.Label.Contains("confidential"), "Expected agent to gain secrecy tag from read")
-		assert.True(t, agent.Integrity.Label.Contains("verified"), "Expected agent to gain integrity tag from read")
+		// Secrecy: UNION - agent gains ALL secrecy tags (taints the agent)
+		assert.True(t, agent.Secrecy.Label.Contains("initial-secret"), "Agent should retain initial secrecy")
+		assert.True(t, agent.Secrecy.Label.Contains("confidential"), "Agent should gain resource secrecy tag")
+
+		// Integrity: INTERSECTION - agent keeps ONLY common tags (reduces trust)
+		assert.True(t, agent.Integrity.Label.Contains("verified"), "Agent should retain common integrity tag")
+		assert.False(t, agent.Integrity.Label.Contains("trusted"), "Agent should lose integrity tag not in resource")
+	})
+
+	t.Run("AccumulateFromRead with empty resource integrity clears agent integrity", func(t *testing.T) {
+		agent := registry.GetOrCreate("agent-4")
+		agent.Integrity.Label.Add("high-trust")
+		agent.Integrity.Label.Add("verified")
+
+		// Resource with empty integrity (untrusted source)
+		resource := NewLabeledResource("untrusted-source")
+		resource.Integrity.Label = NewLabel() // Empty integrity
+
+		agent.AccumulateFromRead(resource)
+
+		// Intersection with empty set = empty
+		assert.True(t, agent.Integrity.Label.IsEmpty(), "Agent integrity should be empty after reading from untrusted source")
 	})
 }
 

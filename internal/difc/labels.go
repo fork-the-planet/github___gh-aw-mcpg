@@ -77,6 +77,28 @@ func (l *Label) Union(other *Label) {
 	}
 }
 
+// Intersect removes tags from this label that are not in the other label
+// After this operation, this label contains only tags present in both labels
+func (l *Label) Intersect(other *Label) {
+	if other == nil {
+		// Intersection with nil/empty is empty
+		l.mu.Lock()
+		defer l.mu.Unlock()
+		l.tags = make(map[Tag]struct{})
+		return
+	}
+	other.mu.RLock()
+	defer other.mu.RUnlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	// Remove tags not in other
+	for tag := range l.tags {
+		if _, ok := other.tags[tag]; !ok {
+			delete(l.tags, tag)
+		}
+	}
+}
+
 // Clone creates a copy of this label
 func (l *Label) Clone() *Label {
 	l.mu.RLock()

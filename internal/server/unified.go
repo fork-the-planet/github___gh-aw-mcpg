@@ -695,7 +695,45 @@ func convertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 		return nil, fmt.Errorf("failed to marshal backend result: %w", err)
 	}
 
-	// Parse the backend result structure
+	// First, try to detect if the response is an array (some backends return arrays directly)
+	var rawArray []json.RawMessage
+	if err := json.Unmarshal(dataBytes, &rawArray); err == nil {
+		// It's an array - wrap it as a single text content item
+		log.Printf("[convertToCallToolResult] Backend returned array with %d items, wrapping as text", len(rawArray))
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{
+				&sdk.TextContent{
+					Text: string(dataBytes),
+				},
+			},
+			IsError: false,
+		}, nil
+	}
+
+	// Check if response is an object with a "content" field (standard MCP format)
+	// We need to distinguish between:
+	// 1. {"content": []} - empty array, should preserve as 0 content items
+	// 2. {"content": [...]} - has items, process normally
+	// 3. {"some": "other"} - no content field, wrap as text
+	var hasContentField struct {
+		Content *json.RawMessage `json:"content"`
+		IsError bool             `json:"isError,omitempty"`
+	}
+
+	if err := json.Unmarshal(dataBytes, &hasContentField); err != nil || hasContentField.Content == nil {
+		// No "content" field or parse error - wrap raw response as text
+		log.Printf("[convertToCallToolResult] No content field found, wrapping raw response as text")
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{
+				&sdk.TextContent{
+					Text: string(dataBytes),
+				},
+			},
+			IsError: false,
+		}, nil
+	}
+
+	// Parse the backend result structure (standard MCP CallToolResult format)
 	var backendResult struct {
 		Content []struct {
 			Type string `json:"type"`
@@ -705,10 +743,20 @@ func convertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 	}
 
 	if err := json.Unmarshal(dataBytes, &backendResult); err != nil {
-		return nil, fmt.Errorf("failed to parse backend result structure: %w", err)
+		// If parsing fails, wrap the raw response as text content
+		log.Printf("[convertToCallToolResult] Failed to parse as CallToolResult, wrapping raw response: %v", err)
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{
+				&sdk.TextContent{
+					Text: string(dataBytes),
+				},
+			},
+			IsError: false,
+		}, nil
 	}
 
 	// Convert content items to SDK Content format
+	// Note: Empty content array is valid and should be preserved (0 items)
 	content := make([]sdk.Content, 0, len(backendResult.Content))
 	for _, item := range backendResult.Content {
 		switch item.Type {
@@ -857,21 +905,23 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			}
 		}
 
-		// **Phase 6: Accumulate labels from this operation (for reads)**
-		if !isWrite {
+		// **Phase 6: Accumulate labels from this operation (for reads in PROPAGATE mode only)**
+		// Label accumulation should only happen when mode is EnforcementPropagate
+		// Filter mode does NOT accumulate - it just filters what the agent can see
+		if !isWrite && enforcementMode == difc.EnforcementPropagate {
 			overall := labeledData.Overall()
 			agentLabels.AccumulateFromRead(overall)
-			log.Printf("[DIFC] Agent %s accumulated labels | Secrecy: %v | Integrity: %v",
+			log.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
 				agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
 		}
 	} else {
 		// No fine-grained labeling - use original backend result
 		finalResult = backendResult
 
-		// **Phase 6: Accumulate labels from resource (for reads)**
-		if !isWrite {
+		// **Phase 6: Accumulate labels from resource (for reads in PROPAGATE mode only)**
+		if !isWrite && enforcementMode == difc.EnforcementPropagate {
 			agentLabels.AccumulateFromRead(resource)
-			log.Printf("[DIFC] Agent %s accumulated labels | Secrecy: %v | Integrity: %v",
+			log.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
 				agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
 		}
 	}
