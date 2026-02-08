@@ -626,14 +626,15 @@ func (us *UnifiedServer) createGuardFromConfig(name string, cfg *config.GuardCon
 		if cfg.Path == "" {
 			return nil, fmt.Errorf("wasm guard '%s' requires a 'path' field", name)
 		}
-		// Try to create via registered factory first
-		g, err := guard.CreateGuard("wasm")
-		if err == nil {
-			log.Printf("[DIFC] Created WASM guard '%s' from path: %s", name, cfg.Path)
-			return g, nil
+		// Create WASM guard directly with the path
+		ctx := context.Background()
+		// Create a backend caller that can be updated later per-request
+		g, err := guard.NewWasmGuard(ctx, name, cfg.Path, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load WASM guard from %s: %w", cfg.Path, err)
 		}
-		// WASM guard factory not registered - log warning and return error
-		return nil, fmt.Errorf("wasm guard type not available: %v (guard path: %s)", err, cfg.Path)
+		log.Printf("[DIFC] Created WASM guard '%s' from path: %s", name, cfg.Path)
+		return g, nil
 
 	default:
 		// Try registered guard types
