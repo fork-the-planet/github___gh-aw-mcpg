@@ -119,6 +119,7 @@ func (a *AgentLabels) ApplyPropagation(result *EvaluationResult) bool {
 // AccumulateFromRead updates agent labels after reading data in propagate mode
 //
 // DIFC propagate mode semantics:
+//
 //   - Secrecy: UNION - agent becomes "tainted" with all secret classifications from the data
 //     Agent secrecy = Union(agent_secrecy, resource_secrecy)
 //     Reading secret data means the agent now carries that secret classification

@@ -816,7 +816,6 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// and let the request proceed. Fine-grained filtering at Phase 5 will filter
 	// individual items from the response based on their actual labels from LabelResponse().
 	isReadOperation := (operation == difc.OperationRead)
-	isWrite := (operation == difc.OperationWrite || operation == difc.OperationReadWrite)
 	enforcementMode := us.evaluator.GetMode()
 	result := us.evaluator.Evaluate(agentLabels.Secrecy, agentLabels.Integrity, resource, operation)
 
@@ -871,10 +870,21 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	}
 
 	// **Phase 4: Guard labels the response data (for fine-grained filtering)**
-	labeledData, err := g.LabelResponse(ctx, toolName, backendResult, backendCaller, us.capabilities)
-	if err != nil {
-		log.Printf("[DIFC] Response labeling failed: %v", err)
-		return newErrorCallToolResult(fmt.Errorf("response labeling failed: %w", err))
+	// Per spec: LabelResponse() is only called for read operations in all modes,
+	// and for read-write operations in filter/propagate modes.
+	// For write operations and read-write in strict mode, skip LabelResponse().
+	isPureWrite := (operation == difc.OperationWrite)
+	shouldCallLabelResponse := !isPureWrite && (operation != difc.OperationReadWrite || enforcementMode != difc.EnforcementStrict)
+
+	var labeledData difc.LabeledData
+	if shouldCallLabelResponse {
+		labeledData, err = g.LabelResponse(ctx, toolName, backendResult, backendCaller, us.capabilities)
+		if err != nil {
+			log.Printf("[DIFC] Response labeling failed: %v", err)
+			return newErrorCallToolResult(fmt.Errorf("response labeling failed: %w", err))
+		}
+	} else {
+		log.Printf("[DIFC] Skipping LabelResponse() for %s operation in %s mode", operation, enforcementMode)
 	}
 
 	// **Phase 5: Reference Monitor performs fine-grained filtering (if applicable)**
@@ -887,6 +897,22 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 
 			log.Printf("[DIFC] Filtered collection: %d/%d items accessible",
 				filtered.GetAccessibleCount(), filtered.TotalCount)
+
+			// **Strict mode: block entire response if ANY item is filtered**
+			if enforcementMode == difc.EnforcementStrict && filtered.GetFilteredCount() > 0 {
+				log.Printf("[DIFC] STRICT MODE: Blocking entire response - %d/%d items violate DIFC policy",
+					filtered.GetFilteredCount(), filtered.TotalCount)
+				blockErr := fmt.Errorf("DIFC policy violation: %d of %d items in response are not accessible to agent %s",
+					filtered.GetFilteredCount(), filtered.TotalCount, agentID)
+				return &sdk.CallToolResult{
+					Content: []sdk.Content{
+						&sdk.TextContent{
+							Text: blockErr.Error(),
+						},
+					},
+					IsError: true,
+				}, nil, blockErr
+			}
 
 			if filtered.GetFilteredCount() > 0 {
 				log.Printf("[DIFC] Filtered out %d items due to DIFC policy", filtered.GetFilteredCount())
@@ -908,7 +934,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		// **Phase 6: Accumulate labels from this operation (for reads in PROPAGATE mode only)**
 		// Label accumulation should only happen when mode is EnforcementPropagate
 		// Filter mode does NOT accumulate - it just filters what the agent can see
-		if !isWrite && enforcementMode == difc.EnforcementPropagate {
+		if !isPureWrite && enforcementMode == difc.EnforcementPropagate {
 			overall := labeledData.Overall()
 			agentLabels.AccumulateFromRead(overall)
 			log.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
@@ -919,7 +945,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		finalResult = backendResult
 
 		// **Phase 6: Accumulate labels from resource (for reads in PROPAGATE mode only)**
-		if !isWrite && enforcementMode == difc.EnforcementPropagate {
+		if !isPureWrite && enforcementMode == difc.EnforcementPropagate {
 			agentLabels.AccumulateFromRead(resource)
 			log.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
 				agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())

@@ -348,7 +348,7 @@ func TestConvertStdinConfigWithoutGuards(t *testing.T) {
 	require.NoError(t, err, "convertStdinConfig failed")
 
 	// Guards should be nil or empty when not defined
-	assert.True(t, cfg.Guards == nil || len(cfg.Guards) == 0, "Guards should be nil or empty")
+	assert.Empty(t, cfg.Guards, "Guards should be nil or empty")
 }
 
 // TestFullDIFCConfigParsing tests complete DIFC configuration parsing

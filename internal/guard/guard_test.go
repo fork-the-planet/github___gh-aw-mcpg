@@ -45,7 +45,7 @@ func TestNoopGuard(t *testing.T) {
 
 		assert.True(t, resource.Integrity.Label.IsEmpty(), "Expected empty integrity labels")
 
-		assert.Equal(t, difc.OperationWrite, operation)
+		assert.Equal(t, difc.OperationReadWrite, operation)
 	})
 
 	t.Run("LabelResponse returns nil", func(t *testing.T) {
@@ -67,7 +67,7 @@ func TestNoopGuard(t *testing.T) {
 		require.NotNil(t, resource)
 		assert.True(t, resource.Secrecy.Label.IsEmpty())
 		assert.True(t, resource.Integrity.Label.IsEmpty())
-		assert.Equal(t, difc.OperationWrite, operation)
+		assert.Equal(t, difc.OperationReadWrite, operation)
 	})
 
 	t.Run("LabelResponse with nil capabilities", func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestNoopGuard(t *testing.T) {
 		resource, operation, err := guard.LabelResource(ctx, "", map[string]interface{}{}, nil, caps)
 		require.NoError(t, err)
 		require.NotNil(t, resource)
-		assert.Equal(t, difc.OperationWrite, operation)
+		assert.Equal(t, difc.OperationReadWrite, operation)
 	})
 
 	t.Run("LabelResource with nil args", func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestNoopGuard(t *testing.T) {
 		resource, operation, err := guard.LabelResource(ctx, "test_tool", nil, nil, caps)
 		require.NoError(t, err)
 		require.NotNil(t, resource)
-		assert.Equal(t, difc.OperationWrite, operation)
+		assert.Equal(t, difc.OperationReadWrite, operation)
 	})
 
 	t.Run("LabelResponse with various result types", func(t *testing.T) {
