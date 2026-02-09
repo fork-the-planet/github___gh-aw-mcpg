@@ -467,3 +467,179 @@ func TestExtractIndexFromPath(t *testing.T) {
 		})
 	}
 }
+
+func TestUnwrapMCPResponse(t *testing.T) {
+	t.Run("unwraps MCP-wrapped response", func(t *testing.T) {
+		// This is the format MCP backends return: {"content":[{"text":"<json>","type":"text"}]}
+		innerJSON := `{"items":[{"id":1,"name":"repo1"},{"id":2,"name":"repo2"}]}`
+		mcpWrapped := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": innerJSON,
+				},
+			},
+		}
+
+		unwrapped, isMCPWrapped := unwrapMCPResponse(mcpWrapped)
+
+		assert.True(t, isMCPWrapped, "Should detect MCP wrapper")
+		assert.NotEqual(t, mcpWrapped, unwrapped, "Should return different object")
+
+		// Verify the unwrapped data has the expected structure
+		unwrappedMap, ok := unwrapped.(map[string]interface{})
+		require.True(t, ok, "Unwrapped should be a map")
+		items, ok := unwrappedMap["items"].([]interface{})
+		require.True(t, ok, "Should have items array")
+		assert.Len(t, items, 2, "Should have 2 items")
+	})
+
+	t.Run("returns original for non-MCP data", func(t *testing.T) {
+		plainData := map[string]interface{}{
+			"items": []interface{}{
+				map[string]interface{}{"id": 1},
+			},
+		}
+
+		unwrapped, isMCPWrapped := unwrapMCPResponse(plainData)
+
+		assert.False(t, isMCPWrapped, "Should not detect MCP wrapper")
+		assert.Equal(t, plainData, unwrapped, "Should return same object")
+	})
+
+	t.Run("returns original for array data", func(t *testing.T) {
+		arrayData := []interface{}{
+			map[string]interface{}{"id": 1},
+			map[string]interface{}{"id": 2},
+		}
+
+		unwrapped, isMCPWrapped := unwrapMCPResponse(arrayData)
+
+		assert.False(t, isMCPWrapped, "Should not detect MCP wrapper for arrays")
+		assert.Equal(t, arrayData, unwrapped, "Should return same array")
+	})
+
+	t.Run("returns original for non-text content", func(t *testing.T) {
+		// MCP content with non-text type
+		mcpData := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type":     "image",
+					"mimeType": "image/png",
+					"data":     "base64data",
+				},
+			},
+		}
+
+		unwrapped, isMCPWrapped := unwrapMCPResponse(mcpData)
+
+		assert.False(t, isMCPWrapped, "Should not unwrap non-text content")
+		assert.Equal(t, mcpData, unwrapped)
+	})
+
+	t.Run("returns original for non-JSON text", func(t *testing.T) {
+		mcpData := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": "This is not JSON, just plain text",
+				},
+			},
+		}
+
+		unwrapped, isMCPWrapped := unwrapMCPResponse(mcpData)
+
+		assert.False(t, isMCPWrapped, "Should not unwrap non-JSON text")
+		assert.Equal(t, mcpData, unwrapped)
+	})
+}
+
+func TestPathLabeledData_MCPWrappedResponse(t *testing.T) {
+	t.Run("applies path labels to MCP-wrapped response", func(t *testing.T) {
+		// Simulate MCP-wrapped response from GitHub search_repositories
+		innerJSON := `{"total_count":2,"items":[{"id":1,"name":"repo1","private":false},{"id":2,"name":"repo2","private":true}]}`
+		mcpWrapped := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": innerJSON,
+				},
+			},
+		}
+
+		pathLabels := &PathLabels{
+			ItemsPath: "/items",
+			LabeledPaths: []PathLabel{
+				{
+					Path: "/items/0",
+					Labels: PathLabelEntry{
+						Description: "Public repo",
+						Secrecy:     []string{"public"},
+						Integrity:   []string{"github_verified"},
+					},
+				},
+				{
+					Path: "/items/1",
+					Labels: PathLabelEntry{
+						Description: "Private repo",
+						Secrecy:     []string{"repo_private"},
+						Integrity:   []string{"github_verified"},
+					},
+				},
+			},
+		}
+
+		pld, err := NewPathLabeledData(mcpWrapped, pathLabels)
+		require.NoError(t, err, "Should successfully apply path labels to MCP-wrapped response")
+
+		assert.True(t, pld.IsMCPWrapped, "Should detect MCP wrapper")
+
+		// Verify items were resolved correctly
+		items := pld.GetItems()
+		require.Len(t, items, 2, "Should have 2 items")
+
+		// First item should be public
+		assert.True(t, items[0].Labels.Secrecy.Label.Contains(Tag("public")))
+
+		// Second item should be private
+		assert.True(t, items[1].Labels.Secrecy.Label.Contains(Tag("repo_private")))
+	})
+
+	t.Run("works with non-MCP data too", func(t *testing.T) {
+		// Plain data without MCP wrapper
+		plainData := map[string]interface{}{
+			"items": []interface{}{
+				map[string]interface{}{"id": 1, "name": "repo1"},
+				map[string]interface{}{"id": 2, "name": "repo2"},
+			},
+		}
+
+		pathLabels := &PathLabels{
+			ItemsPath: "/items",
+			LabeledPaths: []PathLabel{
+				{
+					Path: "/items/0",
+					Labels: PathLabelEntry{
+						Secrecy:   []string{"public"},
+						Integrity: []string{"untrusted"},
+					},
+				},
+				{
+					Path: "/items/1",
+					Labels: PathLabelEntry{
+						Secrecy:   []string{"private"},
+						Integrity: []string{"trusted"},
+					},
+				},
+			},
+		}
+
+		pld, err := NewPathLabeledData(plainData, pathLabels)
+		require.NoError(t, err)
+
+		assert.False(t, pld.IsMCPWrapped, "Should not detect MCP wrapper")
+
+		items := pld.GetItems()
+		require.Len(t, items, 2)
+	})
+}

@@ -56,6 +56,12 @@ type PathLabeledData struct {
 	// OriginalData is the unmodified response from the backend
 	OriginalData interface{}
 
+	// UnwrappedData is the data to apply paths against (may be unwrapped from MCP format)
+	UnwrappedData interface{}
+
+	// IsMCPWrapped indicates if the original data was MCP-wrapped
+	IsMCPWrapped bool
+
 	// PathLabels contains the guard's labeling decisions
 	PathLabels *PathLabels
 
@@ -64,11 +70,17 @@ type PathLabeledData struct {
 	resolved      bool
 }
 
-// NewPathLabeledData creates a new PathLabeledData from the original response and path labels
+// NewPathLabeledData creates a new PathLabeledData from the original response and path labels.
+// It automatically detects and unwraps MCP-formatted responses ({"content":[{"text":"..."}]})
+// so that path labels can be applied to the inner JSON structure.
 func NewPathLabeledData(originalData interface{}, pathLabels *PathLabels) (*PathLabeledData, error) {
+	unwrapped, isMCPWrapped := unwrapMCPResponse(originalData)
+
 	pld := &PathLabeledData{
-		OriginalData: originalData,
-		PathLabels:   pathLabels,
+		OriginalData:  originalData,
+		UnwrappedData: unwrapped,
+		IsMCPWrapped:  isMCPWrapped,
+		PathLabels:    pathLabels,
 	}
 
 	// Resolve items eagerly to catch any path resolution errors
@@ -77,6 +89,43 @@ func NewPathLabeledData(originalData interface{}, pathLabels *PathLabels) (*Path
 	}
 
 	return pld, nil
+}
+
+// unwrapMCPResponse detects if the data is an MCP-wrapped response and extracts the inner JSON.
+// MCP responses have the format: {"content":[{"text":"<json-string>","type":"text"}]}
+// Returns (unwrapped data, true) if MCP-wrapped, or (original data, false) if not.
+func unwrapMCPResponse(data interface{}) (interface{}, bool) {
+	dataMap, ok := data.(map[string]interface{})
+	if !ok {
+		return data, false
+	}
+
+	content, ok := dataMap["content"].([]interface{})
+	if !ok || len(content) == 0 {
+		return data, false
+	}
+
+	first, ok := content[0].(map[string]interface{})
+	if !ok {
+		return data, false
+	}
+
+	// Check if this looks like an MCP text content item
+	textType, hasType := first["type"].(string)
+	text, hasText := first["text"].(string)
+
+	if !hasType || textType != "text" || !hasText {
+		return data, false
+	}
+
+	// Try to parse the text as JSON
+	var inner interface{}
+	if err := json.Unmarshal([]byte(text), &inner); err != nil {
+		// Not valid JSON, return original
+		return data, false
+	}
+
+	return inner, true
 }
 
 // resolve applies path labels to the original data
@@ -131,19 +180,19 @@ func (p *PathLabeledData) resolve() error {
 	return nil
 }
 
-// getItems extracts the items array from the original data based on ItemsPath
+// getItems extracts the items array from the unwrapped data based on ItemsPath
 func (p *PathLabeledData) getItems() ([]interface{}, error) {
 	if p.PathLabels.ItemsPath == "" {
 		// Root-level array
-		if arr, ok := p.OriginalData.([]interface{}); ok {
+		if arr, ok := p.UnwrappedData.([]interface{}); ok {
 			return arr, nil
 		}
 		// Not an array, return nil (single item)
 		return nil, nil
 	}
 
-	// Navigate to the items path
-	current := p.OriginalData
+	// Navigate to the items path using UnwrappedData (which may have been extracted from MCP wrapper)
+	current := p.UnwrappedData
 	parts := splitJSONPointer(p.PathLabels.ItemsPath)
 
 	for _, part := range parts {
