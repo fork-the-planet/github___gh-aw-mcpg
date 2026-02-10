@@ -54,11 +54,7 @@ func (l *Launcher) logEnvPassthrough(args []string) {
 			if !strings.Contains(nextArg, "=") {
 				// This is a passthrough variable, check if it exists in our environment
 				if val := os.Getenv(nextArg); val != "" {
-					displayVal := val
-					if len(val) > 10 {
-						displayVal = val[:10] + "..."
-					}
-					log.Printf("[LAUNCHER] ✓ Env passthrough: %s=%s (from MCPG process)", nextArg, displayVal)
+					log.Printf("[LAUNCHER] ✓ Env passthrough: %s=%s (from MCPG process)", nextArg, sanitize.TruncateSecret(val))
 				} else {
 					log.Printf("[LAUNCHER] ✗ WARNING: Env passthrough for %s requested but NOT FOUND in MCPG process", nextArg)
 				}

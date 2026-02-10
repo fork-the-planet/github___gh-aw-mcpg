@@ -212,8 +212,9 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 		scanner := bufio.NewScanner(stderrPipeReader)
 		for scanner.Scan() {
 			line := scanner.Text()
-			logger.LogInfoWithServer(serverID, "backend", "[stderr] %s", line)
-			logConn.Printf("[%s stderr] %s", serverID, line)
+			sanitizedLine := sanitize.SanitizeString(line)
+			logger.LogInfoWithServer(serverID, "backend", "[stderr] %s", sanitizedLine)
+			logConn.Printf("[%s stderr] %s", serverID, sanitizedLine)
 		}
 	}()
 
@@ -239,9 +240,10 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 		// Log captured stderr output from the container/process
 		stderrOutput := strings.TrimSpace(stderrBuf.String())
 		if stderrOutput != "" {
-			logger.LogErrorMd("backend", "MCP backend stderr output:\n%s", stderrOutput)
+			sanitizedStderr := sanitize.SanitizeString(stderrOutput)
+			logger.LogErrorMd("backend", "MCP backend stderr output:\n%s", sanitizedStderr)
 			log.Printf("   📋 Container/Process stderr output:")
-			for _, line := range strings.Split(stderrOutput, "\n") {
+			for _, line := range strings.Split(sanitizedStderr, "\n") {
 				log.Printf("      %s", line)
 			}
 		}
