@@ -15,6 +15,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/launcher"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/middleware"
 	"github.com/github/gh-aw-mcpg/internal/sys"
@@ -326,7 +327,8 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 			// Log the MCP tool call request
 			sessionID := us.getSessionID(ctx)
 			argsJSON, _ := json.Marshal(toolArgs)
-			logger.LogInfo("client", "MCP tool call request, session=%s, tool=%s, args=%s", sessionID, toolNameCopy, string(argsJSON))
+			sanitizedArgs := sanitize.SanitizeString(string(argsJSON))
+			logger.LogInfo("client", "MCP tool call request, session=%s, tool=%s, args=%s", sessionID, toolNameCopy, sanitizedArgs)
 
 			// Check session is initialized
 			if err := us.requireSession(ctx); err != nil {
@@ -341,7 +343,8 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 				logger.LogError("client", "MCP tool call error, session=%s, tool=%s, error=%v", sessionID, toolNameCopy, err)
 			} else {
 				resultJSON, _ := json.Marshal(data)
-				logger.LogInfo("client", "MCP tool call response, session=%s, tool=%s, result=%s", sessionID, toolNameCopy, string(resultJSON))
+				sanitizedResult := sanitize.SanitizeString(string(resultJSON))
+				logger.LogInfo("client", "MCP tool call response, session=%s, tool=%s, result=%s", sessionID, toolNameCopy, sanitizedResult)
 			}
 
 			return result, data, err
@@ -440,7 +443,8 @@ func (us *UnifiedServer) registerSysTools() error {
 		}
 
 		resultJSON, _ := json.Marshal(result)
-		logger.LogInfo("client", "MCP session initialization complete, session=%s, result=%s", sessionID, string(resultJSON))
+		sanitizedResult := sanitize.SanitizeString(string(resultJSON))
+		logger.LogInfo("client", "MCP session initialization complete, session=%s, result=%s", sessionID, sanitizedResult)
 		return nil, result, nil
 	}
 

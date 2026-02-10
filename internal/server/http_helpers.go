@@ -9,6 +9,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 )
 
@@ -52,13 +53,16 @@ func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
 
 	logHelpers.Printf("Request body read: size=%d bytes, sessionID=%s, backendID=%s", len(bodyBytes), sessionID, backendID)
 
+	// Sanitize the body before logging
+	sanitizedBody := sanitize.SanitizeString(string(bodyBytes))
+
 	// Log with backend context if provided (routed mode)
 	if backendID != "" {
-		logger.LogDebug("client", "MCP client request body, backend=%s, body=%s", backendID, string(bodyBytes))
+		logger.LogDebug("client", "MCP client request body, backend=%s, body=%s", backendID, sanitizedBody)
 	} else {
-		logger.LogDebug("client", "MCP request body, session=%s, body=%s", sessionID, string(bodyBytes))
+		logger.LogDebug("client", "MCP request body, session=%s, body=%s", sessionID, sanitizedBody)
 	}
-	log.Printf("Request body: %s", string(bodyBytes))
+	log.Printf("Request body: %s", sanitizedBody)
 
 	// Restore body for subsequent reads
 	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))

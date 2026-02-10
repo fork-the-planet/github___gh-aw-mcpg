@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -49,7 +50,8 @@ func withResponseLogging(handler http.Handler) http.Handler {
 		lw := newResponseWriter(w)
 		handler.ServeHTTP(lw, r)
 		if len(lw.Body()) > 0 {
-			log.Printf("[%s] %s %s - Status: %d, Response: %s", r.RemoteAddr, r.Method, r.URL.Path, lw.StatusCode(), string(lw.Body()))
+			sanitizedBody := sanitize.SanitizeString(string(lw.Body()))
+			log.Printf("[%s] %s %s - Status: %d, Response: %s", r.RemoteAddr, r.Method, r.URL.Path, lw.StatusCode(), sanitizedBody)
 		}
 	})
 }
@@ -86,7 +88,7 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey st
 		logger.LogInfo("client", "MCP connection established, remote=%s, method=%s, path=%s, session=%s", r.RemoteAddr, r.Method, r.URL.Path, sessionID)
 		log.Printf("=== NEW STREAMABLE HTTP CONNECTION ===")
 		log.Printf("[%s] %s %s", r.RemoteAddr, r.Method, r.URL.Path)
-		log.Printf("Authorization (Session ID): %s", sessionID)
+		log.Printf("Authorization (Session ID): %s", sanitize.TruncateSecret(sessionID))
 
 		log.Printf("DEBUG: About to check request body, Method=%s, Body!=nil: %v", r.Method, r.Body != nil)
 
