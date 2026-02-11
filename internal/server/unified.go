@@ -291,6 +291,18 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 		return fmt.Errorf("failed to parse tools: %w", err)
 	}
 
+	// Collect tools for logging
+	toolsForLogging := make([]logger.ToolInfo, 0, len(listResult.Tools))
+	for _, tool := range listResult.Tools {
+		toolsForLogging = append(toolsForLogging, logger.ToolInfo{
+			Name:        tool.Name,
+			Description: tool.Description,
+		})
+	}
+
+	// Log tools to tools.json
+	logger.LogToolsForServer(serverID, toolsForLogging)
+
 	// Register each tool with prefixed name
 	toolNames := []string{}
 	for _, tool := range listResult.Tools {

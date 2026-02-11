@@ -17,9 +17,9 @@ package logger
 import "sync"
 
 // closableLogger is a constraint for types that have a Close method.
-// This is satisfied by *FileLogger, *JSONLLogger, *MarkdownLogger, and *ServerFileLogger.
+// This is satisfied by *FileLogger, *JSONLLogger, *MarkdownLogger, *ServerFileLogger, and *ToolsLogger.
 type closableLogger interface {
-	*FileLogger | *JSONLLogger | *MarkdownLogger | *ServerFileLogger
+	*FileLogger | *JSONLLogger | *MarkdownLogger | *ServerFileLogger | *ToolsLogger
 	Close() error
 }
 
