@@ -102,7 +102,7 @@ func registerFlagCompletions(cmd *cobra.Command) {
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		// Provide helpful tips when completing the command
 		return cobra.AppendActiveHelp(nil,
-			"Tip: Use --config <file> for file-based config or --config-stdin for piped JSON config"),
+				"Tip: Use --config <file> for file-based config or --config-stdin for piped JSON config"),
 			cobra.ShellCompDirectiveNoFileComp
 	}
 }

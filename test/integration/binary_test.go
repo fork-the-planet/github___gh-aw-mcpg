@@ -502,14 +502,15 @@ func TestBinaryInvocation_NoConfigRequired(t *testing.T) {
 	require.Error(t, err)
 
 	outputStr := string(output)
-	// Should contain the error message about requiring config
-	if !bytes.Contains(output, []byte("configuration source required")) {
-		t.Errorf("Expected 'configuration source required' error message, got: %s", outputStr)
+	// Should contain the error message about requiring at least one of the flags
+	// Note: Cobra's MarkFlagsOneRequired produces a different error message than manual validation
+	if !bytes.Contains(output, []byte("at least one of the flags in the group [config config-stdin] is required")) {
+		t.Errorf("Expected 'at least one of the flags in the group [config config-stdin] is required' error message, got: %s", outputStr)
 	}
 
 	// Should mention both --config and --config-stdin
-	if !bytes.Contains(output, []byte("--config")) || !bytes.Contains(output, []byte("--config-stdin")) {
-		t.Errorf("Expected error message to mention both --config and --config-stdin, got: %s", outputStr)
+	if !bytes.Contains(output, []byte("config")) || !bytes.Contains(output, []byte("config-stdin")) {
+		t.Errorf("Expected error message to mention both config and config-stdin, got: %s", outputStr)
 	}
 
 	t.Logf("✓ Binary correctly requires config source: %s", outputStr)
