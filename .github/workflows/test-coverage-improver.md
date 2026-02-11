@@ -50,7 +50,7 @@ tools:
     - "wc -l internal/**/*.go"
     - "grep -n 'func ' internal/**/*.go"
 
-timeout-minutes: 30
+timeout-minutes: 45
 strict: true
 ---
 
