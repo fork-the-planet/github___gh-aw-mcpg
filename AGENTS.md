@@ -382,6 +382,7 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
   - `{serverID}.log` - Per-server logs (e.g., `github.log`, `slack.log`) for easier troubleshooting
   - `gateway.md` - Markdown-formatted logs for GitHub workflow previews
   - `rpc-messages.jsonl` - Machine-readable JSONL format for RPC message analysis
+  - `tools.json` - Available tools from all backend MCP servers (mapping server IDs to their tool names and descriptions)
 - Logs include: startup, client interactions, backend operations, auth events, errors
 
 **Per-ServerID Logging:**
@@ -405,6 +406,29 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - The `payloadSchema` does NOT contain the actual data values - those are only in the `payload.json` file
 - The `payloadPreview` shows the first 500 characters of the JSON for quick reference
 - To access the full data with all actual values, read the JSON file at `payloadPath`
+
+**Tools Catalog (tools.json):**
+- The gateway maintains a catalog of all available tools from backend MCP servers in `tools.json`
+- Located in the log directory (e.g., `/tmp/gh-aw/mcp-logs/tools.json`)
+- Updated automatically during gateway startup when backend servers are registered
+- Format: JSON mapping of server IDs to arrays of tool information
+- Each tool includes: `name` (tool name without server prefix) and `description`
+- Example structure:
+  ```json
+  {
+    "servers": {
+      "github": [
+        {"name": "search_code", "description": "Search for code in repositories"},
+        {"name": "get_file_contents", "description": "Get the contents of a file"}
+      ],
+      "slack": [
+        {"name": "send_message", "description": "Send a message to a Slack channel"}
+      ]
+    }
+  }
+  ```
+- Useful for discovering available tools across all configured backend servers
+- Can be used by clients or monitoring tools to understand gateway capabilities
 
 ## Error Debugging
 

@@ -72,6 +72,7 @@ For detailed setup instructions, building from source, and local development, se
   - `{serverID}.log`: Per-server logs for easier troubleshooting
   - `gateway.md`: Markdown-formatted logs for GitHub workflow previews
   - `rpc-messages.jsonl`: Machine-readable RPC message logs
+  - `tools.json`: Available tools from all backend MCP servers
 - `-p 8000:8000`: Port mapping must match `MCP_GATEWAY_PORT`
 
 MCPG will start in routed mode on `http://0.0.0.0:8000` (using `MCP_GATEWAY_PORT`), proxying MCP requests to your configured backend servers.
@@ -400,6 +401,7 @@ The gateway creates multiple log files for different purposes:
 2. **`{serverID}.log`** - Per-server logs (e.g., `github.log`, `slack.log`) for easier troubleshooting of specific backend servers
 3. **`gateway.md`** - Markdown-formatted logs for GitHub workflow previews
 4. **`rpc-messages.jsonl`** - Machine-readable JSONL format for RPC message analysis
+5. **`tools.json`** - Available tools from all backend MCP servers (mapping server IDs to their tool names and descriptions)
 
 ### Log File Location
 
@@ -427,7 +429,8 @@ Example log directory structure:
 ├── slack.log          # Only Slack server logs
 ├── notion.log         # Only Notion server logs
 ├── gateway.md         # Markdown format
-└── rpc-messages.jsonl # RPC messages
+├── rpc-messages.jsonl # RPC messages
+└── tools.json         # Available tools
 ```
 
 **Using the environment variable:**
