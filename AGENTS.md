@@ -366,11 +366,12 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 
 - `GITHUB_PERSONAL_ACCESS_TOKEN` - GitHub auth
 - `DOCKER_API_VERSION` - 1.43 (arm64) or 1.44 (amd64)
-- `PORT`, `HOST`, `MODE` - Server config (via run.sh)
 - `DEBUG` - Enable debug logging (e.g., `DEBUG=*`, `DEBUG=server:*,launcher:*`)
 - `DEBUG_COLORS` - Control colored output (0 to disable, auto-disabled when piping)
 - `MCP_GATEWAY_LOG_DIR` - Log file directory (sets default for `--log-dir` flag, default: `/tmp/gh-aw/mcp-logs`)
 - `MCP_GATEWAY_PAYLOAD_DIR` - Large payload storage directory (sets default for `--payload-dir` flag, default: `/tmp/jq-payloads`)
+
+**Note:** The `PORT`, `HOST`, and `MODE` environment variables are used only by test scripts and are not read by the gateway application. The gateway uses command-line flags instead: `--listen` for bind address and `--routed`/`--unified` for mode selection.
 
 **File Logging:**
 - Operational logs are always written to log files in the configured log directory

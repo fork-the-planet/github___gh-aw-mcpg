@@ -312,18 +312,20 @@ When running locally (`run.sh`), these variables are optional (warnings shown if
 | `MCP_GATEWAY_PORT` | Gateway listening port | `8000` |
 | `MCP_GATEWAY_DOMAIN` | Gateway domain | `localhost` |
 | `MCP_GATEWAY_API_KEY` | API authentication key | (disabled) |
-| `HOST` | Gateway bind address | `0.0.0.0` |
-| `MODE` | Gateway mode flag | `--routed` |
 | `MCP_GATEWAY_LOG_DIR` | Log file directory (sets default for `--log-dir` flag) | `/tmp/gh-aw/mcp-logs` |
 | `MCP_GATEWAY_PAYLOAD_DIR` | Large payload storage directory (sets default for `--payload-dir` flag) | `/tmp/jq-payloads` |
 | `MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD` | Size threshold in bytes for payload storage (sets default for `--payload-size-threshold` flag) | `10240` |
+| `DEBUG` | Enable debug logging with pattern matching (e.g., `*`, `server:*,launcher:*`) | (disabled) |
+| `DEBUG_COLORS` | Control colored debug output (0 to disable, auto-disabled when piping) | Auto-detect |
+
+**Note:** The `HOST` and `MODE` environment variables are not used by the gateway application. Use the `--listen` flag to set the bind address (default: `127.0.0.1:3000`) and the `--routed` or `--unified` flags to set the gateway mode.
 
 ### Docker Configuration
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `DOCKER_HOST` | Docker daemon socket path | `/var/run/docker.sock` |
-| `DOCKER_API_VERSION` | Docker API version | Auto-detected (1.43 for arm64, 1.44 for amd64) |
+| `DOCKER_API_VERSION` | Docker API version (set by helper scripts, Docker client auto-negotiates) | Set by run.sh based on architecture |
 
 ## Containerized Mode
 
