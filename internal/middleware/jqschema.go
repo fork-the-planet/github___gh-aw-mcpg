@@ -19,7 +19,7 @@ var logMiddleware = logger.New("middleware:jqschema")
 
 // PayloadTruncatedInstructions is the message returned to clients when a payload
 // has been truncated and saved to the filesystem
-const PayloadTruncatedInstructions = "The payload was too large for an MCP response. The payloadSchema approximates the structure of the full payload. The full response can be accessed through the local file system at the payloadPath."
+const PayloadTruncatedInstructions = "The payload was too large for an MCP response. The complete original response data is saved as a JSON file at payloadPath. The file contains valid JSON that can be parsed directly. The payloadSchema shows the structure and types of fields in the full response, but not the actual values. To access the full data with all values, read and parse the JSON file at payloadPath."
 
 // PayloadMetadata represents the metadata response returned when a payload is too large
 // and has been saved to the filesystem

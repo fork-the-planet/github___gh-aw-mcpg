@@ -51,7 +51,7 @@ The middleware is automatically applied to all backend MCP server tools (except 
 **Transformed response:**
 ```json
 {
-  "agentInstructions": "The payload was too large for an MCP response. The payloadSchema approximates the structure of the full payload. The full response can be accessed through the local file system at the payloadPath.",
+  "agentInstructions": "The payload was too large for an MCP response. The complete original response data is saved as a JSON file at payloadPath. The file contains valid JSON that can be parsed directly. The payloadSchema shows the structure and types of fields in the full response, but not the actual values. To access the full data with all values, read and parse the JSON file at payloadPath.",
   "payloadPath": "/tmp/gh-awmg/tools-calls/a1b2c3d4e5f6.../payload.json",
   "payloadPreview": "{\"total_count\":1000,\"items\":[{\"login\":\"user1\",\"id\":123,\"verified\":true}...",
   "payloadSchema": {
@@ -66,6 +66,27 @@ The middleware is automatically applied to all backend MCP server tools (except 
   },
   "originalSize": 234
 }
+```
+
+**Understanding the response:**
+- `payloadPath`: Points to a JSON file containing the **complete original response data**
+- `payloadSchema`: Shows the **structure and types** (e.g., "string", "number", "boolean") but NOT the actual values
+- `payloadPreview`: First 500 characters of the JSON for quick reference
+- `originalSize`: Size of the full response in bytes
+
+**Reading the payload.json file:**
+The file at `payloadPath` contains the original response data in valid JSON format. You can read it using standard tools:
+```bash
+# Using cat and jq
+cat /tmp/gh-awmg/tools-calls/a1b2c3d4e5f6.../payload.json | jq .
+
+# Using Node.js
+const data = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
+
+# Using Python
+import json
+with open(payload_path) as f:
+    data = json.load(f)
 ```
 
 ## Implementation Details

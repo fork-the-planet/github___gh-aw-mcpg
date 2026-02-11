@@ -11,6 +11,17 @@ Use the filesystem MCP server to access a file called `large-test-file.json`, wh
 
 If a payload is too large to return over MCP, the server will return a path in the local filesystem to the payload file instead. Use the path in the local filesystem to access the full payload and extract the secret.
 
+## Understanding the Response Format
+
+When a payload is too large, the MCP server returns a JSON object with these fields:
+- `agentInstructions`: Explains what happened and how to access the full data
+- `payloadPath`: Absolute file path to the complete response data (a JSON file)
+- `payloadPreview`: First 500 characters of the response for quick reference
+- `payloadSchema`: Shows the structure and types of fields (e.g., "string", "number") but NOT the actual values
+- `originalSize`: Size of the full response in bytes
+
+**Important:** The `payload.json` file at `payloadPath` contains the complete original response data in valid JSON format. You can read and parse this file directly to access all values.
+
 ## Important Notes
 
 - **Keep all outputs concise** - Use brief, factual statements
