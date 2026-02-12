@@ -161,4 +161,3 @@ func SanitizeArgs(args []string) []string {
 	}
 	return sanitized
 }
-
