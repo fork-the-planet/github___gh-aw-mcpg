@@ -72,7 +72,7 @@ func (l *Launcher) logLaunchError(serverID, sessionID string, err error, serverC
 	log.Printf("[LAUNCHER] Error: %v", err)
 	log.Printf("[LAUNCHER] Debug Information:")
 	log.Printf("[LAUNCHER]   - Command: %s", serverCfg.Command)
-	log.Printf("[LAUNCHER]   - Args: %v", serverCfg.Args)
+	log.Printf("[LAUNCHER]   - Args: %v", sanitize.SanitizeArgs(serverCfg.Args))
 	log.Printf("[LAUNCHER]   - Env vars: %v", sanitize.TruncateSecretMap(serverCfg.Env))
 	log.Printf("[LAUNCHER]   - Running in container: %v", l.runningInContainer)
 	log.Printf("[LAUNCHER]   - Is direct command: %v", isDirectCommand)

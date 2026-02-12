@@ -279,7 +279,7 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 		isHTTP:   false,
 	}
 
-	log.Printf("Started MCP server: %s %v", command, args)
+	log.Printf("Started MCP server: %s %v", command, sanitize.SanitizeArgs(args))
 	return conn, nil
 }
 
