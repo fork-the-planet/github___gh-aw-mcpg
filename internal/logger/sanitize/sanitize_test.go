@@ -579,14 +579,14 @@ func TestSanitizeArgs(t *testing.T) {
 			expected: []string{"run", "-e", "EMPTY=", "image:latest"},
 		},
 		{
-			name: "env var with equals in value",
+			name: "env var with equals in value (non-sensitive config)",
 			input: []string{
 				"run",
-				"-e", "CONFIG=key=value=extra",
+				"-e", "LOG_FORMAT=json=pretty",
 			},
 			expected: []string{
 				"run",
-				"-e", "CONFIG=key=...",
+				"-e", "LOG_FORMAT=json...",
 			},
 		},
 		{

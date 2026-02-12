@@ -182,7 +182,7 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 	// Expand Docker -e flags that reference environment variables
 	// Docker's `-e VAR_NAME` expects VAR_NAME to be in the environment
 	expandedArgs := expandDockerEnvArgs(args)
-	logConn.Printf("Expanded args for Docker env: %v", expandedArgs)
+	logConn.Printf("Expanded args for Docker env: %v", sanitize.SanitizeArgs(expandedArgs))
 
 	// Create command transport
 	cmd := exec.CommandContext(ctx, command, expandedArgs...)
@@ -279,7 +279,7 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 		isHTTP:   false,
 	}
 
-	log.Printf("Started MCP server: %s %v", command, args)
+	log.Printf("Started MCP server: %s %v", command, sanitize.SanitizeArgs(args))
 	return conn, nil
 }
 
