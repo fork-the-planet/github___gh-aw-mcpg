@@ -13,7 +13,7 @@ var log = logger.New("main:main")
 
 func main() {
 	log.Print("Starting MCP Gateway application")
-	
+
 	// Build version string with metadata
 	versionStr := buildVersionString()
 	log.Printf("Built version string: %s", versionStr)
