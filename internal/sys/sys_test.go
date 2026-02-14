@@ -1,565 +1,755 @@
 package sys
 
 import (
-	"encoding/json"
-	"testing"
+"encoding/json"
+"sync"
+"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+"github.com/stretchr/testify/assert"
+"github.com/stretchr/testify/require"
 )
 
+// Test helper functions
+
+// validateToolsListResponse is a test helper for validating tools/list responses
+func validateToolsListResponse(t *testing.T, result interface{}, expectedToolCount int) []map[string]interface{} {
+t.Helper()
+
+require := require.New(t)
+assert := assert.New(t)
+
+resultMap, ok := result.(map[string]interface{})
+require.True(ok, "Result should be a map")
+
+tools, ok := resultMap["tools"].([]map[string]interface{})
+require.True(ok, "tools field should be an array of maps")
+assert.Equal(expectedToolCount, len(tools), "Tool count mismatch")
+
+return tools
+}
+
+// validateToolContent is a test helper for validating tool call response content
+func validateToolContent(t *testing.T, result interface{}) string {
+t.Helper()
+
+require := require.New(t)
+assert := assert.New(t)
+
+resultMap, ok := result.(map[string]interface{})
+require.True(ok, "Result should be a map")
+
+content, ok := resultMap["content"].([]map[string]interface{})
+require.True(ok, "content field should be an array of maps")
+require.Equal(1, len(content), "Should have exactly 1 content item")
+
+contentItem := content[0]
+assert.Equal("text", contentItem["type"], "Content type should be text")
+
+text, ok := contentItem["text"].(string)
+require.True(ok, "text field should be a string")
+
+return text
+}
+
+// validateInputSchema is a test helper for validating tool input schemas
+func validateInputSchema(t *testing.T, tool map[string]interface{}) {
+t.Helper()
+
+require := require.New(t)
+assert := assert.New(t)
+
+schema, ok := tool["inputSchema"].(map[string]interface{})
+require.True(ok, "inputSchema should be a map")
+assert.Equal("object", schema["type"], "inputSchema type should be object")
+assert.NotNil(schema["properties"], "inputSchema should have properties")
+}
+
+// Tests
+
 func TestNewSysServer(t *testing.T) {
-	tests := []struct {
-		name      string
-		serverIDs []string
-		wantCount int
-	}{
-		{
-			name:      "empty server list",
-			serverIDs: []string{},
-			wantCount: 0,
-		},
-		{
-			name:      "single server",
-			serverIDs: []string{"github"},
-			wantCount: 1,
-		},
-		{
-			name:      "multiple servers",
-			serverIDs: []string{"github", "slack", "jira"},
-			wantCount: 3,
-		},
-		{
-			name:      "nil server list",
-			serverIDs: nil,
-			wantCount: 0,
-		},
-	}
+tests := []struct {
+name      string
+serverIDs []string
+wantCount int
+}{
+{
+name:      "empty server list",
+serverIDs: []string{},
+wantCount: 0,
+},
+{
+name:      "single server",
+serverIDs: []string{"github"},
+wantCount: 1,
+},
+{
+name:      "multiple servers",
+serverIDs: []string{"github", "slack", "jira"},
+wantCount: 3,
+},
+{
+name:      "nil server list",
+serverIDs: nil,
+wantCount: 0,
+},
+{
+name:      "many servers",
+serverIDs: []string{"s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10"},
+wantCount: 10,
+},
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := NewSysServer(tt.serverIDs)
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+require := require.New(t)
+assert := assert.New(t)
 
-			require.NotNil(t, server, "NewSysServer should never return nil")
-			assert.Equal(t, tt.wantCount, len(server.serverIDs), "Server count mismatch")
+server := NewSysServer(tt.serverIDs)
 
-			if len(tt.serverIDs) > 0 {
-				assert.Equal(t, tt.serverIDs, server.serverIDs, "Server IDs should match")
-			}
-		})
-	}
+require.NotNil(server, "NewSysServer should never return nil")
+assert.Equal(tt.wantCount, len(server.serverIDs), "Server count mismatch")
+
+if len(tt.serverIDs) > 0 {
+assert.Equal(tt.serverIDs, server.serverIDs, "Server IDs should match")
+}
+})
+}
+}
+
+func TestNewSysServer_SpecialCharacters(t *testing.T) {
+tests := []struct {
+name      string
+serverIDs []string
+}{
+{
+name:      "servers with hyphens",
+serverIDs: []string{"server-1", "server-2"},
+},
+{
+name:      "servers with underscores",
+serverIDs: []string{"server_1", "server_2"},
+},
+{
+name:      "servers with dots",
+serverIDs: []string{"server.1", "server.2"},
+},
+{
+name:      "mixed special characters",
+serverIDs: []string{"server-1", "server_2", "server.3"},
+},
+{
+name:      "unicode characters",
+serverIDs: []string{"服务器", "сервер", "🚀server"},
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+require := require.New(t)
+assert := assert.New(t)
+
+server := NewSysServer(tt.serverIDs)
+
+require.NotNil(server)
+assert.Equal(tt.serverIDs, server.serverIDs, "Should handle special characters")
+})
+}
 }
 
 func TestHandleRequest_ToolsList(t *testing.T) {
-	server := NewSysServer([]string{"github", "slack"})
+require := require.New(t)
+assert := assert.New(t)
 
-	result, err := server.HandleRequest("tools/list", nil)
+server := NewSysServer([]string{"github", "slack"})
 
-	require.NoError(t, err, "tools/list should not return error")
-	require.NotNil(t, result, "Result should not be nil")
+result, err := server.HandleRequest("tools/list", nil)
 
-	// Verify response structure
-	resultMap, ok := result.(map[string]interface{})
-	require.True(t, ok, "Result should be a map")
+require.NoError(err, "tools/list should not return error")
+require.NotNil(result, "Result should not be nil")
 
-	tools, ok := resultMap["tools"].([]map[string]interface{})
-	require.True(t, ok, "tools field should be an array of maps")
-	assert.Equal(t, 2, len(tools), "Should have 2 tools")
+tools := validateToolsListResponse(t, result, 2)
 
-	// Verify sys_init tool
-	sysInitTool := tools[0]
-	assert.Equal(t, "sys_init", sysInitTool["name"], "First tool should be sys_init")
-	assert.Contains(t, sysInitTool["description"], "Initialize", "Description should mention Initialize")
-	assert.NotNil(t, sysInitTool["inputSchema"], "Should have inputSchema")
+// Verify sys_init tool
+sysInitTool := tools[0]
+assert.Equal("sys_init", sysInitTool["name"], "First tool should be sys_init")
+assert.Contains(sysInitTool["description"], "Initialize", "Description should mention Initialize")
+validateInputSchema(t, sysInitTool)
 
-	// Verify sys_list_servers tool
-	listServersTool := tools[1]
-	assert.Equal(t, "sys_list_servers", listServersTool["name"], "Second tool should be sys_list_servers")
-	assert.Contains(t, listServersTool["description"], "List all", "Description should mention List all")
-	assert.NotNil(t, listServersTool["inputSchema"], "Should have inputSchema")
+// Verify sys_list_servers tool
+listServersTool := tools[1]
+assert.Equal("sys_list_servers", listServersTool["name"], "Second tool should be sys_list_servers")
+assert.Contains(listServersTool["description"], "List all", "Description should mention List all")
+validateInputSchema(t, listServersTool)
 }
 
 func TestHandleRequest_ToolsCall_SysInit(t *testing.T) {
-	serverIDs := []string{"github", "slack", "jira"}
-	server := NewSysServer(serverIDs)
+require := require.New(t)
+assert := assert.New(t)
 
-	params := json.RawMessage(`{
-		"name": "sys_init",
-		"arguments": {}
-	}`)
+serverIDs := []string{"github", "slack", "jira"}
+server := NewSysServer(serverIDs)
 
-	result, err := server.HandleRequest("tools/call", params)
+params := json.RawMessage(`{
+"name": "sys_init",
+"arguments": {}
+}`)
 
-	require.NoError(t, err, "sys_init should not return error")
-	require.NotNil(t, result, "Result should not be nil")
+result, err := server.HandleRequest("tools/call", params)
 
-	// Verify response structure
-	resultMap, ok := result.(map[string]interface{})
-	require.True(t, ok, "Result should be a map")
+require.NoError(err, "sys_init should not return error")
+require.NotNil(result, "Result should not be nil")
 
-	content, ok := resultMap["content"].([]map[string]interface{})
-	require.True(t, ok, "content field should be an array of maps")
-	require.Equal(t, 1, len(content), "Should have 1 content item")
-
-	contentItem := content[0]
-	assert.Equal(t, "text", contentItem["type"], "Content type should be text")
-
-	text, ok := contentItem["text"].(string)
-	require.True(t, ok, "text field should be a string")
-	assert.Contains(t, text, "MCPG initialized", "Text should mention initialization")
-	assert.Contains(t, text, "github", "Text should mention github server")
-	assert.Contains(t, text, "slack", "Text should mention slack server")
-	assert.Contains(t, text, "jira", "Text should mention jira server")
+text := validateToolContent(t, result)
+assert.Contains(text, "MCPG initialized", "Text should mention initialization")
+assert.Contains(text, "github", "Text should mention github server")
+assert.Contains(text, "slack", "Text should mention slack server")
+assert.Contains(text, "jira", "Text should mention jira server")
 }
 
 func TestHandleRequest_ToolsCall_ListServers(t *testing.T) {
-	tests := []struct {
-		name      string
-		serverIDs []string
-		wantCount int
-	}{
-		{
-			name:      "empty servers",
-			serverIDs: []string{},
-			wantCount: 0,
-		},
-		{
-			name:      "single server",
-			serverIDs: []string{"github"},
-			wantCount: 1,
-		},
-		{
-			name:      "multiple servers",
-			serverIDs: []string{"github", "slack", "jira"},
-			wantCount: 3,
-		},
-	}
+tests := []struct {
+name      string
+serverIDs []string
+wantCount int
+}{
+{
+name:      "empty servers",
+serverIDs: []string{},
+wantCount: 0,
+},
+{
+name:      "single server",
+serverIDs: []string{"github"},
+wantCount: 1,
+},
+{
+name:      "multiple servers",
+serverIDs: []string{"github", "slack", "jira"},
+wantCount: 3,
+},
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := NewSysServer(tt.serverIDs)
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+require := require.New(t)
+assert := assert.New(t)
 
-			params := json.RawMessage(`{
-				"name": "sys_list_servers",
-				"arguments": {}
-			}`)
+server := NewSysServer(tt.serverIDs)
 
-			result, err := server.HandleRequest("tools/call", params)
+params := json.RawMessage(`{
+"name": "sys_list_servers",
+"arguments": {}
+}`)
 
-			require.NoError(t, err, "sys_list_servers should not return error")
-			require.NotNil(t, result, "Result should not be nil")
+result, err := server.HandleRequest("tools/call", params)
 
-			// Verify response structure
-			resultMap, ok := result.(map[string]interface{})
-			require.True(t, ok, "Result should be a map")
+require.NoError(err, "sys_list_servers should not return error")
+require.NotNil(result, "Result should not be nil")
 
-			content, ok := resultMap["content"].([]map[string]interface{})
-			require.True(t, ok, "content field should be an array of maps")
-			require.Equal(t, 1, len(content), "Should have 1 content item")
+text := validateToolContent(t, result)
+assert.Contains(text, "Configured MCP Servers", "Text should mention configured servers")
 
-			contentItem := content[0]
-			assert.Equal(t, "text", contentItem["type"], "Content type should be text")
-
-			text, ok := contentItem["text"].(string)
-			require.True(t, ok, "text field should be a string")
-			assert.Contains(t, text, "Configured MCP Servers", "Text should mention configured servers")
-
-			// Verify each server ID is listed
-			for i, id := range tt.serverIDs {
-				expectedLine := (i + 1)
-				assert.Contains(t, text, id, "Text should contain server ID: %s", id)
-				// Verify numbering format: "1. github"
-				assert.Contains(t, text, id, "Text should contain numbered server: %d. %s", expectedLine, id)
-			}
-		})
-	}
+// Verify each server ID is listed with correct numbering
+for i, id := range tt.serverIDs {
+assert.Contains(text, id, "Text should contain server ID: %s", id)
+// Verify numbering format: "1. github"
+expectedLine := (i + 1)
+assert.Contains(text, id, "Text should contain numbered server: %d. %s", expectedLine, id)
+}
+})
+}
 }
 
 func TestHandleRequest_ToolsCall_InvalidJSON(t *testing.T) {
-	server := NewSysServer([]string{"github"})
+require := require.New(t)
+assert := assert.New(t)
 
-	tests := []struct {
-		name   string
-		params json.RawMessage
-	}{
-		{
-			name:   "invalid JSON",
-			params: json.RawMessage(`{invalid json`),
-		},
-		{
-			name:   "missing name field",
-			params: json.RawMessage(`{"arguments": {}}`),
-		},
-		{
-			name:   "null params",
-			params: json.RawMessage(`null`),
-		},
-		{
-			name:   "empty object",
-			params: json.RawMessage(`{}`),
-		},
-	}
+server := NewSysServer([]string{"github"})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := server.HandleRequest("tools/call", tt.params)
+tests := []struct {
+name   string
+params json.RawMessage
+}{
+{
+name:   "invalid JSON",
+params: json.RawMessage(`{invalid json`),
+},
+{
+name:   "missing name field",
+params: json.RawMessage(`{"arguments": {}}`),
+},
+{
+name:   "null params",
+params: json.RawMessage(`null`),
+},
+{
+name:   "empty object",
+params: json.RawMessage(`{}`),
+},
+{
+name:   "array instead of object",
+params: json.RawMessage(`[]`),
+},
+{
+name:   "string instead of object",
+params: json.RawMessage(`"invalid"`),
+},
+}
 
-			assert.Error(t, err, "Should return error for invalid params")
-			assert.Nil(t, result, "Result should be nil on error")
-			assert.Contains(t, err.Error(), "invalid params", "Error should mention invalid params")
-		})
-	}
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+result, err := server.HandleRequest("tools/call", tt.params)
+
+assert.Error(err, "Should return error for invalid params")
+assert.Nil(result, "Result should be nil on error")
+assert.Contains(err.Error(), "invalid params", "Error should mention invalid params")
+})
+}
 }
 
 func TestHandleRequest_ToolsCall_UnknownTool(t *testing.T) {
-	server := NewSysServer([]string{"github"})
+require := require.New(t)
+assert := assert.New(t)
 
-	tests := []struct {
-		name     string
-		toolName string
-	}{
-		{
-			name:     "unknown tool",
-			toolName: "unknown_tool",
-		},
-		{
-			name:     "misspelled tool",
-			toolName: "sys_initialize",
-		},
-		{
-			name:     "case sensitive tool name",
-			toolName: "SYS_INIT",
-		},
-	}
+server := NewSysServer([]string{"github"})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			params := json.RawMessage(`{
-				"name": "` + tt.toolName + `",
-				"arguments": {}
-			}`)
+tests := []struct {
+name     string
+toolName string
+}{
+{
+name:     "unknown tool",
+toolName: "unknown_tool",
+},
+{
+name:     "misspelled tool",
+toolName: "sys_initialize",
+},
+{
+name:     "case sensitive tool name",
+toolName: "SYS_INIT",
+},
+{
+name:     "empty tool name",
+toolName: "",
+},
+}
 
-			result, err := server.HandleRequest("tools/call", params)
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+params := json.RawMessage(`{
+"name": "` + tt.toolName + `",
+"arguments": {}
+}`)
 
-			assert.Error(t, err, "Should return error for unknown tool")
-			assert.Nil(t, result, "Result should be nil on error")
-			assert.Contains(t, err.Error(), "unknown tool", "Error should mention unknown tool")
-		})
-	}
+result, err := server.HandleRequest("tools/call", params)
+
+if tt.toolName == "" {
+assert.Error(err, "Empty tool name should return error")
+assert.Contains(err.Error(), "invalid params", "Error should mention invalid params for empty name")
+} else {
+assert.Error(err, "Should return error for unknown tool")
+assert.Contains(err.Error(), "unknown tool", "Error should mention unknown tool")
+}
+assert.Nil(result, "Result should be nil on error")
+})
+}
 }
 
 func TestHandleRequest_UnsupportedMethod(t *testing.T) {
-	server := NewSysServer([]string{"github"})
+require := require.New(t)
+assert := assert.New(t)
 
-	tests := []struct {
-		name   string
-		method string
-	}{
-		{
-			name:   "resources/list",
-			method: "resources/list",
-		},
-		{
-			name:   "prompts/list",
-			method: "prompts/list",
-		},
-		{
-			name:   "empty method",
-			method: "",
-		},
-		{
-			name:   "invalid method",
-			method: "invalid/method",
-		},
-		{
-			name:   "case sensitive method",
-			method: "Tools/List",
-		},
-	}
+server := NewSysServer([]string{"github"})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := server.HandleRequest(tt.method, nil)
+tests := []struct {
+name   string
+method string
+}{
+{
+name:   "resources/list",
+method: "resources/list",
+},
+{
+name:   "prompts/list",
+method: "prompts/list",
+},
+{
+name:   "empty method",
+method: "",
+},
+{
+name:   "invalid method",
+method: "invalid/method",
+},
+{
+name:   "case sensitive method",
+method: "Tools/List",
+},
+}
 
-			assert.Error(t, err, "Should return error for unsupported method")
-			assert.Nil(t, result, "Result should be nil on error")
-			assert.Contains(t, err.Error(), "unsupported method", "Error should mention unsupported method")
-			assert.Contains(t, err.Error(), tt.method, "Error should include the method name")
-		})
-	}
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+result, err := server.HandleRequest(tt.method, nil)
+
+assert.Error(err, "Should return error for unsupported method")
+assert.Nil(result, "Result should be nil on error")
+assert.Contains(err.Error(), "unsupported method", "Error should mention unsupported method")
+assert.Contains(err.Error(), tt.method, "Error should include the method name")
+})
+}
 }
 
 func TestHandleRequest_ToolsCall_WithArguments(t *testing.T) {
-	server := NewSysServer([]string{"github"})
+require := require.New(t)
 
-	// Test that arguments are accepted even if not used
-	params := json.RawMessage(`{
-		"name": "sys_init",
-		"arguments": {
-			"unused": "value",
-			"another": 123
-		}
-	}`)
+server := NewSysServer([]string{"github"})
 
-	result, err := server.HandleRequest("tools/call", params)
+// Test that arguments are accepted even if not used
+params := json.RawMessage(`{
+"name": "sys_init",
+"arguments": {
+"unused": "value",
+"another": 123,
+"nested": {"key": "value"}
+}
+}`)
 
-	require.NoError(t, err, "Should not error with extra arguments")
-	require.NotNil(t, result, "Result should not be nil")
+result, err := server.HandleRequest("tools/call", params)
+
+require.NoError(err, "Should not error with extra arguments")
+require.NotNil(result, "Result should not be nil")
 }
 
 func TestListTools_ResponseStructure(t *testing.T) {
-	server := NewSysServer([]string{"github"})
+require := require.New(t)
+assert := assert.New(t)
 
-	result, err := server.listTools()
+server := NewSysServer([]string{"github"})
 
-	require.NoError(t, err, "listTools should not error")
-	require.NotNil(t, result, "Result should not be nil")
+result, err := server.listTools()
 
-	resultMap, ok := result.(map[string]interface{})
-	require.True(t, ok, "Result should be a map")
+require.NoError(err, "listTools should not error")
+require.NotNil(result, "Result should not be nil")
 
-	tools, ok := resultMap["tools"].([]map[string]interface{})
-	require.True(t, ok, "tools field should be an array")
-	require.Equal(t, 2, len(tools), "Should have exactly 2 tools")
+tools := validateToolsListResponse(t, result, 2)
 
-	// Verify each tool has required fields
-	for i, tool := range tools {
-		assert.NotEmpty(t, tool["name"], "Tool %d should have name", i)
-		assert.NotEmpty(t, tool["description"], "Tool %d should have description", i)
-		assert.NotNil(t, tool["inputSchema"], "Tool %d should have inputSchema", i)
-
-		// Verify inputSchema structure
-		schema, ok := tool["inputSchema"].(map[string]interface{})
-		require.True(t, ok, "Tool %d inputSchema should be a map", i)
-		assert.Equal(t, "object", schema["type"], "Tool %d inputSchema type should be object", i)
-		assert.NotNil(t, schema["properties"], "Tool %d inputSchema should have properties", i)
-	}
+// Verify each tool has required fields
+for i, tool := range tools {
+assert.NotEmpty(tool["name"], "Tool %d should have name", i)
+assert.NotEmpty(tool["description"], "Tool %d should have description", i)
+validateInputSchema(t, tool)
+}
 }
 
 func TestCallTool_AllTools(t *testing.T) {
-	serverIDs := []string{"github", "slack"}
-	server := NewSysServer(serverIDs)
+serverIDs := []string{"github", "slack"}
+server := NewSysServer(serverIDs)
 
-	tests := []struct {
-		name         string
-		toolName     string
-		args         map[string]interface{}
-		expectError  bool
-		validateFunc func(t *testing.T, result interface{})
-	}{
-		{
-			name:        "sys_init with empty args",
-			toolName:    "sys_init",
-			args:        map[string]interface{}{},
-			expectError: false,
-			validateFunc: func(t *testing.T, result interface{}) {
-				resultMap := result.(map[string]interface{})
-				content := resultMap["content"].([]map[string]interface{})
-				text := content[0]["text"].(string)
-				assert.Contains(t, text, "MCPG initialized")
-				assert.Contains(t, text, "github")
-				assert.Contains(t, text, "slack")
-			},
-		},
-		{
-			name:        "sys_init with ignored args",
-			toolName:    "sys_init",
-			args:        map[string]interface{}{"ignored": "value"},
-			expectError: false,
-			validateFunc: func(t *testing.T, result interface{}) {
-				assert.NotNil(t, result)
-			},
-		},
-		{
-			name:        "sys_list_servers with empty args",
-			toolName:    "sys_list_servers",
-			args:        map[string]interface{}{},
-			expectError: false,
-			validateFunc: func(t *testing.T, result interface{}) {
-				resultMap := result.(map[string]interface{})
-				content := resultMap["content"].([]map[string]interface{})
-				text := content[0]["text"].(string)
-				assert.Contains(t, text, "Configured MCP Servers")
-				assert.Contains(t, text, "1. github")
-				assert.Contains(t, text, "2. slack")
-			},
-		},
-		{
-			name:        "sys_list_servers with nil args",
-			toolName:    "sys_list_servers",
-			args:        nil,
-			expectError: false,
-			validateFunc: func(t *testing.T, result interface{}) {
-				assert.NotNil(t, result)
-			},
-		},
-		{
-			name:        "unknown tool",
-			toolName:    "nonexistent",
-			args:        map[string]interface{}{},
-			expectError: true,
-			validateFunc: func(t *testing.T, result interface{}) {
-				assert.Nil(t, result)
-			},
-		},
-	}
+tests := []struct {
+name         string
+toolName     string
+args         map[string]interface{}
+expectError  bool
+validateFunc func(t *testing.T, result interface{})
+}{
+{
+name:        "sys_init with empty args",
+toolName:    "sys_init",
+args:        map[string]interface{}{},
+expectError: false,
+validateFunc: func(t *testing.T, result interface{}) {
+text := validateToolContent(t, result)
+assert.Contains(t, text, "MCPG initialized")
+assert.Contains(t, text, "github")
+assert.Contains(t, text, "slack")
+},
+},
+{
+name:        "sys_init with ignored args",
+toolName:    "sys_init",
+args:        map[string]interface{}{"ignored": "value"},
+expectError: false,
+validateFunc: func(t *testing.T, result interface{}) {
+assert.NotNil(t, result)
+},
+},
+{
+name:        "sys_list_servers with empty args",
+toolName:    "sys_list_servers",
+args:        map[string]interface{}{},
+expectError: false,
+validateFunc: func(t *testing.T, result interface{}) {
+text := validateToolContent(t, result)
+assert.Contains(t, text, "Configured MCP Servers")
+assert.Contains(t, text, "1. github")
+assert.Contains(t, text, "2. slack")
+},
+},
+{
+name:        "sys_list_servers with nil args",
+toolName:    "sys_list_servers",
+args:        nil,
+expectError: false,
+validateFunc: func(t *testing.T, result interface{}) {
+assert.NotNil(t, result)
+},
+},
+{
+name:        "unknown tool",
+toolName:    "nonexistent",
+args:        map[string]interface{}{},
+expectError: true,
+validateFunc: func(t *testing.T, result interface{}) {
+assert.Nil(t, result)
+},
+},
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := server.callTool(tt.toolName, tt.args)
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+require := require.New(t)
+assert := assert.New(t)
 
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "unknown tool")
-			} else {
-				require.NoError(t, err)
-			}
+result, err := server.callTool(tt.toolName, tt.args)
 
-			if tt.validateFunc != nil {
-				tt.validateFunc(t, result)
-			}
-		})
-	}
+if tt.expectError {
+assert.Error(err)
+assert.Contains(err.Error(), "unknown tool")
+} else {
+require.NoError(err)
+}
+
+if tt.validateFunc != nil {
+tt.validateFunc(t, result)
+}
+})
+}
 }
 
 func TestSysInit_ServerListFormatting(t *testing.T) {
-	tests := []struct {
-		name      string
-		serverIDs []string
-	}{
-		{
-			name:      "empty servers",
-			serverIDs: []string{},
-		},
-		{
-			name:      "single server",
-			serverIDs: []string{"github"},
-		},
-		{
-			name:      "many servers",
-			serverIDs: []string{"github", "slack", "jira", "notion", "linear"},
-		},
-	}
+tests := []struct {
+name      string
+serverIDs []string
+}{
+{
+name:      "empty servers",
+serverIDs: []string{},
+},
+{
+name:      "single server",
+serverIDs: []string{"github"},
+},
+{
+name:      "many servers",
+serverIDs: []string{"github", "slack", "jira", "notion", "linear"},
+},
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := NewSysServer(tt.serverIDs)
-			result, err := server.sysInit()
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+require := require.New(t)
+assert := assert.New(t)
 
-			require.NoError(t, err)
-			require.NotNil(t, result)
+server := NewSysServer(tt.serverIDs)
+result, err := server.sysInit()
 
-			resultMap := result.(map[string]interface{})
-			content := resultMap["content"].([]map[string]interface{})
-			text := content[0]["text"].(string)
+require.NoError(err)
+require.NotNil(result)
 
-			assert.Contains(t, text, "MCPG initialized")
-			assert.Contains(t, text, "Available servers")
-		})
-	}
+text := validateToolContent(t, result)
+assert.Contains(text, "MCPG initialized")
+assert.Contains(text, "Available servers")
+})
+}
 }
 
 func TestListServers_Formatting(t *testing.T) {
-	tests := []struct {
-		name      string
-		serverIDs []string
-		expected  []string
-	}{
-		{
-			name:      "empty list",
-			serverIDs: []string{},
-			expected:  []string{"Configured MCP Servers:"},
-		},
-		{
-			name:      "single server",
-			serverIDs: []string{"github"},
-			expected:  []string{"Configured MCP Servers:", "1. github"},
-		},
-		{
-			name:      "multiple servers",
-			serverIDs: []string{"github", "slack", "jira"},
-			expected:  []string{"Configured MCP Servers:", "1. github", "2. slack", "3. jira"},
-		},
-		{
-			name:      "servers with special characters",
-			serverIDs: []string{"server-1", "server_2", "server.3"},
-			expected:  []string{"1. server-1", "2. server_2", "3. server.3"},
-		},
-	}
+tests := []struct {
+name      string
+serverIDs []string
+expected  []string
+}{
+{
+name:      "empty list",
+serverIDs: []string{},
+expected:  []string{"Configured MCP Servers:"},
+},
+{
+name:      "single server",
+serverIDs: []string{"github"},
+expected:  []string{"Configured MCP Servers:", "1. github"},
+},
+{
+name:      "multiple servers",
+serverIDs: []string{"github", "slack", "jira"},
+expected:  []string{"Configured MCP Servers:", "1. github", "2. slack", "3. jira"},
+},
+{
+name:      "servers with special characters",
+serverIDs: []string{"server-1", "server_2", "server.3"},
+expected:  []string{"1. server-1", "2. server_2", "3. server.3"},
+},
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			server := NewSysServer(tt.serverIDs)
-			result, err := server.listServers()
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+require := require.New(t)
+assert := assert.New(t)
 
-			require.NoError(t, err)
-			require.NotNil(t, result)
+server := NewSysServer(tt.serverIDs)
+result, err := server.listServers()
 
-			resultMap := result.(map[string]interface{})
-			content := resultMap["content"].([]map[string]interface{})
-			require.Equal(t, 1, len(content))
+require.NoError(err)
+require.NotNil(result)
 
-			contentItem := content[0]
-			assert.Equal(t, "text", contentItem["type"])
+text := validateToolContent(t, result)
 
-			text := contentItem["text"].(string)
-
-			// Verify all expected strings are present
-			for _, expectedStr := range tt.expected {
-				assert.Contains(t, text, expectedStr, "Output should contain: %s", expectedStr)
-			}
-		})
-	}
+// Verify all expected strings are present
+for _, expectedStr := range tt.expected {
+assert.Contains(text, expectedStr, "Output should contain: %s", expectedStr)
+}
+})
+}
 }
 
 func TestHandleRequest_NilParams(t *testing.T) {
-	server := NewSysServer([]string{"github"})
+require := require.New(t)
+assert := assert.New(t)
 
-	// tools/list with nil params should work
-	result, err := server.HandleRequest("tools/list", nil)
-	require.NoError(t, err)
-	assert.NotNil(t, result)
+server := NewSysServer([]string{"github"})
 
-	// tools/call with nil params should fail
-	result, err = server.HandleRequest("tools/call", nil)
-	assert.Error(t, err)
-	assert.Nil(t, result)
+// tools/list with nil params should work
+result, err := server.HandleRequest("tools/list", nil)
+require.NoError(err)
+assert.NotNil(result)
+
+// tools/call with nil params should fail
+result, err = server.HandleRequest("tools/call", nil)
+assert.Error(err)
+assert.Nil(result)
 }
 
 func TestHandleRequest_EmptyParams(t *testing.T) {
-	server := NewSysServer([]string{"github"})
+require := require.New(t)
+assert := assert.New(t)
 
-	// tools/call with empty JSON object should fail (missing name field)
-	params := json.RawMessage(`{}`)
-	result, err := server.HandleRequest("tools/call", params)
+server := NewSysServer([]string{"github"})
 
-	assert.Error(t, err)
-	assert.Nil(t, result)
+// tools/call with empty JSON object should fail (missing name field)
+params := json.RawMessage(`{}`)
+result, err := server.HandleRequest("tools/call", params)
+
+assert.Error(err)
+assert.Nil(result)
 }
 
 func TestSysServer_MultipleSequentialCalls(t *testing.T) {
-	server := NewSysServer([]string{"github", "slack"})
+require := require.New(t)
+assert := assert.New(t)
 
-	// Call tools/list multiple times
-	for i := 0; i < 3; i++ {
-		result, err := server.HandleRequest("tools/list", nil)
-		require.NoError(t, err, "Call %d should not error", i)
-		assert.NotNil(t, result, "Call %d should return result", i)
-	}
+server := NewSysServer([]string{"github", "slack"})
 
-	// Call sys_init multiple times
-	params := json.RawMessage(`{"name": "sys_init", "arguments": {}}`)
-	for i := 0; i < 3; i++ {
-		result, err := server.HandleRequest("tools/call", params)
-		require.NoError(t, err, "Call %d should not error", i)
-		assert.NotNil(t, result, "Call %d should return result", i)
-	}
+// Call tools/list multiple times
+for i := 0; i < 3; i++ {
+result, err := server.HandleRequest("tools/list", nil)
+require.NoError(err, "Call %d should not error", i)
+assert.NotNil(result, "Call %d should return result", i)
+}
 
-	// Call sys_list_servers multiple times
-	params = json.RawMessage(`{"name": "sys_list_servers", "arguments": {}}`)
-	for i := 0; i < 3; i++ {
-		result, err := server.HandleRequest("tools/call", params)
-		require.NoError(t, err, "Call %d should not error", i)
-		assert.NotNil(t, result, "Call %d should return result", i)
-	}
+// Call sys_init multiple times
+params := json.RawMessage(`{"name": "sys_init", "arguments": {}}`)
+for i := 0; i < 3; i++ {
+result, err := server.HandleRequest("tools/call", params)
+require.NoError(err, "Call %d should not error", i)
+assert.NotNil(result, "Call %d should return result", i)
+}
+
+// Call sys_list_servers multiple times
+params = json.RawMessage(`{"name": "sys_list_servers", "arguments": {}}`)
+for i := 0; i < 3; i++ {
+result, err := server.HandleRequest("tools/call", params)
+require.NoError(err, "Call %d should not error", i)
+assert.NotNil(result, "Call %d should return result", i)
+}
+}
+
+// New test: Concurrent access to SysServer
+func TestSysServer_ConcurrentAccess(t *testing.T) {
+require := require.New(t)
+
+server := NewSysServer([]string{"github", "slack", "jira"})
+
+var wg sync.WaitGroup
+numGoroutines := 10
+
+// Test concurrent tools/list calls
+for i := 0; i < numGoroutines; i++ {
+wg.Add(1)
+go func() {
+defer wg.Done()
+result, err := server.HandleRequest("tools/list", nil)
+require.NoError(err)
+require.NotNil(result)
+}()
+}
+
+// Test concurrent sys_init calls
+params := json.RawMessage(`{"name": "sys_init", "arguments": {}}`)
+for i := 0; i < numGoroutines; i++ {
+wg.Add(1)
+go func() {
+defer wg.Done()
+result, err := server.HandleRequest("tools/call", params)
+require.NoError(err)
+require.NotNil(result)
+}()
+}
+
+wg.Wait()
+}
+
+// New test: Large server list
+func TestSysServer_LargeServerList(t *testing.T) {
+require := require.New(t)
+assert := assert.New(t)
+
+// Create a large server list
+serverIDs := make([]string, 100)
+for i := 0; i < 100; i++ {
+serverIDs[i] = "server" + string(rune('a'+i%26))
+}
+
+server := NewSysServer(serverIDs)
+require.NotNil(server)
+
+// Test listServers with large list
+result, err := server.listServers()
+require.NoError(err)
+require.NotNil(result)
+
+text := validateToolContent(t, result)
+assert.Contains(text, "Configured MCP Servers")
+assert.Contains(text, "1. server")
+assert.Contains(text, "100. server")
+}
+
+// New test: Empty string in server IDs
+func TestSysServer_EmptyStringServerID(t *testing.T) {
+require := require.New(t)
+assert := assert.New(t)
+
+serverIDs := []string{"github", "", "slack"}
+server := NewSysServer(serverIDs)
+require.NotNil(server)
+
+result, err := server.listServers()
+require.NoError(err)
+require.NotNil(result)
+
+text := validateToolContent(t, result)
+assert.Contains(text, "github")
+assert.Contains(text, "slack")
+// Empty string will still be included in the list
+assert.Contains(text, "2. \n")
 }
