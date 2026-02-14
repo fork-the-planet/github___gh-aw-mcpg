@@ -5,7 +5,7 @@
 # 1. Command-line flag: --payload-size-threshold 2048
 # 2. Environment variable: MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD=2048
 # 3. Config file: payload_size_threshold = 2048
-# 4. Default: 1024 bytes
+# 4. Default: 10240 bytes (10KB)
 
 [gateway]
 port = 3000
@@ -25,14 +25,14 @@ payload_dir = "/tmp/jq-payloads"
 # Can also be set via:
 # - Flag: --payload-size-threshold 2048
 # - Env:  MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD=2048
-# Default: 1024 bytes (1KB)
+# Default: 10240 bytes (10KB)
 #
 # Examples:
 #   payload_size_threshold = 512    # 512 bytes - more aggressive file storage
-#   payload_size_threshold = 1024   # 1KB - default, good for most use cases
+#   payload_size_threshold = 1024   # 1KB - more aggressive file storage
 #   payload_size_threshold = 2048   # 2KB - fewer files, more inline responses
-#   payload_size_threshold = 10240  # 10KB - minimal file storage
-payload_size_threshold = 1024
+#   payload_size_threshold = 10240  # 10KB - default, good for most use cases
+payload_size_threshold = 10240
 
 [servers.github]
 command = "docker"

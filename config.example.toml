@@ -119,7 +119,7 @@ args = [
 #
 # Server Types:
 # - "stdio": Process-based MCP server communicating via stdin/stdout (default)
-# - "http": HTTP-based MCP server (not yet implemented)
+# - "http": HTTP-based MCP server (fully supported)
 #
 # Docker Best Practices:
 # - Always use --rm to clean up containers after exit

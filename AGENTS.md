@@ -81,7 +81,7 @@ args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-i", "ghcr.io/gith
 }
 ```
 
-**Supported Types**: `"stdio"`, `"http"` (not implemented), `"local"` (alias for stdio)
+**Supported Types**: `"stdio"`, `"http"` (fully supported), `"local"` (alias for stdio)
 
 **Validation Features**:
 - Environment variable expansion: `${VAR_NAME}` (fails if undefined)
