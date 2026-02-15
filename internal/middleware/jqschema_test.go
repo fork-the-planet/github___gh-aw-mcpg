@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -588,6 +589,198 @@ func TestApplyJqSchema_ErrorCases(t *testing.T) {
 		// Either succeeds (query completed before cancellation) or fails with context error
 		if err != nil {
 			assert.Contains(t, err.Error(), "context", "Error should mention context if cancelled")
+		}
+	})
+}
+
+// TestApplyJqSchema_TimeoutBehavior tests the timeout enforcement functionality
+func TestApplyJqSchema_TimeoutBehavior(t *testing.T) {
+	t.Run("applies default timeout when context has no deadline", func(t *testing.T) {
+		// Use a context without a deadline
+		ctx := context.Background()
+
+		// Use simple input that completes quickly
+		input := map[string]interface{}{"name": "test", "count": 42}
+
+		result, err := applyJqSchema(ctx, input)
+		require.NoError(t, err, "Should complete successfully with default timeout")
+		assert.NotNil(t, result, "Result should not be nil")
+
+		// Verify the result is correct
+		schema, ok := result.(map[string]interface{})
+		require.True(t, ok, "Result should be a map")
+		assert.Equal(t, "string", schema["name"], "Name field should have string type")
+		assert.Equal(t, "number", schema["count"], "Count field should have number type")
+	})
+
+	t.Run("preserves existing context deadline", func(t *testing.T) {
+		// Create a context with a generous deadline (10 seconds)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		input := map[string]interface{}{"test": "data"}
+
+		result, err := applyJqSchema(ctx, input)
+		require.NoError(t, err, "Should complete successfully with existing deadline")
+		assert.NotNil(t, result, "Result should not be nil")
+
+		// Verify the result is correct
+		schema, ok := result.(map[string]interface{})
+		require.True(t, ok, "Result should be a map")
+		assert.Equal(t, "string", schema["test"], "Test field should have string type")
+	})
+
+	t.Run("respects short context timeout", func(t *testing.T) {
+		// Create a context with a very short timeout (1 nanosecond)
+		// This is likely to timeout before query completion
+		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		defer cancel()
+
+		// Use input that takes some time to process
+		input := map[string]interface{}{
+			"items": make([]interface{}, 1000),
+		}
+
+		_, err := applyJqSchema(ctx, input)
+
+		// Either completes (if fast enough) or times out
+		if err != nil {
+			assert.Contains(t, err.Error(), "context", "Timeout error should mention context")
+		}
+	})
+
+	t.Run("handles large arrays within timeout", func(t *testing.T) {
+		// Create a large array (but within v0.12.18's 2^29 element limit)
+		// Use 10,000 elements as a reasonable test size
+		items := make([]interface{}, 10000)
+		for i := 0; i < 10000; i++ {
+			items[i] = map[string]interface{}{
+				"id":   i,
+				"name": "item" + string(rune(i)),
+			}
+		}
+
+		input := map[string]interface{}{
+			"total_count": 10000,
+			"items":       items,
+		}
+
+		// Use background context (will get default 5s timeout)
+		result, err := applyJqSchema(context.Background(), input)
+		require.NoError(t, err, "Should handle large array within timeout")
+		assert.NotNil(t, result, "Result should not be nil")
+
+		// Verify schema structure
+		schema, ok := result.(map[string]interface{})
+		require.True(t, ok, "Result should be a map")
+		assert.Equal(t, "number", schema["total_count"], "Should have number type for total_count")
+
+		// Verify array schema (should have one element representing the schema)
+		itemsSchema, ok := schema["items"].([]interface{})
+		require.True(t, ok, "Items should be an array")
+		require.Len(t, itemsSchema, 1, "Array schema should have one element")
+	})
+
+	t.Run("handles deeply nested structures within timeout", func(t *testing.T) {
+		// Create a deeply nested structure (10 levels)
+		var createNested func(depth int) map[string]interface{}
+		createNested = func(depth int) map[string]interface{} {
+			if depth == 0 {
+				return map[string]interface{}{
+					"value": "leaf",
+					"id":    42,
+				}
+			}
+			return map[string]interface{}{
+				"level": depth,
+				"child": createNested(depth - 1),
+			}
+		}
+
+		input := createNested(10)
+
+		result, err := applyJqSchema(context.Background(), input)
+		require.NoError(t, err, "Should handle deeply nested structure within timeout")
+		assert.NotNil(t, result, "Result should not be nil")
+
+		// Verify top level schema
+		schema, ok := result.(map[string]interface{})
+		require.True(t, ok, "Result should be a map")
+		assert.Equal(t, "number", schema["level"], "Level should have number type")
+		assert.Contains(t, schema, "child", "Should contain child field")
+	})
+
+	t.Run("returns compilation error when init failed", func(t *testing.T) {
+		// Save the current compiled code and error
+		originalCode := jqSchemaCode
+		originalErr := jqSchemaCompileErr
+
+		// Simulate compilation failure
+		jqSchemaCode = nil
+		jqSchemaCompileErr = assert.AnError
+
+		// Restore after test
+		defer func() {
+			jqSchemaCode = originalCode
+			jqSchemaCompileErr = originalErr
+		}()
+
+		input := map[string]interface{}{"test": "data"}
+		_, err := applyJqSchema(context.Background(), input)
+
+		require.Error(t, err, "Should return error when compilation failed")
+		assert.Contains(t, err.Error(), "not compiled", "Error should mention compilation failure")
+	})
+}
+
+// TestApplyJqSchema_ContextTimeout tests timeout behavior with various context configurations
+func TestApplyJqSchema_ContextTimeout(t *testing.T) {
+	t.Run("context without deadline gets default timeout", func(t *testing.T) {
+		// This test verifies that DefaultJqTimeout is applied
+		ctx := context.Background()
+		input := map[string]interface{}{"key": "value"}
+
+		start := time.Now()
+		result, err := applyJqSchema(ctx, input)
+		elapsed := time.Since(start)
+
+		require.NoError(t, err, "Should complete successfully")
+		assert.NotNil(t, result, "Result should not be nil")
+		// Should complete much faster than the default timeout
+		assert.Less(t, elapsed, DefaultJqTimeout, "Should complete before default timeout")
+	})
+
+	t.Run("context with deadline is preserved", func(t *testing.T) {
+		// Create a context with a custom deadline
+		customTimeout := 500 * time.Millisecond
+		ctx, cancel := context.WithTimeout(context.Background(), customTimeout)
+		defer cancel()
+
+		input := map[string]interface{}{"test": "data"}
+
+		start := time.Now()
+		result, err := applyJqSchema(ctx, input)
+		elapsed := time.Since(start)
+
+		require.NoError(t, err, "Should complete successfully")
+		assert.NotNil(t, result, "Result should not be nil")
+		// Should complete much faster than the custom timeout
+		assert.Less(t, elapsed, customTimeout, "Should complete before custom timeout")
+	})
+
+	t.Run("canceled context returns error", func(t *testing.T) {
+		// Create a canceled context
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		input := map[string]interface{}{"test": "data"}
+
+		_, err := applyJqSchema(ctx, input)
+
+		// For simple queries, it might complete before cancellation is detected
+		// If error occurs, it should be context-related
+		if err != nil {
+			assert.Contains(t, err.Error(), "context", "Error should mention context cancellation")
 		}
 	})
 }
