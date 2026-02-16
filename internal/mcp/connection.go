@@ -827,6 +827,21 @@ func (c *Connection) requireSession() error {
 	return nil
 }
 
+// unmarshalParams converts generic interface{} params to a specific struct type.
+// This helper reduces code duplication across MCP method wrappers and ensures
+// consistent error handling for parameter conversion. It uses marshal/unmarshal
+// to maintain JSON schema validation benefits.
+func unmarshalParams(params interface{}, target interface{}) error {
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		return fmt.Errorf("failed to marshal params: %w", err)
+	}
+	if err := json.Unmarshal(paramsJSON, target); err != nil {
+		return fmt.Errorf("invalid params: %w", err)
+	}
+	return nil
+}
+
 func (c *Connection) listTools() (*Response, error) {
 	if err := c.requireSession(); err != nil {
 		return nil, err
@@ -844,14 +859,8 @@ func (c *Connection) callTool(params interface{}) (*Response, error) {
 		return nil, err
 	}
 	var callParams CallToolParams
-	paramsJSON, err := json.Marshal(params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal params: %w", err)
-	}
-	logConn.Printf("callTool: marshaled params=%s", string(paramsJSON))
-
-	if err := json.Unmarshal(paramsJSON, &callParams); err != nil {
-		return nil, fmt.Errorf("invalid params: %w", err)
+	if err := unmarshalParams(params, &callParams); err != nil {
+		return nil, err
 	}
 
 	// Ensure arguments is never nil - default to empty map
@@ -892,9 +901,8 @@ func (c *Connection) readResource(params interface{}) (*Response, error) {
 	var readParams struct {
 		URI string `json:"uri"`
 	}
-	paramsJSON, _ := json.Marshal(params)
-	if err := json.Unmarshal(paramsJSON, &readParams); err != nil {
-		return nil, fmt.Errorf("invalid params: %w", err)
+	if err := unmarshalParams(params, &readParams); err != nil {
+		return nil, err
 	}
 
 	result, err := c.session.ReadResource(c.ctx, &sdk.ReadResourceParams{
@@ -927,9 +935,8 @@ func (c *Connection) getPrompt(params interface{}) (*Response, error) {
 		Name      string            `json:"name"`
 		Arguments map[string]string `json:"arguments"`
 	}
-	paramsJSON, _ := json.Marshal(params)
-	if err := json.Unmarshal(paramsJSON, &getParams); err != nil {
-		return nil, fmt.Errorf("invalid params: %w", err)
+	if err := unmarshalParams(params, &getParams); err != nil {
+		return nil, err
 	}
 
 	result, err := c.session.GetPrompt(c.ctx, &sdk.GetPromptParams{
