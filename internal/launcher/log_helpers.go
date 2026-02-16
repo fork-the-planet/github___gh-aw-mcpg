@@ -41,6 +41,9 @@ func (l *Launcher) logLaunchStart(serverID, sessionID string, serverCfg *config.
 	}
 	log.Printf("[LAUNCHER] Command: %s", serverCfg.Command)
 	log.Printf("[LAUNCHER] Args: %v", sanitize.SanitizeArgs(serverCfg.Args))
+	if isDirectCommand {
+		log.Printf("[LAUNCHER] isDirectCommand=true")
+	}
 }
 
 // logEnvPassthrough checks and logs environment variable passthrough status
@@ -95,7 +98,11 @@ func (l *Launcher) logLaunchError(serverID, sessionID string, err error, serverC
 func (l *Launcher) logTimeoutError(serverID, sessionID string) {
 	logger.LogErrorWithServer(serverID, "backend", "MCP backend server startup timeout%s: server=%s%s, timeout=%v",
 		sessionSuffix(sessionID), serverID, sessionSuffix(sessionID), l.startupTimeout)
-	log.Printf("[LAUNCHER] ❌ Server startup timed out after %v", l.startupTimeout)
+	if sessionID != "" {
+		log.Printf("[LAUNCHER] ❌ Server '%s' (session: %s) startup timed out after %v", serverID, sessionID, l.startupTimeout)
+	} else {
+		log.Printf("[LAUNCHER] ❌ Server '%s' startup timed out after %v", serverID, l.startupTimeout)
+	}
 	log.Printf("[LAUNCHER] ⚠️  The server may be hanging or taking too long to initialize")
 	log.Printf("[LAUNCHER] ⚠️  Consider increasing 'startupTimeout' in gateway config if server needs more time")
 	if sessionID != "" {

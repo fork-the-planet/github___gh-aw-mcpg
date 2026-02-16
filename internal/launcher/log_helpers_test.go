@@ -165,12 +165,12 @@ func TestLauncher_LogLaunchStart(t *testing.T) {
 			serverID:        "env-server",
 			sessionID:       "env-session",
 			command:         "docker",
-			args:            []string{"run", "-e", "API_KEY=***REDACTED***"},
+			args:            []string{"run", "-e", "API_KEY=secret-value-12345"},
 			isDirectCommand: false,
 			wantInLog: []string{
 				"env-server",
 				"env-session",
-				"***REDACTED***",
+				"secr...", // TruncateSecret shows first 4 chars + "..."
 			},
 		},
 	}
@@ -415,7 +415,7 @@ func TestLauncher_LogTimeoutError(t *testing.T) {
 			wantInLog: []string{
 				"slow-server",
 				"timed out",
-				"60s",
+				"1m0s", // Go formats 60s as 1m0s
 				"hanging",
 			},
 		},
