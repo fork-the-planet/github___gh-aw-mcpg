@@ -130,9 +130,9 @@ clean:
 	@go clean
 	@echo "Clean complete!"
 
-# Create and push a release tag
+# Trigger the release workflow via workflow_dispatch
 release:
-	@echo "Creating release tag..."
+	@echo "Triggering release workflow..."
 	@# Check if first argument is provided
 	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
 		echo "Error: Bump type is required. Usage: make release patch|minor|major"; \
@@ -160,41 +160,69 @@ release:
 	echo ""; \
 	LATEST_TAG=$$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -1); \
 	if [ -z "$$LATEST_TAG" ]; then \
-		echo "No existing tags found, starting from v0.0.0"; \
-		LATEST_TAG="v0.0.0"; \
+		NEXT_VERSION="v0.0.1"; \
+		if [ "$$BUMP_TYPE" = "minor" ]; then \
+			NEXT_VERSION="v0.1.0"; \
+		elif [ "$$BUMP_TYPE" = "major" ]; then \
+			NEXT_VERSION="v1.0.0"; \
+		fi; \
+		echo "No existing tags found, will create: $$NEXT_VERSION"; \
 	else \
 		echo "Latest tag: $$LATEST_TAG"; \
+		VERSION_NUM=$$(echo $$LATEST_TAG | sed 's/^v//'); \
+		MAJOR=$$(echo $$VERSION_NUM | cut -d. -f1); \
+		MINOR=$$(echo $$VERSION_NUM | cut -d. -f2); \
+		PATCH=$$(echo $$VERSION_NUM | cut -d. -f3); \
+		if [ "$$BUMP_TYPE" = "major" ]; then \
+			MAJOR=$$((MAJOR + 1)); \
+			MINOR=0; \
+			PATCH=0; \
+		elif [ "$$BUMP_TYPE" = "minor" ]; then \
+			MINOR=$$((MINOR + 1)); \
+			PATCH=0; \
+		elif [ "$$BUMP_TYPE" = "patch" ]; then \
+			PATCH=$$((PATCH + 1)); \
+		fi; \
+		NEXT_VERSION="v$$MAJOR.$$MINOR.$$PATCH"; \
+		echo "Next version will be: $$NEXT_VERSION"; \
 	fi; \
-	VERSION_NUM=$$(echo $$LATEST_TAG | sed 's/^v//'); \
-	MAJOR=$$(echo $$VERSION_NUM | cut -d. -f1); \
-	MINOR=$$(echo $$VERSION_NUM | cut -d. -f2); \
-	PATCH=$$(echo $$VERSION_NUM | cut -d. -f3); \
-	if [ "$$BUMP_TYPE" = "major" ]; then \
-		MAJOR=$$((MAJOR + 1)); \
-		MINOR=0; \
-		PATCH=0; \
-	elif [ "$$BUMP_TYPE" = "minor" ]; then \
-		MINOR=$$((MINOR + 1)); \
-		PATCH=0; \
-	elif [ "$$BUMP_TYPE" = "patch" ]; then \
-		PATCH=$$((PATCH + 1)); \
-	fi; \
-	NEW_VERSION="v$$MAJOR.$$MINOR.$$PATCH"; \
 	echo ""; \
-	echo "New version will be: $$NEW_VERSION"; \
-	echo ""; \
-	printf "Do you want to create and push this tag? [Y/n] "; \
+	printf "Do you want to trigger the release workflow? [Y/n] "; \
 	read -r CONFIRM; \
 	CONFIRM=$${CONFIRM:-Y}; \
 	if [ "$$CONFIRM" != "Y" ] && [ "$$CONFIRM" != "y" ]; then \
 		echo "Release cancelled."; \
 		exit 1; \
 	fi; \
-	echo "Creating and pushing tag: $$NEW_VERSION"; \
-	git tag -a "$$NEW_VERSION" -m "Release $$NEW_VERSION"; \
-	git push origin "$$NEW_VERSION"; \
-	echo "✓ Tag $$NEW_VERSION created and pushed"; \
-	echo "✓ Release workflow will be triggered automatically"; \
+	echo "Triggering release workflow with type: $$BUMP_TYPE"; \
+	echo ""; \
+	if ! command -v gh >/dev/null 2>&1; then \
+		echo "Error: 'gh' CLI is not installed. Please install it from https://cli.github.com/"; \
+		echo ""; \
+		echo "Alternative: Manually trigger the workflow at:"; \
+		echo "  https://github.com/github/gh-aw-mcpg/actions/workflows/release.lock.yml"; \
+		echo "  Select 'Run workflow' and choose release type: $$BUMP_TYPE"; \
+		exit 1; \
+	fi; \
+	gh workflow run release.lock.yml --ref main -f release_type=$$BUMP_TYPE || { \
+		echo ""; \
+		echo "Error: Failed to trigger workflow. Please check:"; \
+		echo "  1. You are authenticated with 'gh auth login'"; \
+		echo "  2. You have permission to trigger workflows"; \
+		echo ""; \
+		echo "Alternative: Manually trigger the workflow at:"; \
+		echo "  https://github.com/github/gh-aw-mcpg/actions/workflows/release.lock.yml"; \
+		exit 1; \
+	}; \
+	echo "✓ Release workflow triggered successfully"; \
+	echo ""; \
+	echo "The workflow will:"; \
+	echo "  1. Run tests to ensure everything passes"; \
+	echo "  2. Create and push tag: $$NEXT_VERSION"; \
+	echo "  3. Build multi-platform binaries"; \
+	echo "  4. Build and push Docker containers"; \
+	echo "  5. Generate SBOMs"; \
+	echo "  6. Create GitHub release with artifacts"; \
 	echo ""; \
 	echo "Monitor the release workflow at:"; \
 	echo "  https://github.com/github/gh-aw-mcpg/actions/workflows/release.lock.yml"
@@ -259,6 +287,6 @@ help:
 	@echo "  format          - Format Go code using gofmt"
 	@echo "  clean           - Clean build artifacts"
 	@echo "  install         - Install required toolchains and dependencies"
-	@echo "  release         - Create and push a release tag (usage: make release patch|minor|major)"
+	@echo "  release         - Trigger the release workflow (usage: make release patch|minor|major)"
 	@echo "  agent-finished  - Run format, build, lint, and all tests (for agents before completion)"
 	@echo "  help            - Display this help message"

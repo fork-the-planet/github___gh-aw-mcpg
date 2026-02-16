@@ -508,7 +508,7 @@ Available environment variables for `run.sh`:
 
 ## Creating a Release
 
-Releases are created using semantic versioning tags (e.g., `v1.2.3`). The `make release` command simplifies the process:
+Releases are created using semantic versioning tags (e.g., `v1.2.3`). The `make release` command triggers the automated release workflow:
 
 ```bash
 # Create a patch release (v1.2.3 -> v1.2.4)
@@ -521,6 +521,10 @@ make release minor
 make release major
 ```
 
+**Prerequisites:**
+- The `gh` CLI must be installed and authenticated (`gh auth login`)
+- You must have permission to trigger workflows in the repository
+
 ### Release Process
 
 1. **Run the release command** with the appropriate bump type:
@@ -531,16 +535,23 @@ make release major
 2. **Review the version** that will be created:
    ```
    Latest tag: v1.2.3
-   New version will be: v1.2.4
-   Do you want to create and push this tag? [Y/n]
+   Next version will be: v1.2.4
+   Do you want to trigger the release workflow? [Y/n]
    ```
 
 3. **Confirm** by pressing `Y` (or `Enter` for yes)
 
 4. **Monitor the workflow** at the URL shown:
    ```
-   ✓ Tag v1.2.4 created and pushed
-   ✓ Release workflow will be triggered automatically
+   ✓ Release workflow triggered successfully
+
+   The workflow will:
+     1. Run tests to ensure everything passes
+     2. Create and push tag: v1.2.4
+     3. Build multi-platform binaries
+     4. Build and push Docker containers
+     5. Generate SBOMs
+     6. Create GitHub release with artifacts
 
    Monitor the release workflow at:
      https://github.com/github/gh-aw-mcpg/actions/workflows/release.lock.yml
@@ -548,8 +559,9 @@ make release major
 
 ### What Happens Automatically
 
-When you push a release tag, the automated release workflow:
-- Runs the full test suite
+When the release workflow is triggered, it automatically:
+- Runs the full test suite (unit + integration)
+- Creates and pushes the version tag (e.g., `v1.2.4`)
 - Builds multi-platform binaries (Linux for amd64, arm, and arm64)
 - Creates a GitHub release with all binaries and checksums
 - Builds and pushes a multi-arch Docker image to `ghcr.io/github/gh-aw-mcpg` with tags:
