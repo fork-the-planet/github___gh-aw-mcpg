@@ -134,3 +134,60 @@ jobs:
           name: awmg-binary
           path: awmg
           retention-days: 7
+
+  smoke-copilot:
+    runs-on: ubuntu-latest
+    needs: [unit-test, lint, integration-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      actions: write
+    steps:
+      - name: Trigger smoke-copilot workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'smoke-copilot.lock.yml',
+              ref: 'main'
+            });
+            console.log('✓ Triggered smoke-copilot workflow');
+
+  large-payload-tester:
+    runs-on: ubuntu-latest
+    needs: [unit-test, lint, integration-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      actions: write
+    steps:
+      - name: Trigger large-payload-tester workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'large-payload-tester.lock.yml',
+              ref: 'main'
+            });
+            console.log('✓ Triggered large-payload-tester workflow');
+
+  language-support-tester:
+    runs-on: ubuntu-latest
+    needs: [unit-test, lint, integration-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      actions: write
+    steps:
+      - name: Trigger language-support-tester workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'language-support-tester.lock.yml',
+              ref: 'main'
+            });
+            console.log('✓ Triggered language-support-tester workflow');
