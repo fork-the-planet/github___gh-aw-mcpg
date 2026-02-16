@@ -136,13 +136,13 @@ func TestUnmarshalParams(t *testing.T) {
 
 	t.Run("successful unmarshal preserves JSON types", func(t *testing.T) {
 		params := map[string]interface{}{
-			"string_val":  "test",
-			"int_val":     42,
-			"float_val":   3.14,
-			"bool_val":    true,
-			"array_val":   []interface{}{"a", "b", "c"},
-			"object_val":  map[string]interface{}{"nested": "value"},
-			"null_val":    nil,
+			"string_val": "test",
+			"int_val":    42,
+			"float_val":  3.14,
+			"bool_val":   true,
+			"array_val":  []interface{}{"a", "b", "c"},
+			"object_val": map[string]interface{}{"nested": "value"},
+			"null_val":   nil,
 		}
 
 		var target map[string]interface{}
@@ -231,8 +231,8 @@ func TestUnmarshalParams_Integration(t *testing.T) {
 		params := map[string]interface{}{
 			"name": "github_search_code",
 			"arguments": map[string]interface{}{
-				"query":  "test",
-				"repo":   "github/gh-aw-mcpg",
+				"query": "test",
+				"repo":  "github/gh-aw-mcpg",
 			},
 		}
 
