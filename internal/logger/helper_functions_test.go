@@ -138,10 +138,10 @@ func TestLogWithMarkdownLevel(t *testing.T) {
 	mdLog := string(mdContent)
 
 	// Check for markdown formatting with emojis
-	assert.Contains(t, mdLog, "✓") // Info emoji
-	assert.Contains(t, mdLog, "⚠️")  // Warning emoji
-	assert.Contains(t, mdLog, "✗") // Error emoji
-	assert.Contains(t, mdLog, "🔍") // Debug emoji
+	assert.Contains(t, mdLog, "✓")  // Info emoji
+	assert.Contains(t, mdLog, "⚠️") // Warning emoji
+	assert.Contains(t, mdLog, "✗")  // Error emoji
+	assert.Contains(t, mdLog, "🔍")  // Debug emoji
 
 	// Check for messages
 	assert.Contains(t, mdLog, "Info message via markdown helper")
