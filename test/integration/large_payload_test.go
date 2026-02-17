@@ -35,8 +35,8 @@ func TestLargePayload_StoredInPayloadDir(t *testing.T) {
 	// Create a config file with payload_dir configured
 	configFile := createTempConfigWithPayloadDir(t, payloadDir, map[string]interface{}{
 		"echo": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -98,8 +98,8 @@ func TestLargePayload_SessionIsolation(t *testing.T) {
 	// Create a config file
 	configFile := createTempConfigWithPayloadDir(t, payloadDir, map[string]interface{}{
 		"echo": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -177,8 +177,8 @@ func TestLargePayload_PayloadDirFlag(t *testing.T) {
 
 	configFile := createTempConfig(t, map[string]interface{}{
 		"testserver": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -241,8 +241,8 @@ func TestLargePayload_ConfigPayloadDir(t *testing.T) {
 	// Create a config file with payload_dir in gateway section
 	configFile := createTempConfigWithPayloadDir(t, configPayloadDir, map[string]interface{}{
 		"testserver": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -302,8 +302,8 @@ func TestLargePayload_MultipleSessionsIsolated(t *testing.T) {
 
 	configFile := createTempConfigWithPayloadDir(t, payloadDir, map[string]interface{}{
 		"echo": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -462,8 +462,8 @@ func TestLargePayload_PayloadDirectoryPermissions(t *testing.T) {
 
 	configFile := createTempConfigWithPayloadDir(t, payloadDir, map[string]interface{}{
 		"echo": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -526,8 +526,8 @@ func TestLargePayload_SessionIDFromAuthorizationHeader(t *testing.T) {
 
 	configFile := createTempConfigWithPayloadDir(t, payloadDir, map[string]interface{}{
 		"echo": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -618,8 +618,8 @@ func TestLargePayload_PayloadDirDoesNotExist(t *testing.T) {
 
 	configFile := createTempConfig(t, map[string]interface{}{
 		"echo": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)

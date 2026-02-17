@@ -262,3 +262,29 @@ func validateGatewayConfig(gateway *StdinGatewayConfig) error {
 	logValidation.Print("Gateway config validation passed")
 	return nil
 }
+
+// validateTOMLStdioContainerization validates that TOML stdio servers use Docker for containerization.
+// This enforces MCP Gateway Specification Section 3.2.1: "Stdio-based MCP servers MUST be containerized."
+func validateTOMLStdioContainerization(servers map[string]*ServerConfig) error {
+	logValidation.Print("Validating TOML stdio server containerization requirement")
+
+	for name, cfg := range servers {
+		// Only validate stdio servers (or empty type which defaults to stdio)
+		if cfg.Type == "" || cfg.Type == "stdio" || cfg.Type == "local" {
+			logValidation.Printf("Checking stdio server: name=%s, command=%s", name, cfg.Command)
+
+			// Check if command is Docker
+			if cfg.Command != "docker" {
+				logValidation.Printf("Validation failed: stdio server using non-Docker command, name=%s, command=%s", name, cfg.Command)
+				return fmt.Errorf(
+					"server '%s': stdio servers must use containerized execution (command must be 'docker', got '%s'). "+
+						"This is required by MCP Gateway Specification Section 3.2.1 (Containerization Requirement). "+
+						"See: https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md#321-containerization-requirement",
+					name, cfg.Command)
+			}
+		}
+	}
+
+	logValidation.Print("TOML stdio containerization validation passed")
+	return nil
+}

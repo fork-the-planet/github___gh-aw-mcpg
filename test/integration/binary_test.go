@@ -30,8 +30,8 @@ func TestBinaryInvocation_RoutedMode(t *testing.T) {
 	// Create a temporary config file
 	configFile := createTempConfig(t, map[string]interface{}{
 		"testserver": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -130,12 +130,12 @@ func TestBinaryInvocation_UnifiedMode(t *testing.T) {
 
 	configFile := createTempConfig(t, map[string]interface{}{
 		"backend1": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 		"backend2": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -286,8 +286,8 @@ func TestBinaryInvocation_PipeOutput(t *testing.T) {
 	// Create a simple config
 	configFile := createTempConfig(t, map[string]interface{}{
 		"testserver": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -748,8 +748,8 @@ func TestBinaryInvocation_LogFileCreation(t *testing.T) {
 	// Create a temporary config file
 	configFile := createTempConfig(t, map[string]interface{}{
 		"testserver": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)
@@ -896,8 +896,8 @@ func TestBinaryInvocation_LogDirEnvironmentVariable(t *testing.T) {
 	// Create a temporary config file
 	configFile := createTempConfig(t, map[string]interface{}{
 		"testserver": map[string]interface{}{
-			"command": "echo",
-			"args":    []string{},
+			"command": "docker",
+			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
 		},
 	})
 	defer os.Remove(configFile)

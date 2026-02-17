@@ -85,7 +85,7 @@ MCP Gateway supports two configuration formats:
 
 ### TOML Format (`config.toml`)
 
-TOML configuration uses `command` and `args` fields directly for maximum flexibility:
+TOML configuration requires `command = "docker"` for stdio-based MCP servers to ensure containerization:
 
 ```toml
 [servers]
@@ -93,13 +93,23 @@ TOML configuration uses `command` and `args` fields directly for maximum flexibi
 [servers.github]
 command = "docker"
 args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-i", "ghcr.io/github/github-mcp-server:latest"]
-
-[servers.filesystem]
-command = "node"
-args = ["/path/to/filesystem-server.js"]
 ```
 
-**Note**: In TOML format, you specify the `command` and `args` directly. This allows you to use any command (docker, node, python, etc.).
+**Important**: Per [MCP Gateway Specification Section 3.2.1](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md#321-containerization-requirement), all stdio-based MCP servers MUST be containerized. The gateway enforces this requirement by rejecting configurations where `command` is not `"docker"`.
+
+**Why containerization is required:**
+- Provides necessary process isolation and security boundaries
+- Enables reproducible environments across different deployment contexts
+- Container images provide versioning and dependency management
+- Ensures portability and consistent behavior
+
+For HTTP-based MCP servers, use the `url` field instead of `command`:
+
+```toml
+[servers.myhttp]
+type = "http"
+url = "https://example.com/mcp"
+```
 
 ### JSON Stdin Format
 
@@ -144,7 +154,7 @@ For the complete JSON configuration specification with all validation rules, see
 - **`container`** (required for stdio in JSON format): Docker container image (e.g., `"ghcr.io/github/github-mcp-server:latest"`)
   - Automatically wraps as `docker run --rm -i <container>`
   - **Note**: The `command` field is NOT supported in JSON stdin format (stdio servers must use `container` instead)
-  - **TOML format uses `command` and `args` fields directly**
+  - **TOML format uses `command` and `args` fields - `command` must be `"docker"` for stdio servers**
 
 - **`entrypoint`** (optional): Custom entrypoint for the container
   - Overrides the default container entrypoint

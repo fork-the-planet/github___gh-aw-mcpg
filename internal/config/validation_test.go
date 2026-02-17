@@ -712,3 +712,166 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 }
 
 // Helper function - defined in validation_string_patterns_test.go
+
+func TestValidateTOMLStdioContainerization(t *testing.T) {
+	tests := []struct {
+		name      string
+		servers   map[string]*ServerConfig
+		shouldErr bool
+		errorMsg  string
+	}{
+		{
+			name: "valid Docker command for stdio server",
+			servers: map[string]*ServerConfig{
+				"github": {
+					Type:    "stdio",
+					Command: "docker",
+					Args:    []string{"run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"},
+				},
+			},
+			shouldErr: false,
+		},
+		{
+			name: "valid Docker command with empty type (defaults to stdio)",
+			servers: map[string]*ServerConfig{
+				"github": {
+					Type:    "",
+					Command: "docker",
+					Args:    []string{"run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"},
+				},
+			},
+			shouldErr: false,
+		},
+		{
+			name: "valid Docker command with local type (alias for stdio)",
+			servers: map[string]*ServerConfig{
+				"github": {
+					Type:    "local",
+					Command: "docker",
+					Args:    []string{"run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"},
+				},
+			},
+			shouldErr: false,
+		},
+		{
+			name: "invalid node command for stdio server",
+			servers: map[string]*ServerConfig{
+				"filesystem": {
+					Type:    "stdio",
+					Command: "node",
+					Args:    []string{"/path/to/server.js"},
+				},
+			},
+			shouldErr: true,
+			errorMsg:  "stdio servers must use containerized execution (command must be 'docker', got 'node')",
+		},
+		{
+			name: "invalid python command for stdio server",
+			servers: map[string]*ServerConfig{
+				"custom": {
+					Type:    "stdio",
+					Command: "python",
+					Args:    []string{"-m", "mcp_server"},
+				},
+			},
+			shouldErr: true,
+			errorMsg:  "stdio servers must use containerized execution (command must be 'docker', got 'python')",
+		},
+		{
+			name: "invalid npx command with empty type (defaults to stdio)",
+			servers: map[string]*ServerConfig{
+				"custom": {
+					Command: "npx",
+					Args:    []string{"@modelcontextprotocol/server-everything"},
+				},
+			},
+			shouldErr: true,
+			errorMsg:  "stdio servers must use containerized execution (command must be 'docker', got 'npx')",
+		},
+		{
+			name: "http server not affected by validation",
+			servers: map[string]*ServerConfig{
+				"httpserver": {
+					Type: "http",
+					URL:  "https://example.com/mcp",
+				},
+			},
+			shouldErr: false,
+		},
+		{
+			name: "mixed valid Docker stdio and http servers",
+			servers: map[string]*ServerConfig{
+				"github": {
+					Type:    "stdio",
+					Command: "docker",
+					Args:    []string{"run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"},
+				},
+				"httpserver": {
+					Type: "http",
+					URL:  "https://example.com/mcp",
+				},
+			},
+			shouldErr: false,
+		},
+		{
+			name: "mixed Docker stdio, http, and invalid node stdio servers",
+			servers: map[string]*ServerConfig{
+				"github": {
+					Type:    "stdio",
+					Command: "docker",
+					Args:    []string{"run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"},
+				},
+				"httpserver": {
+					Type: "http",
+					URL:  "https://example.com/mcp",
+				},
+				"filesystem": {
+					Type:    "stdio",
+					Command: "node",
+					Args:    []string{"/path/to/server.js"},
+				},
+			},
+			shouldErr: true,
+			errorMsg:  "server 'filesystem': stdio servers must use containerized execution (command must be 'docker', got 'node')",
+		},
+		{
+			name: "error message includes specification reference",
+			servers: map[string]*ServerConfig{
+				"bad": {
+					Type:    "stdio",
+					Command: "bash",
+					Args:    []string{"script.sh"},
+				},
+			},
+			shouldErr: true,
+			errorMsg:  "MCP Gateway Specification Section 3.2.1",
+		},
+		{
+			name: "error message includes specification URL",
+			servers: map[string]*ServerConfig{
+				"bad": {
+					Type:    "stdio",
+					Command: "go",
+					Args:    []string{"run", "main.go"},
+				},
+			},
+			shouldErr: true,
+			errorMsg:  "https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md#321-containerization-requirement",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTOMLStdioContainerization(tt.servers)
+
+			if tt.shouldErr {
+				require.Error(t, err)
+				if tt.errorMsg != "" {
+					assert.ErrorContains(t, err, tt.errorMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

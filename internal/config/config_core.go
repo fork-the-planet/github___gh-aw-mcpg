@@ -202,6 +202,11 @@ func LoadFromFile(path string) (*Config, error) {
 		return nil, fmt.Errorf("no servers defined in configuration")
 	}
 
+	// Validate TOML stdio servers use Docker for containerization (Spec Section 3.2.1)
+	if err := validateTOMLStdioContainerization(cfg.Servers); err != nil {
+		return nil, err
+	}
+
 	// Initialize gateway if not present
 	if cfg.Gateway == nil {
 		cfg.Gateway = &GatewayConfig{}
