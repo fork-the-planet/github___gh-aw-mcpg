@@ -94,7 +94,7 @@ func newMCPClient() *sdk.Client {
 	return sdk.NewClient(&sdk.Implementation{
 		Name:    "awmg",
 		Version: version.Get(),
-	}, nil)
+	}, &sdk.ClientOptions{})
 }
 
 // newHTTPConnection creates a new HTTP Connection struct with common fields
