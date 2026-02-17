@@ -42,7 +42,8 @@ tool_timeout = 120
 
 # Example 1: GitHub MCP Server (stdio via Docker)
 [servers.github]
-# Required: Docker command to run the container
+# Required: Must be "docker" for stdio servers (MCP Gateway Specification Section 3.2.1)
+# See: https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md#321-containerization-requirement
 command = "docker"
 
 # Required: Arguments for the docker command

@@ -86,7 +86,8 @@ args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-i", "ghcr.io/gith
 **Validation Features**:
 - Environment variable expansion: `${VAR_NAME}` (fails if undefined)
 - Required fields: `container` for stdio, `url` for http
-- **Note**: The `command` field is not supported - stdio servers must use `container`
+- **Containerization Requirement**: TOML stdio servers must use `command = "docker"` per [MCP Gateway Specification Section 3.2.1](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md#321-containerization-requirement)
+- **Note**: In JSON stdin format, the `command` field is not supported - stdio servers must use `container` field
 - Port range validation: 1-65535
 - Timeout validation: positive integers only
 
