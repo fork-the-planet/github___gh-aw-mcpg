@@ -19,7 +19,7 @@ func NewValidatorClient(ctx context.Context, transport sdk.Transport) (*Validato
 	client := sdk.NewClient(&sdk.Implementation{
 		Name:    "mcp-validator",
 		Version: "1.0.0",
-	}, nil)
+	}, &sdk.ClientOptions{})
 
 	session, err := client.Connect(ctx, transport, nil)
 	if err != nil {
