@@ -23,7 +23,7 @@
 #
 # Daily workflow that tests Go, JavaScript, and Python language support using the Serena MCP server
 #
-# frontmatter-hash: b9870f888afe057c33b203d3f0b5bab0b38910913055b52fb9c3673c1d4466e1
+# frontmatter-hash: 23d429cb76312b41c0789111558b6c905c263072ba40c3b400d18e9cd3738abb
 
 name: "Language Support Tester"
 "on":

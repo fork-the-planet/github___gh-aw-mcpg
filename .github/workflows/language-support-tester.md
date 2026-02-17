@@ -21,6 +21,11 @@ tools:
   serena: ["go", "typescript", "python"]
   github:
     toolsets: [default]
+
+sandbox:
+  mcp:
+    container: "ghcr.io/github/gh-aw-mcpg"
+
 safe-outputs:
   create-issue:
     title-prefix: "[language-support] "
