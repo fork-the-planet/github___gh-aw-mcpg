@@ -17,6 +17,8 @@ steps:
     with:
       go-version-file: go.mod
       cache: true
+  - name: Pull Serena MCP Server Container
+    run: docker pull ghcr.io/github/serena-mcp-server:latest
 tools:
   serena: ["go", "typescript", "python"]
   github:
