@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -801,4 +802,280 @@ func TestConnection_RequireSession(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestParseJSONRPCResponseWithSSE tests comprehensive parsing of JSON-RPC responses
+// with SSE format fallback and error handling
+func TestParseJSONRPCResponseWithSSE(t *testing.T) {
+	tests := []struct {
+		name           string
+		body           string
+		statusCode     int
+		contextDesc    string
+		wantError      bool
+		errorContains  string
+		checkResponse  func(*testing.T, *Response)
+	}{
+		{
+			name:        "valid JSON response",
+			body:        `{"jsonrpc":"2.0","id":1,"result":{"success":true}}`,
+			statusCode:  200,
+			contextDesc: "test response",
+			wantError:   false,
+			checkResponse: func(t *testing.T, resp *Response) {
+				assert.Equal(t, "2.0", resp.JSONRPC)
+				assert.NotNil(t, resp.Result)
+				assert.Nil(t, resp.Error)
+			},
+		},
+		{
+			name: "SSE formatted response",
+			body: `event: message
+data: {"jsonrpc":"2.0","id":2,"result":{"tools":[]}}
+
+`,
+			statusCode:  200,
+			contextDesc: "SSE response",
+			wantError:   false,
+			checkResponse: func(t *testing.T, resp *Response) {
+				assert.Equal(t, "2.0", resp.JSONRPC)
+				assert.NotNil(t, resp.Result)
+				assert.Nil(t, resp.Error)
+			},
+		},
+		{
+			name: "HTTP error with unparseable body",
+			body: `<!DOCTYPE html>
+<html>
+<head><title>500 Internal Server Error</title></head>
+<body>Server Error</body>
+</html>`,
+			statusCode:  500,
+			contextDesc: "error response",
+			wantError:   false, // Returns synthetic error response, not error
+			checkResponse: func(t *testing.T, resp *Response) {
+				assert.Equal(t, "2.0", resp.JSONRPC)
+				assert.Nil(t, resp.Result)
+				assert.NotNil(t, resp.Error)
+				assert.Equal(t, -32603, resp.Error.Code)
+				assert.Contains(t, resp.Error.Message, "HTTP 500")
+				assert.NotNil(t, resp.Error.Data)
+			},
+		},
+		{
+			name:        "HTTP 400 with invalid JSON",
+			body:        `{"error":"bad request"`,
+			statusCode:  400,
+			contextDesc: "bad request",
+			wantError:   false,
+			checkResponse: func(t *testing.T, resp *Response) {
+				assert.NotNil(t, resp.Error)
+				assert.Equal(t, -32603, resp.Error.Code)
+				assert.Contains(t, resp.Error.Message, "HTTP 400")
+			},
+		},
+		{
+			name:        "HTTP 503 service unavailable",
+			body:        `Service Temporarily Unavailable`,
+			statusCode:  503,
+			contextDesc: "service error",
+			wantError:   false,
+			checkResponse: func(t *testing.T, resp *Response) {
+				assert.NotNil(t, resp.Error)
+				assert.Contains(t, resp.Error.Message, "503")
+			},
+		},
+		{
+			name: "SSE format with HTTP error",
+			body: `event: message
+data: {"error":"rate limited"}
+
+`,
+			statusCode:  429,
+			contextDesc: "rate limit",
+			wantError:   false,
+			checkResponse: func(t *testing.T, resp *Response) {
+				assert.NotNil(t, resp.Error)
+				assert.Equal(t, -32603, resp.Error.Code)
+			},
+		},
+		{
+			name:          "malformed JSON with OK status",
+			body:          `{invalid json}`,
+			statusCode:    200,
+			contextDesc:   "malformed response",
+			wantError:     true,
+			errorContains: "failed to parse",
+		},
+		{
+			name: "SSE with malformed JSON data and OK status",
+			body: `event: message
+data: {not valid json}
+
+`,
+			statusCode:    200,
+			contextDesc:   "malformed SSE JSON",
+			wantError:     true,
+			errorContains: "failed to parse JSON data extracted from SSE",
+		},
+		{
+			name:          "empty body with OK status",
+			body:          ``,
+			statusCode:    200,
+			contextDesc:   "empty response",
+			wantError:     true,
+			errorContains: "failed to parse",
+		},
+		{
+			name: "large body truncation in error message",
+			body: `this is a very long invalid response that should be truncated when included in the error message. ` +
+				strings.Repeat("x", 500) + ` this part should not appear in the error`,
+			statusCode:    200,
+			contextDesc:   "large invalid response",
+			wantError:     true,
+			errorContains: "(truncated)",
+		},
+		{
+			name: "JSON-RPC error response",
+			body: `{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid Request"}}`,
+			statusCode: 200,
+			contextDesc: "JSON-RPC error",
+			wantError: false,
+			checkResponse: func(t *testing.T, resp *Response) {
+				assert.Equal(t, "2.0", resp.JSONRPC)
+				assert.Nil(t, resp.Result)
+				assert.NotNil(t, resp.Error)
+				assert.Equal(t, -32600, resp.Error.Code)
+				assert.Equal(t, "Invalid Request", resp.Error.Message)
+			},
+		},
+		{
+			name: "SSE with JSON-RPC error response",
+			body: `event: message
+data: {"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"Method not found"}}
+
+`,
+			statusCode: 200,
+			contextDesc: "SSE JSON-RPC error",
+			wantError: false,
+			checkResponse: func(t *testing.T, resp *Response) {
+				assert.NotNil(t, resp.Error)
+				assert.Equal(t, -32601, resp.Error.Code)
+				assert.Equal(t, "Method not found", resp.Error.Message)
+			},
+		},
+		{
+			name: "SSE without data field and OK status",
+			body: `event: message
+
+`,
+			statusCode:    200,
+			contextDesc:   "SSE no data",
+			wantError:     true,
+			errorContains: "no data field found",
+		},
+		{
+			name:        "HTTP 404 with HTML error page",
+			body:        `<html><body><h1>404 Not Found</h1></body></html>`,
+			statusCode:  404,
+			contextDesc: "not found",
+			wantError:   false,
+			checkResponse: func(t *testing.T, resp *Response) {
+				assert.NotNil(t, resp.Error)
+				assert.Contains(t, resp.Error.Message, "404")
+				// Body should be included in Data field
+				bodyStr := string(resp.Error.Data)
+				assert.Contains(t, bodyStr, "404 Not Found")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := parseJSONRPCResponseWithSSE([]byte(tt.body), tt.statusCode, tt.contextDesc)
+
+			if tt.wantError {
+				assert.Error(t, err)
+				if tt.errorContains != "" {
+					assert.Contains(t, err.Error(), tt.errorContains)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			
+			if tt.checkResponse != nil {
+				tt.checkResponse(t, resp)
+			}
+		})
+	}
+}
+
+// TestParseJSONRPCResponseWithSSE_EdgeCases tests additional edge cases and boundary conditions
+func TestParseJSONRPCResponseWithSSE_EdgeCases(t *testing.T) {
+	t.Run("multiple SSE data lines", func(t *testing.T) {
+		body := `event: message
+data: {"jsonrpc":"2.0","id":1}
+data: should be ignored
+
+`
+		resp, err := parseJSONRPCResponseWithSSE([]byte(body), 200, "test")
+		require.NoError(t, err)
+		assert.Equal(t, "2.0", resp.JSONRPC)
+	})
+
+	t.Run("SSE data with leading/trailing whitespace", func(t *testing.T) {
+		body := `event: message
+data:   {"jsonrpc":"2.0","id":2,"result":{}}   
+
+`
+		resp, err := parseJSONRPCResponseWithSSE([]byte(body), 200, "test")
+		require.NoError(t, err)
+		assert.Equal(t, "2.0", resp.JSONRPC)
+	})
+
+	t.Run("body exactly 500 characters should not truncate", func(t *testing.T) {
+		invalidJSON := strings.Repeat("x", 500)
+		_, err := parseJSONRPCResponseWithSSE([]byte(invalidJSON), 200, "test")
+		require.Error(t, err)
+		// Should not contain "(truncated)" since it's exactly 500 chars
+		assert.NotContains(t, err.Error(), "(truncated)")
+	})
+
+	t.Run("body with 501 characters should truncate", func(t *testing.T) {
+		invalidJSON := strings.Repeat("x", 501)
+		_, err := parseJSONRPCResponseWithSSE([]byte(invalidJSON), 200, "test")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "(truncated)")
+	})
+
+	t.Run("context description appears in error message", func(t *testing.T) {
+		_, err := parseJSONRPCResponseWithSSE([]byte(`invalid`), 200, "initialize response")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "initialize response")
+	})
+
+	t.Run("null result is valid", func(t *testing.T) {
+		body := `{"jsonrpc":"2.0","id":1,"result":null}`
+		resp, err := parseJSONRPCResponseWithSSE([]byte(body), 200, "test")
+		require.NoError(t, err)
+		assert.Equal(t, "2.0", resp.JSONRPC)
+	})
+
+	t.Run("response with both result and error (invalid but should parse)", func(t *testing.T) {
+		body := `{"jsonrpc":"2.0","id":1,"result":{},"error":{"code":-32603,"message":"error"}}`
+		resp, err := parseJSONRPCResponseWithSSE([]byte(body), 200, "test")
+		require.NoError(t, err)
+		// JSON unmarshaling will succeed, both fields will be present
+		assert.NotNil(t, resp)
+	})
+
+	t.Run("HTTP error preserves original body in Data field", func(t *testing.T) {
+		originalBody := `{"custom":"error","details":"something went wrong"}`
+		resp, err := parseJSONRPCResponseWithSSE([]byte(originalBody), 500, "test")
+		require.NoError(t, err)
+		require.NotNil(t, resp.Error)
+		assert.JSONEq(t, originalBody, string(resp.Error.Data))
+	})
 }
