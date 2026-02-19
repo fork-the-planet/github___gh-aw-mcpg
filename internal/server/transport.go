@@ -56,6 +56,15 @@ func withResponseLogging(handler http.Handler) http.Handler {
 	})
 }
 
+// applyAuthIfConfigured applies authentication middleware if an API key is provided
+// Returns the handler unchanged if apiKey is empty
+func applyAuthIfConfigured(apiKey string, handler http.HandlerFunc) http.HandlerFunc {
+	if apiKey != "" {
+		return authMiddleware(apiKey, handler)
+	}
+	return handler
+}
+
 // CreateHTTPServerForMCP creates an HTTP server that handles MCP over streamable HTTP transport
 // If apiKey is provided, all requests except /health require authentication (spec 7.1)
 func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey string) *http.Server {
@@ -116,10 +125,7 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey st
 	shutdownHandler := rejectIfShutdown(unifiedServer, loggedHandler, "server:transport")
 
 	// Apply auth middleware if API key is configured (spec 7.1)
-	finalHandler := shutdownHandler
-	if apiKey != "" {
-		finalHandler = authMiddleware(apiKey, shutdownHandler.ServeHTTP)
-	}
+	finalHandler := applyAuthIfConfigured(apiKey, shutdownHandler.ServeHTTP)
 
 	// Mount handler at /mcp endpoint (logging is done in the callback above)
 	mux.Handle("/mcp/", finalHandler)
@@ -133,10 +139,7 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey st
 	closeHandler := handleClose(unifiedServer)
 
 	// Apply auth middleware if API key is configured (spec 7.1)
-	finalCloseHandler := closeHandler
-	if apiKey != "" {
-		finalCloseHandler = authMiddleware(apiKey, closeHandler.ServeHTTP)
-	}
+	finalCloseHandler := applyAuthIfConfigured(apiKey, closeHandler.ServeHTTP)
 	mux.Handle("/close", withResponseLogging(finalCloseHandler))
 
 	return &http.Server{
