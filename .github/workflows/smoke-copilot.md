@@ -17,7 +17,7 @@ permissions:
 name: Smoke Copilot
 engine:
   id: copilot
-strict: true
+strict: false
 imports:
   - shared/mcp-pagination.md
   - shared/gh.md

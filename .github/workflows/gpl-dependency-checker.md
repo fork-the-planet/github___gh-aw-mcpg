@@ -13,10 +13,7 @@ permissions:
 network:
   allowed:
     - defaults
-    - proxy.golang.org
-    - sum.golang.org
-    - pkg.go.dev
-    - api.github.com
+    - go
 
 safe-outputs:
   create-issue:
