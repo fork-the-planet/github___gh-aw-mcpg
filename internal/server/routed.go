@@ -183,11 +183,13 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 func createFilteredServer(unifiedServer *UnifiedServer, backendID string) *sdk.Server {
 	logRouted.Printf("Creating filtered server: backend=%s", backendID)
 
-	// Create a new SDK server for this route
+	// Create a new SDK server for this route with logger
 	server := sdk.NewServer(&sdk.Implementation{
 		Name:    fmt.Sprintf("awmg-%s", backendID),
 		Version: "1.0.0",
-	}, nil)
+	}, &sdk.ServerOptions{
+		Logger: logger.NewSlogLoggerWithHandler(logRouted),
+	})
 
 	// Get tools for this backend from the unified server
 	tools := unifiedServer.GetToolsForBackend(backendID)

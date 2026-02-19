@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -568,8 +569,15 @@ data: {"jsonrpc":"2.0","id":` + idStr + `,"result":{"tools":[]}}
 
 // TestNewMCPClient tests the newMCPClient helper function
 func TestNewMCPClient(t *testing.T) {
-	client := newMCPClient()
+	client := newMCPClient(nil)
 	require.NotNil(t, client, "newMCPClient should return a non-nil client")
+}
+
+// TestNewMCPClientWithLogger tests that newMCPClient accepts a logger
+func TestNewMCPClientWithLogger(t *testing.T) {
+	log := logger.New("test:client")
+	client := newMCPClient(log)
+	require.NotNil(t, client, "newMCPClient should return a non-nil client with logger")
 }
 
 // TestCreateJSONRPCRequest tests the createJSONRPCRequest helper function
@@ -687,7 +695,7 @@ func TestNewHTTPConnection(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client := newMCPClient()
+	client := newMCPClient(nil)
 	url := "http://example.com/mcp"
 	headers := map[string]string{"Authorization": "test"}
 	httpClient := &http.Client{}

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -158,11 +159,18 @@ type Connection struct {
 }
 
 // newMCPClient creates a new MCP SDK client with standard implementation details
-func newMCPClient() *sdk.Client {
+// Pass nil for logger parameter to disable SDK logging (for tests)
+func newMCPClient(log *logger.Logger) *sdk.Client {
+	var slogLogger *slog.Logger
+	if log != nil {
+		slogLogger = logger.NewSlogLoggerWithHandler(log)
+	}
 	return sdk.NewClient(&sdk.Implementation{
 		Name:    "awmg",
 		Version: version.Get(),
-	}, &sdk.ClientOptions{})
+	}, &sdk.ClientOptions{
+		Logger: slogLogger,
+	})
 }
 
 // newHTTPConnection creates a new HTTP Connection struct with common fields
@@ -300,8 +308,8 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 	logConn.Printf("Creating new MCP connection: command=%s, args=%v", command, sanitize.SanitizeArgs(args))
 	ctx, cancel := context.WithCancel(ctx)
 
-	// Create MCP client
-	client := newMCPClient()
+	// Create MCP client with logger
+	client := newMCPClient(logConn)
 
 	// Expand Docker -e flags that reference environment variables
 	// Docker's `-e VAR_NAME` expects VAR_NAME to be in the environment
@@ -506,8 +514,8 @@ func trySDKTransport(
 	transportName string,
 	createTransport transportConnector,
 ) (*Connection, error) {
-	// Create MCP client
-	client := newMCPClient()
+	// Create MCP client with logger
+	client := newMCPClient(logConn)
 
 	// Create transport using the provided connector
 	transport := createTransport(url, httpClient)

@@ -132,11 +132,13 @@ func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error)
 		enableDIFC:    cfg.EnableDIFC,
 	}
 
-	// Create MCP server
+	// Create MCP server with logger
 	server := sdk.NewServer(&sdk.Implementation{
 		Name:    "awmg-unified",
 		Version: "1.0.0",
-	}, nil)
+	}, &sdk.ServerOptions{
+		Logger: logger.NewSlogLoggerWithHandler(logUnified),
+	})
 
 	us.server = server
 
