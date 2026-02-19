@@ -28,7 +28,7 @@ var logUnified = logger.New("server:unified")
 const MCPProtocolVersion = "2024-11-05"
 
 // MCPGatewaySpecVersion is the MCP Gateway Specification version this implementation conforms to
-const MCPGatewaySpecVersion = "1.5.0"
+const MCPGatewaySpecVersion = "1.8.0"
 
 // Session represents a MCPG session
 type Session struct {

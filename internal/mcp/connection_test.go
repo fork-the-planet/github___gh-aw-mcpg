@@ -808,13 +808,13 @@ func TestConnection_RequireSession(t *testing.T) {
 // with SSE format fallback and error handling
 func TestParseJSONRPCResponseWithSSE(t *testing.T) {
 	tests := []struct {
-		name           string
-		body           string
-		statusCode     int
-		contextDesc    string
-		wantError      bool
-		errorContains  string
-		checkResponse  func(*testing.T, *Response)
+		name          string
+		body          string
+		statusCode    int
+		contextDesc   string
+		wantError     bool
+		errorContains string
+		checkResponse func(*testing.T, *Response)
 	}{
 		{
 			name:        "valid JSON response",
@@ -936,11 +936,11 @@ data: {not valid json}
 			errorContains: "(truncated)",
 		},
 		{
-			name: "JSON-RPC error response",
-			body: `{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid Request"}}`,
-			statusCode: 200,
+			name:        "JSON-RPC error response",
+			body:        `{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid Request"}}`,
+			statusCode:  200,
 			contextDesc: "JSON-RPC error",
-			wantError: false,
+			wantError:   false,
 			checkResponse: func(t *testing.T, resp *Response) {
 				assert.Equal(t, "2.0", resp.JSONRPC)
 				assert.Nil(t, resp.Result)
@@ -955,9 +955,9 @@ data: {not valid json}
 data: {"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"Method not found"}}
 
 `,
-			statusCode: 200,
+			statusCode:  200,
 			contextDesc: "SSE JSON-RPC error",
-			wantError: false,
+			wantError:   false,
 			checkResponse: func(t *testing.T, resp *Response) {
 				assert.NotNil(t, resp.Error)
 				assert.Equal(t, -32601, resp.Error.Code)
@@ -1004,7 +1004,7 @@ data: {"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"Method not found
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			
+
 			if tt.checkResponse != nil {
 				tt.checkResponse(t, resp)
 			}

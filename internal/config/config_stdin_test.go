@@ -18,9 +18,9 @@ func TestConvertStdinServerConfig_StdioServer(t *testing.T) {
 		Args:           []string{"--network", "host"},
 		Mounts:         []string{"/tmp:/tmp"},
 		Env: map[string]string{
-			"TEST_VAR":       "value123",
-			"PASSTHROUGH":    "",
-			"ANOTHER_VAR":    "abc",
+			"TEST_VAR":    "value123",
+			"PASSTHROUGH": "",
+			"ANOTHER_VAR": "abc",
 		},
 		Tools: []string{"tool1", "tool2"},
 	}
@@ -34,36 +34,36 @@ func TestConvertStdinServerConfig_StdioServer(t *testing.T) {
 	assert.Contains(t, result.Args, "run")
 	assert.Contains(t, result.Args, "--rm")
 	assert.Contains(t, result.Args, "-i")
-	
+
 	// Check standard environment variables
 	assert.Contains(t, result.Args, "NO_COLOR=1")
 	assert.Contains(t, result.Args, "TERM=dumb")
 	assert.Contains(t, result.Args, "PYTHONUNBUFFERED=1")
-	
+
 	// Check custom entrypoint
 	assert.Contains(t, result.Args, "--entrypoint")
 	assert.Contains(t, result.Args, "/bin/custom")
-	
+
 	// Check mounts
 	assert.Contains(t, result.Args, "-v")
 	assert.Contains(t, result.Args, "/tmp:/tmp")
-	
+
 	// Check user environment variables
 	assert.Contains(t, result.Args, "TEST_VAR=value123")
 	assert.Contains(t, result.Args, "PASSTHROUGH")
 	assert.Contains(t, result.Args, "ANOTHER_VAR=abc")
-	
+
 	// Check additional Docker args
 	assert.Contains(t, result.Args, "--network")
 	assert.Contains(t, result.Args, "host")
-	
+
 	// Check container name
 	assert.Contains(t, result.Args, "test/container:latest")
-	
+
 	// Check entrypoint args
 	assert.Contains(t, result.Args, "arg1")
 	assert.Contains(t, result.Args, "arg2")
-	
+
 	// Check tools
 	assert.Equal(t, []string{"tool1", "tool2"}, result.Tools)
 }
@@ -89,7 +89,7 @@ func TestConvertStdinServerConfig_HTTPServer(t *testing.T) {
 	assert.Equal(t, "Bearer token123", result.Headers["Authorization"])
 	assert.Equal(t, "value", result.Headers["X-Custom"])
 	assert.Equal(t, []string{"search", "fetch"}, result.Tools)
-	
+
 	// HTTP servers should not have Command or Args
 	assert.Empty(t, result.Command)
 	assert.Empty(t, result.Args)
@@ -109,7 +109,7 @@ func TestConvertStdinServerConfig_MinimalStdioServer(t *testing.T) {
 	assert.Equal(t, "stdio", result.Type)
 	assert.Equal(t, "docker", result.Command)
 	assert.Contains(t, result.Args, "minimal/container:v1")
-	
+
 	// Should still have standard env vars
 	assert.Contains(t, result.Args, "NO_COLOR=1")
 	assert.Contains(t, result.Args, "TERM=dumb")
@@ -119,9 +119,9 @@ func TestConvertStdinServerConfig_MinimalStdioServer(t *testing.T) {
 // TestConvertStdinServerConfig_TypeNormalization tests "local" type normalization to "stdio".
 func TestConvertStdinServerConfig_TypeNormalization(t *testing.T) {
 	testCases := []struct {
-		name          string
-		inputType     string
-		expectedType  string
+		name         string
+		inputType    string
+		expectedType string
 	}{
 		{
 			name:         "local normalized to stdio",
@@ -183,7 +183,7 @@ func TestConvertStdinServerConfig_EnvVariableExpansion(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "Expanded env variable not found in Args")
-	
+
 	// Check static value
 	staticFound := false
 	for _, arg := range result.Args {
@@ -399,20 +399,20 @@ func TestConvertStdinServerConfig_ArgsOrdering(t *testing.T) {
 
 	assert.True(t, runIdx >= 0, "run should be present")
 	assert.True(t, containerIdx >= 0, "container should be present")
-	
+
 	// Standard Docker args (run, --rm, -i) should come first
 	assert.True(t, runIdx < entrypointIdx, "run should come before entrypoint")
-	
+
 	// Entrypoint should come before container
 	if entrypointIdx >= 0 {
 		assert.True(t, entrypointIdx < containerIdx, "entrypoint should come before container")
 	}
-	
+
 	// Mounts should come before container
 	if mountIdx >= 0 {
 		assert.True(t, mountIdx < containerIdx, "mounts should come before container")
 	}
-	
+
 	// Entrypoint args should come after container
 	if entryArgIdx >= 0 && containerIdx >= 0 {
 		assert.True(t, entryArgIdx > containerIdx, "entrypoint args should come after container")
@@ -461,10 +461,10 @@ func TestConvertStdinServerConfig_MixedEnvPassthroughAndExplicit(t *testing.T) {
 		Type:      "stdio",
 		Container: "test/container:latest",
 		Env: map[string]string{
-			"EXPLICIT": "value",
-			"PASS1":    "",
+			"EXPLICIT":  "value",
+			"PASS1":     "",
 			"EXPLICIT2": "value2",
-			"PASS2":    "",
+			"PASS2":     "",
 		},
 	}
 
@@ -475,7 +475,7 @@ func TestConvertStdinServerConfig_MixedEnvPassthroughAndExplicit(t *testing.T) {
 	// Check explicit values are formatted correctly
 	assert.Contains(t, result.Args, "EXPLICIT=value")
 	assert.Contains(t, result.Args, "EXPLICIT2=value2")
-	
+
 	// Check passthrough values are formatted correctly (no = sign)
 	hasPass1 := false
 	hasPass2 := false
