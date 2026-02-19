@@ -253,7 +253,7 @@ func TestWrapToolHandler_LongPayload(t *testing.T) {
 
 	// Verify preview truncation in Content field
 	preview := contentMap["payloadPreview"].(string)
-	assert.LessOrEqual(t, len(preview), 503, "Preview should be truncated to ~500 chars + '...'")
+	assert.LessOrEqual(t, len(preview), PayloadPreviewSize+3, "Preview should be truncated to PayloadPreviewSize chars + '...'")
 	assert.True(t, strings.HasSuffix(preview, "..."), "Preview should end with '...'")
 }
 
@@ -321,7 +321,7 @@ func TestPayloadStorage_SessionIsolation(t *testing.T) {
 func TestPayloadStorage_LargePayloadPreserved(t *testing.T) {
 	baseDir := t.TempDir()
 
-	// Create a large payload (> 500 chars to trigger truncation)
+	// Create a large payload (> PayloadPreviewSize chars to trigger truncation)
 	largeContent := strings.Repeat("This is a large payload content. ", 100) // ~3400 chars
 	largePayload := map[string]interface{}{
 		"total_count": 1000,

@@ -7,7 +7,7 @@ This middleware package implements the jqschema functionality from the gh-aw sha
 - **Automatic JSON Schema Inference**: Uses the jq schema transformation logic to automatically infer the structure and types of JSON responses
 - **Payload Storage**: Stores complete response payloads in `/tmp/gh-awmg/tools-calls/{randomID}/payload.json`
 - **Response Rewriting**: Returns a transformed response containing:
-  - First 500 characters of the payload (for quick preview)
+  - First `PayloadPreviewSize` (500) characters of the payload (for quick preview)
   - Inferred JSON schema showing structure and types
   - Query ID for tracking
   - File path to complete payload
@@ -71,7 +71,7 @@ The middleware is automatically applied to all backend MCP server tools (except 
 **Understanding the response:**
 - `payloadPath`: Points to a JSON file containing the **complete original response data**
 - `payloadSchema`: Shows the **structure and types** (e.g., "string", "number", "boolean") but NOT the actual values
-- `payloadPreview`: First 500 characters of the JSON for quick reference
+- `payloadPreview`: First `PayloadPreviewSize` (500) characters of the JSON for quick reference
 - `originalSize`: Size of the full response in bytes
 
 **Reading the payload.json file:**
@@ -130,7 +130,7 @@ func ShouldApplyMiddleware(toolName string) bool {
 **Selective Middleware Mounting**: A configuration system could be added to:
 - Enable/disable middleware per backend server
 - Configure which tools get middleware applied
-- Set custom truncation limits
+- Set custom truncation limits (currently `PayloadPreviewSize = 500`)
 - Configure storage locations
 - Add multiple middleware types with ordering
 
@@ -138,7 +138,7 @@ Example future config structure:
 ```toml
 [middleware.jqschema]
 enabled = true
-truncate_at = 500
+preview_size = 500
 storage_path = "/tmp/gh-awmg/tools-calls"
 exclude_tools = ["sys___*"]
 include_backends = ["github", "tavily"]

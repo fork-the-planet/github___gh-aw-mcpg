@@ -398,14 +398,14 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - Default payload directory: `/tmp/jq-payloads` (configurable via `--payload-dir` flag, `MCP_GATEWAY_PAYLOAD_DIR` env var, or `payload_dir` in config)
 - Payloads are organized by session ID: `{payload_dir}/{sessionID}/{queryID}/payload.json`
 - This allows agents to mount their session-specific subdirectory to access full payloads
-- The jq middleware returns: preview (first 500 chars), schema, payloadPath, queryID, originalSize, truncated flag
+- The jq middleware returns: preview (first `PayloadPreviewSize` chars, default 500), schema, payloadPath, queryID, originalSize, truncated flag
 
 **Understanding the payload.json File:**
 - The `payload.json` file contains the **complete original response data** in valid JSON format
 - You can read and parse this file directly using standard JSON parsing tools (e.g., `cat payload.json | jq .` or `JSON.parse(fs.readFileSync(path))`)
 - The `payloadSchema` in the metadata response shows the **structure and types** of fields (e.g., "string", "number", "boolean", "array", "object")
 - The `payloadSchema` does NOT contain the actual data values - those are only in the `payload.json` file
-- The `payloadPreview` shows the first 500 characters of the JSON for quick reference
+- The `payloadPreview` shows the first `PayloadPreviewSize` characters (default 500) of the JSON for quick reference
 - To access the full data with all actual values, read the JSON file at `payloadPath`
 
 **Tools Catalog (tools.json):**

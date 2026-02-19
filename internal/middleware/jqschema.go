@@ -22,6 +22,10 @@ var logMiddleware = logger.New("middleware:jqschema")
 // This prevents malformed queries or large payloads from causing hangs
 const DefaultJqTimeout = 5 * time.Second
 
+// PayloadPreviewSize is the maximum number of characters to include in the payload preview
+// This controls how much of the original payload is returned inline when a payload is stored to disk
+const PayloadPreviewSize = 500
+
 // PayloadTruncatedInstructions is the message returned to clients when a payload
 // has been truncated and saved to the filesystem
 const PayloadTruncatedInstructions = "The payload was too large for an MCP response. The complete original response data is saved as a JSON file at payloadPath. The file contains valid JSON that can be parsed directly. The payloadSchema shows the structure and types of fields in the full response, but not the actual values. To access the full data with all values, read and parse the JSON file at payloadPath."
@@ -219,7 +223,7 @@ func savePayload(baseDir, sessionID, queryID string, payload []byte) (string, er
 // 2. Extracts session ID from context (or uses "default")
 // 3. If payload size > sizeThreshold: saves to {baseDir}/{sessionID}/{queryID}/payload.json and returns metadata
 // 4. If payload size <= sizeThreshold: returns original response directly (no file storage)
-// 5. For large payloads: returns first 500 chars of payload + jq inferred schema
+// 5. For large payloads: returns first PayloadPreviewSize chars of payload + jq inferred schema
 func WrapToolHandler(
 	handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error),
 	toolName string,
@@ -337,14 +341,14 @@ func WrapToolHandler(
 		logger.LogDebug("payload", "Schema transformation completed: tool=%s, queryID=%s, schemaSize=%d bytes",
 			toolName, queryID, len(schemaBytes))
 
-		// Build the transformed response: first 500 chars + schema
+		// Build the transformed response: first PayloadPreviewSize chars + schema
 		payloadStr := string(payloadJSON)
 		var preview string
-		truncated := len(payloadStr) > 500
+		truncated := len(payloadStr) > PayloadPreviewSize
 		if truncated {
-			preview = payloadStr[:500] + "..."
-			logger.LogInfo("payload", "Payload truncated for preview: tool=%s, queryID=%s, originalSize=%d bytes, previewSize=500 bytes",
-				toolName, queryID, len(payloadStr))
+			preview = payloadStr[:PayloadPreviewSize] + "..."
+			logger.LogInfo("payload", "Payload truncated for preview: tool=%s, queryID=%s, originalSize=%d bytes, previewSize=%d bytes",
+				toolName, queryID, len(payloadStr), PayloadPreviewSize)
 		} else {
 			preview = payloadStr
 			logger.LogDebug("payload", "Payload small enough for full preview: tool=%s, queryID=%s, size=%d bytes",
