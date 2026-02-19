@@ -142,6 +142,18 @@ func LogDebug(category, format string, args ...interface{}) {
 	logWithLevel(LogLevelDebug, category, format, args...)
 }
 
+// levelFuncs maps each LogLevel to its corresponding global log function.
+// This eliminates repeated switch-on-level blocks in logWithMarkdownLevel
+// (markdown_logger.go) and logWithLevelAndServer (server_file_logger.go).
+// When adding a new LogLevel constant, add a corresponding entry here so
+// that all dispatch sites automatically support the new level.
+var levelFuncs = map[LogLevel]func(string, string, ...interface{}){
+	LogLevelInfo:  LogInfo,
+	LogLevelWarn:  LogWarn,
+	LogLevelError: LogError,
+	LogLevelDebug: LogDebug,
+}
+
 // CloseGlobalLogger closes the global file logger
 func CloseGlobalLogger() error {
 	return closeGlobalFileLogger()
