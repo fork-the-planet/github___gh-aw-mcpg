@@ -135,6 +135,26 @@ jobs:
           path: awmg
           retention-days: 7
 
+  smoke-copilot-pr:
+    runs-on: ubuntu-latest
+    needs: [unit-test, lint, integration-test]
+    if: github.event_name == 'pull_request'
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Trigger smoke-copilot workflow for PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'smoke-copilot.lock.yml',
+              ref: context.payload.pull_request.head.ref
+            });
+            console.log('✓ Triggered smoke-copilot workflow for PR');
+
   smoke-copilot:
     runs-on: ubuntu-latest
     needs: [unit-test, lint, integration-test]
