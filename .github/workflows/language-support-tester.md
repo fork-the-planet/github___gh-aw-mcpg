@@ -17,6 +17,13 @@ steps:
     with:
       go-version-file: go.mod
       cache: true
+  - name: Set up Docker Buildx
+    uses: docker/setup-buildx-action@v3
+  - name: Build local MCP Gateway container
+    run: |
+      VERSION="dev-$(git rev-parse --short HEAD)"
+      docker build -t local-awmg:v0.1.4 --build-arg VERSION=${VERSION} .
+      echo "✅ Built local MCP Gateway container: local-awmg:v0.1.4 (VERSION=${VERSION})"
   - name: Pull Serena MCP Server Container
     run: docker pull ghcr.io/github/serena-mcp-server:latest
 tools:
@@ -26,7 +33,7 @@ tools:
 
 sandbox:
   mcp:
-    container: "ghcr.io/github/gh-aw-mcpg"
+    container: "local-awmg"
 
 safe-outputs:
   create-issue:
