@@ -352,7 +352,7 @@ func TestValidateStdioServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateServerConfig("test-server", tt.server)
+			err := validateServerConfigWithCustomSchemas("test-server", tt.server, nil)
 
 			if tt.shouldErr {
 				require.Error(t, err)

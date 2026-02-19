@@ -100,11 +100,6 @@ func validateMounts(mounts []string, jsonPath string) error {
 	return nil
 }
 
-// validateServerConfig validates a server configuration (stdio or HTTP)
-func validateServerConfig(name string, server *StdinServerConfig) error {
-	return validateServerConfigWithCustomSchemas(name, server, nil)
-}
-
 // validateServerConfigWithCustomSchemas validates a server configuration with custom schema support
 func validateServerConfigWithCustomSchemas(name string, server *StdinServerConfig, customSchemas map[string]interface{}) error {
 	logValidation.Printf("Validating server config: name=%s, type=%s", name, server.Type)
