@@ -285,6 +285,16 @@ func TestValidateStdioServer(t *testing.T) {
 			shouldErr: false,
 		},
 		{
+			name: "http server with mounts should be rejected (T-CFG-019)",
+			server: &StdinServerConfig{
+				Type:   "http",
+				URL:    "https://example.com/mcp",
+				Mounts: []string{"/host/path:/container/path:ro"},
+			},
+			shouldErr: true,
+			errorMsg:  "mounts are only supported for stdio",
+		},
+		{
 			name: "empty type defaults to stdio with container",
 			server: &StdinServerConfig{
 				Container: "test:latest",

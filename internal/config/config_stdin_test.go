@@ -439,7 +439,6 @@ func TestConvertStdinServerConfig_HTTPServerNoDockerArgs(t *testing.T) {
 		Entrypoint:     "/ignored",
 		EntrypointArgs: []string{"ignored"},
 		Args:           []string{"--ignored"},
-		Mounts:         []string{"/ignored:/ignored"},
 		Env: map[string]string{
 			"IGNORED": "ignored",
 		},
