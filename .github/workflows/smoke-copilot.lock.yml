@@ -32,7 +32,7 @@
 #     - shared/mcp-pagination.md
 #     - shared/reporting.md
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"7bda1d7c7cefd1d9a23372e7f4659238a515dbdf17e964f0d30a222fe92d0a94"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"bc677fa2eccca14d9f9defabc345fae88ba1485c9cafb2e7eff8870d4fb9f9a8"}
 
 name: "Smoke Copilot"
 "on":
@@ -379,7 +379,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - name: Build local MCP Gateway container
-        run: "docker build -t local-awmg:v0.1.4 --build-arg VERSION=local-test .\necho \"✅ Built local MCP Gateway container: local-awmg:v0.1.4\"\n"
+        run: "VERSION=\"dev-$(git rev-parse --short HEAD)\"\ndocker build -t local-awmg:v0.1.4 --build-arg VERSION=${VERSION} .\necho \"✅ Built local MCP Gateway container: local-awmg:v0.1.4 (VERSION=${VERSION})\"\n"
 
       # Cache memory file share configuration from frontmatter processed below
       - name: Create cache-memory directory
