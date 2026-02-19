@@ -144,11 +144,15 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 		}
 	}
 
-	// For HTTP servers, url is required
+	// For HTTP servers, url is required and mounts are not allowed
 	if server.Type == "http" {
 		if server.URL == "" {
 			logValidation.Printf("Validation failed: HTTP server missing url field, name=%s", name)
 			return rules.MissingRequired("url", "HTTP", jsonPath, "Add a 'url' field (e.g., \"https://example.com/mcp\")")
+		}
+		if len(server.Mounts) > 0 {
+			logValidation.Printf("Validation failed: HTTP server has mounts field, name=%s", name)
+			return rules.UnsupportedField("mounts", "mounts are only supported for stdio (containerized) servers", jsonPath, "Remove the 'mounts' field from HTTP server configuration; mounts only apply to stdio servers")
 		}
 	}
 
