@@ -13,7 +13,7 @@ permissions:
   pull-requests: read
 name: Smoke Codex
 engine: codex
-strict: true
+strict: false
 imports:
   - shared/gh.md
 network:

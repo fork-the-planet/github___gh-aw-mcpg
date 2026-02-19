@@ -18,7 +18,6 @@ network:
     - defaults
     - go
     - containers
-    - "docker.io"
 tools:
   github:
     toolsets: [default]
