@@ -161,6 +161,7 @@ func (sfl *ServerFileLogger) Close() error {
 // logWithLevelAndServer is a helper that reduces code duplication for per-server logging at different levels.
 // It handles mutex locking, nil-checking, and dual logging (server-specific + unified) in a single place,
 // eliminating repeated patterns across LogInfoWithServer, LogWarnWithServer, LogErrorWithServer, and LogDebugWithServer.
+// It uses the logFuncs map (file_logger.go) for the unified log dispatch, avoiding a repeated switch-on-level block.
 func logWithLevelAndServer(serverID string, level LogLevel, category, format string, args ...interface{}) {
 	globalServerLoggerMu.RLock()
 	defer globalServerLoggerMu.RUnlock()
@@ -170,17 +171,10 @@ func logWithLevelAndServer(serverID string, level LogLevel, category, format str
 	}
 
 	// Also log to the main log file for unified view
-	// Use the appropriate level function to maintain consistency
+	// Use logFuncs to dispatch to the appropriate level function
 	formattedMessage := fmt.Sprintf(format, args...)
-	switch level {
-	case LogLevelInfo:
-		LogInfo(category, "[%s] %s", serverID, formattedMessage)
-	case LogLevelWarn:
-		LogWarn(category, "[%s] %s", serverID, formattedMessage)
-	case LogLevelError:
-		LogError(category, "[%s] %s", serverID, formattedMessage)
-	case LogLevelDebug:
-		LogDebug(category, "[%s] %s", serverID, formattedMessage)
+	if logFunc := logFuncs[level]; logFunc != nil {
+		logFunc(category, "[%s] %s", serverID, formattedMessage)
 	}
 }
 

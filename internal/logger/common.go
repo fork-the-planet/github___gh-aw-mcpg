@@ -194,7 +194,35 @@ import (
 // See file_logger.go, jsonl_logger.go, markdown_logger.go, and server_file_logger.go
 // for complete implementation examples.
 
-// closeLogFile is a common helper for closing log files with consistent error handling.
+// Log-Level Quad-Function Pattern
+//
+// Three sets of four public functions — one set per logger variant — share an identical
+// structural pattern where each function is a one-liner that delegates to an internal
+// helper with the appropriate LogLevel constant:
+//
+//	func Log<Level>(category, format string, args ...interface{}) {
+//	    <internalHelper>(LogLevel<Level>, category, format, args...)
+//	}
+//
+// The three sets and their internal helpers are:
+//
+//	file_logger.go       LogInfo / LogWarn / LogError / LogDebug          → logWithLevel
+//	markdown_logger.go   LogInfoMd / LogWarnMd / LogErrorMd / LogDebugMd  → logWithMarkdownLevel
+//	server_file_logger.go LogInfoWithServer / ... / LogDebugWithServer    → logWithLevelAndServer
+//
+// This pattern is intentionally kept across the three files because:
+//   - Each set is a distinct public API with a different signature and set of callers.
+//   - The one-liner wrappers are trivial and unlikely to diverge.
+//   - Go lacks the metaprogramming to eliminate them without sacrificing readability.
+//
+// The shared logFuncs map (file_logger.go) centralises the LogLevel → log-function
+// mapping so that the internal helpers (logWithMarkdownLevel, logWithLevelAndServer)
+// do not need their own switch-on-level blocks.
+//
+// When adding a new LogLevel constant (e.g., LogLevelTrace):
+//  1. Add a new entry to the logFuncs map in file_logger.go.
+//  2. Add a new LogTrace wrapper to each of the three files above.
+
 // It syncs buffered data before closing and handles errors appropriately.
 // The mutex should already be held by the caller.
 //

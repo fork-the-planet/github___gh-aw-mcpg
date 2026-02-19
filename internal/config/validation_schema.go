@@ -432,11 +432,10 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 
 	// Validate gateway configuration patterns
 	if stdinCfg.Gateway != nil {
-		// Validate port: must be integer 1-65535 or variable expression
-		if stdinCfg.Gateway.Port != nil {
-			if err := rules.PortRange(*stdinCfg.Gateway.Port, "gateway.port"); err != nil {
-				return err
-			}
+		// Delegate port, timeout, and payloadDir validation to validateGatewayConfig
+		// to avoid duplicating those checks here.
+		if err := validateGatewayConfig(stdinCfg.Gateway); err != nil {
+			return err
 		}
 
 		// Validate domain: must be "localhost", "host.docker.internal", or variable expression
@@ -449,19 +448,6 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 					JSONPath:   "gateway.domain",
 					Suggestion: "Use 'localhost', 'host.docker.internal', or a variable like '${MCP_GATEWAY_DOMAIN}'",
 				}
-			}
-		}
-
-		// Validate timeouts are positive
-		if stdinCfg.Gateway.StartupTimeout != nil {
-			if err := rules.TimeoutPositive(*stdinCfg.Gateway.StartupTimeout, "startupTimeout", "gateway.startupTimeout"); err != nil {
-				return err
-			}
-		}
-
-		if stdinCfg.Gateway.ToolTimeout != nil {
-			if err := rules.TimeoutPositive(*stdinCfg.Gateway.ToolTimeout, "toolTimeout", "gateway.toolTimeout"); err != nil {
-				return err
 			}
 		}
 	}
