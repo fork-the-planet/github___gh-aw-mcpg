@@ -58,11 +58,11 @@ steps:
   - name: Build local MCP Gateway container
     run: |
       VERSION="dev-$(git rev-parse --short HEAD)"
-      docker build -t local-awmg:v0.1.4 --build-arg VERSION=${VERSION} .
-      echo "✅ Built local MCP Gateway container: local-awmg:v0.1.4 (VERSION=${VERSION})"
+      docker build -t ghcr.io/github/gh-aw-mcpg:v0.1.4 --build-arg VERSION=${VERSION} .
+      echo "✅ Built local MCP Gateway container: ghcr.io/github/gh-aw-mcpg:v0.1.4 (VERSION=${VERSION})"
 sandbox:
   mcp:
-    container: "local-awmg"
+    container: "ghcr.io/github/gh-aw-mcpg"
 safe-outputs:
     add-comment:
       hide-older-comments: true
