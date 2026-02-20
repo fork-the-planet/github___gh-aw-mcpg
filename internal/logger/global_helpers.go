@@ -123,3 +123,13 @@ func initGlobalServerFileLogger(logger *ServerFileLogger) {
 func closeGlobalServerFileLogger() error {
 	return closeGlobalLogger(&globalServerLoggerMu, &globalServerFileLogger)
 }
+
+// initGlobalToolsLogger initializes the global ToolsLogger using the generic helper.
+func initGlobalToolsLogger(logger *ToolsLogger) {
+	initGlobalLogger(&globalToolsMu, &globalToolsLogger, logger)
+}
+
+// closeGlobalToolsLogger closes the global ToolsLogger using the generic helper.
+func closeGlobalToolsLogger() error {
+	return closeGlobalLogger(&globalToolsMu, &globalToolsLogger)
+}

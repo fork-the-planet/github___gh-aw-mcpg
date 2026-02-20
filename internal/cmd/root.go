@@ -76,37 +76,6 @@ const (
 	debugAllPackages  = "*"
 )
 
-// registerFlagCompletions registers custom completion functions for flags
-func registerFlagCompletions(cmd *cobra.Command) {
-	// Custom completion for --config flag (complete with .toml files)
-	cmd.RegisterFlagCompletionFunc("config", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return []string{"toml"}, cobra.ShellCompDirectiveFilterFileExt
-	})
-
-	// Custom completion for --log-dir flag (complete with directories)
-	cmd.RegisterFlagCompletionFunc("log-dir", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return nil, cobra.ShellCompDirectiveFilterDirs
-	})
-
-	// Custom completion for --payload-dir flag (complete with directories)
-	cmd.RegisterFlagCompletionFunc("payload-dir", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return nil, cobra.ShellCompDirectiveFilterDirs
-	})
-
-	// Custom completion for --env flag (complete with .env files)
-	cmd.RegisterFlagCompletionFunc("env", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return []string{"env"}, cobra.ShellCompDirectiveFilterFileExt
-	})
-
-	// Add ActiveHelp for --config and --config-stdin flags
-	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		// Provide helpful tips when completing the command
-		return cobra.AppendActiveHelp(nil,
-				"Tip: Use --config <file> for file-based config or --config-stdin for piped JSON config"),
-			cobra.ShellCompDirectiveNoFileComp
-	}
-}
-
 // preRun performs validation before command execution
 func preRun(cmd *cobra.Command, args []string) error {
 	// Apply verbosity level to logging (if DEBUG is not already set)
