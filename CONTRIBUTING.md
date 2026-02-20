@@ -374,6 +374,11 @@ The project uses:
 
 - `github.com/spf13/cobra` - CLI framework
 - `github.com/BurntSushi/toml` - TOML parser
+- `github.com/modelcontextprotocol/go-sdk` - MCP protocol implementation
+- `github.com/itchyny/gojq` - JQ schema processing
+- `github.com/santhosh-tekuri/jsonschema/v5` - JSON schema validation
+- `github.com/stretchr/testify` - Test assertions
+- `golang.org/x/term` - Terminal detection
 - Standard library for JSON, HTTP, exec
 
 To add a new dependency:
@@ -456,42 +461,43 @@ docker build -t awmg .
 ### Run Container
 
 ```bash
-docker run --rm -v $(pwd)/.env:/app/.env \
+docker run --rm -i \
+  -e MCP_GATEWAY_PORT=8000 \
+  -e MCP_GATEWAY_DOMAIN=localhost \
+  -e MCP_GATEWAY_API_KEY=your-secret-key \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -p 8000:8000 \
-  awmg
+  awmg < config.json
 ```
 
-The container uses `run.sh` as the entrypoint, which automatically:
-- Detects architecture and sets DOCKER_API_VERSION (1.43 for arm64, 1.44 for amd64)
-- Loads environment variables from `.env`
-- Starts MCPG in routed mode on port 8000
-- Reads configuration from stdin (via heredoc in run.sh)
+The container uses `run_containerized.sh` as the entrypoint, which:
+- Requires the `-i` flag for JSON configuration via stdin
+- Requires `MCP_GATEWAY_PORT`, `MCP_GATEWAY_DOMAIN`, `MCP_GATEWAY_API_KEY` env vars
+- Queries the Docker daemon API version (falls back to 1.44)
+- Validates Docker socket, port mapping, and environment before starting
+
+See `config.json` for an example JSON configuration file.
 
 ### Override with custom configuration
 
-To use a custom config file, set environment variables that `run.sh` reads:
+To use a different config file or adjust settings:
 
 ```bash
-docker run --rm -v $(pwd)/config.toml:/app/config.toml \
-  -v $(pwd)/.env:/app/.env \
+docker run --rm -i \
+  -e MCP_GATEWAY_PORT=8080 \
+  -e MCP_GATEWAY_DOMAIN=example.com \
+  -e MCP_GATEWAY_API_KEY=your-secret-key \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -e CONFIG=/app/config.toml \
-  -e ENV_FILE=/app/.env \
-  -e PORT=8000 \
-  -e HOST=127.0.0.1 \
-  -p 8000:8000 \
-  awmg
+  -p 8080:8080 \
+  awmg < custom-config.json
 ```
 
-Available environment variables for `run.sh`:
-- `CONFIG` - Path to config file (overrides stdin config)
-- `ENV_FILE` - Path to .env file (default: `.env`)
-- `PORT` - Server port (default: `8000`)
-- `HOST` - Server host (default: `0.0.0.0`)
-- `MODE` - Server mode flag (default: `--routed`, can be `--unified`)
+Required environment variables:
+- `MCP_GATEWAY_PORT` - Server port (must match port mapping)
+- `MCP_GATEWAY_DOMAIN` - Domain name for the gateway
+- `MCP_GATEWAY_API_KEY` - API key for authentication
 
-**Note:** The `DOCKER_API_VERSION` is set automatically by `run.sh` using the Docker daemon's current API version (falls back to `1.44` for all architectures if detection fails).
+**Note:** The `DOCKER_API_VERSION` is set automatically by `run_containerized.sh` using the Docker daemon's current API version (falls back to `1.44` for all architectures if detection fails).
 
 ## Pull Request Guidelines
 

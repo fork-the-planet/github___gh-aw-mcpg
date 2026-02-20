@@ -163,6 +163,11 @@ For the complete JSON configuration specification with all validation rules, see
 - **`entrypointArgs`** (optional): Arguments passed to container entrypoint
   - Array of strings passed after the container image
 
+- **`args`** (optional): Additional Docker runtime arguments inserted before the container image name
+  - Array of strings passed to `docker run` before the container image
+  - Example: `["--network", "host", "--privileged"]`
+  - Useful for advanced Docker configurations
+
 - **`mounts`** (optional): Volume mounts for the container
   - Array of strings in format `"source:dest:mode"`
   - `source` - Host path to mount (can use environment variables with `${VAR}` syntax)
