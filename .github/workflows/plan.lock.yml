@@ -23,7 +23,7 @@
 #
 # Generates project plans and task breakdowns when invoked with /plan command in issues or PRs
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"69b768f0d7a536896ea11141075853785172533a05b0ed9a0e1a0ea788351834","compiler_version":"v0.46.1"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"69b768f0d7a536896ea11141075853785172533a05b0ed9a0e1a0ea788351834","compiler_version":"v0.47.1"}
 
 name: "Plan Command"
 "on":
@@ -337,7 +337,7 @@ jobs:
               model: process.env.GH_AW_MODEL_AGENT_COPILOT || "",
               version: "",
               agent_version: "0.0.411",
-              cli_version: "v0.46.1",
+              cli_version: "v0.47.1",
               workflow_name: "Plan Command",
               experimental: false,
               supports_tools_allowlist: true,

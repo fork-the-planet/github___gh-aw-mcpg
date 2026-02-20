@@ -23,7 +23,7 @@
 #
 # Load 20 MCP servers, discover and summarize the tools exported by each server, test tool invocations, and post a comprehensive report as a GitHub issue
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"6361c2801d4d67def8d92b77f2abf371659b4414d937b9f285708689bea8aedc","compiler_version":"v0.46.1"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"6361c2801d4d67def8d92b77f2abf371659b4414d937b9f285708689bea8aedc","compiler_version":"v0.47.1"}
 
 name: "Nightly MCP Server Stress Test"
 "on":
@@ -302,7 +302,7 @@ jobs:
               model: process.env.GH_AW_MODEL_AGENT_COPILOT || "",
               version: "",
               agent_version: "0.0.411",
-              cli_version: "v0.46.1",
+              cli_version: "v0.47.1",
               workflow_name: "Nightly MCP Server Stress Test",
               experimental: false,
               supports_tools_allowlist: true,

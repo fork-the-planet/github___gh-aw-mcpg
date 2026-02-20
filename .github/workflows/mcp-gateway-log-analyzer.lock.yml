@@ -23,7 +23,7 @@
 #
 # Daily analysis of MCP Gateway logs from gh-aw repository workflows to identify bugs and issues
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"a23ae12913c0b6d039449ac91d4d2cf9e3fbbe0a33699d94005fae293b315414","compiler_version":"v0.46.1"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"a23ae12913c0b6d039449ac91d4d2cf9e3fbbe0a33699d94005fae293b315414","compiler_version":"v0.47.1"}
 
 name: "MCP Gateway Log Analyzer"
 "on":
@@ -301,7 +301,7 @@ jobs:
               model: process.env.GH_AW_MODEL_AGENT_COPILOT || "",
               version: "",
               agent_version: "0.0.411",
-              cli_version: "v0.46.1",
+              cli_version: "v0.47.1",
               workflow_name: "MCP Gateway Log Analyzer",
               experimental: false,
               supports_tools_allowlist: true,

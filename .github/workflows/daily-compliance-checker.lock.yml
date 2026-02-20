@@ -23,7 +23,7 @@
 #
 # Daily automated compliance checker that validates MCP Gateway implementation against the official specification
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"b5573d69dc9403d40618a447ce952b190ac55acccd8eea4dfa1f49c6e933bcc6","compiler_version":"v0.46.4"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"b5573d69dc9403d40618a447ce952b190ac55acccd8eea4dfa1f49c6e933bcc6","compiler_version":"v0.47.1"}
 
 name: "Daily Compliance Checker"
 "on":
@@ -323,7 +323,7 @@ jobs:
               model: process.env.GH_AW_MODEL_AGENT_COPILOT || "",
               version: "",
               agent_version: "0.0.411",
-              cli_version: "v0.46.4",
+              cli_version: "v0.47.1",
               workflow_name: "Daily Compliance Checker",
               experimental: false,
               supports_tools_allowlist: true,

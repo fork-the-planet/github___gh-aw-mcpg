@@ -23,7 +23,7 @@
 #
 # Analyzes and enhances Go logging practices across the codebase for improved debugging and observability
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"7aff2f1443027859e6896f1ee4268b2231061fe0932b437c7fb7f57de1c38e77","compiler_version":"v0.46.1"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"7aff2f1443027859e6896f1ee4268b2231061fe0932b437c7fb7f57de1c38e77","compiler_version":"v0.47.1"}
 
 name: "Go Logger Enhancement"
 "on":
@@ -323,7 +323,7 @@ jobs:
               model: process.env.GH_AW_MODEL_AGENT_COPILOT || "",
               version: "",
               agent_version: "0.0.411",
-              cli_version: "v0.46.1",
+              cli_version: "v0.47.1",
               workflow_name: "Go Logger Enhancement",
               experimental: false,
               supports_tools_allowlist: true,

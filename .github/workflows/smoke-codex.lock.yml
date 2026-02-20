@@ -27,7 +27,7 @@
 #   Imports:
 #     - shared/gh.md
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"6a7d6c00e42bedd51c4a884703c17befd55e4aaba6e5963ad874a3e85649a6d1","compiler_version":"v0.46.4"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"6a7d6c00e42bedd51c4a884703c17befd55e4aaba6e5963ad874a3e85649a6d1","compiler_version":"v0.47.1"}
 
 name: "Smoke Codex"
 "on":
@@ -349,7 +349,7 @@ jobs:
               model: process.env.GH_AW_MODEL_AGENT_CODEX || "",
               version: "",
               agent_version: "0.104.0",
-              cli_version: "v0.46.4",
+              cli_version: "v0.47.1",
               workflow_name: "Smoke Codex",
               experimental: false,
               supports_tools_allowlist: true,

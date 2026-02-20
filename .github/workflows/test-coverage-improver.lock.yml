@@ -23,7 +23,7 @@
 #
 # Daily analyzer that finds complex, under-tested functions and generates comprehensive tests
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"4b909cec2d29f2618e9fb6d8679653f8f82be957acda547ea93d2bd804b67755","compiler_version":"v0.46.1"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"4b909cec2d29f2618e9fb6d8679653f8f82be957acda547ea93d2bd804b67755","compiler_version":"v0.47.1"}
 
 name: "Test Coverage Improver"
 "on":
@@ -324,7 +324,7 @@ jobs:
               model: process.env.GH_AW_MODEL_AGENT_COPILOT || "",
               version: "",
               agent_version: "0.0.411",
-              cli_version: "v0.46.1",
+              cli_version: "v0.47.1",
               workflow_name: "Test Coverage Improver",
               experimental: false,
               supports_tools_allowlist: true,

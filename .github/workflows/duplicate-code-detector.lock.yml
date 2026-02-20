@@ -23,7 +23,7 @@
 #
 # Identifies duplicate code patterns across the Go codebase and suggests refactoring opportunities
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"0f9fa6bc0c7c0fed23a4b95bfb3d4ace119901f9542dcf0ba2a19242f232cdc5","compiler_version":"v0.46.1"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"0f9fa6bc0c7c0fed23a4b95bfb3d4ace119901f9542dcf0ba2a19242f232cdc5","compiler_version":"v0.47.1"}
 
 name: "Duplicate Code Detector"
 "on":
@@ -307,7 +307,7 @@ jobs:
               model: process.env.GH_AW_MODEL_AGENT_COPILOT || "",
               version: "",
               agent_version: "0.0.411",
-              cli_version: "v0.46.1",
+              cli_version: "v0.47.1",
               workflow_name: "Duplicate Code Detector",
               experimental: false,
               supports_tools_allowlist: true,

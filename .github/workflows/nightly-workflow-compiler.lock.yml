@@ -23,7 +23,7 @@
 #
 # Nightly workflow that upgrades all workflows to the latest agentic workflow release (agent files, codemods, and compilations)
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"6fc04fdcdd2dc21022dc2c38d3a52b142358c341130ccdb039f00179795930e1","compiler_version":"v0.46.1"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"6fc04fdcdd2dc21022dc2c38d3a52b142358c341130ccdb039f00179795930e1","compiler_version":"v0.47.1"}
 
 name: "Nightly Workflow Upgrader"
 "on":
@@ -300,7 +300,7 @@ jobs:
               model: process.env.GH_AW_MODEL_AGENT_COPILOT || "",
               version: "",
               agent_version: "0.0.411",
-              cli_version: "v0.46.1",
+              cli_version: "v0.47.1",
               workflow_name: "Nightly Workflow Upgrader",
               experimental: false,
               supports_tools_allowlist: true,
