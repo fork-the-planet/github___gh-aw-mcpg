@@ -32,7 +32,7 @@
 #     - shared/mcp-pagination.md
 #     - shared/reporting.md
 #
-# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"98ae53247299c2b7fa32377c98605b4c8795f3f80f667d6bb634f43fa137907f","compiler_version":"v0.47.4"}
+# gh-aw-metadata: {"schema_version":"v1","frontmatter_hash":"46208dfba45e1eb1a54fe9d078ee8ce3070af01580757c905de54c0463cd439f","compiler_version":"v0.47.4"}
 
 name: "Smoke Copilot"
 "on":

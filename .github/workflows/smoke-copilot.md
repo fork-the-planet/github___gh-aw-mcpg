@@ -41,9 +41,7 @@ tools:
   edit:
   bash:
     - "*"
-  serena:
-    languages:
-      go: {}
+  serena: ["go"]
 runtimes:
   go:
     version: "1.25"
