@@ -1493,9 +1493,10 @@ func TestLoadFromStdin_WithRegistryField(t *testing.T) {
 			assert.Equal(t, tt.expectedType, server.Type, "Server type mismatch")
 			assert.Equal(t, tt.expectedReg, server.Registry, "Registry field mismatch")
 
-			if tt.expectedType == "http" {
+			switch tt.expectedType {
+			case "http":
 				assert.Equal(t, tt.expectedURL, server.URL, "URL mismatch for HTTP server")
-			} else if tt.expectedType == "stdio" {
+			case "stdio":
 				assert.True(t, contains(server.Args, tt.expectedCont), "Container not found in args")
 			}
 		})
