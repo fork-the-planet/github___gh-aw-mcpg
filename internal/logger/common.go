@@ -165,6 +165,7 @@ import (
 //  - initGlobalJSONLLogger()
 //  - initGlobalMarkdownLogger()
 //  - initGlobalServerFileLogger()
+//  - initGlobalToolsLogger()
 //
 // These helpers ensure thread-safe initialization with proper cleanup of any
 // existing logger instance.

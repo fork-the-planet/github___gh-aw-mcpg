@@ -148,13 +148,3 @@ func LogToolsForServer(serverID string, tools []ToolInfo) {
 func CloseToolsLogger() error {
 	return closeGlobalToolsLogger()
 }
-
-// initGlobalToolsLogger initializes the global ToolsLogger using the generic helper.
-func initGlobalToolsLogger(logger *ToolsLogger) {
-	initGlobalLogger(&globalToolsMu, &globalToolsLogger, logger)
-}
-
-// closeGlobalToolsLogger closes the global ToolsLogger using the generic helper.
-func closeGlobalToolsLogger() error {
-	return closeGlobalLogger(&globalToolsMu, &globalToolsLogger)
-}
