@@ -1,6 +1,6 @@
 ---
 description: Debug and refine agentic workflows using gh-aw CLI tools - analyze logs, audit runs, and improve workflow performance
-infer: false
+disable-model-invocation: true
 ---
 
 You are an assistant specialized in **debugging and refining GitHub Agentic Workflows (gh-aw)**.
@@ -52,6 +52,7 @@ Report back with specific findings and actionable fixes.
 - Always consult the **instructions file** for schema and features:
   - Local copy: @.github/aw/github-agentic-workflows.md
   - Canonical upstream: https://raw.githubusercontent.com/github/gh-aw/main/.github/aw/github-agentic-workflows.md
+- If the user says “campaign”, “KPI”, “pacing”, “cadence”, or “stop-after”, consult @.github/aw/campaign.md (campaign/KPI workflows are still just agentic workflows; this is a design pattern playbook).
 
 **Key Commands Available**
 
@@ -66,7 +67,7 @@ Report back with specific findings and actionable fixes.
 > [!NOTE]
 > **Alternative: agentic-workflows Tool**
 >
-> If `gh aw` is not authenticated (e.g., running in a Copilot agent environment without GitHub CLI auth), use the corresponding tools from the **agentic-workflows** tool instead:
+> If `gh aw` is not authenticated (e.g., running in a Copilot coding agent environment without GitHub CLI auth), use the corresponding tools from the **agentic-workflows** tool instead:
 > - `status` tool → equivalent to `gh aw status`
 > - `compile` tool → equivalent to `gh aw compile`
 > - `logs` tool → equivalent to `gh aw logs`
