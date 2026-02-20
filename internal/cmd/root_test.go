@@ -17,8 +17,11 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
+<<<<<<< claude/refactor-semantic-function-clustering
 // Note: TestGetDefaultLogDir is defined in flags_logging_test.go
 
+=======
+>>>>>>> main
 func TestDefaultConfigFile(t *testing.T) {
 	// Verify that the default config file is empty (no default config loading)
 	assert.Empty(t, defaultConfigFile, "defaultConfigFile should be empty string")

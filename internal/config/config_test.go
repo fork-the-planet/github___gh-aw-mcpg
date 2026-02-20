@@ -1395,3 +1395,139 @@ func TestLoadFromStdin_PlaywrightServerConfig(t *testing.T) {
 		assert.NotEqual(t, "--init", server.Args[i], "Docker flag --init should not appear after container name")
 	}
 }
+
+// TestLoadFromStdin_WithRegistryField tests that the registry field is properly parsed and preserved
+func TestLoadFromStdin_WithRegistryField(t *testing.T) {
+	tests := []struct {
+		name         string
+		config       string
+		serverName   string
+		expectedType string
+		expectedReg  string
+		expectedURL  string
+		expectedCont string
+	}{
+		{
+			name: "stdio server with registry",
+			config: `{
+				"mcpServers": {
+					"github": {
+						"type": "stdio",
+						"container": "ghcr.io/github/github-mcp-server:latest",
+						"registry": "https://api.mcp.github.com/v0/servers/github/github-mcp-server"
+					}
+				},
+				"gateway": {
+					"port": 8080,
+					"domain": "localhost",
+					"apiKey": "test-key"
+				}
+			}`,
+			serverName:   "github",
+			expectedType: "stdio",
+			expectedReg:  "https://api.mcp.github.com/v0/servers/github/github-mcp-server",
+			expectedCont: "ghcr.io/github/github-mcp-server:latest",
+		},
+		{
+			name: "http server with registry",
+			config: `{
+				"mcpServers": {
+					"markitdown": {
+						"type": "http",
+						"url": "https://example.com/markitdown/mcp",
+						"registry": "https://api.mcp.github.com/v0/servers/microsoft/markitdown"
+					}
+				},
+				"gateway": {
+					"port": 8080,
+					"domain": "localhost",
+					"apiKey": "test-key"
+				}
+			}`,
+			serverName:   "markitdown",
+			expectedType: "http",
+			expectedReg:  "https://api.mcp.github.com/v0/servers/microsoft/markitdown",
+			expectedURL:  "https://example.com/markitdown/mcp",
+		},
+		{
+			name: "stdio server without registry",
+			config: `{
+				"mcpServers": {
+					"custom": {
+						"type": "stdio",
+						"container": "custom/server:latest"
+					}
+				},
+				"gateway": {
+					"port": 8080,
+					"domain": "localhost",
+					"apiKey": "test-key"
+				}
+			}`,
+			serverName:   "custom",
+			expectedType: "stdio",
+			expectedReg:  "", // No registry field provided
+			expectedCont: "custom/server:latest",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, w, _ := os.Pipe()
+			oldStdin := os.Stdin
+			os.Stdin = r
+			go func() {
+				w.Write([]byte(tt.config))
+				w.Close()
+			}()
+
+			cfg, err := LoadFromStdin()
+			os.Stdin = oldStdin
+
+			require.NoError(t, err, "LoadFromStdin() failed")
+			require.NotNil(t, cfg, "Config should not be nil")
+
+			server, ok := cfg.Servers[tt.serverName]
+			require.True(t, ok, "Server '%s' not found", tt.serverName)
+
+			assert.Equal(t, tt.expectedType, server.Type, "Server type mismatch")
+			assert.Equal(t, tt.expectedReg, server.Registry, "Registry field mismatch")
+
+			switch tt.expectedType {
+			case "http":
+				assert.Equal(t, tt.expectedURL, server.URL, "URL mismatch for HTTP server")
+			case "stdio":
+				assert.True(t, contains(server.Args, tt.expectedCont), "Container not found in args")
+			}
+		})
+	}
+}
+
+// TestLoadFromFile_WithRegistryField tests that the registry field works with TOML files
+func TestLoadFromFile_WithRegistryField(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.toml")
+
+	tomlContent := `
+[gateway]
+port = 8080
+api_key = "test-key"
+
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+registry = "https://api.mcp.github.com/v0/servers/github/github-mcp-server"
+`
+
+	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
+	require.NoError(t, err, "Failed to write temp TOML file")
+
+	cfg, err := LoadFromFile(tmpFile)
+	require.NoError(t, err, "LoadFromFile() failed")
+	require.NotNil(t, cfg, "Config should not be nil")
+
+	server, ok := cfg.Servers["github"]
+	require.True(t, ok, "Server 'github' not found")
+
+	assert.Equal(t, "https://api.mcp.github.com/v0/servers/github/github-mcp-server", server.Registry, "Registry field not preserved in TOML config")
+}

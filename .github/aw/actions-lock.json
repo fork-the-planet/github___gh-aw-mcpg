@@ -1,5 +1,15 @@
 {
   "entries": {
+    "actions/ai-inference@v2.0.6": {
+      "repo": "actions/ai-inference",
+      "version": "v2.0.6",
+      "sha": "a380166897b5408b8fb7dddd148142794cb5624a"
+    },
+    "actions/attest-build-provenance@v2.4.0": {
+      "repo": "actions/attest-build-provenance",
+      "version": "v2.4.0",
+      "sha": "e8998f949152b193b063cb0ec769d69d929409be"
+    },
     "actions/cache/restore@v4.3.0": {
       "repo": "actions/cache/restore",
       "version": "v4.3.0",
@@ -7,6 +17,11 @@
     },
     "actions/cache/save@v4.3.0": {
       "repo": "actions/cache/save",
+      "version": "v4.3.0",
+      "sha": "0057852bfaa89a56745cba8c7296529d2fc39830"
+    },
+    "actions/cache@v4.3.0": {
+      "repo": "actions/cache",
       "version": "v4.3.0",
       "sha": "0057852bfaa89a56745cba8c7296529d2fc39830"
     },
@@ -25,20 +40,50 @@
       "version": "v6.0.2",
       "sha": "de0fac2e4500dabe0009e67214ff5f5447ce83dd"
     },
-    "actions/download-artifact@v6.0.0": {
+    "actions/create-github-app-token@v2.2.1": {
+      "repo": "actions/create-github-app-token",
+      "version": "v2.2.1",
+      "sha": "29824e69f54612133e76f7eaac726eef6c875baf"
+    },
+    "actions/download-artifact@v6": {
       "repo": "actions/download-artifact",
-      "version": "v6.0.0",
+      "version": "v6",
       "sha": "018cc2cf5baa6db3ef3c5f8a56943fffe632ef53"
+    },
+    "actions/github-script@v7.1.0": {
+      "repo": "actions/github-script",
+      "version": "v7.1.0",
+      "sha": "f28e40c7f34bde8b3046d885e986cb6290c5673b"
     },
     "actions/github-script@v8": {
       "repo": "actions/github-script",
       "version": "v8",
       "sha": "ed597411d8f924073f98dfc5c65a23a2325f34cd"
     },
+    "actions/setup-dotnet@v4.3.1": {
+      "repo": "actions/setup-dotnet",
+      "version": "v4.3.1",
+      "sha": "67a3573c9a986a3f9c594539f4ab511d57bb3ce9"
+    },
+    "actions/setup-go@v5.6.0": {
+      "repo": "actions/setup-go",
+      "version": "v5.6.0",
+      "sha": "40f1582b2485089dde7abd97c1529aa768e1baff"
+    },
     "actions/setup-go@v6.2.0": {
       "repo": "actions/setup-go",
       "version": "v6.2.0",
       "sha": "7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5"
+    },
+    "actions/setup-java@v4.8.0": {
+      "repo": "actions/setup-java",
+      "version": "v4.8.0",
+      "sha": "c1e323688fd81a25caa38c78aa6df2d33d3e20d9"
+    },
+    "actions/setup-node@v4.4.0": {
+      "repo": "actions/setup-node",
+      "version": "v4.4.0",
+      "sha": "49933ea5288caeca8642d1e84afbd3f7d6820020"
     },
     "actions/setup-node@v6.2.0": {
       "repo": "actions/setup-node",
@@ -55,20 +100,15 @@
       "version": "v4.6.2",
       "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
     },
-    "actions/upload-artifact@v5.0.0": {
+    "actions/upload-artifact@v5": {
       "repo": "actions/upload-artifact",
-      "version": "v5.0.0",
+      "version": "v5",
       "sha": "330a01c490aca151604b8cf639adc76d48f6c5d4"
     },
-    "actions/upload-artifact@v6.0.0": {
+    "actions/upload-artifact@v6": {
       "repo": "actions/upload-artifact",
-      "version": "v6.0.0",
+      "version": "v6",
       "sha": "b7c566a772e6b6bfb58ed0dc250532a479d7789f"
-    },
-    "anchore/sbom-action@v0.20.10": {
-      "repo": "anchore/sbom-action",
-      "version": "v0.20.10",
-      "sha": "fbfd9c6c189226748411491745178e0c2017392d"
     },
     "anchore/sbom-action@v0.22.2": {
       "repo": "anchore/sbom-action",
@@ -80,35 +120,70 @@
       "version": "v5.4.2",
       "sha": "d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86"
     },
-    "docker/build-push-action@v6.18.0": {
+    "cli/gh-extension-precompile@v2.1.0": {
+      "repo": "cli/gh-extension-precompile",
+      "version": "v2.1.0",
+      "sha": "9e2237c30f869ad3bcaed6a4be2cd43564dd421b"
+    },
+    "denoland/setup-deno@v2": {
+      "repo": "denoland/setup-deno",
+      "version": "v2.0.3",
+      "sha": "e95548e56dfa95d4e1a28d6f422fafe75c4c26fb"
+    },
+    "docker/build-push-action@v6.19.2": {
       "repo": "docker/build-push-action",
-      "version": "v6.18.0",
-      "sha": "263435318d21b8e681c14492fe198d362a7d2c83"
+      "version": "v6.19.2",
+      "sha": "10e90e3645eae34f1e60eeb005ba3a3d33f178e8"
     },
     "docker/login-action@v3.7.0": {
       "repo": "docker/login-action",
       "version": "v3.7.0",
       "sha": "c94ce9fb468520275223c153574b00df6fe4bcc9"
     },
+    "docker/metadata-action@v5.10.0": {
+      "repo": "docker/metadata-action",
+      "version": "v5.10.0",
+      "sha": "c299e40c65443455700f0fdfc63efafe5b349051"
+    },
     "docker/setup-buildx-action@v3.12.0": {
       "repo": "docker/setup-buildx-action",
       "version": "v3.12.0",
       "sha": "8d2750c68a42422c14e847fe6c8ac0403b4cbd6f"
     },
-    "docker/setup-qemu-action@v3.7.0": {
-      "repo": "docker/setup-qemu-action",
-      "version": "v3.7.0",
-      "sha": "c7c53464625b32c7a7e944ae62b3e17d2b600130"
+    "erlef/setup-beam@v1": {
+      "repo": "erlef/setup-beam",
+      "version": "v1.20.4",
+      "sha": "dff508cca8ce57162e7aa6c4769a4f97c2fed638"
     },
-    "github/gh-aw/actions/setup@v0.42.13": {
-      "repo": "github/gh-aw/actions/setup",
-      "version": "v0.42.13",
-      "sha": "94662b1dee8ce96c876ba9f33b3ab8be32de82a4"
+    "github/codeql-action/upload-sarif@v3.32.3": {
+      "repo": "github/codeql-action/upload-sarif",
+      "version": "v3.32.3",
+      "sha": "17ec405481c24be464d4b2c5727a82f700ddb189"
     },
-    "githubnext/gh-aw/actions/setup@v0.42.13": {
-      "repo": "githubnext/gh-aw/actions/setup",
-      "version": "v0.42.13",
-      "sha": "94662b1dee8ce96c876ba9f33b3ab8be32de82a4"
+    "github/stale-repos@v3.0.2": {
+      "repo": "github/stale-repos",
+      "version": "v3.0.2",
+      "sha": "a21e55567b83cf3c3f3f9085d3038dc6cee02598"
+    },
+    "haskell-actions/setup@v2.10.3": {
+      "repo": "haskell-actions/setup",
+      "version": "v2.10.3",
+      "sha": "9cd1b7bf3f36d5a3c3b17abc3545bfb5481912ea"
+    },
+    "oven-sh/setup-bun@v2.1.2": {
+      "repo": "oven-sh/setup-bun",
+      "version": "v2.1.2",
+      "sha": "3d267786b128fe76c2f16a390aa2448b815359f3"
+    },
+    "ruby/setup-ruby@v1.288.0": {
+      "repo": "ruby/setup-ruby",
+      "version": "v1.288.0",
+      "sha": "09a7688d3b55cf0e976497ff046b70949eeaccfd"
+    },
+    "super-linter/super-linter@v8.5.0": {
+      "repo": "super-linter/super-linter",
+      "version": "v8.5.0",
+      "sha": "61abc07d755095a68f4987d1c2c3d1d64408f1f9"
     }
   }
 }

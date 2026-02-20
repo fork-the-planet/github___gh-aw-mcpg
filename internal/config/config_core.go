@@ -109,6 +109,9 @@ type ServerConfig struct {
 
 	// Tools is an optional list of tools to filter/expose
 	Tools []string `toml:"tools" json:"tools,omitempty"`
+
+	// Registry is the URI to the installation location in an MCP registry (informational)
+	Registry string `toml:"registry" json:"registry,omitempty"`
 }
 
 // applyGatewayDefaults applies default values to a GatewayConfig if they are not set.
