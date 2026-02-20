@@ -64,6 +64,9 @@ type StdinServerConfig struct {
 
 	// Tools is an optional list of tools to filter/expose
 	Tools []string `json:"tools,omitempty"`
+
+	// Registry is the URI to the installation location in an MCP registry (informational)
+	Registry string `json:"registry,omitempty"`
 }
 
 // intPtrOrDefault returns the value of the int pointer if not nil, otherwise returns the default value.
@@ -216,10 +219,11 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 		logConfig.Printf("Configured HTTP MCP server: name=%s, url=%s", name, server.URL)
 		log.Printf("[CONFIG] Configured HTTP MCP server: %s -> %s", name, server.URL)
 		return &ServerConfig{
-			Type:    "http",
-			URL:     server.URL,
-			Headers: server.Headers,
-			Tools:   server.Tools,
+			Type:     "http",
+			URL:      server.URL,
+			Headers:  server.Headers,
+			Tools:    server.Tools,
+			Registry: server.Registry,
 		}, nil
 	}
 
@@ -277,11 +281,12 @@ func buildStdioServerConfig(name string, server *StdinServerConfig) *ServerConfi
 	logConfig.Printf("Configured stdio MCP server: name=%s, container=%s", name, server.Container)
 
 	return &ServerConfig{
-		Type:    "stdio",
-		Command: "docker",
-		Args:    args,
-		Env:     make(map[string]string),
-		Tools:   server.Tools,
+		Type:     "stdio",
+		Command:  "docker",
+		Args:     args,
+		Env:      make(map[string]string),
+		Tools:    server.Tools,
+		Registry: server.Registry,
 	}
 }
 

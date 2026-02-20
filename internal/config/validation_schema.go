@@ -157,6 +157,31 @@ func fetchAndFixSchema(url string) ([]byte, error) {
 		}
 	}
 
+	// Add registry field to stdioServerConfig and httpServerConfig
+	// Spec Section 4.1.2 defines registry as a valid optional field for both server types
+	// Temporary workaround until the upstream schema is updated
+	if definitions, ok := schema["definitions"].(map[string]interface{}); ok {
+		// Define the registry property schema
+		registryProperty := map[string]interface{}{
+			"type":        "string",
+			"description": "URI to the installation location when MCP is installed from a registry. This is an informational field used for documentation and tooling discovery.",
+		}
+
+		// Add registry to stdioServerConfig
+		if stdioConfig, ok := definitions["stdioServerConfig"].(map[string]interface{}); ok {
+			if props, ok := stdioConfig["properties"].(map[string]interface{}); ok {
+				props["registry"] = registryProperty
+			}
+		}
+
+		// Add registry to httpServerConfig
+		if httpConfig, ok := definitions["httpServerConfig"].(map[string]interface{}); ok {
+			if props, ok := httpConfig["properties"].(map[string]interface{}); ok {
+				props["registry"] = registryProperty
+			}
+		}
+	}
+
 	fixedBytes, err := json.Marshal(schema)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal fixed schema: %w", err)
