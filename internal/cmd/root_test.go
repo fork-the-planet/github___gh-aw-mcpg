@@ -17,6 +17,8 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
+// Note: TestGetDefaultLogDir is defined in flags_logging_test.go
+
 func TestDefaultConfigFile(t *testing.T) {
 	// Verify that the default config file is empty (no default config loading)
 	assert.Empty(t, defaultConfigFile, "defaultConfigFile should be empty string")
