@@ -205,3 +205,39 @@ func TestNormalizeInputSchema_MultipleToolNames(t *testing.T) {
 		assert.True(t, hasProperties, "Properties should be added for tool: "+toolName)
 	}
 }
+
+func TestNormalizeInputSchema_NoTypeWithProperties(t *testing.T) {
+	// Schema missing "type" but has "properties" → should get "type": "object" added
+	schema := map[string]interface{}{
+		"properties": map[string]interface{}{
+			"query": map[string]interface{}{
+				"type": "string",
+			},
+		},
+	}
+
+	result := NormalizeInputSchema(schema, "test-tool")
+
+	require.NotNil(t, result)
+	assert.Equal(t, "object", result["type"], "Should add type: object when properties exist but type is missing")
+	assert.NotNil(t, result["properties"], "Properties should be preserved")
+
+	// Verify the original schema was not modified
+	_, originalHasType := schema["type"]
+	assert.False(t, originalHasType, "Original schema should not be modified")
+}
+
+func TestNormalizeInputSchema_NoTypeNoProperties(t *testing.T) {
+	// Schema missing both "type" and "properties" → returns default empty object schema
+	schema := map[string]interface{}{
+		"description": "a tool with no type or properties",
+	}
+
+	result := NormalizeInputSchema(schema, "test-tool")
+
+	require.NotNil(t, result)
+	assert.Equal(t, "object", result["type"], "Should default to type: object")
+	properties, hasProperties := result["properties"]
+	require.True(t, hasProperties, "Should add empty properties field")
+	assert.Empty(t, properties.(map[string]interface{}), "Properties should be empty")
+}
