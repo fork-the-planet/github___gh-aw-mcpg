@@ -1,6 +1,12 @@
 package difc
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/github/gh-aw-mcpg/internal/logger"
+)
+
+var logCapabilities = logger.New("difc:capabilities")
 
 // Capabilities represents the global set of tags available in the system
 // This is used to validate and discover available DIFC tags
@@ -11,6 +17,7 @@ type Capabilities struct {
 
 // NewCapabilities creates a new empty capabilities set
 func NewCapabilities() *Capabilities {
+	logCapabilities.Print("Creating new capabilities set")
 	return &Capabilities{
 		tags: make(map[Tag]struct{}),
 	}
@@ -18,6 +25,7 @@ func NewCapabilities() *Capabilities {
 
 // Add adds a tag to the capabilities
 func (c *Capabilities) Add(tag Tag) {
+	logCapabilities.Printf("Adding tag: %s", tag)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.tags[tag] = struct{}{}
@@ -25,6 +33,7 @@ func (c *Capabilities) Add(tag Tag) {
 
 // AddAll adds multiple tags to the capabilities
 func (c *Capabilities) AddAll(tags []Tag) {
+	logCapabilities.Printf("Adding %d tags to capabilities", len(tags))
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, tag := range tags {
@@ -53,6 +62,7 @@ func (c *Capabilities) GetAll() []Tag {
 
 // Remove removes a tag from the capabilities
 func (c *Capabilities) Remove(tag Tag) {
+	logCapabilities.Printf("Removing tag: %s", tag)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.tags, tag)
@@ -60,6 +70,7 @@ func (c *Capabilities) Remove(tag Tag) {
 
 // Clear removes all tags from the capabilities
 func (c *Capabilities) Clear() {
+	logCapabilities.Print("Clearing all capabilities")
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.tags = make(map[Tag]struct{})
