@@ -2,15 +2,15 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/github/gh-aw-mcpg/internal/config/rules"
+	"github.com/github/gh-aw-mcpg/internal/envutil"
 )
 
 // GetGatewayPortFromEnv returns the MCP_GATEWAY_PORT value, parsed as int
 func GetGatewayPortFromEnv() (int, error) {
-	portStr := os.Getenv("MCP_GATEWAY_PORT")
+	portStr := envutil.GetEnvString("MCP_GATEWAY_PORT", "")
 	if portStr == "" {
 		return 0, fmt.Errorf("MCP_GATEWAY_PORT environment variable not set")
 	}
@@ -29,10 +29,10 @@ func GetGatewayPortFromEnv() (int, error) {
 
 // GetGatewayDomainFromEnv returns the MCP_GATEWAY_DOMAIN value
 func GetGatewayDomainFromEnv() string {
-	return os.Getenv("MCP_GATEWAY_DOMAIN")
+	return envutil.GetEnvString("MCP_GATEWAY_DOMAIN", "")
 }
 
 // GetGatewayAPIKeyFromEnv returns the MCP_GATEWAY_API_KEY value
 func GetGatewayAPIKeyFromEnv() string {
-	return os.Getenv("MCP_GATEWAY_API_KEY")
+	return envutil.GetEnvString("MCP_GATEWAY_API_KEY", "")
 }
