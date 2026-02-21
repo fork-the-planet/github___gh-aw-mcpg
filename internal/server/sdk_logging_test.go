@@ -48,10 +48,8 @@ func makeJSONRPCRequest(method string, id interface{}) []byte {
 
 // handlerCapture is a helper to track what an inner handler received.
 type handlerCapture struct {
-	called       bool
-	body         []byte
-	statusCode   int
-	responseBody []byte
+	called bool
+	body   []byte
 }
 
 // makeInnerHandler creates an http.Handler that records the request body and returns the given response.
