@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
+	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -421,6 +422,10 @@ func TestInjectSessionContext(t *testing.T) {
 			require.NotNil(t, sessionIDFromCtx, "Session ID should be in context")
 			assert.Equal(t, tt.sessionID, sessionIDFromCtx, "Session ID mismatch")
 
+			// Verify DIFC agent ID is synchronized with session ID
+			agentIDFromCtx := guard.GetAgentIDFromContext(modifiedReq.Context())
+			assert.Equal(t, tt.sessionID, agentIDFromCtx, "Agent ID should match session ID")
+
 			// Verify backend ID if expected
 			if tt.expectBackendID {
 				backendIDFromCtx := modifiedReq.Context().Value(mcp.ContextKey("backend-id"))
@@ -453,6 +458,8 @@ func TestInjectSessionContext_PreservesExistingContext(t *testing.T) {
 	// Verify both values are present
 	sessionID := modifiedReq.Context().Value(SessionIDContextKey)
 	assert.Equal(t, "session-123", sessionID, "Session ID should be present")
+	agentID := guard.GetAgentIDFromContext(modifiedReq.Context())
+	assert.Equal(t, "session-123", agentID, "Agent ID should match session ID")
 
 	backendID := modifiedReq.Context().Value(mcp.ContextKey("backend-id"))
 	assert.Equal(t, "backend-1", backendID, "Backend ID should be present")

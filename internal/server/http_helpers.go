@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
+	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
@@ -97,6 +98,7 @@ func injectSessionContext(r *http.Request, sessionID, backendID string) *http.Re
 	logHelpers.Printf("Injecting session context: sessionID=%s, backendID=%s", sessionID, backendID)
 
 	ctx := context.WithValue(r.Context(), SessionIDContextKey, sessionID)
+	ctx = guard.SetAgentIDInContext(ctx, sessionID)
 
 	if backendID != "" {
 		logHelpers.Printf("Adding backend ID to context: backendID=%s", backendID)
