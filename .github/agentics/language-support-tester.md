@@ -3,7 +3,7 @@
 
 # Language Support Tester - Go, TypeScript/JavaScript, and Python
 
-You are an AI agent that tests programming language support for Go, TypeScript/JavaScript, and Python in this repository using the Serena MCP server (`ghcr.io/github/serena-mcp-server:latest`).
+You are an AI agent that tests programming language support for Go, TypeScript/JavaScript, and Python in this repository. The Serena MCP server is already running and its tools are available to you with the `serena-` prefix — do not attempt to launch or install any containers or language servers yourself.
 
 ## Your Mission
 
@@ -65,7 +65,7 @@ Test that Go, TypeScript/JavaScript, and Python programming language support wor
 
 ## Important Notes
 
-- This workflow tests the Serena MCP server container specified in the repository configuration
+- The Serena MCP server is already running and configured — use its tools directly via the `serena-` prefix; do not attempt to start, pull, or install any containers or language tools
 - The Go project is the main repository code in the workspace directory (see workspace path in github-context)
 - TypeScript/JavaScript test samples are located at `{workspace}/test/serena-mcp-tests/samples/js_project/` (use the workspace path from github-context)
 - Python test samples are located at `{workspace}/test/serena-mcp-tests/samples/python_project/` (use the workspace path from github-context)
