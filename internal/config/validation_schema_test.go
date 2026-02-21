@@ -392,7 +392,7 @@ func TestValidateStringPatterns(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name: "valid mount without mode",
+			name: "invalid mount without mode",
 			config: &StdinConfig{
 				MCPServers: map[string]*StdinServerConfig{
 					"test": {
@@ -402,7 +402,7 @@ func TestValidateStringPatterns(t *testing.T) {
 					},
 				},
 			},
-			shouldErr: false,
+			shouldErr: true,
 		},
 		{
 			name: "valid http url pattern",
