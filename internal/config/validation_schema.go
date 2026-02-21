@@ -20,7 +20,7 @@ var (
 	// Compile regex patterns from schema for additional validation
 	containerPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9./_-]*(:([a-zA-Z0-9._-]+|latest))?$`)
 	urlPattern       = regexp.MustCompile(`^https?://.+`)
-	mountPattern     = regexp.MustCompile(`^[^:]+:[^:]+(:(ro|rw))?$`)
+	mountPattern     = regexp.MustCompile(`^[^:]+:[^:]+:(ro|rw)$`)
 	domainVarPattern = regexp.MustCompile(`^\$\{[A-Z_][A-Z0-9_]*\}$`)
 
 	// logSchema is the debug logger for schema validation

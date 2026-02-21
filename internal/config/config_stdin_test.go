@@ -16,7 +16,7 @@ func TestConvertStdinServerConfig_StdioServer(t *testing.T) {
 		Entrypoint:     "/bin/custom",
 		EntrypointArgs: []string{"arg1", "arg2"},
 		Args:           []string{"--network", "host"},
-		Mounts:         []string{"/tmp:/tmp"},
+		Mounts:         []string{"/tmp:/tmp:rw"},
 		Env: map[string]string{
 			"TEST_VAR":    "value123",
 			"PASSTHROUGH": "",
@@ -46,7 +46,7 @@ func TestConvertStdinServerConfig_StdioServer(t *testing.T) {
 
 	// Check mounts
 	assert.Contains(t, result.Args, "-v")
-	assert.Contains(t, result.Args, "/tmp:/tmp")
+	assert.Contains(t, result.Args, "/tmp:/tmp:rw")
 
 	// Check user environment variables
 	assert.Contains(t, result.Args, "TEST_VAR=value123")
@@ -380,7 +380,7 @@ func TestConvertStdinServerConfig_ArgsOrdering(t *testing.T) {
 		Entrypoint:     "/custom/entry",
 		EntrypointArgs: []string{"entry-arg1"},
 		Args:           []string{"--custom-flag", "value"},
-		Mounts:         []string{"/host:/container"},
+		Mounts:         []string{"/host:/container:ro"},
 		Env: map[string]string{
 			"MY_VAR": "my-value",
 		},

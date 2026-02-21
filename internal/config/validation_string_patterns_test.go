@@ -136,9 +136,9 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 				shouldError: false,
 			},
 			{
-				name:        "valid mount without mode",
+				name:        "invalid mount without mode",
 				mounts:      []string{"/host/path:/container/path"},
-				shouldError: false,
+				shouldError: true,
 			},
 			{
 				name:        "valid multiple mounts",

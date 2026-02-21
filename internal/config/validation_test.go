@@ -310,13 +310,13 @@ func TestValidateStdioServer(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name: "valid mount without mode",
+			name: "invalid mount without mode",
 			server: &StdinServerConfig{
 				Type:      "stdio",
 				Container: "test:latest",
 				Mounts:    []string{"/host:/container"},
 			},
-			shouldErr: false,
+			shouldErr: true,
 		},
 		{
 			name: "invalid mount format - too many parts",
