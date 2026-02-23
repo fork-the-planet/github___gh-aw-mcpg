@@ -101,26 +101,14 @@ func TestToolNamePreservation_RoutedMode(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tool, exists := exposedTools[tc.backendToolName]
-			if !exists {
-				t.Fatalf("Tool '%s' not found in exposed tools. Available tools: %v",
-					tc.backendToolName, getToolNames(toolsForBackend))
-			}
+			require.True(t, exists, "Tool '%s' not found in exposed tools. Available tools: %v",
+				tc.backendToolName, getToolNames(toolsForBackend))
 
 			// Verify the tool name is exactly as provided by backend (no modification)
-			if tool.Name != tc.backendToolName {
-				t.Errorf("Tool name was modified. Expected '%s', got '%s'",
-					tc.backendToolName, tool.Name)
-			}
-
-			// Verify no prefix is present in the exposed name
-			if tool.Name != tc.backendToolName {
-				t.Errorf("Tool name should not contain prefix in routed mode. Got: %s", tool.Name)
-			}
+			assert.Equal(t, tc.backendToolName, tool.Name, "Tool name should not be modified in routed mode")
 
 			// Verify backend ID is correctly set
-			if tool.BackendID != "testbackend" {
-				t.Errorf("Expected BackendID 'testbackend', got '%s'", tool.BackendID)
-			}
+			assert.Equal(t, "testbackend", tool.BackendID, "BackendID should be correctly set")
 		})
 	}
 }
@@ -173,23 +161,15 @@ func TestToolNameWithPrefix_UnifiedMode(t *testing.T) {
 	backend2Tool, exists2 := us.tools["backend2___"+sameTool]
 	us.toolsMu.RUnlock()
 
-	if !exists1 || !exists2 {
-		t.Fatal("Tools not found in unified mode tools map")
-	}
+	require.True(t, exists1, "backend1 tool not found in unified mode tools map")
+	require.True(t, exists2, "backend2 tool not found in unified mode tools map")
 
 	// In unified mode, tool names MUST have the prefix to avoid collisions
 	expectedName1 := "backend1___" + sameTool
 	expectedName2 := "backend2___" + sameTool
 
-	if backend1Tool.Name != expectedName1 {
-		t.Errorf("Unified mode: expected tool name '%s', got '%s'",
-			expectedName1, backend1Tool.Name)
-	}
-
-	if backend2Tool.Name != expectedName2 {
-		t.Errorf("Unified mode: expected tool name '%s', got '%s'",
-			expectedName2, backend2Tool.Name)
-	}
+	assert.Equal(t, expectedName1, backend1Tool.Name, "backend1 tool name should include prefix to avoid collisions")
+	assert.Equal(t, expectedName2, backend2Tool.Name, "backend2 tool name should include prefix to avoid collisions")
 }
 
 // TestCreateFilteredServer_ToolNamesExactlyMatchBackend tests that when creating
@@ -236,20 +216,8 @@ func TestCreateFilteredServer_ToolNamesExactlyMatchBackend(t *testing.T) {
 	assert.Len(t, exposedTools, len(backendTools))
 
 	// Verify each tool name is exactly as it would come from backend
-	exposedToolNames := getToolNames(exposedTools)
-	for _, expectedName := range backendTools {
-		found := false
-		for _, exposedName := range exposedToolNames {
-			if exposedName == expectedName {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("Expected tool name '%s' not found in exposed tools: %v",
-				expectedName, exposedToolNames)
-		}
-	}
+	assert.ElementsMatch(t, backendTools, getToolNames(exposedTools),
+		"Exposed tool names should exactly match backend tool names")
 }
 
 // TestToolNamePreservation_SpecialCharacters tests that tool names with
@@ -297,23 +265,8 @@ func TestToolNamePreservation_SpecialCharacters(t *testing.T) {
 	exposedTools := us.GetToolsForBackend("special")
 
 	// Verify each tool name is preserved exactly
-	for _, expectedName := range specialToolNames {
-		found := false
-		for _, tool := range exposedTools {
-			if tool.Name == expectedName {
-				found = true
-				// Double-check: tool name must be exactly as expected
-				if tool.Name != expectedName {
-					t.Errorf("Tool name not preserved exactly. Expected '%s', got '%s'",
-						expectedName, tool.Name)
-				}
-				break
-			}
-		}
-		if !found {
-			t.Errorf("Tool '%s' not found in exposed tools", expectedName)
-		}
-	}
+	assert.ElementsMatch(t, specialToolNames, getToolNames(exposedTools),
+		"Exposed tool names should be preserved exactly")
 }
 
 // TestToolNamePreservation_HandlerIntegration tests that tool handlers
@@ -354,20 +307,12 @@ func TestToolNamePreservation_HandlerIntegration(t *testing.T) {
 
 	// Get handler using backend tool name (without prefix) - this is how routed mode works
 	handler := us.GetToolHandler("handler-test", backendToolName)
-	if handler == nil {
-		t.Fatalf("Handler not found for tool '%s' (backend: handler-test)", backendToolName)
-	}
+	require.NotNil(t, handler, "Handler not found for tool '%s' (backend: handler-test)", backendToolName)
 
 	// Verify the tool is exposed with the correct name in GetToolsForBackend
 	exposedTools := us.GetToolsForBackend("handler-test")
-	if len(exposedTools) != 1 {
-		t.Fatalf("Expected 1 tool, got %d", len(exposedTools))
-	}
-
-	if exposedTools[0].Name != backendToolName {
-		t.Errorf("Exposed tool name doesn't match backend name. Expected '%s', got '%s'",
-			backendToolName, exposedTools[0].Name)
-	}
+	require.Len(t, exposedTools, 1, "Expected exactly 1 exposed tool")
+	assert.Equal(t, backendToolName, exposedTools[0].Name, "Exposed tool name should match backend tool name")
 }
 
 // Helper function to extract tool names from a slice of ToolInfo
@@ -441,26 +386,14 @@ func TestToolNameJSON_Serialization(t *testing.T) {
 
 	// Unmarshal and verify names are preserved
 	var decoded ToolListResponse
-	if err := json.Unmarshal(jsonData, &decoded); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
-	}
-
-	if len(decoded.Tools) != len(toolNames) {
-		t.Fatalf("Expected %d tools in JSON, got %d", len(toolNames), len(decoded.Tools))
-	}
+	err = json.Unmarshal(jsonData, &decoded)
+	require.NoError(t, err, "Failed to unmarshal JSON")
+	require.Len(t, decoded.Tools, len(toolNames), "Expected %d tools in JSON response", len(toolNames))
 
 	// Verify each tool name is exactly as expected (no modification during JSON serialization)
-	for i, expectedName := range toolNames {
-		found := false
-		for _, decodedTool := range decoded.Tools {
-			if decodedTool.Name == expectedName {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Errorf("Tool name '%s' not found in decoded JSON. Got: %v",
-				expectedName, decoded.Tools[i].Name)
-		}
+	decodedNames := make([]string, len(decoded.Tools))
+	for i, tool := range decoded.Tools {
+		decodedNames[i] = tool.Name
 	}
+	assert.ElementsMatch(t, toolNames, decodedNames, "Tool names should be preserved through JSON serialization")
 }
