@@ -85,3 +85,27 @@ func injectSessionContext(r *http.Request, sessionID, backendID string) *http.Re
 	logHelpers.Print("Session context injected successfully")
 	return r.WithContext(ctx)
 }
+
+// wrapWithMiddleware applies the standard middleware stack to an SDK handler.
+// The middleware is applied in the following order (per spec):
+// 1. SDK logging (WithSDKLogging) - Detailed JSON-RPC translation debugging
+// 2. Shutdown check (rejectIfShutdown) - Spec 5.1.3: Reject requests during shutdown
+// 3. Auth (applyAuthIfConfigured) - Spec 7.1: API key authentication if configured
+//
+// This ensures consistent middleware ordering across both routed and unified server modes.
+func wrapWithMiddleware(handler http.Handler, logTag string, unifiedServer *UnifiedServer, apiKey string) http.HandlerFunc {
+	logHelpers.Printf("Wrapping handler with middleware: logTag=%s, authEnabled=%v", logTag, apiKey != "")
+
+	// Wrap SDK handler with detailed logging for JSON-RPC translation debugging
+	loggedHandler := WithSDKLogging(handler, logTag)
+
+	// Apply shutdown check middleware (spec 5.1.3)
+	// This must come before auth to ensure shutdown takes precedence
+	shutdownHandler := rejectIfShutdown(unifiedServer, loggedHandler, "server:"+logTag)
+
+	// Apply auth middleware if API key is configured (spec 7.1)
+	finalHandler := applyAuthIfConfigured(apiKey, shutdownHandler.ServeHTTP)
+
+	logHelpers.Printf("Middleware wrapping complete: logTag=%s", logTag)
+	return finalHandler
+}
