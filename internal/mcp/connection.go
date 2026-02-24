@@ -10,14 +10,15 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"os"
 	"os/exec"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/dockerutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -93,10 +94,7 @@ func parseJSONRPCResponseWithSSE(body []byte, statusCode int, contextDesc string
 				return httpErrorResponse(), nil
 			}
 			// Include the response body to help debug what the server actually returned
-			bodyPreview := string(body)
-			if len(bodyPreview) > 500 {
-				bodyPreview = bodyPreview[:500] + "... (truncated)"
-			}
+			bodyPreview := strutil.TruncateWithSuffix(string(body), 500, "... (truncated)")
 			return nil, fmt.Errorf("failed to parse %s (received non-JSON or malformed response): %w\nResponse body: %s", contextDesc, sseErr, bodyPreview)
 		}
 
@@ -314,7 +312,7 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 
 	// Expand Docker -e flags that reference environment variables
 	// Docker's `-e VAR_NAME` expects VAR_NAME to be in the environment
-	expandedArgs := expandDockerEnvArgs(args)
+	expandedArgs := dockerutil.ExpandEnvArgs(args)
 	logConn.Printf("Expanded args for Docker env: %v", sanitize.SanitizeArgs(expandedArgs))
 
 	// Create command transport
@@ -963,41 +961,6 @@ func (c *Connection) getPrompt(params interface{}) (*Response, error) {
 	}
 
 	return marshalToResponse(result)
-}
-
-// expandDockerEnvArgs expands Docker -e flags that reference environment variables
-// Converts "-e VAR_NAME" to "-e VAR_NAME=value" by reading from the process environment
-func expandDockerEnvArgs(args []string) []string {
-	result := make([]string, 0, len(args))
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-
-		// Check if this is a -e flag
-		if arg == "-e" && i+1 < len(args) {
-			nextArg := args[i+1]
-			// If next arg doesn't contain '=', it's a variable reference
-			if len(nextArg) > 0 && !containsEqual(nextArg) {
-				// Look up the variable in the environment
-				if value, exists := os.LookupEnv(nextArg); exists {
-					result = append(result, "-e")
-					result = append(result, fmt.Sprintf("%s=%s", nextArg, value))
-					i++ // Skip the next arg since we processed it
-					continue
-				}
-			}
-		}
-		result = append(result, arg)
-	}
-	return result
-}
-
-func containsEqual(s string) bool {
-	for _, c := range s {
-		if c == '=' {
-			return true
-		}
-	}
-	return false
 }
 
 // Close closes the connection
