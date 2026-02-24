@@ -3,7 +3,11 @@ package difc
 import (
 	"fmt"
 	"sync"
+
+	"github.com/github/gh-aw-mcpg/internal/logger"
 )
+
+var logLabels = logger.New("difc:labels")
 
 // Tag represents a single DIFC tag (e.g., "repo:owner/name", "agent:demo-agent")
 type Tag string
@@ -22,6 +26,7 @@ func NewLabel() *Label {
 // newLabelWithTags is a helper function that creates a label with the given tags.
 // This helper reduces duplication in NewSecrecyLabelWithTags and NewIntegrityLabelWithTags.
 func newLabelWithTags(tags []Tag) *Label {
+	logLabels.Printf("Creating label with %d initial tags: %v", len(tags), tags)
 	label := NewLabel()
 	label.AddAll(tags)
 	return label
@@ -60,8 +65,15 @@ func (l *Label) Union(other *Label) {
 	defer other.mu.RUnlock()
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	added := 0
 	for tag := range other.tags {
-		l.tags[tag] = struct{}{}
+		if _, exists := l.tags[tag]; !exists {
+			l.tags[tag] = struct{}{}
+			added++
+		}
+	}
+	if added > 0 {
+		logLabels.Printf("Label union: merged %d new tags from other label", added)
 	}
 }
 
@@ -145,7 +157,9 @@ func (l *SecrecyLabel) CheckFlow(target *SecrecyLabel) (bool, []Tag) {
 		if l.Label.IsEmpty() {
 			return true, nil
 		}
-		return false, l.Label.GetTags()
+		extraTags := l.Label.GetTags()
+		logLabels.Printf("Secrecy CheckFlow denied: target is nil/empty but source has tags=%v", extraTags)
+		return false, extraTags
 	}
 
 	l.Label.mu.RLock()
@@ -161,6 +175,9 @@ func (l *SecrecyLabel) CheckFlow(target *SecrecyLabel) (bool, []Tag) {
 		}
 	}
 
+	if len(extraTags) > 0 {
+		logLabels.Printf("Secrecy CheckFlow denied: source has tags not in target, extraTags=%v", extraTags)
+	}
 	return len(extraTags) == 0, extraTags
 }
 
@@ -221,7 +238,9 @@ func (l *IntegrityLabel) CheckFlow(target *IntegrityLabel) (bool, []Tag) {
 		if target == nil || target.Label == nil || target.Label.IsEmpty() {
 			return true, nil
 		}
-		return false, target.Label.GetTags()
+		missingTags := target.Label.GetTags()
+		logLabels.Printf("Integrity CheckFlow denied: source is nil but target requires tags=%v", missingTags)
+		return false, missingTags
 	}
 	if target == nil || target.Label == nil {
 		return true, nil
@@ -240,6 +259,9 @@ func (l *IntegrityLabel) CheckFlow(target *IntegrityLabel) (bool, []Tag) {
 		}
 	}
 
+	if len(missingTags) > 0 {
+		logLabels.Printf("Integrity CheckFlow denied: source missing required tags=%v", missingTags)
+	}
 	return len(missingTags) == 0, missingTags
 }
 
