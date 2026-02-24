@@ -306,6 +306,23 @@ func TestGetDefaultSessionIntegrity(t *testing.T) {
 	assert.Equal(t, "trusted,verified", getDefaultSessionIntegrity())
 }
 
+func TestGetDefaultDIFCSinkServerIDs(t *testing.T) {
+	originalEnv := os.Getenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS")
+	defer func() {
+		if originalEnv != "" {
+			os.Setenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS", originalEnv)
+		} else {
+			os.Unsetenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS")
+		}
+	}()
+
+	os.Unsetenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS")
+	assert.Equal(t, "", getDefaultDIFCSinkServerIDs())
+
+	os.Setenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS", "safeoutputs,github")
+	assert.Equal(t, "safeoutputs,github", getDefaultDIFCSinkServerIDs())
+}
+
 func TestParseSessionLabels(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -347,6 +364,59 @@ func TestParseSessionLabels(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := parseSessionLabels(tt.input)
+			assert.Equal(t, tt.expect, result)
+		})
+	}
+}
+
+func TestParseDIFCSinkServerIDs(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		expect  []string
+		wantErr bool
+	}{
+		{
+			name:   "empty input",
+			input:  "",
+			expect: nil,
+		},
+		{
+			name:   "single server id",
+			input:  "safeoutputs",
+			expect: []string{"safeoutputs"},
+		},
+		{
+			name:   "multiple server ids",
+			input:  "safeoutputs,github",
+			expect: []string{"safeoutputs", "github"},
+		},
+		{
+			name:   "trims whitespace around separators",
+			input:  " safeoutputs , github ",
+			expect: []string{"safeoutputs", "github"},
+		},
+		{
+			name:   "deduplicates server ids",
+			input:  "safeoutputs,github,safeoutputs",
+			expect: []string{"safeoutputs", "github"},
+		},
+		{
+			name:    "rejects embedded whitespace",
+			input:   "safe outputs",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseDIFCSinkServerIDs(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
 			assert.Equal(t, tt.expect, result)
 		})
 	}

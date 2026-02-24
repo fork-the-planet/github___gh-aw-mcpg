@@ -18,6 +18,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/server"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	"github.com/spf13/cobra"
@@ -278,6 +279,25 @@ func run(cmd *cobra.Command, args []string) error {
 		cfg.GuardPolicySource = policySource
 		log.Printf("Guard policy override configured (source=%s)", policySource)
 		logger.LogInfoMd("startup", "Guard policy override configured (source=%s)", policySource)
+	}
+
+	resolvedSinkServerIDs, err := parseDIFCSinkServerIDs(difcSinkServerIDs)
+	if err != nil {
+		return fmt.Errorf("invalid --difc-sink-server-ids value: %w", err)
+	}
+	mcp.SetDIFCSinkServerIDs(resolvedSinkServerIDs)
+	if len(resolvedSinkServerIDs) == 0 {
+		log.Println("DIFC sink server ID logging enrichment disabled (no sink server IDs configured)")
+		logger.LogInfoMd("startup", "DIFC sink server ID logging enrichment disabled")
+	} else {
+		log.Printf("DIFC sink server IDs configured for JSONL tag enrichment: %v", resolvedSinkServerIDs)
+		logger.LogInfoMd("startup", "DIFC sink server IDs configured for JSONL tag enrichment: %v", resolvedSinkServerIDs)
+		for _, sinkServerID := range resolvedSinkServerIDs {
+			if _, exists := cfg.Servers[sinkServerID]; !exists {
+				log.Printf("Warning: DIFC sink server ID '%s' is not configured in mcpServers", sinkServerID)
+				logger.LogWarn("startup", "DIFC sink server ID '%s' is not configured in mcpServers", sinkServerID)
+			}
+		}
 	}
 
 	// Apply payload directory flag (if different from default, it was explicitly set)

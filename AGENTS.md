@@ -371,6 +371,7 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `DEBUG_COLORS` - Control colored output (0 to disable, auto-disabled when piping)
 - `MCP_GATEWAY_LOG_DIR` - Log file directory (sets default for `--log-dir` flag, default: `/tmp/gh-aw/mcp-logs`)
 - `MCP_GATEWAY_PAYLOAD_DIR` - Large payload storage directory (sets default for `--payload-dir` flag, default: `/tmp/jq-payloads`)
+- `MCP_GATEWAY_DIFC_SINK_SERVER_IDS` - Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots (sets default for `--difc-sink-server-ids`)
 
 **Note:** The `PORT`, `HOST`, and `MODE` environment variables are used only by test scripts and are not read by the gateway application. The gateway uses command-line flags instead: `--listen` for bind address and `--routed`/`--unified` for mode selection.
 

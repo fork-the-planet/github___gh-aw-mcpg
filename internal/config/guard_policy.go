@@ -79,7 +79,7 @@ func (p GuardPolicy) MarshalJSON() ([]byte, error) {
 		AllowOnly *AllowOnlyPolicy `json:"allowonly,omitempty"`
 	}
 
-	return json.Marshal(serializedPolicy{AllowOnly: p.AllowOnly})
+	return json.Marshal(serializedPolicy(p))
 }
 
 func (p *AllowOnlyPolicy) UnmarshalJSON(data []byte) error {
@@ -119,10 +119,7 @@ func (p AllowOnlyPolicy) MarshalJSON() ([]byte, error) {
 		Integrity string      `json:"integrity"`
 	}
 
-	return json.Marshal(serializedAllowOnly{
-		Repos:     p.Repos,
-		Integrity: p.Integrity,
-	})
+	return json.Marshal(serializedAllowOnly(p))
 }
 
 // ValidateGuardPolicy validates AllowOnly policy input.

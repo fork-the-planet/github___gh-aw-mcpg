@@ -10,7 +10,10 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/dockerutil"
@@ -28,7 +31,38 @@ type ContextKey string
 // This is the same key used in the server package to avoid circular dependencies
 const SessionIDContextKey ContextKey = "awmg-session-id"
 
-var difcSinkServerIDs = []string{"safeoutputs"}
+var (
+	difcSinkServerIDsMu sync.RWMutex
+	difcSinkServerIDs   = []string{}
+)
+
+// SetDIFCSinkServerIDs configures backend server IDs that should receive DIFC tag snapshot enrichment in RPC JSONL logs.
+func SetDIFCSinkServerIDs(serverIDs []string) {
+	difcSinkServerIDsMu.Lock()
+	defer difcSinkServerIDsMu.Unlock()
+
+	if len(serverIDs) == 0 {
+		difcSinkServerIDs = nil
+		return
+	}
+
+	unique := make(map[string]struct{}, len(serverIDs))
+	normalized := make([]string, 0, len(serverIDs))
+	for _, serverID := range serverIDs {
+		trimmed := strings.TrimSpace(serverID)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := unique[trimmed]; exists {
+			continue
+		}
+		unique[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+
+	sort.Strings(normalized)
+	difcSinkServerIDs = normalized
+}
 
 // AgentTagsSnapshotContextKey stores a per-request snapshot of agent DIFC tags for enriched logging.
 const AgentTagsSnapshotContextKey ContextKey = "awmg-agent-tags-snapshot"
@@ -54,6 +88,9 @@ func getAgentTagsSnapshotFromContext(ctx context.Context) (*AgentTagsSnapshot, b
 }
 
 func isDIFCSinkServerID(serverID string) bool {
+	difcSinkServerIDsMu.RLock()
+	defer difcSinkServerIDsMu.RUnlock()
+
 	for _, sinkServerID := range difcSinkServerIDs {
 		if serverID == sinkServerID {
 			return true

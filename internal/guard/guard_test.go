@@ -697,7 +697,7 @@ func TestBuildStrictLabelAgentPayload(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.Equal(t, "Gateway policy adapter is outdated: remove legacy envelope key policy before calling label_agent.", err.Error())
+		assert.Equal(t, "gateway policy adapter is outdated: remove legacy envelope key policy before calling label_agent", err.Error())
 	})
 
 	t.Run("rejects missing top-level allowonly", func(t *testing.T) {
@@ -707,7 +707,7 @@ func TestBuildStrictLabelAgentPayload(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.Equal(t, "label_agent policy must use top-level allowonly object (received policy.allowonly).", err.Error())
+		assert.Equal(t, "label_agent policy must use top-level allowonly object (received policy.allowonly)", err.Error())
 	})
 
 	t.Run("rejects invalid repos value", func(t *testing.T) {
@@ -720,7 +720,7 @@ func TestBuildStrictLabelAgentPayload(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.Equal(t, "Invalid repos value: expected all, public, or non-empty array of scoped strings.", err.Error())
+		assert.Equal(t, "invalid repos value: expected all, public, or non-empty array of scoped strings", err.Error())
 	})
 
 	t.Run("rejects invalid integrity value", func(t *testing.T) {
@@ -733,7 +733,7 @@ func TestBuildStrictLabelAgentPayload(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.Equal(t, "Invalid integrity value: expected one of none|reader|writer|merged.", err.Error())
+		assert.Equal(t, "invalid integrity value: expected one of none|reader|writer|merged", err.Error())
 	})
 }
 

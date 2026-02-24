@@ -21,16 +21,17 @@ const (
 
 // DIFC flag variables
 var (
-	enableDIFC       bool
-	difcMode         string
-	enableConfigExt  bool   // Enable config extensions (guards, session labels)
-	sessionSecrecy   string // Comma-separated initial secrecy labels
-	sessionIntegrity string // Comma-separated initial integrity labels
-	guardPolicyJSON  string
-	allowOnlyPublic  bool
-	allowOnlyOwner   string
-	allowOnlyRepo    string
-	allowOnlyMinInt  string
+	enableDIFC        bool
+	difcMode          string
+	enableConfigExt   bool   // Enable config extensions (guards, session labels)
+	sessionSecrecy    string // Comma-separated initial secrecy labels
+	sessionIntegrity  string // Comma-separated initial integrity labels
+	difcSinkServerIDs string // Comma-separated server IDs that should include DIFC tag snapshots in RPC JSONL logs
+	guardPolicyJSON   string
+	allowOnlyPublic   bool
+	allowOnlyOwner    string
+	allowOnlyRepo     string
+	allowOnlyMinInt   string
 )
 
 func init() {
@@ -41,6 +42,7 @@ func init() {
 		cmd.Flags().BoolVar(&enableConfigExt, "enable-config-extensions", getDefaultConfigExtensions(), "Enable config extensions (guards, session labels) - required for DIFC session label features")
 		cmd.Flags().StringVar(&sessionSecrecy, "session-secrecy", getDefaultSessionSecrecy(), "Comma-separated initial secrecy labels for agent sessions (requires --enable-config-extensions)")
 		cmd.Flags().StringVar(&sessionIntegrity, "session-integrity", getDefaultSessionIntegrity(), "Comma-separated initial integrity labels for agent sessions (requires --enable-config-extensions)")
+		cmd.Flags().StringVar(&difcSinkServerIDs, "difc-sink-server-ids", getDefaultDIFCSinkServerIDs(), "Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots")
 		cmd.Flags().StringVar(&guardPolicyJSON, "guard-policy-json", getDefaultGuardPolicyJSON(), "Guard policy JSON (e.g. {\"allowonly\":{\"repos\":\"public\",\"integrity\":\"none\"}})")
 		cmd.Flags().BoolVar(&allowOnlyPublic, "allowonly-scope-public", getDefaultAllowOnlyScopePublic(), "Use public AllowOnly scope")
 		cmd.Flags().StringVar(&allowOnlyOwner, "allowonly-scope-owner", getDefaultAllowOnlyScopeOwner(), "AllowOnly owner scope value")
@@ -93,6 +95,10 @@ func getDefaultSessionSecrecy() string {
 // MCP_GATEWAY_SESSION_INTEGRITY environment variable
 func getDefaultSessionIntegrity() string {
 	return os.Getenv("MCP_GATEWAY_SESSION_INTEGRITY")
+}
+
+func getDefaultDIFCSinkServerIDs() string {
+	return os.Getenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS")
 }
 
 func getDefaultGuardPolicyJSON() string {
@@ -202,4 +208,31 @@ func parseSessionLabels(labels string) []string {
 		}
 	}
 	return result
+}
+
+func parseDIFCSinkServerIDs(input string) ([]string, error) {
+	if strings.TrimSpace(input) == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(input, ",")
+	result := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			continue
+		}
+		if strings.ContainsAny(value, " \t\n\r") {
+			return nil, fmt.Errorf("invalid DIFC sink server ID %q: whitespace is not allowed", value)
+		}
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+
+	return result, nil
 }
