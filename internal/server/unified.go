@@ -406,6 +406,29 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 	return nil
 }
 
+// registerSysTool is a helper function that registers a sys tool by storing its metadata
+// in the internal tools map and registering it with the SDK. This eliminates duplication
+// of tool metadata (Name, Description, InputSchema) that was previously defined twice.
+func (us *UnifiedServer) registerSysTool(name, description string, inputSchema map[string]interface{}, handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error)) {
+	// Store tool info
+	us.toolsMu.Lock()
+	us.tools[name] = &ToolInfo{
+		Name:        name,
+		Description: description,
+		InputSchema: inputSchema,
+		BackendID:   "sys",
+		Handler:     handler,
+	}
+	us.toolsMu.Unlock()
+
+	// Register with SDK
+	sdk.AddTool(us.server, &sdk.Tool{
+		Name:        name,
+		Description: description,
+		InputSchema: inputSchema,
+	}, handler)
+}
+
 // registerSysTools registers built-in sys tools
 func (us *UnifiedServer) registerSysTools() error {
 	// Create sys_init handler
@@ -464,12 +487,11 @@ func (us *UnifiedServer) registerSysTools() error {
 		return nil, result, nil
 	}
 
-	// Store sys_init tool info
-	us.toolsMu.Lock()
-	us.tools["sys___init"] = &ToolInfo{
-		Name:        "sys___init",
-		Description: "Initialize the MCPG system and get available MCP servers",
-		InputSchema: map[string]interface{}{
+	// Register sys_init tool using helper
+	us.registerSysTool(
+		"sys___init",
+		"Initialize the MCPG system and get available MCP servers",
+		map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"token": map[string]interface{}{
@@ -478,25 +500,8 @@ func (us *UnifiedServer) registerSysTools() error {
 				},
 			},
 		},
-		BackendID: "sys",
-		Handler:   sysInitHandler,
-	}
-	us.toolsMu.Unlock()
-
-	// Register with SDK
-	sdk.AddTool(us.server, &sdk.Tool{
-		Name:        "sys___init",
-		Description: "Initialize the MCPG system and get available MCP servers",
-		InputSchema: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"token": map[string]interface{}{
-					"type":        "string",
-					"description": "Authentication token for session initialization (can be empty for first call)",
-				},
-			},
-		},
-	}, sysInitHandler)
+		sysInitHandler,
+	)
 
 	// Create sys_list_servers handler
 	sysListHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
@@ -524,29 +529,16 @@ func (us *UnifiedServer) registerSysTools() error {
 		return nil, result, nil
 	}
 
-	// Store sys_list_servers tool info
-	us.toolsMu.Lock()
-	us.tools["sys___list_servers"] = &ToolInfo{
-		Name:        "sys___list_servers",
-		Description: "List all configured MCP backend servers",
-		InputSchema: map[string]interface{}{
+	// Register sys_list_servers tool using helper
+	us.registerSysTool(
+		"sys___list_servers",
+		"List all configured MCP backend servers",
+		map[string]interface{}{
 			"type":       "object",
 			"properties": map[string]interface{}{},
 		},
-		BackendID: "sys",
-		Handler:   sysListHandler,
-	}
-	us.toolsMu.Unlock()
-
-	// Register with SDK
-	sdk.AddTool(us.server, &sdk.Tool{
-		Name:        "sys___list_servers",
-		Description: "List all configured MCP backend servers",
-		InputSchema: map[string]interface{}{
-			"type":       "object",
-			"properties": map[string]interface{}{},
-		},
-	}, sysListHandler)
+		sysListHandler,
+	)
 
 	log.Println("Registered 2 sys tools")
 	return nil
