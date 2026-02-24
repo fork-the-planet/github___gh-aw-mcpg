@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 // Pre-compiled regexes for performance (avoid recompiling in hot paths).
@@ -44,10 +45,7 @@ func truncateAndSanitize(payload string, maxLength int) string {
 	sanitized := sanitize.SanitizeString(payload)
 
 	// Then truncate if needed
-	if len(sanitized) > maxLength {
-		return sanitized[:maxLength] + "..."
-	}
-	return sanitized
+	return strutil.Truncate(sanitized, maxLength)
 }
 
 // extractEssentialFields extracts key fields from the payload for logging
