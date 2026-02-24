@@ -32,6 +32,8 @@ type JSONLRPCMessage struct {
 	ServerID  string          `json:"server_id"`
 	Method    string          `json:"method,omitempty"`
 	Error     string          `json:"error,omitempty"`
+	AgentSecrecy   []string        `json:"agent_secrecy,omitempty"`
+	AgentIntegrity []string        `json:"agent_integrity,omitempty"`
 	Payload   json.RawMessage `json:"payload"` // Full sanitized payload as raw JSON
 }
 
@@ -102,6 +104,11 @@ func CloseJSONLLogger() error {
 
 // LogRPCMessageJSONL logs an RPC message to the global JSONL logger
 func LogRPCMessageJSONL(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payloadBytes []byte, err error) {
+	LogRPCMessageJSONLWithTags(direction, messageType, serverID, method, payloadBytes, err, nil, nil)
+}
+
+// LogRPCMessageJSONLWithTags logs an RPC message to the global JSONL logger with optional agent tag snapshots.
+func LogRPCMessageJSONLWithTags(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payloadBytes []byte, err error, agentSecrecy, agentIntegrity []string) {
 	globalJSONLMu.RLock()
 	defer globalJSONLMu.RUnlock()
 
@@ -116,6 +123,13 @@ func LogRPCMessageJSONL(direction RPCMessageDirection, messageType RPCMessageTyp
 		ServerID:  serverID,
 		Method:    method,
 		Payload:   sanitize.SanitizeJSON(payloadBytes),
+	}
+
+	if len(agentSecrecy) > 0 {
+		entry.AgentSecrecy = append([]string(nil), agentSecrecy...)
+	}
+	if len(agentIntegrity) > 0 {
+		entry.AgentIntegrity = append([]string(nil), agentIntegrity...)
 	}
 
 	if err != nil {

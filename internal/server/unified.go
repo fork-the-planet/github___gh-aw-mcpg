@@ -822,6 +822,11 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	log.Printf("[DIFC] Agent %s | Secrecy: %v | Integrity: %v",
 		agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
 
+	ctx = context.WithValue(ctx, mcp.AgentTagsSnapshotContextKey, &mcp.AgentTagsSnapshot{
+		Secrecy:   tagsToStrings(agentLabels.GetSecrecyTags()),
+		Integrity: tagsToStrings(agentLabels.GetIntegrityTags()),
+	})
+
 	// Store request state for guards that need request context during response labeling.
 	// This allows LabelResponse() to access the original tool arguments.
 	ctx = guard.SetRequestStateInContext(ctx, map[string]interface{}{
@@ -1036,6 +1041,14 @@ func toDIFCTags(values []string) []difc.Tag {
 		}
 	}
 	return tags
+}
+
+func tagsToStrings(tags []difc.Tag) []string {
+	values := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		values = append(values, string(tag))
+	}
+	return values
 }
 
 func normalizeScopeKind(policy map[string]interface{}) map[string]interface{} {

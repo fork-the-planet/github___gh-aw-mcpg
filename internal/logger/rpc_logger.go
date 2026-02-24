@@ -59,48 +59,69 @@ type RPCMessageInfo struct {
 	Error       string              // Error message if any (for responses)
 }
 
-// newRPCMessageInfo creates an RPCMessageInfo from the given parameters, truncating
-// the payload preview to maxPayloadLen characters.
-func newRPCMessageInfo(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error, maxPayloadLen int) *RPCMessageInfo {
-	info := &RPCMessageInfo{
+// logRPCMessageToAll is a helper that logs RPC messages to text, markdown, and JSONL logs
+func logRPCMessageToAll(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error, agentSecrecy, agentIntegrity []string) {
+	// Create info for text log (with larger payload preview)
+	infoText := &RPCMessageInfo{
 		Direction:   direction,
 		MessageType: messageType,
 		ServerID:    serverID,
 		Method:      method,
 		PayloadSize: len(payload),
-		Payload:     truncateAndSanitize(string(payload), maxPayloadLen),
+		Payload:     truncateAndSanitize(string(payload), MaxPayloadPreviewLengthText),
 	}
+
 	if err != nil {
-		info.Error = err.Error()
+		infoText.Error = err.Error()
 	}
-	return info
-}
 
-// logRPCMessageToAll is a helper that logs RPC messages to text, markdown, and JSONL logs
-func logRPCMessageToAll(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error) {
-	// Log to text file (with larger payload preview)
-	LogDebug("rpc", "%s", formatRPCMessage(newRPCMessageInfo(direction, messageType, serverID, method, payload, err, MaxPayloadPreviewLengthText)))
+	// Log to text file
+	LogDebug("rpc", "%s", formatRPCMessage(infoText))
 
-	// Log to markdown file (with shorter payload preview)
+	// Create info for markdown log (with shorter payload preview)
+	infoMarkdown := &RPCMessageInfo{
+		Direction:   direction,
+		MessageType: messageType,
+		ServerID:    serverID,
+		Method:      method,
+		PayloadSize: len(payload),
+		Payload:     truncateAndSanitize(string(payload), MaxPayloadPreviewLengthMarkdown),
+	}
+
+	if err != nil {
+		infoMarkdown.Error = err.Error()
+	}
+
+	// Log to markdown file
 	globalMarkdownMu.RLock()
 	defer globalMarkdownMu.RUnlock()
 
 	if globalMarkdownLogger != nil {
-		globalMarkdownLogger.Log(LogLevelDebug, "rpc", "%s", formatRPCMessageMarkdown(newRPCMessageInfo(direction, messageType, serverID, method, payload, err, MaxPayloadPreviewLengthMarkdown)))
+		globalMarkdownLogger.Log(LogLevelDebug, "rpc", "%s", formatRPCMessageMarkdown(infoMarkdown))
 	}
 
 	// Log to JSONL file (full payload, sanitized)
-	LogRPCMessageJSONL(direction, messageType, serverID, method, payload, err)
+	LogRPCMessageJSONLWithTags(direction, messageType, serverID, method, payload, err, agentSecrecy, agentIntegrity)
 }
 
 // LogRPCRequest logs an RPC request message to text, markdown, and JSONL logs
 func LogRPCRequest(direction RPCMessageDirection, serverID, method string, payload []byte) {
-	logRPCMessageToAll(direction, RPCMessageRequest, serverID, method, payload, nil)
+	logRPCMessageToAll(direction, RPCMessageRequest, serverID, method, payload, nil, nil, nil)
 }
 
 // LogRPCResponse logs an RPC response message to text, markdown, and JSONL logs
 func LogRPCResponse(direction RPCMessageDirection, serverID string, payload []byte, err error) {
-	logRPCMessageToAll(direction, RPCMessageResponse, serverID, "", payload, err)
+	logRPCMessageToAll(direction, RPCMessageResponse, serverID, "", payload, err, nil, nil)
+}
+
+// LogRPCRequestWithAgentSnapshot logs an RPC request and includes agent DIFC tag snapshots in JSONL output.
+func LogRPCRequestWithAgentSnapshot(direction RPCMessageDirection, serverID, method string, payload []byte, agentSecrecy, agentIntegrity []string) {
+	logRPCMessageToAll(direction, RPCMessageRequest, serverID, method, payload, nil, agentSecrecy, agentIntegrity)
+}
+
+// LogRPCResponseWithAgentSnapshot logs an RPC response and includes agent DIFC tag snapshots in JSONL output.
+func LogRPCResponseWithAgentSnapshot(direction RPCMessageDirection, serverID string, payload []byte, err error, agentSecrecy, agentIntegrity []string) {
+	logRPCMessageToAll(direction, RPCMessageResponse, serverID, "", payload, err, agentSecrecy, agentIntegrity)
 }
 
 // LogRPCMessage logs a generic RPC message with custom info

@@ -28,6 +28,54 @@ type ContextKey string
 // This is the same key used in the server package to avoid circular dependencies
 const SessionIDContextKey ContextKey = "awmg-session-id"
 
+var difcSinkServerIDs = []string{"safeoutputs"}
+
+// AgentTagsSnapshotContextKey stores a per-request snapshot of agent DIFC tags for enriched logging.
+const AgentTagsSnapshotContextKey ContextKey = "awmg-agent-tags-snapshot"
+
+// AgentTagsSnapshot contains agent secrecy/integrity tag snapshots for log enrichment.
+type AgentTagsSnapshot struct {
+	Secrecy   []string
+	Integrity []string
+}
+
+func getAgentTagsSnapshotFromContext(ctx context.Context) (*AgentTagsSnapshot, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+
+	raw := ctx.Value(AgentTagsSnapshotContextKey)
+	snapshot, ok := raw.(*AgentTagsSnapshot)
+	if !ok || snapshot == nil {
+		return nil, false
+	}
+
+	return snapshot, true
+}
+
+func isDIFCSinkServerID(serverID string) bool {
+	for _, sinkServerID := range difcSinkServerIDs {
+		if serverID == sinkServerID {
+			return true
+		}
+	}
+	return false
+}
+
+// requestIDCounter is used to generate unique request IDs for HTTP requests
+var requestIDCounter uint64
+
+// HTTPTransportType represents the type of HTTP transport being used
+type HTTPTransportType string
+
+const (
+	// HTTPTransportStreamable uses the streamable HTTP transport (2025-03-26 spec)
+	HTTPTransportStreamable HTTPTransportType = "streamable"
+	// HTTPTransportSSE uses the SSE transport (2024-11-05 spec)
+	HTTPTransportSSE HTTPTransportType = "sse"
+	// HTTPTransportPlainJSON uses plain JSON-RPC 2.0 over HTTP POST (non-standard)
+	HTTPTransportPlainJSON HTTPTransportType = "plain-json"
+)
 // Connection represents a connection to an MCP server using the official SDK
 type Connection struct {
 	client   *sdk.Client
@@ -264,13 +312,20 @@ func (c *Connection) SendRequest(method string, params interface{}) (*Response, 
 // SendRequestWithServerID sends a JSON-RPC request with server ID for logging
 // The ctx parameter is used to extract session ID for HTTP MCP servers
 func (c *Connection) SendRequestWithServerID(ctx context.Context, method string, params interface{}, serverID string) (*Response, error) {
+	snapshot, hasSnapshot := getAgentTagsSnapshotFromContext(ctx)
+	shouldAttachAgentTags := hasSnapshot && isDIFCSinkServerID(serverID)
+
 	// Log the outbound request to backend server
 	requestPayload, _ := json.Marshal(map[string]interface{}{
 		"jsonrpc": "2.0",
 		"method":  method,
 		"params":  params,
 	})
-	logger.LogRPCRequest(logger.RPCDirectionOutbound, serverID, method, requestPayload)
+	if shouldAttachAgentTags {
+		logger.LogRPCRequestWithAgentSnapshot(logger.RPCDirectionOutbound, serverID, method, requestPayload, snapshot.Secrecy, snapshot.Integrity)
+	} else {
+		logger.LogRPCRequest(logger.RPCDirectionOutbound, serverID, method, requestPayload)
+	}
 
 	var result *Response
 	var err error
@@ -285,7 +340,11 @@ func (c *Connection) SendRequestWithServerID(ctx context.Context, method string,
 			if result != nil {
 				responsePayload, _ = json.Marshal(result)
 			}
-			logger.LogRPCResponse(logger.RPCDirectionInbound, serverID, responsePayload, err)
+			if shouldAttachAgentTags {
+				logger.LogRPCResponseWithAgentSnapshot(logger.RPCDirectionInbound, serverID, responsePayload, err, snapshot.Secrecy, snapshot.Integrity)
+			} else {
+				logger.LogRPCResponse(logger.RPCDirectionInbound, serverID, responsePayload, err)
+			}
 			return result, err
 		}
 
@@ -296,7 +355,11 @@ func (c *Connection) SendRequestWithServerID(ctx context.Context, method string,
 		if result != nil {
 			responsePayload, _ = json.Marshal(result)
 		}
-		logger.LogRPCResponse(logger.RPCDirectionInbound, serverID, responsePayload, err)
+		if shouldAttachAgentTags {
+			logger.LogRPCResponseWithAgentSnapshot(logger.RPCDirectionInbound, serverID, responsePayload, err, snapshot.Secrecy, snapshot.Integrity)
+		} else {
+			logger.LogRPCResponse(logger.RPCDirectionInbound, serverID, responsePayload, err)
+		}
 		return result, err
 	}
 
@@ -308,7 +371,11 @@ func (c *Connection) SendRequestWithServerID(ctx context.Context, method string,
 	if result != nil {
 		responsePayload, _ = json.Marshal(result)
 	}
-	logger.LogRPCResponse(logger.RPCDirectionInbound, serverID, responsePayload, err)
+	if shouldAttachAgentTags {
+		logger.LogRPCResponseWithAgentSnapshot(logger.RPCDirectionInbound, serverID, responsePayload, err, snapshot.Secrecy, snapshot.Integrity)
+	} else {
+		logger.LogRPCResponse(logger.RPCDirectionInbound, serverID, responsePayload, err)
+	}
 
 	return result, err
 }
