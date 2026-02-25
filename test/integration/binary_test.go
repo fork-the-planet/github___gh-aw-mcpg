@@ -642,8 +642,10 @@ func createTempConfig(t *testing.T, servers map[string]interface{}) string {
 func killProcessOnPort(t *testing.T, port string) {
 	t.Helper()
 
-	// Use lsof to find processes listening on the port (macOS/Linux)
-	cmd := exec.Command("lsof", "-ti", "tcp:"+port)
+	// Use lsof to find processes LISTENING on the port (macOS/Linux)
+	// Important: filter by LISTEN state so we don't kill client processes that merely
+	// have outbound connections to this port (which can include the test runner itself).
+	cmd := exec.Command("lsof", "-nP", "-iTCP:"+port, "-sTCP:LISTEN", "-t")
 	output, err := cmd.Output()
 	if err != nil {
 		// No process found on port, which is fine
