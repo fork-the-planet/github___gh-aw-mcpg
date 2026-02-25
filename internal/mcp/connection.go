@@ -376,18 +376,28 @@ func unmarshalParams(params interface{}, target interface{}) error {
 	return nil
 }
 
-func (c *Connection) listTools() (*Response, error) {
-	logConn.Printf("listTools: requesting tool list from backend serverID=%s", c.serverID)
+// callListMethod is a generic helper for SDK list operations with no additional parameters.
+// It handles the common pattern of: requireSession → SDK call → marshalToResponse.
+func (c *Connection) callListMethod(call func() (interface{}, error)) (*Response, error) {
 	if err := c.requireSession(); err != nil {
 		return nil, err
 	}
-	result, err := c.session.ListTools(c.ctx, &sdk.ListToolsParams{})
+	result, err := call()
 	if err != nil {
 		return nil, err
 	}
-
-	logConn.Printf("listTools: received %d tools from serverID=%s", len(result.Tools), c.serverID)
 	return marshalToResponse(result)
+}
+
+func (c *Connection) listTools() (*Response, error) {
+	logConn.Printf("listTools: requesting tool list from backend serverID=%s", c.serverID)
+	return c.callListMethod(func() (interface{}, error) {
+		result, err := c.session.ListTools(c.ctx, &sdk.ListToolsParams{})
+		if err == nil {
+			logConn.Printf("listTools: received %d tools from serverID=%s", len(result.Tools), c.serverID)
+		}
+		return result, err
+	})
 }
 
 func (c *Connection) callTool(params interface{}) (*Response, error) {
@@ -420,16 +430,13 @@ func (c *Connection) callTool(params interface{}) (*Response, error) {
 
 func (c *Connection) listResources() (*Response, error) {
 	logConn.Printf("listResources: requesting resource list from backend serverID=%s", c.serverID)
-	if err := c.requireSession(); err != nil {
-		return nil, err
-	}
-	result, err := c.session.ListResources(c.ctx, &sdk.ListResourcesParams{})
-	if err != nil {
-		return nil, err
-	}
-
-	logConn.Printf("listResources: received %d resources from serverID=%s", len(result.Resources), c.serverID)
-	return marshalToResponse(result)
+	return c.callListMethod(func() (interface{}, error) {
+		result, err := c.session.ListResources(c.ctx, &sdk.ListResourcesParams{})
+		if err == nil {
+			logConn.Printf("listResources: received %d resources from serverID=%s", len(result.Resources), c.serverID)
+		}
+		return result, err
+	})
 }
 
 func (c *Connection) readResource(params interface{}) (*Response, error) {
@@ -456,16 +463,13 @@ func (c *Connection) readResource(params interface{}) (*Response, error) {
 
 func (c *Connection) listPrompts() (*Response, error) {
 	logConn.Printf("listPrompts: requesting prompt list from backend serverID=%s", c.serverID)
-	if err := c.requireSession(); err != nil {
-		return nil, err
-	}
-	result, err := c.session.ListPrompts(c.ctx, &sdk.ListPromptsParams{})
-	if err != nil {
-		return nil, err
-	}
-
-	logConn.Printf("listPrompts: received %d prompts from serverID=%s", len(result.Prompts), c.serverID)
-	return marshalToResponse(result)
+	return c.callListMethod(func() (interface{}, error) {
+		result, err := c.session.ListPrompts(c.ctx, &sdk.ListPromptsParams{})
+		if err == nil {
+			logConn.Printf("listPrompts: received %d prompts from serverID=%s", len(result.Prompts), c.serverID)
+		}
+		return result, err
+	})
 }
 
 func (c *Connection) getPrompt(params interface{}) (*Response, error) {

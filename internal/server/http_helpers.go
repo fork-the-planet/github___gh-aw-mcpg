@@ -98,6 +98,41 @@ func injectSessionContext(r *http.Request, sessionID, backendID string) *http.Re
 	return r.WithContext(ctx)
 }
 
+// setupSessionCallback performs common session establishment for StreamableHTTP handlers.
+// It extracts and validates the session ID, logs connection details, logs the request body,
+// and injects session context into the request. The backendID parameter is optional
+// and can be empty for unified mode. Returns false if the request should be rejected
+// (empty session ID).
+func setupSessionCallback(r *http.Request, backendID string) (string, bool) {
+	sessionID := extractAndValidateSession(r)
+	if sessionID == "" {
+		return "", false
+	}
+
+	if backendID != "" {
+		logger.LogInfo("client", "New MCP client connection, remote=%s, method=%s, path=%s, backend=%s, session=%s",
+			r.RemoteAddr, r.Method, r.URL.Path, backendID, sessionID)
+		log.Printf("=== NEW STREAMABLE HTTP CONNECTION (ROUTED) ===")
+	} else {
+		logger.LogInfo("client", "MCP connection established, remote=%s, method=%s, path=%s, session=%s",
+			r.RemoteAddr, r.Method, r.URL.Path, sessionID)
+		log.Printf("=== NEW STREAMABLE HTTP CONNECTION ===")
+	}
+	log.Printf("[%s] %s %s", r.RemoteAddr, r.Method, r.URL.Path)
+	if backendID != "" {
+		log.Printf("Backend: %s", backendID)
+	}
+	log.Printf("Authorization (Session ID): %s", sanitize.TruncateSecret(sessionID))
+
+	logHTTPRequestBody(r, sessionID, backendID)
+
+	*r = *injectSessionContext(r, sessionID, backendID)
+	log.Printf("✓ Injected session ID into context")
+	log.Printf("===================================\n")
+
+	return sessionID, true
+}
+
 // wrapWithMiddleware applies the standard middleware stack to an SDK handler.
 // The middleware is applied in the following order (per spec):
 // 1. SDK logging (WithSDKLogging) - Detailed JSON-RPC translation debugging

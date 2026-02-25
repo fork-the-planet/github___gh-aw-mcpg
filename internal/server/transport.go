@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -61,30 +60,11 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey st
 		// Subsequent JSON-RPC messages in the same session are handled by the SDK
 		// We use the Authorization header value as the session ID
 		// This groups all requests from the same agent (same auth value) into one session
-
-		// Extract and validate session ID from Authorization header
-		sessionID := extractAndValidateSession(r)
-		if sessionID == "" {
+		if _, ok := setupSessionCallback(r, ""); !ok {
 			// Return nil to reject the connection
 			// The SDK will handle sending an appropriate error response
 			return nil
 		}
-
-		logger.LogInfo("client", "MCP connection established, remote=%s, method=%s, path=%s, session=%s", r.RemoteAddr, r.Method, r.URL.Path, sessionID)
-		log.Printf("=== NEW STREAMABLE HTTP CONNECTION ===")
-		log.Printf("[%s] %s %s", r.RemoteAddr, r.Method, r.URL.Path)
-		log.Printf("Authorization (Session ID): %s", sanitize.TruncateSecret(sessionID))
-
-		log.Printf("DEBUG: About to check request body, Method=%s, Body!=nil: %v", r.Method, r.Body != nil)
-
-		// Log request body for debugging (typically the 'initialize' request)
-		logHTTPRequestBody(r, sessionID, "")
-
-		// Store session ID in request context
-		// This context will be passed to all tool handlers for this connection
-		*r = *injectSessionContext(r, sessionID, "")
-		log.Printf("✓ Injected session ID into context")
-		log.Printf("==========================\n")
 
 		return unifiedServer.server
 	}, &sdk.StreamableHTTPOptions{
