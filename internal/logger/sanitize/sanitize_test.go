@@ -287,6 +287,28 @@ func TestSanitizeJSONWithInvalidJSON(t *testing.T) {
 	assert.Contains(t, rawValue, "invalid", "Expected _raw field to contain original content")
 }
 
+func TestSanitizeJSONWithValidJSONButUnmarshalError(t *testing.T) {
+	// json.Valid returns true for numbers like 1e309, but json.Unmarshal fails
+	// when trying to decode them into interface{} because they overflow float64.
+	// This covers the defensive error path in SanitizeJSON (lines 118-126).
+	overflowJSON := `{"key": 1e309}`
+
+	result := SanitizeJSON([]byte(overflowJSON))
+
+	// Should still return valid JSON (wrapped with error marker)
+	var payloadObj map[string]interface{}
+	err := json.Unmarshal(result, &payloadObj)
+	require.NoError(t, err, "Result should be valid JSON even when Unmarshal fails internally")
+
+	// Should have the "failed to parse JSON" error marker
+	assert.Equal(t, "failed to parse JSON", payloadObj["_error"], "Expected _error field with 'failed to parse JSON'")
+
+	// Should preserve the sanitized content in _raw field
+	rawValue, ok := payloadObj["_raw"].(string)
+	require.True(t, ok, "_raw field should be a string")
+	assert.Contains(t, rawValue, "1e309", "Expected _raw field to contain original content")
+}
+
 func TestSanitizeStringMultipleSecretsInSameString(t *testing.T) {
 	input := "token=ghp_123456789012345678901234567890123456 password=mysecret apikey=sk_test_1234567890"
 
