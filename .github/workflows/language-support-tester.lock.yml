@@ -645,9 +645,7 @@ jobs:
                 "type": "stdio",
                 "container": "ghcr.io/github/serena-mcp-server:latest",
                 "args": ["--network", "host"],
-                "entrypoint": "serena",
-                "entrypointArgs": ["start-mcp-server", "--context", "codex", "--project", "\${GITHUB_WORKSPACE}"],
-                "mounts": ["\${GITHUB_WORKSPACE}:\${GITHUB_WORKSPACE}:rw"]
+                "mounts": ["\${GITHUB_WORKSPACE}:/workspace:rw"]
               }
             },
             "gateway": {
