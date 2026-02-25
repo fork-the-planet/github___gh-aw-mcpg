@@ -1,9 +1,9 @@
 {
   "entries": {
-    "actions/ai-inference@v2.0.6": {
+    "actions/ai-inference@v2.0.7": {
       "repo": "actions/ai-inference",
-      "version": "v2.0.6",
-      "sha": "a380166897b5408b8fb7dddd148142794cb5624a"
+      "version": "v2.0.7",
+      "sha": "e09e65981758de8b2fdab13c2bfb7c7d5493b0b6"
     },
     "actions/attest-build-provenance@v2.4.0": {
       "repo": "actions/attest-build-provenance",
@@ -45,9 +45,9 @@
       "version": "v2.2.1",
       "sha": "29824e69f54612133e76f7eaac726eef6c875baf"
     },
-    "actions/download-artifact@v6": {
+    "actions/download-artifact@v6.0.0": {
       "repo": "actions/download-artifact",
-      "version": "v6",
+      "version": "v6.0.0",
       "sha": "018cc2cf5baa6db3ef3c5f8a56943fffe632ef53"
     },
     "actions/github-script@v7.1.0": {
@@ -100,15 +100,20 @@
       "version": "v4.6.2",
       "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
     },
-    "actions/upload-artifact@v5": {
+    "actions/upload-artifact@v5.0.0": {
       "repo": "actions/upload-artifact",
-      "version": "v5",
+      "version": "v5.0.0",
       "sha": "330a01c490aca151604b8cf639adc76d48f6c5d4"
     },
-    "actions/upload-artifact@v6": {
+    "actions/upload-artifact@v6.0.0": {
       "repo": "actions/upload-artifact",
-      "version": "v6",
+      "version": "v6.0.0",
       "sha": "b7c566a772e6b6bfb58ed0dc250532a479d7789f"
+    },
+    "anchore/sbom-action@v0.20.10": {
+      "repo": "anchore/sbom-action",
+      "version": "v0.20.10",
+      "sha": "fbfd9c6c189226748411491745178e0c2017392d"
     },
     "anchore/sbom-action@v0.22.2": {
       "repo": "anchore/sbom-action",
@@ -150,15 +155,25 @@
       "version": "v3.12.0",
       "sha": "8d2750c68a42422c14e847fe6c8ac0403b4cbd6f"
     },
+    "docker/setup-qemu-action@v3.7.0": {
+      "repo": "docker/setup-qemu-action",
+      "version": "v3.7.0",
+      "sha": "c7c53464625b32c7a7e944ae62b3e17d2b600130"
+    },
     "erlef/setup-beam@v1": {
       "repo": "erlef/setup-beam",
       "version": "v1.20.4",
       "sha": "dff508cca8ce57162e7aa6c4769a4f97c2fed638"
     },
-    "github/codeql-action/upload-sarif@v3.32.3": {
+    "github/codeql-action/upload-sarif@v3.32.4": {
       "repo": "github/codeql-action/upload-sarif",
-      "version": "v3.32.3",
-      "sha": "17ec405481c24be464d4b2c5727a82f700ddb189"
+      "version": "v3.32.4",
+      "sha": "85b88275909735f5bc23196090e03d2eb148b3de"
+    },
+    "github/gh-aw/actions/setup@v0.50.3": {
+      "repo": "github/gh-aw/actions/setup",
+      "version": "v0.50.3",
+      "sha": "b70143d20a8292a3180986fa71533fdb8acb79e3"
     },
     "github/stale-repos@v3.0.2": {
       "repo": "github/stale-repos",

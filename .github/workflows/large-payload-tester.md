@@ -2,6 +2,7 @@
 name: Large Payload Tester
 description: Test the MCP Gateway's ability to handle large payloads
 on:
+  roles: [admin, maintainer, write]
   schedule: daily
   workflow_dispatch:
 
@@ -10,7 +11,6 @@ permissions:
   issues: read
   pull-requests: read
 
-roles: [admin, maintainer, write]
 
 network:
   allowed:

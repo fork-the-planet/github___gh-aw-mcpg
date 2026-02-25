@@ -31,7 +31,7 @@ safe-outputs:
     title-prefix: "[go-fan] "
     labels: [go-fan, module-review]
     max: 1
-    expires: 7
+    expires: 7d
   noop:
 
 tools:

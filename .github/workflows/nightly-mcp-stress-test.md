@@ -2,6 +2,7 @@
 name: Nightly MCP Server Stress Test
 description: Load 20 MCP servers, discover and summarize the tools exported by each server, test tool invocations, and post a comprehensive report as a GitHub issue
 on:
+  roles: [admin, maintainer, write]
   schedule: daily
   workflow_dispatch:
 
@@ -11,7 +12,6 @@ permissions:
   issues: read
   pull-requests: read
 
-roles: [admin, maintainer, write]
 
 network:
   allowed:

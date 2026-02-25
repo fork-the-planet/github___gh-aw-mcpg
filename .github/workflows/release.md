@@ -2,6 +2,9 @@
 name: Release
 description: Build, test, and release MCP Gateway binary and Docker image, then generate and prepend release highlights
 on:
+  roles:
+    - admin
+    - maintainer
   push:
     tags:
       - 'v*.*.*'
@@ -20,9 +23,6 @@ permissions:
   pull-requests: read
   actions: read
   issues: read
-roles:
-  - admin
-  - maintainer
 engine: copilot
 timeout-minutes: 30
 network:

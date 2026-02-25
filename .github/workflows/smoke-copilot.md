@@ -30,14 +30,13 @@ network:
     - defaults
     - github
     - playwright
+    - github.com
 tools:
   agentic-workflows:
   cache-memory: true
   github:
     toolsets: [repos, pull_requests]
   playwright:
-    allowed_domains:
-      - github.com
   edit:
   bash:
     - "*"

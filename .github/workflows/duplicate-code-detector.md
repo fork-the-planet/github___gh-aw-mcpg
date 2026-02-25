@@ -20,7 +20,7 @@ safe-outputs:
     title-prefix: "[duplicate-code] "
     labels: [code-quality, automated-analysis]
     max: 4
-    expires: 7
+    expires: 7d
   link-sub-issue:
     parent-title-prefix: "[duplicate-code]"
     sub-title-prefix: "[duplicate-code]"
