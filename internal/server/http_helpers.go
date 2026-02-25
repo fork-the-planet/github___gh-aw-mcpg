@@ -15,6 +15,18 @@ import (
 
 var logHelpers = logger.New("server:helpers")
 
+// withResponseLogging wraps an http.Handler to log response bodies
+func withResponseLogging(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lw := newResponseWriter(w)
+		handler.ServeHTTP(lw, r)
+		if len(lw.Body()) > 0 {
+			sanitizedBody := sanitize.SanitizeString(string(lw.Body()))
+			log.Printf("[%s] %s %s - Status: %d, Response: %s", r.RemoteAddr, r.Method, r.URL.Path, lw.StatusCode(), sanitizedBody)
+		}
+	})
+}
+
 // extractAndValidateSession extracts the session ID from the Authorization header
 // and logs connection details. Returns empty string if validation fails.
 func extractAndValidateSession(r *http.Request) string {
