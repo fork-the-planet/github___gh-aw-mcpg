@@ -281,6 +281,11 @@ func run(cmd *cobra.Command, args []string) error {
 		logger.LogInfoMd("startup", "Guard policy override configured (source=%s)", policySource)
 	}
 
+	if envSinkServerIDs, exists := os.LookupEnv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS"); exists {
+		log.Printf("MCP_GATEWAY_DIFC_SINK_SERVER_IDS=%q", envSinkServerIDs)
+		logger.LogInfoMd("startup", "MCP_GATEWAY_DIFC_SINK_SERVER_IDS=%q", envSinkServerIDs)
+	}
+
 	resolvedSinkServerIDs, err := parseDIFCSinkServerIDs(difcSinkServerIDs)
 	if err != nil {
 		return fmt.Errorf("invalid --difc-sink-server-ids value: %w", err)
