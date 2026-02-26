@@ -1,0 +1,51 @@
+{
+  "name": "MCP Gateway Dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": true,
+      "installDockerBuildx": true
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "go.toolsManagement.autoUpdate": true,
+        "go.useLanguageServer": true,
+        "go.lintTool": "golangci-lint",
+        "go.lintFlags": ["--timeout=5m"],
+        "go.testFlags": ["-v"],
+        "editor.formatOnSave": true,
+        "[go]": {
+          "editor.defaultFormatter": "golang.go",
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true
+      },
+      "extensions": [
+        "golang.go",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "eamodio.gitlens",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+  "postCreateCommand": "make install",
+  "remoteUser": "vscode",
+  "forwardPorts": [3000, 8000],
+  "portsAttributes": {
+    "3000": { "label": "MCP Gateway", "onAutoForward": "notify" },
+    "8000": { "label": "MCP Gateway (alt)", "onAutoForward": "notify" }
+  },
+  "remoteEnv": {
+    "DEBUG": ""
+  }
+}
