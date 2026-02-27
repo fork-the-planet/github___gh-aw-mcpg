@@ -133,6 +133,34 @@ func TestSavePayload(t *testing.T) {
 	assert.DirExists(t, expectedDir, "Directory should exist")
 }
 
+func TestSavePayloadWithPathPrefix(t *testing.T) {
+	// Create temporary directory for test
+	baseDir := filepath.Join(os.TempDir(), "test-jq-payloads-prefix")
+	defer os.RemoveAll(baseDir)
+
+	sessionID := "test-session-789"
+	queryID := "test-query-abc"
+	payload := []byte(`{"test": "data with prefix"}`)
+	pathPrefix := "/workspace/payloads"
+
+	returnedPath, err := savePayload(baseDir, pathPrefix, sessionID, queryID, payload)
+	require.NoError(t, err, "savePayload should not return error")
+
+	// Verify the actual file was written to the baseDir (filesystem path)
+	actualFilePath := filepath.Join(baseDir, sessionID, queryID, "payload.json")
+	assert.FileExists(t, actualFilePath, "Payload file should exist at actual filesystem path")
+
+	// Verify file content
+	content, err := os.ReadFile(actualFilePath)
+	require.NoError(t, err, "Should be able to read payload file")
+	assert.Equal(t, payload, content, "File content should match payload")
+
+	// Verify the returned path uses the pathPrefix (remapped for client)
+	expectedReturnPath := filepath.Join(pathPrefix, sessionID, queryID, "payload.json")
+	assert.Equal(t, expectedReturnPath, returnedPath, "Returned path should use pathPrefix")
+	assert.NotEqual(t, actualFilePath, returnedPath, "Returned path should differ from actual filesystem path")
+}
+
 func TestWrapToolHandler(t *testing.T) {
 	// Create temporary directory for test
 	baseDir := filepath.Join(os.TempDir(), "test-jq-payloads")

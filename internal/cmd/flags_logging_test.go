@@ -163,3 +163,43 @@ func TestPayloadSizeThresholdEnvVar(t *testing.T) {
 	result := getDefaultPayloadSizeThreshold()
 	assert.Equal(t, 4096, result, "Environment variable should override default")
 }
+
+func TestGetDefaultPayloadPathPrefix(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		setEnv   bool
+		expected string
+	}{
+		{
+			name:     "no env var - returns default",
+			setEnv:   false,
+			expected: defaultPayloadPathPrefix,
+		},
+		{
+			name:     "env var set - returns custom path",
+			envValue: "/workspace/payloads",
+			setEnv:   true,
+			expected: "/workspace/payloads",
+		},
+		{
+			name:     "empty env var - returns default",
+			envValue: "",
+			setEnv:   true,
+			expected: defaultPayloadPathPrefix,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setEnv {
+				t.Setenv("MCP_GATEWAY_PAYLOAD_PATH_PREFIX", tt.envValue)
+			} else {
+				t.Setenv("MCP_GATEWAY_PAYLOAD_PATH_PREFIX", "")
+			}
+
+			result := getDefaultPayloadPathPrefix()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

@@ -225,7 +225,7 @@ See **[Configuration Specification](https://github.com/github/gh-aw/blob/main/do
   - TOML config file: `payload_size_threshold = <bytes>` in `[gateway]` section
   - Payloads **larger** than this threshold are stored to disk and return metadata
   - Payloads **smaller than or equal** to this threshold are returned inline
-- **`payloadPathPrefix`** configures path remapping for clients/agents:
+- **`payloadPathPrefix`** is not supported in JSON stdin format. Use:
   - CLI flag: `--payload-path-prefix <path>` (default: empty - use actual filesystem path)
   - Environment variable: `MCP_GATEWAY_PAYLOAD_PATH_PREFIX=<path>`
   - TOML config file: `payload_path_prefix = "<path>"` in `[gateway]` section
@@ -304,13 +304,14 @@ Flags:
   -l, --listen string                HTTP server listen address (default "127.0.0.1:3000")
       --log-dir string               Directory for log files (falls back to stdout if directory cannot be created) (default "/tmp/gh-aw/mcp-logs")
       --payload-dir string           Directory for storing large payload files (segmented by session ID) (default "/tmp/jq-payloads")
+      --payload-path-prefix string   Path prefix to use when returning payloadPath to clients (allows remapping host paths to client/agent container paths)
       --payload-size-threshold int   Size threshold (in bytes) for storing payloads to disk. Payloads larger than this are stored, smaller ones returned inline (default 524288)
       --routed                       Run in routed mode (each backend at /mcp/<server>)
-      --sequential-launch   Launch MCP servers sequentially during startup (parallel launch is default)
-      --unified             Run in unified mode (all backends at /mcp)
-      --validate-env        Validate execution environment (Docker, env vars) before starting
-  -v, --verbose count       Increase verbosity level (use -v for info, -vv for debug, -vvv for trace)
-      --version             version for awmg
+      --sequential-launch            Launch MCP servers sequentially during startup (parallel launch is default)
+      --unified                      Run in unified mode (all backends at /mcp)
+      --validate-env                 Validate execution environment (Docker, env vars) before starting
+  -v, --verbose count                Increase verbosity level (use -v for info, -vv for debug, -vvv for trace)
+      --version                      version for awmg
 
 Use "awmg [command] --help" for more information about a command.
 ```
