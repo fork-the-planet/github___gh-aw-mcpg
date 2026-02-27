@@ -270,28 +270,158 @@ Path-based labeling uses JSON Pointer syntax:
 - `~0` represents `~`
 - `~1` represents `/`
 
-## Example: GitHub Repository Search
+## Example: GitHub Guard — End-to-End Scoping
 
-For a `search_repositories` response:
+This example walks through how an `AllowOnly` policy flows through all three label functions for a GitHub MCP server.
+
+### Policy Schema
+
+The GitHub guard uses an `AllowOnly` policy with two fields:
 
 ```json
 {
+  "allowonly": {
+    "repos": "<scope>",
+    "integrity": "<level>"
+  }
+}
+```
+
+**`repos`** controls which repositories the agent can access:
+
+| Value | Meaning | Example |
+|-------|---------|---------|
+| `"all"` | All repos (public + private) the token can see | `"repos": "all"` |
+| `"public"` | Only public repos | `"repos": "public"` |
+| Array of scopes | Specific repos/owners | `"repos": ["acme/*", "acme/web-app"]` |
+
+Scoped array entries support three patterns (all lowercase):
+
+| Pattern | Meaning | Example |
+|---------|---------|---------|
+| `owner/*` | All repos under owner | `"acme/*"` |
+| `owner/repo` | Exact repo | `"acme/web-app"` |
+| `owner/prefix*` | Repos matching prefix | `"acme/api-*"` |
+
+**`integrity`** sets the minimum trust level for content the agent may read:
+
+| Value | Meaning |
+|-------|---------|
+| `"none"` | No integrity requirements — agent can read anything |
+| `"reader"` | Must be from a repo contributor (reader+) |
+| `"writer"` | Must be from a repo writer/maintainer |
+| `"merged"` | Only merged/reviewed content |
+
+### Step 1: `LabelAgent` — Session Initialization
+
+Given this policy in the gateway config:
+
+```json
+{
+  "allowonly": {
+    "repos": ["acme/web-app", "acme/api-*"],
+    "integrity": "writer"
+  }
+}
+```
+
+The gateway calls `label_agent` once at session start. The guard validates the policy and returns:
+
+```json
+{
+  "agent": {
+    "secrecy": [],
+    "integrity": []
+  },
+  "difc_mode": "filter",
+  "normalized_policy": {
+    "scope_kind": "scoped",
+    "scope_values": ["acme/api-*", "acme/web-app"],
+    "integrity": "writer"
+  }
+}
+```
+
+Key points:
+- **`scope_kind`** is `"scoped"` because the policy uses an explicit repo list (vs. `"all"` or `"public"`)
+- **`scope_values`** are sorted and lowercased
+- **Agent starts with empty labels** — the guard will restrict access via resource labeling, not agent labels
+- **`difc_mode`** is set by the guard (here `"filter"` so unauthorized items are removed rather than blocking the entire response)
+- This result is **cached** for the session — subsequent tool calls skip `label_agent`
+
+### Step 2: `LabelResource` — Pre-Request Scoping
+
+When the agent calls a tool like `search_repositories`, the guard determines resource labels and the operation type **before** the backend call.
+
+For `search_repositories(query="org:acme language:go")`:
+
+```json
+{
+  "resource": {
+    "description": "GitHub repository search: org:acme language:go",
+    "secrecy": [],
+    "integrity": []
+  },
+  "operation": "read"
+}
+```
+
+For `get_file_contents(owner="acme", repo="web-app", path="README.md")`:
+
+```json
+{
+  "resource": {
+    "description": "acme/web-app/README.md",
+    "secrecy": ["repo:acme/web-app"],
+    "integrity": ["github_verified"]
+  },
+  "operation": "read"
+}
+```
+
+For `create_issue(owner="acme", repo="web-app", title="Bug")`:
+
+```json
+{
+  "resource": {
+    "description": "acme/web-app issue",
+    "secrecy": ["repo:acme/web-app"],
+    "integrity": ["github_verified"]
+  },
+  "operation": "write"
+}
+```
+
+The Reference Monitor uses these labels to decide whether to proceed:
+- **Read**: The backend call executes, then `LabelResponse` provides fine-grained filtering
+- **Write**: DIFC rules are checked **before** the call; blocked if agent labels don't satisfy resource labels
+
+### Step 3: `LabelResponse` — Post-Request Fine-Grained Labeling
+
+After a successful read, the guard labels individual items in the response. This is where scoping from the `AllowOnly` policy is enforced at the item level.
+
+For a `search_repositories` response containing repos both inside and outside the allowed scope:
+
+**Backend response:**
+```json
+{
   "items": [
-    {"full_name": "user/public-repo", "private": false},
-    {"full_name": "user/private-repo", "private": true}
+    {"full_name": "acme/web-app", "private": false},
+    {"full_name": "acme/api-server", "private": true},
+    {"full_name": "acme/internal-tools", "private": true},
+    {"full_name": "other-org/public-lib", "private": false}
   ]
 }
 ```
 
-Guard returns:
-
+**Guard returns (path-based labeling):**
 ```json
 {
   "labeled_paths": [
     {
       "path": "/items/0",
       "labels": {
-        "description": "user/public-repo",
+        "description": "acme/web-app",
         "secrecy": ["public"],
         "integrity": ["github_verified"]
       }
@@ -299,8 +429,24 @@ Guard returns:
     {
       "path": "/items/1",
       "labels": {
-        "description": "user/private-repo",
-        "secrecy": ["repo_private", "private:user/private-repo"],
+        "description": "acme/api-server",
+        "secrecy": ["repo_private", "repo:acme/api-server"],
+        "integrity": ["github_verified"]
+      }
+    },
+    {
+      "path": "/items/2",
+      "labels": {
+        "description": "acme/internal-tools",
+        "secrecy": ["repo_private", "repo:acme/internal-tools"],
+        "integrity": ["github_verified"]
+      }
+    },
+    {
+      "path": "/items/3",
+      "labels": {
+        "description": "other-org/public-lib",
+        "secrecy": ["public"],
         "integrity": ["github_verified"]
       }
     }
@@ -308,6 +454,38 @@ Guard returns:
   "items_path": "/items"
 }
 ```
+
+### Step 4: Reference Monitor Enforcement
+
+The Reference Monitor checks each item's labels against the agent's labels using the DIFC flow rules. With the `"filter"` mode and the scoped policy `["acme/web-app", "acme/api-*"]`:
+
+| Item | Match? | Reason |
+|------|--------|--------|
+| `acme/web-app` | **Yes** | Exact match on `acme/web-app` |
+| `acme/api-server` | **Yes** | Matches prefix pattern `acme/api-*` |
+| `acme/internal-tools` | **No** | Not in scope — agent lacks `repo:acme/internal-tools` secrecy tag |
+| `other-org/public-lib` | **No** | Not in scope — different org |
+
+**Filtered response returned to agent:**
+```json
+{
+  "items": [
+    {"full_name": "acme/web-app", "private": false},
+    {"full_name": "acme/api-server", "private": true}
+  ]
+}
+```
+
+### Scoping Summary by `repos` Value
+
+| `repos` value | `scope_kind` | Agent sees |
+|---------------|-------------|------------|
+| `"all"` | `"all"` | All repos the token can access (public + private) |
+| `"public"` | `"public"` | Only public repos |
+| `["acme/*"]` | `"scoped"` | All repos under `acme/` |
+| `["acme/web-app"]` | `"scoped"` | Only `acme/web-app` |
+| `["acme/api-*"]` | `"scoped"` | Repos like `acme/api-server`, `acme/api-client`, etc. |
+| `["acme/*", "beta/tools"]` | `"scoped"` | All `acme/` repos + exactly `beta/tools` |
 
 ## Filtering Behavior
 
