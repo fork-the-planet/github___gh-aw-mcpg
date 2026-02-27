@@ -68,6 +68,10 @@ type StdinServerConfig struct {
 	// Registry is the URI to the installation location in an MCP registry (informational)
 	Registry string `json:"registry,omitempty"`
 
+	// GuardPolicies holds guard policies for access control at the MCP gateway level.
+	// The structure is server-specific. For GitHub MCP server, see the GitHub guard policy schema.
+	GuardPolicies map[string]interface{} `json:"guard-policies,omitempty"`
+
 	// AdditionalProperties stores any extra fields for custom server types
 	// This allows custom schemas to define their own fields beyond the standard ones
 	AdditionalProperties map[string]interface{} `json:"-"`
@@ -107,6 +111,7 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 		"headers":        true,
 		"tools":          true,
 		"registry":       true,
+		"guard-policies": true,
 	}
 
 	// Store additional properties (fields not in the struct)
@@ -270,11 +275,12 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 		logConfig.Printf("Configured HTTP MCP server: name=%s, url=%s", name, server.URL)
 		log.Printf("[CONFIG] Configured HTTP MCP server: %s -> %s", name, server.URL)
 		return &ServerConfig{
-			Type:     "http",
-			URL:      server.URL,
-			Headers:  server.Headers,
-			Tools:    server.Tools,
-			Registry: server.Registry,
+			Type:          "http",
+			URL:           server.URL,
+			Headers:       server.Headers,
+			Tools:         server.Tools,
+			Registry:      server.Registry,
+			GuardPolicies: server.GuardPolicies,
 		}, nil
 	}
 
@@ -332,12 +338,13 @@ func buildStdioServerConfig(name string, server *StdinServerConfig) *ServerConfi
 	logConfig.Printf("Configured stdio MCP server: name=%s, container=%s", name, server.Container)
 
 	return &ServerConfig{
-		Type:     "stdio",
-		Command:  "docker",
-		Args:     args,
-		Env:      make(map[string]string),
-		Tools:    server.Tools,
-		Registry: server.Registry,
+		Type:          "stdio",
+		Command:       "docker",
+		Args:          args,
+		Env:           make(map[string]string),
+		Tools:         server.Tools,
+		Registry:      server.Registry,
+		GuardPolicies: server.GuardPolicies,
 	}
 }
 

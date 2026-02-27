@@ -30,20 +30,19 @@ var (
 	// This URL points to the source of truth for the MCP Gateway configuration schema.
 	//
 	// Schema Version Pinning:
-	// The schema is pinned to a specific gh-aw version (v0.41.1) for build reproducibility.
-	// This ensures predictable builds and prevents unexpected breaking changes from upstream
-	// schema updates.
+	// The schema is fetched from the main branch to get the latest version with guard-policies support.
+	// This ensures the gateway supports the latest configuration features including guard policies.
 	//
-	// To update the schema version:
+	// To update to a specific pinned version:
 	//   1. Check the latest gh-aw release: https://github.com/github/gh-aw/releases
-	//   2. Update the version tag in the URL below
+	//   2. Update the URL below to use a version tag instead of main
 	//   3. Run tests to ensure compatibility: make test
-	//   4. Update this comment with the new version number
+	//   4. Update this comment with the version number
 	//
-	// Current schema version: v0.41.1 (February 2026)
+	// Current schema version: main (latest with guard-policies support)
 	//
 	// Alternative: Embed the schema using go:embed directive for zero network dependency.
-	schemaURL = "https://raw.githubusercontent.com/github/gh-aw/v0.41.1/docs/public/schemas/mcp-gateway-config.schema.json"
+	schemaURL = "https://raw.githubusercontent.com/github/gh-aw/main/pkg/workflow/schemas/mcp-gateway-config.schema.json"
 
 	// Schema caching to avoid recompiling the JSON schema on every validation
 	// This improves performance by compiling the schema once and reusing it

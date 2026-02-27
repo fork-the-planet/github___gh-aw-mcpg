@@ -130,6 +130,12 @@ For the complete JSON configuration specification with all validation rules, see
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "",
         "EXPANDED_VAR": "${MY_HOME}/config"
+      },
+      "guard-policies": {
+        "github": {
+          "owner": "github",
+          "repos": ["gh-aw-mcpg", "gh-aw"]
+        }
       }
     }
   },
@@ -181,6 +187,21 @@ For the complete JSON configuration specification with all validation rules, see
   - Use `"${VAR_NAME}"` for environment variable expansion (fails if undefined)
 
 - **`url`** (required for http): HTTP endpoint URL for `type: "http"` servers
+
+- **`guard-policies`** (optional): Guard policies for access control at the MCP gateway level
+  - Structure is server-specific and depends on the MCP server implementation
+  - For **GitHub MCP server**, controls repository access with the following structure:
+    ```toml
+    [servers.github.guard_policies]
+    [servers.github.guard_policies.github]
+    owner = "github"                      # GitHub organization or user name
+    repos = ["gh-aw-mcpg", "gh-aw"]      # List of allowed repositories
+    ```
+    - **Meaning**: Restricts the GitHub MCP server to only access repositories `github/gh-aw-mcpg` and `github/gh-aw`
+    - Tools like `get_file_contents`, `search_code`, etc. will only work on these repositories
+    - Attempts to access other repositories will be denied by the guard policy
+  - For **other MCP servers** (Jira, WorkIQ, etc.), different policy schemas apply
+  - JSON format uses `"guard-policies"` (with hyphen), TOML uses `guard_policies` (with underscore)
 
 **Validation Rules:**
 
