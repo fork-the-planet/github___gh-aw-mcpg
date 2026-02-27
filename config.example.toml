@@ -69,6 +69,19 @@ GITHUB_PERSONAL_ACCESS_TOKEN = ""  # Pass through from host
 # tools = ["*"]                    # Allow all tools (default)
 # tools = ["read_file", "list_files"]  # Allow specific tools only
 
+# Optional: Guard policies for access control at the MCP gateway level
+# The structure is server-specific. For GitHub MCP server, this controls repository access.
+# Example: Restrict access to specific GitHub organization and repositories
+# [servers.github.guard_policies.github]
+# repos = ["github/gh-aw-mcpg", "github/gh-aw"]  # Exact repository patterns
+# min-integrity = "reader"                       # Minimum integrity level: none, reader, writer, merged
+#
+# Other examples:
+# repos = "all"                                  # All repositories accessible by token
+# repos = "public"                               # Public repositories only
+# repos = ["myorg/*", "partner/shared-repo"]     # Organization wildcard and specific repo
+# repos = ["myorg/api-*", "myorg/web-*"]        # Prefix matching with wildcards
+
 # Example 2: Memory MCP Server (stdio via Docker)
 [servers.memory]
 command = "docker"

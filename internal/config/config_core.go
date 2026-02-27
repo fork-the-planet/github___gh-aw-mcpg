@@ -119,6 +119,10 @@ type ServerConfig struct {
 
 	// Registry is the URI to the installation location in an MCP registry (informational)
 	Registry string `toml:"registry" json:"registry,omitempty"`
+
+	// GuardPolicies holds guard policies for access control at the MCP gateway level.
+	// The structure is server-specific. For GitHub MCP server, see the GitHub guard policy schema.
+	GuardPolicies map[string]interface{} `toml:"guard_policies" json:"guard-policies,omitempty"`
 }
 
 // applyGatewayDefaults applies default values to a GatewayConfig if they are not set.

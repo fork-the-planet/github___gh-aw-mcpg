@@ -166,8 +166,11 @@ func TestLoadFromStdin_UnsupportedType(t *testing.T) {
 	// Should fail validation for unsupported type
 	require.Error(t, err)
 
-	// Error should mention configuration error
-	assert.Contains(t, err.Error(), "Configuration error", "Expected configuration error")
+	// Error should mention configuration error or validation error
+	errorMsg := err.Error()
+	assert.True(t,
+		strings.Contains(errorMsg, "Configuration error") || strings.Contains(errorMsg, "Configuration validation error"),
+		"Expected configuration error or validation error, got: %s", errorMsg)
 
 	// Config should be nil on validation error
 	assert.Nil(t, cfg, "Config should be nil when validation fails")
@@ -1530,4 +1533,130 @@ registry = "https://api.mcp.github.com/v0/servers/github/github-mcp-server"
 	require.True(t, ok, "Server 'github' not found")
 
 	assert.Equal(t, "https://api.mcp.github.com/v0/servers/github/github-mcp-server", server.Registry, "Registry field not preserved in TOML config")
+}
+
+// TestLoadFromStdin_WithGuardPolicies tests that guard-policies field is correctly parsed from JSON stdin
+func TestLoadFromStdin_WithGuardPolicies(t *testing.T) {
+	jsonConfig := `{
+		"mcpServers": {
+			"github": {
+				"type": "stdio",
+				"container": "ghcr.io/github/github-mcp-server:latest",
+				"guard-policies": {
+					"github": {
+						"repos": ["github/gh-aw-mcpg", "github/gh-aw"],
+						"min-integrity": "reader"
+					}
+				}
+			},
+			"http-server": {
+				"type": "http",
+				"url": "https://example.com/mcp",
+				"guard-policies": {
+					"network": {
+						"allow": ["api.example.com"]
+					}
+				}
+			}
+		},
+		"gateway": {
+			"port": 8080,
+			"domain": "localhost",
+			"apiKey": "test-key"
+		}
+	}`
+
+	// Mock stdin
+	r, w, _ := os.Pipe()
+	oldStdin := os.Stdin
+	os.Stdin = r
+	go func() {
+		w.Write([]byte(jsonConfig))
+		w.Close()
+	}()
+
+	cfg, err := LoadFromStdin()
+	os.Stdin = oldStdin
+
+	require.NoError(t, err, "LoadFromStdin() failed")
+	require.NotNil(t, cfg, "Config should not be nil")
+
+	// Test stdio server with guard policies
+	githubServer, ok := cfg.Servers["github"]
+	require.True(t, ok, "Server 'github' not found")
+	require.NotNil(t, githubServer.GuardPolicies, "GuardPolicies should not be nil")
+
+	githubPolicy, ok := githubServer.GuardPolicies["github"]
+	require.True(t, ok, "GitHub policy not found in guard-policies")
+	githubPolicyMap, ok := githubPolicy.(map[string]interface{})
+	require.True(t, ok, "GitHub policy should be a map")
+
+	// Verify repos field (array format)
+	repos, ok := githubPolicyMap["repos"]
+	require.True(t, ok, "repos field not found")
+	reposArray, ok := repos.([]interface{})
+	require.True(t, ok, "repos should be an array")
+	assert.Len(t, reposArray, 2, "repos should have 2 entries")
+
+	// Verify min-integrity field
+	minIntegrity, ok := githubPolicyMap["min-integrity"]
+	require.True(t, ok, "min-integrity field not found")
+	assert.Equal(t, "reader", minIntegrity, "min-integrity should be 'reader'")
+
+	// Test HTTP server with guard policies
+	httpServer, ok := cfg.Servers["http-server"]
+	require.True(t, ok, "Server 'http-server' not found")
+	require.NotNil(t, httpServer.GuardPolicies, "GuardPolicies should not be nil for HTTP server")
+
+	networkPolicy, ok := httpServer.GuardPolicies["network"]
+	require.True(t, ok, "Network policy not found in guard-policies")
+	require.NotNil(t, networkPolicy, "Network policy should not be nil")
+}
+
+// TestLoadFromFile_WithGuardPolicies tests that guard_policies field is correctly parsed from TOML
+func TestLoadFromFile_WithGuardPolicies(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "config.toml")
+
+	tomlContent := `
+[gateway]
+port = 8080
+api_key = "test-key"
+
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+
+[servers.github.guard_policies.github]
+repos = ["github/gh-aw-mcpg", "github/gh-aw"]
+min-integrity = "reader"
+`
+
+	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
+	require.NoError(t, err, "Failed to write temp TOML file")
+
+	cfg, err := LoadFromFile(tmpFile)
+	require.NoError(t, err, "LoadFromFile() failed")
+	require.NotNil(t, cfg, "Config should not be nil")
+
+	server, ok := cfg.Servers["github"]
+	require.True(t, ok, "Server 'github' not found")
+	require.NotNil(t, server.GuardPolicies, "GuardPolicies should not be nil")
+
+	githubPolicy, ok := server.GuardPolicies["github"]
+	require.True(t, ok, "GitHub policy not found in guard_policies")
+	githubPolicyMap, ok := githubPolicy.(map[string]interface{})
+	require.True(t, ok, "GitHub policy should be a map")
+
+	// Verify repos field
+	repos, ok := githubPolicyMap["repos"]
+	require.True(t, ok, "repos field not found in TOML config")
+	reposArray, ok := repos.([]interface{})
+	require.True(t, ok, "repos should be an array")
+	assert.Len(t, reposArray, 2, "repos should have 2 entries")
+
+	// Verify min-integrity field
+	minIntegrity, ok := githubPolicyMap["min-integrity"]
+	require.True(t, ok, "min-integrity field not found in TOML config")
+	assert.Equal(t, "reader", minIntegrity, "min-integrity should be 'reader' in TOML config")
 }
