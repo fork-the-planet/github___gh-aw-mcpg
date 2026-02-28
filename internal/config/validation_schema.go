@@ -38,10 +38,10 @@ var (
 	//   3. Run tests to ensure compatibility: make test
 	//   4. Update this comment with the version number
 	//
-	// Current schema version: main (latest)
+	// Current schema version: v0.50.7
 	//
 	// Alternative: Embed the schema using go:embed directive for zero network dependency.
-	schemaURL = "https://raw.githubusercontent.com/github/gh-aw/main/docs/public/schemas/mcp-gateway-config.schema.json"
+	schemaURL = "https://raw.githubusercontent.com/github/gh-aw/v0.50.7/docs/public/schemas/mcp-gateway-config.schema.json"
 
 	// Schema caching to avoid recompiling the JSON schema on every validation
 	// This improves performance by compiling the schema once and reusing it
