@@ -492,3 +492,480 @@ func TestConvertStdinServerConfig_MixedEnvPassthroughAndExplicit(t *testing.T) {
 	assert.True(t, hasPass1, "PASS1 passthrough not found")
 	assert.True(t, hasPass2, "PASS2 passthrough not found")
 }
+
+// ============================================================
+// Direct unit tests for buildStdioServerConfig
+// ============================================================
+
+// TestBuildStdioServerConfig_MinimalContainer tests the minimum valid configuration
+// with only a container image name specified.
+func TestBuildStdioServerConfig_MinimalContainer(t *testing.T) {
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	require.NotNil(t, result)
+	assert.Equal(t, "stdio", result.Type)
+	assert.Equal(t, "docker", result.Command)
+	assert.Empty(t, result.Env, "result.Env should be an empty map")
+
+	// Verify mandatory base args
+	assert.Equal(t, "run", result.Args[0])
+	assert.Equal(t, "--rm", result.Args[1])
+	assert.Equal(t, "-i", result.Args[2])
+
+	// Verify standard environment variables
+	args := result.Args
+	assert.Contains(t, args, "NO_COLOR=1")
+	assert.Contains(t, args, "TERM=dumb")
+	assert.Contains(t, args, "PYTHONUNBUFFERED=1")
+
+	// Container must be present
+	assert.Contains(t, args, "my/image:latest")
+}
+
+// TestBuildStdioServerConfig_WithEntrypoint verifies --entrypoint is injected when specified.
+func TestBuildStdioServerConfig_WithEntrypoint(t *testing.T) {
+	server := &StdinServerConfig{
+		Container:  "my/image:latest",
+		Entrypoint: "/usr/bin/node",
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	args := result.Args
+	assert.Contains(t, args, "--entrypoint")
+	assert.Contains(t, args, "/usr/bin/node")
+
+	// --entrypoint value must appear immediately after --entrypoint flag
+	entrypointFlagIdx := indexOf(args, "--entrypoint")
+	require.True(t, entrypointFlagIdx >= 0, "--entrypoint flag must be present")
+	assert.Equal(t, "/usr/bin/node", args[entrypointFlagIdx+1])
+}
+
+// TestBuildStdioServerConfig_NoEntrypoint verifies --entrypoint is NOT added when empty.
+func TestBuildStdioServerConfig_NoEntrypoint(t *testing.T) {
+	server := &StdinServerConfig{
+		Container:  "my/image:latest",
+		Entrypoint: "",
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	assert.NotContains(t, result.Args, "--entrypoint", "--entrypoint should not appear when empty")
+}
+
+// TestBuildStdioServerConfig_WithSingleMount verifies a single volume mount is added.
+func TestBuildStdioServerConfig_WithSingleMount(t *testing.T) {
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+		Mounts:    []string{"/host/data:/container/data:ro"},
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	args := result.Args
+	assert.Contains(t, args, "-v")
+	assert.Contains(t, args, "/host/data:/container/data:ro")
+
+	// -v value must immediately follow the -v flag
+	vIdx := indexOf(args, "-v")
+	require.True(t, vIdx >= 0, "-v flag must be present")
+	assert.Equal(t, "/host/data:/container/data:ro", args[vIdx+1])
+}
+
+// TestBuildStdioServerConfig_WithMultipleMounts verifies multiple mounts are all added.
+func TestBuildStdioServerConfig_WithMultipleMounts(t *testing.T) {
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+		Mounts: []string{
+			"/host/data:/container/data:ro",
+			"/host/logs:/container/logs:rw",
+			"/tmp:/tmp:rw",
+		},
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	args := result.Args
+	assert.Contains(t, args, "/host/data:/container/data:ro")
+	assert.Contains(t, args, "/host/logs:/container/logs:rw")
+	assert.Contains(t, args, "/tmp:/tmp:rw")
+
+	// Count occurrences of -v flag — must match number of mounts
+	vCount := 0
+	for _, a := range args {
+		if a == "-v" {
+			vCount++
+		}
+	}
+	assert.Equal(t, 3, vCount, "should have exactly 3 -v flags")
+}
+
+// TestBuildStdioServerConfig_NoMounts verifies -v is absent when no mounts are specified.
+func TestBuildStdioServerConfig_NoMounts(t *testing.T) {
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	assert.NotContains(t, result.Args, "-v", "-v should not appear with no mounts")
+}
+
+// TestBuildStdioServerConfig_EnvPassthrough verifies that an empty env value
+// produces "-e KEY" (passthrough) without an equals sign.
+func TestBuildStdioServerConfig_EnvPassthrough(t *testing.T) {
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+		Env: map[string]string{
+			"GITHUB_TOKEN": "",
+		},
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	args := result.Args
+	// Must contain "-e" followed by just the key name (no "=value")
+	assert.Contains(t, args, "GITHUB_TOKEN", "passthrough key must appear in args")
+	assert.NotContains(t, args, "GITHUB_TOKEN=", "passthrough must not have = sign")
+}
+
+// TestBuildStdioServerConfig_EnvExplicitValue verifies that a non-empty env value
+// produces "-e KEY=VALUE".
+func TestBuildStdioServerConfig_EnvExplicitValue(t *testing.T) {
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+		Env: map[string]string{
+			"LOG_LEVEL": "debug",
+		},
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	assert.Contains(t, result.Args, "LOG_LEVEL=debug")
+}
+
+// TestBuildStdioServerConfig_EnvMixed verifies mixed passthrough and explicit env vars.
+func TestBuildStdioServerConfig_EnvMixed(t *testing.T) {
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+		Env: map[string]string{
+			"PASSTHROUGH_VAR": "",
+			"EXPLICIT_VAR":    "explicit-value",
+		},
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	args := result.Args
+	assert.Contains(t, args, "PASSTHROUGH_VAR", "passthrough key must appear without =")
+	assert.NotContains(t, args, "PASSTHROUGH_VAR=", "passthrough must not contain =")
+	assert.Contains(t, args, "EXPLICIT_VAR=explicit-value", "explicit key=value must appear")
+}
+
+// TestBuildStdioServerConfig_WithAdditionalArgs verifies that extra Docker runtime args
+// are appended before the container image name.
+func TestBuildStdioServerConfig_WithAdditionalArgs(t *testing.T) {
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+		Args:      []string{"--network", "host", "--memory", "512m"},
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	args := result.Args
+	assert.Contains(t, args, "--network")
+	assert.Contains(t, args, "host")
+	assert.Contains(t, args, "--memory")
+	assert.Contains(t, args, "512m")
+
+	// Additional args must come before the container name
+	containerIdx := indexOf(args, "my/image:latest")
+	networkIdx := indexOf(args, "--network")
+	require.True(t, containerIdx > 0)
+	require.True(t, networkIdx > 0)
+	assert.Less(t, networkIdx, containerIdx, "--network must appear before container name")
+}
+
+// TestBuildStdioServerConfig_WithEntrypointArgs verifies that entrypoint args
+// appear after the container image name.
+func TestBuildStdioServerConfig_WithEntrypointArgs(t *testing.T) {
+	server := &StdinServerConfig{
+		Container:      "my/image:latest",
+		EntrypointArgs: []string{"--serve", "--port", "8080"},
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	args := result.Args
+	containerIdx := indexOf(args, "my/image:latest")
+	require.True(t, containerIdx >= 0, "container must be in args")
+
+	// Entrypoint args must come after container
+	serveIdx := indexOf(args, "--serve")
+	require.True(t, serveIdx >= 0, "--serve must be in args")
+	assert.Greater(t, serveIdx, containerIdx, "--serve must appear after container name")
+
+	assert.Contains(t, args, "--port")
+	assert.Contains(t, args, "8080")
+}
+
+// TestBuildStdioServerConfig_ToolsPreserved verifies that Tools field is passed through.
+func TestBuildStdioServerConfig_ToolsPreserved(t *testing.T) {
+	tools := []string{"search_code", "get_file_contents", "create_pull_request"}
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+		Tools:     tools,
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	assert.Equal(t, tools, result.Tools)
+}
+
+// TestBuildStdioServerConfig_RegistryPreserved verifies that Registry field is passed through.
+func TestBuildStdioServerConfig_RegistryPreserved(t *testing.T) {
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+		Registry:  "https://registry.example.com/my-server",
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	assert.Equal(t, "https://registry.example.com/my-server", result.Registry)
+}
+
+// TestBuildStdioServerConfig_ResultEnvMapIsEmpty verifies that the result ServerConfig.Env
+// is always an empty (non-nil) map regardless of input env vars.
+func TestBuildStdioServerConfig_ResultEnvMapIsEmpty(t *testing.T) {
+	server := &StdinServerConfig{
+		Container: "my/image:latest",
+		Env: map[string]string{
+			"KEY": "value",
+		},
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	assert.NotNil(t, result.Env, "result.Env must not be nil")
+	assert.Empty(t, result.Env, "result.Env must be empty — env vars go into Args, not Env")
+}
+
+// TestBuildStdioServerConfig_ArgumentOrdering tests the precise ordering of Docker arguments:
+// base args → entrypoint override → mounts → user env → extra args → container → entrypoint args.
+func TestBuildStdioServerConfig_ArgumentOrdering(t *testing.T) {
+	server := &StdinServerConfig{
+		Container:      "my/image:latest",
+		Entrypoint:     "/custom/entrypoint",
+		Mounts:         []string{"/src:/dst:rw"},
+		Env:            map[string]string{"MY_VAR": "value"},
+		Args:           []string{"--extra-flag"},
+		EntrypointArgs: []string{"--ep-arg"},
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+	args := result.Args
+
+	// Base args must start the list
+	assert.Equal(t, "run", args[0])
+	assert.Equal(t, "--rm", args[1])
+	assert.Equal(t, "-i", args[2])
+
+	entrypointFlagIdx := indexOf(args, "--entrypoint")
+	mountFlagIdx := indexOf(args, "-v")
+	extraFlagIdx := indexOf(args, "--extra-flag")
+	containerIdx := indexOf(args, "my/image:latest")
+	epArgIdx := indexOf(args, "--ep-arg")
+
+	require.True(t, entrypointFlagIdx >= 0)
+	require.True(t, mountFlagIdx >= 0)
+	require.True(t, extraFlagIdx >= 0)
+	require.True(t, containerIdx >= 0)
+	require.True(t, epArgIdx >= 0)
+
+	// Entrypoint override comes before mounts
+	assert.Less(t, entrypointFlagIdx, mountFlagIdx, "--entrypoint must come before -v")
+	// Mounts come before extra args
+	assert.Less(t, mountFlagIdx, extraFlagIdx, "-v must come before --extra-flag")
+	// Extra args come before container
+	assert.Less(t, extraFlagIdx, containerIdx, "--extra-flag must come before container")
+	// Entrypoint args come after container
+	assert.Greater(t, epArgIdx, containerIdx, "--ep-arg must come after container")
+}
+
+// TestBuildStdioServerConfig_StandardEnvVarsAlwaysPresent verifies the three standard
+// environment variables are always injected regardless of user-provided env.
+func TestBuildStdioServerConfig_StandardEnvVarsAlwaysPresent(t *testing.T) {
+	tests := []struct {
+		name string
+		env  map[string]string
+	}{
+		{"no env", nil},
+		{"with env", map[string]string{"MY_KEY": "val"}},
+		{"empty env map", map[string]string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := &StdinServerConfig{
+				Container: "my/image:latest",
+				Env:       tt.env,
+			}
+			result := buildStdioServerConfig("test-server", server)
+
+			args := result.Args
+			assert.Contains(t, args, "NO_COLOR=1")
+			assert.Contains(t, args, "TERM=dumb")
+			assert.Contains(t, args, "PYTHONUNBUFFERED=1")
+		})
+	}
+}
+
+// ============================================================
+// Direct unit tests for normalizeLocalType
+// ============================================================
+
+// TestNormalizeLocalType_InvalidJSON verifies that invalid JSON returns an error.
+func TestNormalizeLocalType_InvalidJSON(t *testing.T) {
+	_, err := normalizeLocalType([]byte("not-valid-json"))
+	assert.Error(t, err)
+}
+
+// TestNormalizeLocalType_NoMCPServers verifies that JSON without mcpServers is returned unchanged.
+func TestNormalizeLocalType_NoMCPServers(t *testing.T) {
+	input := []byte(`{"gateway":{"port":3000}}`)
+	output, err := normalizeLocalType(input)
+	require.NoError(t, err)
+	assert.Equal(t, input, output)
+}
+
+// TestNormalizeLocalType_LocalTypeNormalized verifies that "local" is replaced with "stdio".
+func TestNormalizeLocalType_LocalTypeNormalized(t *testing.T) {
+	input := []byte(`{"mcpServers":{"my-server":{"type":"local","container":"my/image"}}}`)
+	output, err := normalizeLocalType(input)
+	require.NoError(t, err)
+	assert.NotContains(t, string(output), `"local"`)
+	assert.Contains(t, string(output), `"stdio"`)
+}
+
+// TestNormalizeLocalType_StdioTypeUnchanged verifies that "stdio" type is not modified.
+func TestNormalizeLocalType_StdioTypeUnchanged(t *testing.T) {
+	input := []byte(`{"mcpServers":{"my-server":{"type":"stdio","container":"my/image"}}}`)
+	output, err := normalizeLocalType(input)
+	require.NoError(t, err)
+	assert.Contains(t, string(output), `"stdio"`)
+	assert.NotContains(t, string(output), `"local"`)
+}
+
+// TestNormalizeLocalType_HTTPTypeUnchanged verifies that "http" type is not modified.
+func TestNormalizeLocalType_HTTPTypeUnchanged(t *testing.T) {
+	input := []byte(`{"mcpServers":{"my-server":{"type":"http","url":"https://example.com"}}}`)
+	output, err := normalizeLocalType(input)
+	require.NoError(t, err)
+	assert.Contains(t, string(output), `"http"`)
+}
+
+// TestNormalizeLocalType_MixedServersOnlyLocalNormalized verifies that only "local"
+// servers are normalized while other types remain unchanged.
+func TestNormalizeLocalType_MixedServersOnlyLocalNormalized(t *testing.T) {
+	input := []byte(`{"mcpServers":{
+		"local-server":{"type":"local","container":"img1"},
+		"stdio-server":{"type":"stdio","container":"img2"},
+		"http-server":{"type":"http","url":"https://example.com"}
+	}}`)
+	output, err := normalizeLocalType(input)
+	require.NoError(t, err)
+
+	outputStr := string(output)
+	assert.NotContains(t, outputStr, `"local"`, `"local" type should be gone after normalization`)
+	assert.Contains(t, outputStr, `"stdio"`)
+	assert.Contains(t, outputStr, `"http"`)
+}
+
+// TestNormalizeLocalType_ServerWithoutType verifies that a server missing the type field
+// is not modified.
+func TestNormalizeLocalType_ServerWithoutType(t *testing.T) {
+	input := []byte(`{"mcpServers":{"my-server":{"container":"my/image"}}}`)
+	output, err := normalizeLocalType(input)
+	require.NoError(t, err)
+	assert.NotContains(t, string(output), `"stdio"`)
+	assert.NotContains(t, string(output), `"local"`)
+}
+
+// TestNormalizeLocalType_MCPServersNotAMap verifies that a non-map mcpServers value
+// returns the input unchanged.
+func TestNormalizeLocalType_MCPServersNotAMap(t *testing.T) {
+	input := []byte(`{"mcpServers":["item1","item2"]}`)
+	output, err := normalizeLocalType(input)
+	require.NoError(t, err)
+	assert.Equal(t, input, output)
+}
+
+// TestNormalizeLocalType_EmptyMCPServers verifies that an empty mcpServers map
+// returns data unchanged (no modification needed).
+func TestNormalizeLocalType_EmptyMCPServers(t *testing.T) {
+	input := []byte(`{"mcpServers":{}}`)
+	output, err := normalizeLocalType(input)
+	require.NoError(t, err)
+	assert.NotContains(t, string(output), `"local"`)
+}
+
+// TestNormalizeLocalType_MultipleLocalServers verifies that all "local" servers
+// are normalized when there are multiple.
+func TestNormalizeLocalType_MultipleLocalServers(t *testing.T) {
+	input := []byte(`{"mcpServers":{
+		"server1":{"type":"local","container":"img1"},
+		"server2":{"type":"local","container":"img2"}
+	}}`)
+	output, err := normalizeLocalType(input)
+	require.NoError(t, err)
+	assert.NotContains(t, string(output), `"local"`)
+}
+
+// ============================================================
+// Direct unit tests for intPtrOrDefault
+// ============================================================
+
+// TestIntPtrOrDefault_NilReturnsDefault verifies that a nil pointer returns the default value.
+func TestIntPtrOrDefault_NilReturnsDefault(t *testing.T) {
+	result := intPtrOrDefault(nil, 42)
+	assert.Equal(t, 42, result)
+}
+
+// TestIntPtrOrDefault_ZeroPtrReturnsZero verifies that a pointer to 0 returns 0,
+// not the default. This is a critical distinction for distinguishing "not set" from "set to 0".
+func TestIntPtrOrDefault_ZeroPtrReturnsZero(t *testing.T) {
+	zero := 0
+	result := intPtrOrDefault(&zero, 99)
+	assert.Equal(t, 0, result, "pointer to 0 must return 0, not the default")
+}
+
+// TestIntPtrOrDefault_PositiveValue verifies that a positive pointer value is returned.
+func TestIntPtrOrDefault_PositiveValue(t *testing.T) {
+	val := 3000
+	result := intPtrOrDefault(&val, 8080)
+	assert.Equal(t, 3000, result)
+}
+
+// TestIntPtrOrDefault_NegativeValue verifies that a negative pointer value is returned as-is.
+func TestIntPtrOrDefault_NegativeValue(t *testing.T) {
+	val := -5
+	result := intPtrOrDefault(&val, 10)
+	assert.Equal(t, -5, result)
+}
+
+// TestIntPtrOrDefault_LargeValue verifies that large values are handled correctly.
+func TestIntPtrOrDefault_LargeValue(t *testing.T) {
+	val := 65535
+	result := intPtrOrDefault(&val, 8080)
+	assert.Equal(t, 65535, result)
+}
+
+// TestIntPtrOrDefault_DefaultIsZero verifies that a nil pointer with default 0 returns 0.
+func TestIntPtrOrDefault_DefaultIsZero(t *testing.T) {
+	result := intPtrOrDefault(nil, 0)
+	assert.Equal(t, 0, result)
+}

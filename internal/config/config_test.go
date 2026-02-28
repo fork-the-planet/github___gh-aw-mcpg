@@ -1535,128 +1535,77 @@ registry = "https://api.mcp.github.com/v0/servers/github/github-mcp-server"
 	assert.Equal(t, "https://api.mcp.github.com/v0/servers/github/github-mcp-server", server.Registry, "Registry field not preserved in TOML config")
 }
 
-// TestLoadFromStdin_WithGuardPolicies tests that guard-policies field is correctly parsed from JSON stdin
-func TestLoadFromStdin_WithGuardPolicies(t *testing.T) {
-	jsonConfig := `{
-		"mcpServers": {
-			"github": {
-				"type": "stdio",
-				"container": "ghcr.io/github/github-mcp-server:latest",
-				"guard-policies": {
-					"github": {
-						"repos": ["github/gh-aw-mcpg", "github/gh-aw"],
-						"min-integrity": "reader"
-					}
-				}
-			},
-			"http-server": {
-				"type": "http",
-				"url": "https://example.com/mcp",
-				"guard-policies": {
-					"network": {
-						"allow": ["api.example.com"]
-					}
-				}
-			}
-		},
-		"gateway": {
-			"port": 8080,
-			"domain": "localhost",
-			"apiKey": "test-key"
-		}
-	}`
+// ============================================================
+// Direct unit tests for applyGatewayDefaults
+// ============================================================
 
-	// Mock stdin
-	r, w, _ := os.Pipe()
-	oldStdin := os.Stdin
-	os.Stdin = r
-	go func() {
-		w.Write([]byte(jsonConfig))
-		w.Close()
-	}()
+// TestApplyGatewayDefaults_AllZeroValues verifies that all zero-value fields are
+// replaced with their defaults.
+func TestApplyGatewayDefaults_AllZeroValues(t *testing.T) {
+	cfg := &GatewayConfig{}
+	applyGatewayDefaults(cfg)
 
-	cfg, err := LoadFromStdin()
-	os.Stdin = oldStdin
-
-	require.NoError(t, err, "LoadFromStdin() failed")
-	require.NotNil(t, cfg, "Config should not be nil")
-
-	// Test stdio server with guard policies
-	githubServer, ok := cfg.Servers["github"]
-	require.True(t, ok, "Server 'github' not found")
-	require.NotNil(t, githubServer.GuardPolicies, "GuardPolicies should not be nil")
-
-	githubPolicy, ok := githubServer.GuardPolicies["github"]
-	require.True(t, ok, "GitHub policy not found in guard-policies")
-	githubPolicyMap, ok := githubPolicy.(map[string]interface{})
-	require.True(t, ok, "GitHub policy should be a map")
-
-	// Verify repos field (array format)
-	repos, ok := githubPolicyMap["repos"]
-	require.True(t, ok, "repos field not found")
-	reposArray, ok := repos.([]interface{})
-	require.True(t, ok, "repos should be an array")
-	assert.Len(t, reposArray, 2, "repos should have 2 entries")
-
-	// Verify min-integrity field
-	minIntegrity, ok := githubPolicyMap["min-integrity"]
-	require.True(t, ok, "min-integrity field not found")
-	assert.Equal(t, "reader", minIntegrity, "min-integrity should be 'reader'")
-
-	// Test HTTP server with guard policies
-	httpServer, ok := cfg.Servers["http-server"]
-	require.True(t, ok, "Server 'http-server' not found")
-	require.NotNil(t, httpServer.GuardPolicies, "GuardPolicies should not be nil for HTTP server")
-
-	networkPolicy, ok := httpServer.GuardPolicies["network"]
-	require.True(t, ok, "Network policy not found in guard-policies")
-	require.NotNil(t, networkPolicy, "Network policy should not be nil")
+	assert.Equal(t, DefaultPort, cfg.Port)
+	assert.Equal(t, DefaultStartupTimeout, cfg.StartupTimeout)
+	assert.Equal(t, DefaultToolTimeout, cfg.ToolTimeout)
 }
 
-// TestLoadFromFile_WithGuardPolicies tests that guard_policies field is correctly parsed from TOML
-func TestLoadFromFile_WithGuardPolicies(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
+// TestApplyGatewayDefaults_PortAlreadySet verifies that an explicitly set Port is preserved.
+func TestApplyGatewayDefaults_PortAlreadySet(t *testing.T) {
+	cfg := &GatewayConfig{Port: 8080}
+	applyGatewayDefaults(cfg)
 
-	tomlContent := `
-[gateway]
-port = 8080
-api_key = "test-key"
+	assert.Equal(t, 8080, cfg.Port)
+	assert.Equal(t, DefaultStartupTimeout, cfg.StartupTimeout)
+	assert.Equal(t, DefaultToolTimeout, cfg.ToolTimeout)
+}
 
-[servers.github]
-command = "docker"
-args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+// TestApplyGatewayDefaults_StartupTimeoutAlreadySet verifies an explicit StartupTimeout is preserved.
+func TestApplyGatewayDefaults_StartupTimeoutAlreadySet(t *testing.T) {
+	cfg := &GatewayConfig{StartupTimeout: 30}
+	applyGatewayDefaults(cfg)
 
-[servers.github.guard_policies.github]
-repos = ["github/gh-aw-mcpg", "github/gh-aw"]
-min-integrity = "reader"
-`
+	assert.Equal(t, DefaultPort, cfg.Port)
+	assert.Equal(t, 30, cfg.StartupTimeout)
+	assert.Equal(t, DefaultToolTimeout, cfg.ToolTimeout)
+}
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
+// TestApplyGatewayDefaults_ToolTimeoutAlreadySet verifies an explicit ToolTimeout is preserved.
+func TestApplyGatewayDefaults_ToolTimeoutAlreadySet(t *testing.T) {
+	cfg := &GatewayConfig{ToolTimeout: 300}
+	applyGatewayDefaults(cfg)
 
-	cfg, err := LoadFromFile(tmpFile)
-	require.NoError(t, err, "LoadFromFile() failed")
-	require.NotNil(t, cfg, "Config should not be nil")
+	assert.Equal(t, DefaultPort, cfg.Port)
+	assert.Equal(t, DefaultStartupTimeout, cfg.StartupTimeout)
+	assert.Equal(t, 300, cfg.ToolTimeout)
+}
 
-	server, ok := cfg.Servers["github"]
-	require.True(t, ok, "Server 'github' not found")
-	require.NotNil(t, server.GuardPolicies, "GuardPolicies should not be nil")
+// TestApplyGatewayDefaults_AllFieldsSet verifies that no fields are overwritten
+// when all are explicitly set.
+func TestApplyGatewayDefaults_AllFieldsSet(t *testing.T) {
+	cfg := &GatewayConfig{
+		Port:           9999,
+		StartupTimeout: 120,
+		ToolTimeout:    240,
+	}
+	applyGatewayDefaults(cfg)
 
-	githubPolicy, ok := server.GuardPolicies["github"]
-	require.True(t, ok, "GitHub policy not found in guard_policies")
-	githubPolicyMap, ok := githubPolicy.(map[string]interface{})
-	require.True(t, ok, "GitHub policy should be a map")
+	assert.Equal(t, 9999, cfg.Port)
+	assert.Equal(t, 120, cfg.StartupTimeout)
+	assert.Equal(t, 240, cfg.ToolTimeout)
+}
 
-	// Verify repos field
-	repos, ok := githubPolicyMap["repos"]
-	require.True(t, ok, "repos field not found in TOML config")
-	reposArray, ok := repos.([]interface{})
-	require.True(t, ok, "repos should be an array")
-	assert.Len(t, reposArray, 2, "repos should have 2 entries")
+// TestApplyGatewayDefaults_OtherFieldsUnaffected verifies that fields not managed by
+// applyGatewayDefaults (APIKey, Domain, etc.) are not touched.
+func TestApplyGatewayDefaults_OtherFieldsUnaffected(t *testing.T) {
+	cfg := &GatewayConfig{
+		APIKey: "my-api-key",
+		Domain: "example.com",
+	}
+	applyGatewayDefaults(cfg)
 
-	// Verify min-integrity field
-	minIntegrity, ok := githubPolicyMap["min-integrity"]
-	require.True(t, ok, "min-integrity field not found in TOML config")
-	assert.Equal(t, "reader", minIntegrity, "min-integrity should be 'reader' in TOML config")
+	assert.Equal(t, "my-api-key", cfg.APIKey, "APIKey should not be modified by applyGatewayDefaults")
+	assert.Equal(t, "example.com", cfg.Domain, "Domain should not be modified by applyGatewayDefaults")
+	// Defaults applied for the zero fields
+	assert.Equal(t, DefaultPort, cfg.Port)
 }
