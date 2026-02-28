@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -15,6 +16,10 @@ var logHandlers = logger.New("server:handlers")
 // shutdownErrorJSON is the pre-formatted JSON response for shutdown errors
 // Used by middleware to return HTTP 503 during graceful shutdown (spec 5.1.3)
 const shutdownErrorJSON = `{"error":"Gateway is shutting down"}`
+
+// closeEndpointDrainTimeout is the maximum time to wait for in-flight HTTP requests
+// to complete when the /close endpoint is called (spec 5.1.3 recommends ~30 seconds)
+const closeEndpointDrainTimeout = 30 * time.Second
 
 // handleOAuthDiscovery returns a handler for OAuth discovery endpoint
 // Returns 404 since the gateway doesn't use OAuth
@@ -72,11 +77,21 @@ func handleClose(unifiedServer *UnifiedServer) http.Handler {
 		logger.LogInfo("shutdown", "Close endpoint response sent, servers_terminated=%d", serversTerminated)
 		log.Printf("Gateway shutdown initiated. Terminated %d server(s)", serversTerminated)
 
-		// Exit the process after a brief delay to ensure response is sent
+		// Exit the process after draining in-flight requests (spec 5.1.3)
 		// Skip exit in test mode
 		if unifiedServer.ShouldExit() {
 			go func() {
-				time.Sleep(100 * time.Millisecond)
+				// Drain in-flight HTTP requests before exiting (spec 5.1.3 requires ~30s timeout)
+				if shutdownFn := unifiedServer.GetHTTPShutdown(); shutdownFn != nil {
+					shutdownCtx, cancel := context.WithTimeout(context.Background(), closeEndpointDrainTimeout)
+					defer cancel()
+					if err := shutdownFn(shutdownCtx); err != nil {
+						logger.LogWarn("shutdown", "HTTP server shutdown error during /close: %v", err)
+					}
+				} else {
+					// Fallback: brief delay to ensure response is sent when no shutdown fn is set
+					time.Sleep(100 * time.Millisecond)
+				}
 				logger.LogInfo("shutdown", "Gateway process exiting with status 0")
 				os.Exit(0)
 			}()

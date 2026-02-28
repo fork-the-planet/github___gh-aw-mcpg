@@ -2,12 +2,13 @@ package version
 
 // gatewayVersion stores the gateway version string, used across multiple packages
 // for error reporting, health checks, and MCP client implementation info.
-// It defaults to "dev" and should be set once at startup.
+// It defaults to "0.0.0-dev" (a valid semantic version pre-release identifier) and
+// should be set once at startup.
 //
 // Thread-safety note: This variable is written once at application startup
 // (in SetVersion) before any concurrent access, and read-only thereafter.
 // No mutex is needed as the write happens before any goroutines are spawned.
-var gatewayVersion = "dev"
+var gatewayVersion = "0.0.0-dev"
 
 // Set updates the gateway version string if the provided version is non-empty.
 // This should be called once at application startup from main.

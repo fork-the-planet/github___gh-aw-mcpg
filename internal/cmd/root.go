@@ -305,6 +305,9 @@ func run(cmd *cobra.Command, args []string) error {
 
 		httpServer = server.CreateHTTPServerForMCP(listenAddr, unifiedServer, apiKey)
 	}
+	// Register the HTTP server shutdown function so the /close handler can drain
+	// in-flight requests before exiting (spec 5.1.3)
+	unifiedServer.SetHTTPShutdown(httpServer.Shutdown)
 	// Start HTTP server in background
 	go func() {
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {

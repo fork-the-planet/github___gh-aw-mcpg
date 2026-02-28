@@ -89,9 +89,10 @@ type UnifiedServer struct {
 	enableDIFC    bool // When true, DIFC enforcement and session requirement are enabled
 
 	// Shutdown state tracking
-	isShutdown   bool
-	shutdownMu   sync.RWMutex
-	shutdownOnce sync.Once
+	isShutdown     bool
+	shutdownMu     sync.RWMutex
+	shutdownOnce   sync.Once
+	httpShutdownFn func(context.Context) error // Called during /close to drain in-flight HTTP requests
 
 	// Testing support - when true, skips os.Exit() call
 	testMode bool
@@ -1031,6 +1032,18 @@ func (us *UnifiedServer) SetTestMode(enabled bool) {
 // Returns false in test mode to prevent actual process exit
 func (us *UnifiedServer) ShouldExit() bool {
 	return !us.testMode
+}
+
+// SetHTTPShutdown sets the function to call when draining in-flight HTTP requests
+// during /close endpoint handling (spec 5.1.3). Should be called after the HTTP server
+// is created so that the close handler can perform graceful shutdown.
+func (us *UnifiedServer) SetHTTPShutdown(fn func(context.Context) error) {
+	us.httpShutdownFn = fn
+}
+
+// GetHTTPShutdown returns the HTTP shutdown function, or nil if not set
+func (us *UnifiedServer) GetHTTPShutdown() func(context.Context) error {
+	return us.httpShutdownFn
 }
 
 // IsDIFCEnabled returns whether DIFC is enabled

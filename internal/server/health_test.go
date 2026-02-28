@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -167,6 +168,22 @@ func TestHealthEndpoint_ResponseFields(t *testing.T) {
 				gatewayVersion, ok := value.(string)
 				require.True(ok, "Expected 'gatewayVersion' to be string, got %T", value)
 				assert.NotEmpty(gatewayVersion, "gatewayVersion must not be empty")
+			},
+		},
+		{
+			// T-HLT-009: gatewayVersion uses semantic versioning format (spec §8.1.1)
+			name:      "GatewayVersionField/SemverFormat",
+			fieldName: "gatewayVersion",
+			validate: func(t *testing.T, value interface{}) {
+				t.Helper()
+				require := require.New(t)
+				assert := assert.New(t)
+
+				gatewayVersion, ok := value.(string)
+				require.True(ok, "Expected 'gatewayVersion' to be string, got %T", value)
+				semverPattern := regexp.MustCompile(`^\d+\.\d+\.\d+`)
+				assert.True(semverPattern.MatchString(gatewayVersion),
+					"gatewayVersion must use semantic versioning format (MAJOR.MINOR.PATCH), got: %s", gatewayVersion)
 			},
 		},
 		{

@@ -26,14 +26,14 @@ func TestSet(t *testing.T) {
 		{
 			name:           "empty string does not change version",
 			inputVersion:   "",
-			expectedResult: "dev", // should remain default
+			expectedResult: "0.0.0-dev", // should remain default
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Reset to default before each test
-			gatewayVersion = "dev"
+			gatewayVersion = "0.0.0-dev"
 
 			Set(tt.inputVersion)
 			result := Get()
@@ -44,11 +44,11 @@ func TestSet(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	// Reset to default
-	gatewayVersion = "dev"
+	gatewayVersion = "0.0.0-dev"
 
 	// Test default value
 	result := Get()
-	require.Equal(t, "dev", result, "Default version should be 'dev'")
+	require.Equal(t, "0.0.0-dev", result, "Default version should be '0.0.0-dev'")
 
 	// Test after setting a value
 	Set("v2.0.0")
