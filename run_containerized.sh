@@ -317,6 +317,12 @@ build_command_args() {
 # Main execution
 main() {
     log_info "Starting MCP Gateway in containerized mode..."
+
+    if [ -n "$MCP_GATEWAY_WASM_GUARDS_DIR" ]; then
+        log_info "MCP_GATEWAY_WASM_GUARDS_DIR=$MCP_GATEWAY_WASM_GUARDS_DIR"
+    else
+        log_info "MCP_GATEWAY_WASM_GUARDS_DIR is not set"
+    fi
     
     # Verify we're in a container
     verify_containerized
