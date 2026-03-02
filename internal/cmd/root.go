@@ -341,6 +341,8 @@ func writeGatewayConfigToStdout(cfg *config.Config, listenAddr, mode string) err
 }
 
 func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, w io.Writer) error {
+	debugLog.Printf("Writing gateway config: listenAddr=%s, mode=%s, servers=%d", listenAddr, mode, len(cfg.Servers))
+
 	// Parse listen address to extract host and port
 	// Use net.SplitHostPort which properly handles both IPv4 and IPv6 addresses
 	host, port := DefaultListenIPv4, DefaultListenPort
@@ -356,11 +358,15 @@ func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, w io.Writer
 	// Determine domain (use host from listen address)
 	domain := host
 
+	debugLog.Printf("Resolved gateway address: host=%s, port=%s", host, port)
+
 	// Extract API key from gateway config (per spec section 7.1)
 	apiKey := ""
 	if cfg.Gateway != nil {
 		apiKey = cfg.Gateway.APIKey
 	}
+
+	debugLog.Printf("Gateway auth: apiKeyConfigured=%v", apiKey != "")
 
 	// Build output configuration
 	outputConfig := map[string]interface{}{
@@ -395,6 +401,8 @@ func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, w io.Writer
 			serverConfig["tools"] = server.Tools
 		}
 
+		debugLog.Printf("Wrote server config entry: name=%s, url=%v, toolCount=%d", name, serverConfig["url"], len(server.Tools))
+
 		servers[name] = serverConfig
 	}
 
@@ -404,6 +412,8 @@ func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, w io.Writer
 	if err := encoder.Encode(outputConfig); err != nil {
 		return fmt.Errorf("failed to encode configuration: %w", err)
 	}
+
+	debugLog.Printf("Gateway config written successfully: serverCount=%d", len(servers))
 
 	// Flush stdout buffer if it's a regular file
 	// Note: Sync() fails on pipes and character devices like /dev/stdout,
