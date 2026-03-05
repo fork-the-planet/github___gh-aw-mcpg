@@ -30,6 +30,9 @@ const (
 	HTTPTransportPlainJSON HTTPTransportType = "plain-json"
 )
 
+// MCPProtocolVersion is the MCP protocol version used in initialization requests.
+const MCPProtocolVersion = "2024-11-05"
+
 // requestIDCounter is used to generate unique request IDs for HTTP requests
 var requestIDCounter uint64
 
@@ -376,11 +379,11 @@ func (c *Connection) initializeHTTPSession() (string, error) {
 
 	// Create initialize request with MCP protocol parameters
 	initParams := map[string]interface{}{
-		"protocolVersion": "2024-11-05",
+		"protocolVersion": MCPProtocolVersion,
 		"capabilities":    map[string]interface{}{},
 		"clientInfo": map[string]interface{}{
 			"name":    "awmg",
-			"version": "1.0.0",
+			"version": version.Get(),
 		},
 	}
 

@@ -26,7 +26,7 @@ import (
 var logUnified = logger.New("server:unified")
 
 // MCPProtocolVersion is the MCP protocol version supported by this gateway
-const MCPProtocolVersion = "2024-11-05"
+const MCPProtocolVersion = mcp.MCPProtocolVersion
 
 // MCPGatewaySpecVersion is the MCP Gateway Specification version this implementation conforms to
 const MCPGatewaySpecVersion = "1.8.0"

@@ -1,8 +1,6 @@
 package server
 
 import (
-	"context"
-	"log"
 	"net/http"
 	"time"
 
@@ -11,37 +9,6 @@ import (
 )
 
 var logTransport = logger.New("server:transport")
-
-// HTTPTransport wraps the SDK's HTTP transport
-type HTTPTransport struct {
-	Addr string
-}
-
-// Start implements sdk.Transport interface
-func (t *HTTPTransport) Start(ctx context.Context) error {
-	logTransport.Printf("Starting HTTP transport: addr=%s", t.Addr)
-	// The SDK will handle the actual HTTP server setup
-	// We just need to provide the address
-	log.Printf("HTTP transport ready on %s", t.Addr)
-	return nil
-}
-
-// Send implements sdk.Transport interface
-func (t *HTTPTransport) Send(msg interface{}) error {
-	// Messages are sent via HTTP responses, handled by SDK
-	return nil
-}
-
-// Recv implements sdk.Transport interface
-func (t *HTTPTransport) Recv() (interface{}, error) {
-	// Messages are received via HTTP requests, handled by SDK
-	return nil, nil
-}
-
-// Close implements sdk.Transport interface
-func (t *HTTPTransport) Close() error {
-	return nil
-}
 
 // CreateHTTPServerForMCP creates an HTTP server that handles MCP over streamable HTTP transport
 // If apiKey is provided, all requests except /health require authentication (spec 7.1)
