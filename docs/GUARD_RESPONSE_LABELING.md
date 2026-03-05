@@ -147,7 +147,7 @@ For WASM guards, the gateway:
 2. Validates the policy structure via `buildStrictLabelAgentPayload()`:
    - Requires a top-level `allowonly` key with `repos` and `integrity` fields
    - `repos`: `"all"`, `"public"`, or an array of scoped repo strings
-   - `integrity`: one of `"none"`, `"reader"`, `"writer"`, `"merged"`
+   - `integrity`: one of `"none"`, `"unapproved"`, `"approved"`, `"merged"`
    - Rejects legacy `policy` envelope keys
 3. Calls the WASM module's exported `label_agent` function
 4. Parses the response via `parseLabelAgentResponse()`, which validates:
@@ -308,8 +308,8 @@ Scoped array entries support three patterns (all lowercase):
 | Value | Meaning |
 |-------|---------|
 | `"none"` | No integrity requirements — agent can read anything |
-| `"reader"` | Must be from a repo contributor (reader+) |
-| `"writer"` | Must be from a repo writer/maintainer |
+| `"unapproved"` | Must be from a repo contributor (reader-level access) |
+| `"approved"` | Must be from a repo collaborator with write access |
 | `"merged"` | Only merged/reviewed content |
 
 ### Step 1: `LabelAgent` — Session Initialization
@@ -320,7 +320,7 @@ Given this policy in the gateway config:
 {
   "allowonly": {
     "repos": ["acme/web-app", "acme/api-*"],
-    "integrity": "writer"
+    "integrity": "approved"
   }
 }
 ```
@@ -336,21 +336,21 @@ The gateway calls `label_agent` once at session start. The guard validates the p
     ],
     "integrity": [
       "integrity=none;scopes=acme/web-app,acme/api-*",
-      "integrity=reader-contributed;scopes=acme/web-app,acme/api-*",
-      "integrity=writer-contributed;scopes=acme/web-app,acme/api-*"
+      "integrity=unapproved;scopes=acme/web-app,acme/api-*",
+      "integrity=approved;scopes=acme/web-app,acme/api-*"
     ]
   },
   "difc_mode": "filter",
   "normalized_policy": {
     "scope_kind": "Composite",
-    "integrity": "writer"
+    "integrity": "approved"
   }
 }
 ```
 
 Key points:
 - **Secrecy** gets one `private:<scope>` tag per scoped repo entry in the policy. Here the two entries `acme/web-app` and `acme/api-*` produce `private:acme/web-app` and `private:acme/api-*`. This gives the agent clearance to read private content from those repos.
-- **Integrity** is hierarchical — an `"integrity": "writer"` floor means the agent can handle content at the `none`, `reader-contributed`, and `writer-contributed` levels (everything up to and including the floor). Because there are multiple scope entries (composite), the tags use the compound `integrity=<level>;scopes=<csv>` format rather than the simpler `<prefix><repo>` format used for single-scope policies.
+- **Integrity** is hierarchical — an `"integrity": "approved"` floor means the agent can handle content at the `none`, `unapproved`, and `approved` levels (everything up to and including the floor). Because there are multiple scope entries (composite), the tags use the compound `integrity=<level>;scopes=<csv>` format rather than the simpler `<prefix><repo>` format used for single-scope policies.
 - **`scope_kind`** is `"Composite"` because the policy contains multiple scope entries. A single-entry array uses the specific kind: `"Repo"` for `acme/web-app`, `"Owner"` for `acme/*`, or `"RepoPrefix"` for `acme/api-*`. The keyword scopes use `"All"` or `"Public"`.
 - **`difc_mode`** is always `"filter"` for the GitHub guard — unauthorized items are silently removed from responses rather than blocking the entire response.
 - This result is **cached** for the session — subsequent tool calls skip `label_agent` unless the policy changes.
@@ -366,13 +366,13 @@ For `search_repositories(query="org:acme language:go")`:
   "resource": {
     "description": "resource:search_repositories",
     "secrecy": [],
-    "integrity": ["none", "reader-contributed", "writer-contributed"]
+    "integrity": ["none", "unapproved", "approved"]
   },
   "operation": "read"
 }
 ```
 
-The search accepts any repo, so `secrecy` is empty. The `repo_id` is unknown pre-request (no `owner`/`repo` in args), so integrity uses unscoped labels at writer-level baseline.
+The search accepts any repo, so `secrecy` is empty. The `repo_id` is unknown pre-request (no `owner`/`repo` in args), so integrity uses unscoped labels at approved-level baseline.
 
 For `get_file_contents(owner="acme", repo="web-app", path="README.md")`:
 
@@ -383,8 +383,8 @@ For `get_file_contents(owner="acme", repo="web-app", path="README.md")`:
     "secrecy": [],
     "integrity": [
       "integrity=none;scopes=acme/web-app,acme/api-*",
-      "integrity=reader-contributed;scopes=acme/web-app,acme/api-*",
-      "integrity=writer-contributed;scopes=acme/web-app,acme/api-*",
+      "integrity=unapproved;scopes=acme/web-app,acme/api-*",
+      "integrity=approved;scopes=acme/web-app,acme/api-*",
       "integrity=merged;scopes=acme/web-app,acme/api-*"
     ]
   },
@@ -403,14 +403,14 @@ For `create_issue(owner="acme", repo="web-app", title="Bug")`:
     "secrecy": [],
     "integrity": [
       "integrity=none;scopes=acme/web-app,acme/api-*",
-      "integrity=reader-contributed;scopes=acme/web-app,acme/api-*"
+      "integrity=unapproved;scopes=acme/web-app,acme/api-*"
     ]
   },
   "operation": "write"
 }
 ```
 
-Create operations receive reader-level integrity baseline (the lowest contributor tier). Since `create_issue` has no tool-specific label rules, it uses the default write-operation labeling.
+Create operations receive unapproved-level integrity baseline (the lowest contributor tier). Since `create_issue` has no tool-specific label rules, it uses the default write-operation labeling.
 
 The Reference Monitor uses these labels to decide whether to proceed:
 - **Read**: The backend call executes, then `LabelResponse` provides fine-grained filtering
@@ -445,8 +445,8 @@ For a `search_repositories` response containing repos both inside and outside th
         "secrecy": [],
         "integrity": [
           "integrity=none;scopes=acme/web-app,acme/api-*",
-          "integrity=reader-contributed;scopes=acme/web-app,acme/api-*",
-          "integrity=writer-contributed;scopes=acme/web-app,acme/api-*"
+          "integrity=unapproved;scopes=acme/web-app,acme/api-*",
+          "integrity=approved;scopes=acme/web-app,acme/api-*"
         ]
       }
     },
@@ -457,8 +457,8 @@ For a `search_repositories` response containing repos both inside and outside th
         "secrecy": ["private:acme/api-*"],
         "integrity": [
           "integrity=none;scopes=acme/web-app,acme/api-*",
-          "integrity=reader-contributed;scopes=acme/web-app,acme/api-*",
-          "integrity=writer-contributed;scopes=acme/web-app,acme/api-*"
+          "integrity=unapproved;scopes=acme/web-app,acme/api-*",
+          "integrity=approved;scopes=acme/web-app,acme/api-*"
         ]
       }
     },
@@ -469,8 +469,8 @@ For a `search_repositories` response containing repos both inside and outside th
         "secrecy": ["private:acme/internal-tools"],
         "integrity": [
           "none:acme/internal-tools",
-          "reader-contributed:acme/internal-tools",
-          "writer-contributed:acme/internal-tools"
+          "unapproved:acme/internal-tools",
+          "approved:acme/internal-tools"
         ]
       }
     },
@@ -481,8 +481,8 @@ For a `search_repositories` response containing repos both inside and outside th
         "secrecy": [],
         "integrity": [
           "none:other-org/public-lib",
-          "reader-contributed:other-org/public-lib",
-          "writer-contributed:other-org/public-lib"
+          "unapproved:other-org/public-lib",
+          "approved:other-org/public-lib"
         ]
       }
     }
@@ -498,7 +498,7 @@ For a `search_repositories` response containing repos both inside and outside th
 
 Key observations:
 - **In-scope repos** (`acme/web-app`, `acme/api-server`) get **composite** integrity labels using the `integrity=<level>;scopes=<csv>` format — these match the agent's own integrity labels.
-- **Out-of-scope repos** (`acme/internal-tools`, `other-org/public-lib`) get **per-repo** integrity labels (e.g., `writer-contributed:acme/internal-tools`) that do **not** match the agent's composite labels — these will fail the integrity check.
+- **Out-of-scope repos** (`acme/internal-tools`, `other-org/public-lib`) get **per-repo** integrity labels (e.g., `approved:acme/internal-tools`) that do **not** match the agent's composite labels — these will fail the integrity check.
 - **Secrecy**: Private in-scope repos use the matching policy scope label (e.g., `private:acme/api-*` maps to the `acme/api-*` scope entry), which the agent has clearance for. Private out-of-scope repos use per-repo labels (e.g., `private:acme/internal-tools`) that are **not** in the agent's secrecy set. Public repos have empty secrecy.
 
 ### Step 4: Reference Monitor Enforcement
@@ -512,7 +512,7 @@ With `"filter"` mode and the scoped policy `["acme/web-app", "acme/api-*"]`:
 | `acme/web-app` | **Yes** | Public (secrecy `[] ⊆ agent.secrecy` ✅). In-scope composite integrity labels match agent's integrity ✅ |
 | `acme/api-server` | **Yes** | `private:acme/api-*` ∈ agent secrecy ✅. In-scope composite integrity labels match ✅ |
 | `acme/internal-tools` | **No** | `private:acme/internal-tools` ∉ agent secrecy ❌. Per-repo integrity labels also don't match agent's composite labels ❌ |
-| `other-org/public-lib` | **No** | Secrecy passes (empty). But per-repo integrity labels (`writer-contributed:other-org/public-lib` etc.) don't match agent's composite integrity labels ❌ |
+| `other-org/public-lib` | **No** | Secrecy passes (empty). But per-repo integrity labels (`approved:other-org/public-lib` etc.) don't match agent's composite integrity labels ❌ |
 
 **Filtered response returned to agent:**
 ```json

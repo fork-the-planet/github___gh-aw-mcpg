@@ -727,13 +727,13 @@ func TestBuildStrictLabelAgentPayload(t *testing.T) {
 		input := map[string]interface{}{
 			"allowonly": map[string]interface{}{
 				"repos":     "all",
-				"integrity": "ReaderContrib",
+				"integrity": "reader-contrib",
 			},
 		}
 
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.Equal(t, "invalid integrity value: expected one of none|reader|writer|merged", err.Error())
+		assert.Equal(t, "invalid integrity value: expected one of none|unapproved|approved|merged", err.Error())
 	})
 }
 

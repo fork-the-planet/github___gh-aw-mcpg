@@ -578,7 +578,7 @@ func TestGuardPolicy_StdinParsingAndConversion(t *testing.T) {
 				"policy": {
 					"allowonly": {
 						"repos": ["lpcox/github-guard"],
-						"integrity": "reader"
+						"integrity": "unapproved"
 					}
 				}
 			}
@@ -597,7 +597,7 @@ func TestGuardPolicy_StdinParsingAndConversion(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "scoped", normalized.ScopeKind)
 	assert.Equal(t, []string{"lpcox/github-guard"}, normalized.ScopeValues)
-	assert.Equal(t, IntegrityReaderContrib, normalized.Integrity)
+	assert.Equal(t, IntegrityUnapproved, normalized.Integrity)
 }
 
 func TestGuardPolicy_InvalidRejected(t *testing.T) {
@@ -641,7 +641,7 @@ func TestParseGuardPolicyJSON(t *testing.T) {
 
 func TestParseGuardPolicyJSON_UpdatedRepoRegex(t *testing.T) {
 	t.Run("accepts underscore scopes", func(t *testing.T) {
-		policy, err := ParseGuardPolicyJSON(`{"allowonly":{"repos":["owner_name/repo_name","owner-name/*","owner_name/repo_prefix*"],"integrity":"reader"}}`)
+		policy, err := ParseGuardPolicyJSON(`{"allowonly":{"repos":["owner_name/repo_name","owner-name/*","owner_name/repo_prefix*"],"integrity":"unapproved"}}`)
 		require.NoError(t, err)
 		require.NotNil(t, policy)
 
@@ -649,11 +649,11 @@ func TestParseGuardPolicyJSON_UpdatedRepoRegex(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "scoped", normalized.ScopeKind)
 		assert.Equal(t, []string{"owner-name/*", "owner_name/repo_name", "owner_name/repo_prefix*"}, normalized.ScopeValues)
-		assert.Equal(t, IntegrityReaderContrib, normalized.Integrity)
+		assert.Equal(t, IntegrityUnapproved, normalized.Integrity)
 	})
 
 	t.Run("rejects dot in repo scope", func(t *testing.T) {
-		_, err := ParseGuardPolicyJSON(`{"allowonly":{"repos":["owner/repo.name"],"integrity":"reader"}}`)
+		_, err := ParseGuardPolicyJSON(`{"allowonly":{"repos":["owner/repo.name"],"integrity":"unapproved"}}`)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid")
 	})

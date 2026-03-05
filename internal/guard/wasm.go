@@ -369,13 +369,13 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 
 	integrity, ok := integrityRaw.(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid integrity value: expected one of none|reader|writer|merged")
+		return nil, fmt.Errorf("invalid integrity value: expected one of none|unapproved|approved|merged")
 	}
 
 	switch strings.ToLower(strings.TrimSpace(integrity)) {
-	case "none", "reader", "writer", "merged":
+	case "none", "unapproved", "approved", "merged":
 	default:
-		return nil, fmt.Errorf("invalid integrity value: expected one of none|reader|writer|merged")
+		return nil, fmt.Errorf("invalid integrity value: expected one of none|unapproved|approved|merged")
 	}
 
 	return payload, nil

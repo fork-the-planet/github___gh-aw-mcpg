@@ -47,7 +47,7 @@ func init() {
 		cmd.Flags().BoolVar(&allowOnlyPublic, "allowonly-scope-public", getDefaultAllowOnlyScopePublic(), "Use public AllowOnly scope")
 		cmd.Flags().StringVar(&allowOnlyOwner, "allowonly-scope-owner", getDefaultAllowOnlyScopeOwner(), "AllowOnly owner scope value")
 		cmd.Flags().StringVar(&allowOnlyRepo, "allowonly-scope-repo", getDefaultAllowOnlyScopeRepo(), "AllowOnly repo name (requires owner)")
-		cmd.Flags().StringVar(&allowOnlyMinInt, "allowonly-min-integrity", getDefaultAllowOnlyMinIntegrity(), "AllowOnly integrity: none|reader|writer|merged")
+		cmd.Flags().StringVar(&allowOnlyMinInt, "allowonly-min-integrity", getDefaultAllowOnlyMinIntegrity(), "AllowOnly integrity: none|unapproved|approved|merged")
 	})
 }
 
@@ -128,12 +128,10 @@ func buildAllowOnlyPolicy(public bool, owner, repo, minIntegrity string) (*confi
 	integrityKey := strings.ToLower(strings.ReplaceAll(integrityInput, "-", ""))
 
 	integrityByInput := map[string]string{
-		"none":          config.IntegrityNone,
-		"reader":        config.IntegrityReaderContrib,
-		"readercontrib": config.IntegrityReaderContrib,
-		"writer":        config.IntegrityWriterContrib,
-		"writercontrib": config.IntegrityWriterContrib,
-		"merged":        config.IntegrityMerged,
+		"none":       config.IntegrityNone,
+		"unapproved": config.IntegrityUnapproved,
+		"approved":   config.IntegrityApproved,
+		"merged":     config.IntegrityMerged,
 	}
 	integrity, hasIntegrity := integrityByInput[integrityKey]
 
@@ -158,7 +156,7 @@ func buildAllowOnlyPolicy(public bool, owner, repo, minIntegrity string) (*confi
 		return nil, fmt.Errorf("allowonly integrity is required")
 	}
 	if !hasIntegrity {
-		return nil, fmt.Errorf("allowonly integrity must be one of: none, reader, writer, merged")
+		return nil, fmt.Errorf("allowonly integrity must be one of: none, unapproved, approved, merged")
 	}
 
 	var repos interface{}

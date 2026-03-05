@@ -1,0 +1,876 @@
+[INFO] Starting MCP Gateway in containerized mode...
+[INFO] MCP_GATEWAY_WASM_GUARDS_DIR=/guards
+[INFO] Running in containerized environment
+[INFO] Container ID: b1392cfd9a0c...
+[INFO] Docker daemon is accessible
+[INFO] Required environment variables are set
+[INFO] Set DOCKER_API_VERSION=1.52 (server current)
+[INFO] Port 18080 is properly mapped
+[INFO] Stdin is interactive
+[INFO] Docker socket is mounted
+[WARN] Log directory /tmp/gh-aw/mcp-logs is not mounted
+[WARN] Gateway logs will not persist outside the container
+[WARN] Add mount: -v /path/on/host:/tmp/gh-aw/mcp-logs
+[INFO] Detecting host IP for container networking...
+[INFO] Method 1 (primary interface): 172.17.0.5
+[INFO] Using host IP: 172.17.0.5
+[INFO] Adding host.docker.internal mapping to /etc/hosts
+[INFO] DNS mapping configured: 172.17.0.5 -> host.docker.internal
+[INFO] Gateway will listen on 0.0.0.0:18080
+[INFO] Log directory: /tmp/gh-aw/mcp-logs
+[INFO] Command: ./awmg --routed --listen 0.0.0.0:18080 --config-stdin --log-dir /tmp/gh-aw/mcp-logs
+[INFO] Waiting for JSON configuration on stdin...
+[INFO] 
+[INFO] IMPORTANT: Configuration must be provided via stdin.
+[INFO] No default configuration is used in containerized mode.
+[INFO] 
+2026/03/02 01:51:08 Logging level: DEBUG=server:unified,guard:wasm (from environment)
+2026/03/02 01:51:08 Logging to file: /tmp/gh-aw/mcp-logs/mcp-gateway.log
+2026/03/02 01:51:08 Initialized per-serverID logging in directory: /tmp/gh-aw/mcp-logs
+2026/03/02 01:51:08 Tools logging to file: /tmp/gh-aw/mcp-logs/tools.json
+2026/03/02 01:51:08 Reading configuration from stdin...
+2026/03/02 01:51:08 Config extensions enabled - schema validation relaxed for extension fields
+2026/03/02 01:51:08 Loaded 2 MCP server(s)
+2026/03/02 01:51:08 Config extensions enabled (guards, session labels)
+2026/03/02 01:51:08 DIFC sink server ID logging enrichment disabled (no sink server IDs configured)
+2026/03/02 01:51:08 DIFC enforcement enabled with mode: strict
+2026/03/02 01:51:08   - Strict mode: violations are denied
+2026/03/02 01:51:08 Parallel server launching enabled (default)
+server:unified Creating new unified server: enableDIFC=true, sequentialLaunch=false, servers=2 +41ms
+2026/03/02 01:51:08 [LAUNCHER] Detected running inside a container
+server:unified Payload configuration: dir=/tmp/jq-payloads, pathPrefix=, sizeThreshold=524288 bytes (512.00 KB) +340µs
+2026/03/02 01:51:08 [DIFC] MCP_GATEWAY_WASM_GUARDS_DIR=/guards
+2026/03/02 01:51:08 [DIFC] guard policy for MCP server 'github': {"allowonly":{"integrity":"merged","repos":["lpcox/git*","lpcox/github-guard"]}}
+guard:wasm Creating WASM guard: name=github, path=/guards/github/00-github-guard.wasm +45ms
+guard:wasm Creating WASM guard from bytes: name=github, size=248636 +3ms
+guard:wasm WASM guard created successfully: name=github +62ms
+2026/03/02 01:51:08 [DIFC] Loaded discovered WASM guard for server 'github' from file: 00-github-guard.wasm
+2026/03/02 01:51:08 [DIFC] Registered guard 'github' for server 'github'
+2026/03/02 01:51:08 [DIFC] no guard policy was set for MCP server 'playwright'
+2026/03/02 01:51:08 [DIFC] Registered guard 'noop' for server 'playwright'
+2026/03/02 01:51:08 Registering tools from all backends...
+server:unified Starting tool registration for 2 backends +68ms
+2026/03/02 01:51:08 DIFC enabled: registering sys tools...
+2026/03/02 01:51:08 Registered 2 sys tools
+server:unified Registering tools in parallel from 2 backends +575µs
+2026/03/02 01:51:08 Registering tools from backend: playwright
+2026/03/02 01:51:08 Registering tools from backend: github
+2026/03/02 01:51:08 [LAUNCHER] Starting MCP server: playwright
+2026/03/02 01:51:08 [LAUNCHER] Command: docker
+2026/03/02 01:51:08 [LAUNCHER] Args: [run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e PLAYWRIGHT_MCP_HEADLESS=... mcp/playwright:latest]
+2026/03/02 01:51:08 [LAUNCHER] Starting server with 1m0s timeout
+2026/03/02 01:51:08 Starting MCP server command: docker [run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e PLAYWRIGHT_MCP_HEADLESS=... mcp/playwright:latest]
+2026/03/02 01:51:08 Connecting to MCP server...
+2026/03/02 01:51:09 Started MCP server: docker [run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e PLAYWRIGHT_MCP_HEADLESS=... mcp/playwright:latest]
+2026/03/02 01:51:09 [LAUNCHER] Successfully launched: playwright
+2026/03/02 01:51:09 [LAUNCHER] Starting MCP server: github
+2026/03/02 01:51:09 [LAUNCHER] Command: docker
+2026/03/02 01:51:09 [LAUNCHER] Args: [run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e GITHUB_PERSONAL_ACCESS_TOKEN=ghp_... ghcr.io/github/github-mcp-server:latest]
+2026/03/02 01:51:09 [LAUNCHER] Starting server with 1m0s timeout
+2026/03/02 01:51:09 Starting MCP server command: docker [run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e GITHUB_PERSONAL_ACCESS_TOKEN=ghp_... ghcr.io/github/github-mcp-server:latest]
+2026/03/02 01:51:09 Connecting to MCP server...
+2026/03/02 01:51:09 Registered tool: playwright-browser_close
+2026/03/02 01:51:09 Registered tool: playwright-browser_resize
+2026/03/02 01:51:09 Registered tool: playwright-browser_console_messages
+2026/03/02 01:51:09 Registered tool: playwright-browser_handle_dialog
+2026/03/02 01:51:09 Registered tool: playwright-browser_evaluate
+2026/03/02 01:51:09 Registered tool: playwright-browser_file_upload
+2026/03/02 01:51:09 Registered tool: playwright-browser_fill_form
+2026/03/02 01:51:09 Registered tool: playwright-browser_install
+2026/03/02 01:51:09 Registered tool: playwright-browser_press_key
+2026/03/02 01:51:09 Registered tool: playwright-browser_type
+2026/03/02 01:51:09 Registered tool: playwright-browser_navigate
+2026/03/02 01:51:09 Registered tool: playwright-browser_navigate_back
+2026/03/02 01:51:09 Registered tool: playwright-browser_network_requests
+2026/03/02 01:51:09 Registered tool: playwright-browser_run_code
+2026/03/02 01:51:09 Registered tool: playwright-browser_take_screenshot
+2026/03/02 01:51:09 Registered tool: playwright-browser_snapshot
+2026/03/02 01:51:09 Registered tool: playwright-browser_click
+2026/03/02 01:51:09 Registered tool: playwright-browser_drag
+2026/03/02 01:51:09 Registered tool: playwright-browser_hover
+2026/03/02 01:51:09 Registered tool: playwright-browser_select_option
+2026/03/02 01:51:09 Registered tool: playwright-browser_tabs
+2026/03/02 01:51:09 Registered tool: playwright-browser_wait_for
+2026/03/02 01:51:09 Registered 22 tools from playwright: playwright-browser_close, playwright-browser_resize, playwright-browser_console_messages, playwright-browser_handle_dialog, playwright-browser_evaluate, playwright-browser_file_upload, playwright-browser_fill_form, playwright-browser_install, playwright-browser_press_key, playwright-browser_type, playwright-browser_navigate, playwright-browser_navigate_back, playwright-browser_network_requests, playwright-browser_run_code, playwright-browser_take_screenshot, playwright-browser_snapshot, playwright-browser_click, playwright-browser_drag, playwright-browser_hover, playwright-browser_select_option, playwright-browser_tabs, playwright-browser_wait_for
+2026/03/02 01:51:10 Started MCP server: docker [run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e GITHUB_PERSONAL_ACCESS_TOKEN=ghp_... ghcr.io/github/github-mcp-server:latest]
+2026/03/02 01:51:10 [LAUNCHER] Successfully launched: github
+2026/03/02 01:51:11 Registered tool: github-add_comment_to_pending_review
+2026/03/02 01:51:11 Registered tool: github-add_issue_comment
+2026/03/02 01:51:11 Registered tool: github-add_reply_to_pull_request_comment
+2026/03/02 01:51:11 Registered tool: github-assign_copilot_to_issue
+2026/03/02 01:51:11 Registered tool: github-create_branch
+2026/03/02 01:51:11 Registered tool: github-create_or_update_file
+2026/03/02 01:51:11 Registered tool: github-create_pull_request
+2026/03/02 01:51:11 Registered tool: github-create_repository
+2026/03/02 01:51:11 Registered tool: github-delete_file
+2026/03/02 01:51:11 Registered tool: github-fork_repository
+2026/03/02 01:51:11 Registered tool: github-get_commit
+2026/03/02 01:51:11 Registered tool: github-get_file_contents
+2026/03/02 01:51:11 Registered tool: github-get_label
+2026/03/02 01:51:11 Registered tool: github-get_latest_release
+2026/03/02 01:51:11 Registered tool: github-get_me
+2026/03/02 01:51:11 Registered tool: github-get_release_by_tag
+2026/03/02 01:51:11 Registered tool: github-get_tag
+2026/03/02 01:51:11 Registered tool: github-issue_read
+2026/03/02 01:51:11 Registered tool: github-issue_write
+2026/03/02 01:51:11 Registered tool: github-list_branches
+2026/03/02 01:51:11 Registered tool: github-list_commits
+2026/03/02 01:51:11 Registered tool: github-list_issues
+2026/03/02 01:51:11 Registered tool: github-list_pull_requests
+2026/03/02 01:51:11 Registered tool: github-list_releases
+2026/03/02 01:51:11 Registered tool: github-list_tags
+2026/03/02 01:51:11 Registered tool: github-merge_pull_request
+2026/03/02 01:51:11 Registered tool: github-pull_request_read
+2026/03/02 01:51:11 Registered tool: github-pull_request_review_write
+2026/03/02 01:51:11 Registered tool: github-push_files
+2026/03/02 01:51:11 Registered tool: github-request_copilot_review
+2026/03/02 01:51:11 Registered tool: github-search_code
+2026/03/02 01:51:11 Registered tool: github-search_issues
+2026/03/02 01:51:11 Registered tool: github-search_pull_requests
+2026/03/02 01:51:11 Registered tool: github-search_repositories
+2026/03/02 01:51:11 Registered tool: github-search_users
+2026/03/02 01:51:11 Registered tool: github-sub_issue_write
+2026/03/02 01:51:11 Registered tool: github-update_pull_request
+2026/03/02 01:51:11 Registered tool: github-update_pull_request_branch
+2026/03/02 01:51:11 Registered 38 tools from github: github-add_comment_to_pending_review, github-add_issue_comment, github-add_reply_to_pull_request_comment, github-assign_copilot_to_issue, github-create_branch, github-create_or_update_file, github-create_pull_request, github-create_repository, github-delete_file, github-fork_repository, github-get_commit, github-get_file_contents, github-get_label, github-get_latest_release, github-get_me, github-get_release_by_tag, github-get_tag, github-issue_read, github-issue_write, github-list_branches, github-list_commits, github-list_issues, github-list_pull_requests, github-list_releases, github-list_tags, github-merge_pull_request, github-pull_request_read, github-pull_request_review_write, github-push_files, github-request_copilot_review, github-search_code, github-search_issues, github-search_pull_requests, github-search_repositories, github-search_users, github-sub_issue_write, github-update_pull_request, github-update_pull_request_branch
+server:unified Successfully registered tools from playwright (took 603.800667ms) +2.6s
+server:unified Successfully registered tools from github (took 2.562339459s) +412µs
+2026/03/02 01:51:11 Parallel tool registration complete: 2 succeeded, 0 failed, total tools=62
+server:unified Tool registration complete: 2 succeeded, 0 failed, total tools=62 +383µs
+server:unified Unified server created successfully with 62 tools +204µs
+2026/03/02 01:51:11 Starting MCPG in ROUTED mode on 0.0.0.0:18080
+2026/03/02 01:51:11 Routes: /mcp/<server> where <server> is one of: [playwright github]
+2026/03/02 01:51:11 Registered route: /mcp/sys
+2026/03/02 01:51:11 Registered route: /mcp/github
+2026/03/02 01:51:11 Registered route: /mcp/playwright
+{
+  "mcpServers": {
+    "github": {
+      "headers": {
+        "Authorization": "test-api-key-12345"
+      },
+      "type": "http",
+      "url": "http://0.0.0.0:18080/mcp/github"
+    },
+    "playwright": {
+      "headers": {
+        "Authorization": "test-api-key-12345"
+      },
+      "type": "http",
+      "url": "http://0.0.0.0:18080/mcp/playwright"
+    }
+  }
+}
+2026/03/02 01:51:11 [172.64.66.1:42232] GET /health - Status: 200, Response: {"status":"healthy","specVersion":"1.8.0","gatewayVersion":"dev","servers":{"github":{"status":"running","uptime":0},"playwright":{"status":"running","uptime":0}}}
+2026/03/02 01:51:17 === NEW STREAMABLE HTTP CONNECTION (ROUTED) ===
+2026/03/02 01:51:17 [172.64.66.1:46219] POST /mcp/playwright
+2026/03/02 01:51:17 Backend: playwright
+2026/03/02 01:51:17 Authorization (Session ID): test-api-key-12345
+2026/03/02 01:51:17 Request body: {"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"github-copilot-developer","version":"1.0.0"}},"jsonrpc":"2.0","id":0}
+2026/03/02 01:51:17 ✓ Injected session ID and backend ID into context
+2026/03/02 01:51:17 ===================================
+2026/03/02 01:51:17 Creating filtered server for playwright with 22 tools
+2026/03/02 01:51:17 === NEW STREAMABLE HTTP CONNECTION (ROUTED) ===
+2026/03/02 01:51:17 [172.64.66.1:34122] POST /mcp/github
+2026/03/02 01:51:17 Backend: github
+2026/03/02 01:51:17 Authorization (Session ID): test-api-key-12345
+2026/03/02 01:51:17 Request body: {"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"github-copilot-developer","version":"1.0.0"}},"jsonrpc":"2.0","id":0}
+2026/03/02 01:51:17 ✓ Injected session ID and backend ID into context
+2026/03/02 01:51:17 ===================================
+2026/03/02 01:51:17 Creating filtered server for github with 38 tools
+2026/03/02 01:51:39 [ROUTED] Calling unified handler for: get_me
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Checking session for ID: test-api-key-12345
+2026/03/02 01:51:39 Auto-creating session for ID: test-api-key-12345
+2026/03/02 01:51:39 Session auto-created for ID: test-api-key-12345
+server:unified Session directory already exists: /tmp/jq-payloads/test-api-key-12345 +28.7s
+2026/03/02 01:51:39 [ROUTED] Calling unified handler for: search_users
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 [ROUTED] Calling unified handler for: search_repositories
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Checking session for ID: test-api-key-12345
+2026/03/02 01:51:39 Session validated for ID: test-api-key-12345
+2026/03/02 01:51:39 Calling tool on github: search_repositories with DIFC enforcement
+server:unified callBackendTool: serverID=github, toolName=search_repositories, args=map[perPage:10 query:git] +1ms
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 [DIFC] Guard policy not configured for server 'github'; using legacy session labels
+2026/03/02 01:51:39 [DIFC] Created new agent: test-api-key-12345 with default labels (secrecy: [], integrity: [])
+2026/03/02 01:51:39 [DIFC] Agent test-api-key-12345 | Secrecy: [] | Integrity: []
+guard:wasm LabelResource called: toolName=search_repositories, args=map[perPage:10 query:git] +31.2s
+2026/03/02 01:51:39 Calling tool on github: get_me with DIFC enforcement
+server:unified callBackendTool: serverID=github, toolName=get_me, args=map[] +528µs
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+guard:wasm LabelResource input JSON (94 bytes): {"capabilities":{},"tool_args":{"perPage":10,"query":"git"},"tool_name":"search_repositories"} +950µs
+guard:wasm [guard:github] DEBUG: >>> alloc(94) +372µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +320µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +211µs
+2026/03/02 01:51:39 [ROUTED] Calling unified handler for: search_issues
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Checking session for ID: test-api-key-12345
+2026/03/02 01:51:39 Session validated for ID: test-api-key-12345
+2026/03/02 01:51:39 Calling tool on github: search_users with DIFC enforcement
+server:unified callBackendTool: serverID=github, toolName=search_users, args=map[perPage:5 query:octocat] +4ms
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 [DIFC] Guard policy not configured for server 'github'; using legacy session labels
+2026/03/02 01:51:39 [DIFC] Agent test-api-key-12345 | Secrecy: [] | Integrity: []
+guard:wasm LabelResource called: toolName=get_me, args=map[] +2ms
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 [DIFC] Guard policy not configured for server 'github'; using legacy session labels
+2026/03/02 01:51:39 [DIFC] Agent test-api-key-12345 | Secrecy: [] | Integrity: []
+guard:wasm LabelResource called: toolName=search_users, args=map[perPage:5 query:octocat] +184µs
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Checking session for ID: test-api-key-12345
+2026/03/02 01:51:39 Session validated for ID: test-api-key-12345
+2026/03/02 01:51:39 Calling tool on github: search_issues with DIFC enforcement
+server:unified callBackendTool: serverID=github, toolName=search_issues, args=map[perPage:5 query:bug] +597µs
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 [DIFC] Guard policy not configured for server 'github'; using legacy session labels
+2026/03/02 01:51:39 [DIFC] Agent test-api-key-12345 | Secrecy: [] | Integrity: []
+guard:wasm LabelResource called: toolName=search_issues, args=map[perPage:5 query:bug] +491µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1102080 +404µs
+2026/03/02 01:51:39 [ROUTED] Calling unified handler for: search_pull_requests
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+guard:wasm [guard:github] INFO: >>> label_resource called +633µs
+guard:wasm [guard:github] INFO:     input_len=94, output_size=4194304 +116µs
+guard:wasm [guard:github] INFO:     tool_name=search_repositories +142µs
+guard:wasm [guard:github] INFO:     desc=resource:search_repositories +121µs
+guard:wasm [guard:github] INFO:     secrecy=[] (public) +196µs
+guard:wasm [guard:github] INFO:     integrity=["none", "reader-contributed", "writer-contributed"] +241µs
+guard:wasm [guard:github] INFO:     operation=read +125µs
+guard:wasm [guard:github] INFO: <<< label_resource returning 154 bytes +214µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1102080, size=4194304) +194µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +274µs
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 Checking session for ID: test-api-key-12345
+2026/03/02 01:51:39 Session validated for ID: test-api-key-12345
+2026/03/02 01:51:39 Calling tool on github: search_pull_requests with DIFC enforcement
+server:unified callBackendTool: serverID=github, toolName=search_pull_requests, args=map[perPage:5 query:is:open] +3ms
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=94) +618µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +208µs
+2026/03/02 01:51:39 [DIFC] Resource: resource:search_repositories | Operation: read | Secrecy: [] | Integrity: [none reader-contributed writer-contributed]
+2026/03/02 01:51:39 [DIFC] Access ALLOWED for agent test-api-key-12345 to resource:search_repositories
+guard:wasm LabelResource input JSON (90 bytes): {"capabilities":{},"tool_args":{"perPage":5,"query":"octocat"},"tool_name":"search_users"} +772µs
+2026/03/02 01:51:39 [LAUNCHER] Starting MCP server for session: github (session: test-api-key-12345)
+2026/03/02 01:51:39 [LAUNCHER] Command: docker
+2026/03/02 01:51:39 [LAUNCHER] Args: [run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e GITHUB_PERSONAL_ACCESS_TOKEN=ghp_... ghcr.io/github/github-mcp-server:latest]
+2026/03/02 01:51:39 [LAUNCHER] Starting server for session with 1m0s timeout
+guard:wasm [guard:github] DEBUG: >>> alloc(90) +691µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +119µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +288µs
+2026/03/02 01:51:39 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:51:39 [DIFC] Guard policy not configured for server 'github'; using legacy session labels
+2026/03/02 01:51:39 [DIFC] Agent test-api-key-12345 | Secrecy: [] | Integrity: []
+guard:wasm LabelResource called: toolName=search_pull_requests, args=map[perPage:5 query:is:open] +84µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1102064 +98µs
+guard:wasm [guard:github] INFO: >>> label_resource called +215µs
+guard:wasm [guard:github] INFO:     input_len=90, output_size=4194304 +223µs
+guard:wasm [guard:github] INFO:     tool_name=search_users +151µs
+guard:wasm [guard:github] INFO:     desc=resource:search_users +254µs
+guard:wasm [guard:github] INFO:     secrecy=[] (public) +164µs
+guard:wasm [guard:github] INFO:     integrity=["none"] +223µs
+guard:wasm [guard:github] INFO:     operation=read +135µs
+guard:wasm [guard:github] INFO: <<< label_resource returning 105 bytes +137µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1102064, size=4194304) +196µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +273µs
+2026/03/02 01:51:39 Starting MCP server command: docker [run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e GITHUB_PERSONAL_ACCESS_TOKEN=ghp_... ghcr.io/github/github-mcp-server:latest]
+2026/03/02 01:51:39 Connecting to MCP server...
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=90) +523µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +167µs
+2026/03/02 01:51:39 [DIFC] Resource: resource:search_users | Operation: read | Secrecy: [] | Integrity: [none]
+2026/03/02 01:51:39 [DIFC] Access ALLOWED for agent test-api-key-12345 to resource:search_users
+guard:wasm LabelResource input JSON (87 bytes): {"capabilities":{},"tool_args":{"perPage":5,"query":"bug"},"tool_name":"search_issues"} +648µs
+guard:wasm [guard:github] DEBUG: >>> alloc(87) +194µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +288µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +150µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1102064 +225µs
+guard:wasm [guard:github] INFO: >>> label_resource called +209µs
+guard:wasm [guard:github] INFO:     input_len=87, output_size=4194304 +322µs
+guard:wasm [guard:github] INFO:     tool_name=search_issues +226µs
+guard:wasm [guard:github] INFO:     desc=resource:search_issues +233µs
+guard:wasm [guard:github] INFO:     secrecy=[] (public) +188µs
+guard:wasm [guard:github] INFO:     integrity=["none"] +196µs
+guard:wasm [guard:github] INFO:     operation=read +344µs
+guard:wasm [guard:github] INFO: <<< label_resource returning 106 bytes +179µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1102064, size=4194304) +256µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +219µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=87) +317µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +196µs
+2026/03/02 01:51:39 [DIFC] Resource: resource:search_issues | Operation: read | Secrecy: [] | Integrity: [none]
+2026/03/02 01:51:39 [DIFC] Access ALLOWED for agent test-api-key-12345 to resource:search_issues
+guard:wasm LabelResource input JSON (55 bytes): {"capabilities":{},"tool_args":{},"tool_name":"get_me"} +702µs
+guard:wasm [guard:github] DEBUG: >>> alloc(55) +206µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +238µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +231µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1102032 +174µs
+guard:wasm [guard:github] INFO: >>> label_resource called +234µs
+guard:wasm [guard:github] INFO:     input_len=55, output_size=4194304 +217µs
+guard:wasm [guard:github] INFO:     tool_name=get_me +230µs
+guard:wasm [guard:github] INFO:     desc=resource:get_me +201µs
+guard:wasm [guard:github] INFO:     secrecy=[] (public) +333µs
+guard:wasm [guard:github] INFO:     integrity=["none"] +205µs
+guard:wasm [guard:github] INFO:     operation=read +210µs
+guard:wasm [guard:github] INFO: <<< label_resource returning 99 bytes +243µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1102032, size=4194304) +321µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +241µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=55) +177µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +127µs
+2026/03/02 01:51:39 [DIFC] Resource: resource:get_me | Operation: read | Secrecy: [] | Integrity: [none]
+2026/03/02 01:51:39 [DIFC] Access ALLOWED for agent test-api-key-12345 to resource:get_me
+guard:wasm LabelResource input JSON (98 bytes): {"capabilities":{},"tool_args":{"perPage":5,"query":"is:open"},"tool_name":"search_pull_requests"} +551µs
+guard:wasm [guard:github] DEBUG: >>> alloc(98) +323µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +236µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +357µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1102080 +319µs
+guard:wasm [guard:github] INFO: >>> label_resource called +270µs
+guard:wasm [guard:github] INFO:     input_len=98, output_size=4194304 +356µs
+guard:wasm [guard:github] INFO:     tool_name=search_pull_requests +659µs
+guard:wasm [guard:github] INFO:     desc=resource:search_pull_requests +196µs
+guard:wasm [guard:github] INFO:     secrecy=[] (public) +277µs
+guard:wasm [guard:github] INFO:     integrity=["none"] +198µs
+guard:wasm [guard:github] INFO:     operation=read +243µs
+guard:wasm [guard:github] INFO: <<< label_resource returning 113 bytes +277µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1102080, size=4194304) +275µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +219µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=98) +211µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +169µs
+2026/03/02 01:51:39 [DIFC] Resource: resource:search_pull_requests | Operation: read | Secrecy: [] | Integrity: [none]
+2026/03/02 01:51:39 [DIFC] Access ALLOWED for agent test-api-key-12345 to resource:search_pull_requests
+2026/03/02 01:51:41 Started MCP server: docker [run --rm -i -e NO_COLOR=... -e TERM=... -e PYTHONUNBUFFERED=... -e GITHUB_PERSONAL_ACCESS_TOKEN=ghp_... ghcr.io/github/github-mcp-server:latest]
+2026/03/02 01:51:41 [LAUNCHER] Successfully launched: github (session: test-api-key-12345)
+guard:wasm LabelResponse called: toolName=search_users +2.9s
+guard:wasm [guard:github] DEBUG: >>> alloc(1016) +454µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +466µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +497µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1102992 +324µs
+guard:wasm [guard:github] INFO: >>> label_response called +350µs
+guard:wasm [guard:github] INFO:     input_len=1016, output_size=4194304 +417µs
+guard:wasm [guard:github] INFO:     input_preview={"capabilities":{},"tool_args":{"perPage":5,"query":"octocat"},"tool_name":"search_users","tool_result":{"content":[{"text":"{\"total_count\":1015,\"incomplete_results\":false,\"items\":[{\"login\":\"octocat\",\"id\":583231,\"profile_url\":\"https://github.com/octocat\",\"avatar_url\":\"https://avatars.githubusercontent.com/u/583231?v=4\"},{\"login\":\"JamesMGreene\",\"id\":417751,\"profile_url\":\"https://github.com/JamesMGreene\",\"avatar_url\":\"https://avatars.githubusercontent.com/u/417751? +292µs
+guard:wasm [guard:github] INFO:     tool_name=search_users +625µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +300µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +436µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=796 +461µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +500µs
+guard:wasm [guard:github] INFO:     using legacy item-based labeling +656µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +499µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +632µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=796 +559µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +361µs
+guard:wasm [guard:github] INFO:     no fine-grained items, creating fallback single-item label +517µs
+guard:wasm [guard:github] INFO:     fallback labels: secrecy=[], integrity=["none"] +429µs
+guard:wasm [guard:github] INFO:     generated 1 labeled items +445µs
+guard:wasm [guard:github] INFO:     output_preview={"items":[{"data":{"content":[{"text":"{\"total_count\":1015,\"incomplete_results\":false,\"items\":[{\"login\":\"octocat\",\"id\":583231,\"profile_url\":\"https://github.com/octocat\",\"avatar_url\":\"https://avatars.githubusercontent.com/u/583231?v=4\"},{\"login\":\"JamesMGreene\",\"id\":417751,\"profile_url\":\"https://github.com/JamesMGreene\",\"avatar_url\":\"https://avatars.githubusercontent.com/u/417751?v=4\"},{\"login\":\"strafe\",\"id\":15663890,\"profile_url\":\"https://github.com/stra +420µs
+guard:wasm [guard:github] INFO: <<< label_response returning 1015 bytes +643µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1102992, size=4194304) +342µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +477µs
+guard:wasm LabelResponse called: toolName=get_me +527µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=1016) +15µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +695µs
+2026/03/02 01:51:42 [DIFC] Filtered collection: 1/1 items accessible
+2026/03/02 01:51:42 [convertToCallToolResult] Backend returned array with 1 items, wrapping as text
+guard:wasm [guard:github] DEBUG: >>> alloc(674) +572µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +556µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +320µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1102656 +335µs
+guard:wasm [guard:github] INFO: >>> label_response called +355µs
+guard:wasm [guard:github] INFO:     input_len=674, output_size=4194304 +377µs
+guard:wasm [guard:github] INFO:     input_preview={"capabilities":{},"tool_args":{},"tool_name":"get_me","tool_result":{"content":[{"text":"{\"login\":\"lpcox\",\"id\":15877973,\"profile_url\":\"https://github.com/lpcox\",\"avatar_url\":\"https://avatars.githubusercontent.com/u/15877973?v=4\",\"details\":{\"name\":\"Landon Cox\",\"company\":\"Microsoft\",\"location\":\"Seattle, WA\",\"email\":\"landon.cox@microsoft.com\",\"bio\":\"Microsoft Research + GitHub Next, working on Agentic Workflows\",\"public_repos\":9,\"public_gists\":0,\"followers\ +500µs
+guard:wasm [guard:github] INFO:     tool_name=get_me +1ms
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +344µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +328µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=509 +402µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +274µs
+guard:wasm [guard:github] INFO:     using legacy item-based labeling +370µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +341µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +312µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=509 +323µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +467µs
+guard:wasm [guard:github] INFO:     no fine-grained items, creating fallback single-item label +297µs
+guard:wasm [guard:github] INFO:     fallback labels: secrecy=[], integrity=["none"] +502µs
+guard:wasm [guard:github] INFO:     generated 1 labeled items +293µs
+guard:wasm [guard:github] INFO:     output_preview={"items":[{"data":{"content":[{"text":"{\"login\":\"lpcox\",\"id\":15877973,\"profile_url\":\"https://github.com/lpcox\",\"avatar_url\":\"https://avatars.githubusercontent.com/u/15877973?v=4\",\"details\":{\"name\":\"Landon Cox\",\"company\":\"Microsoft\",\"location\":\"Seattle, WA\",\"email\":\"landon.cox@microsoft.com\",\"bio\":\"Microsoft Research + GitHub Next, working on Agentic Workflows\",\"public_repos\":9,\"public_gists\":0,\"followers\":9,\"following\":1,\"created_at\":\"2015-11-16T20: +270µs
+guard:wasm [guard:github] INFO: <<< label_response returning 702 bytes +329µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1102656, size=4194304) +401µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +352µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=674) +272µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +297µs
+2026/03/02 01:51:42 [DIFC] Filtered collection: 1/1 items accessible
+2026/03/02 01:51:42 [convertToCallToolResult] Backend returned array with 1 items, wrapping as text
+guard:wasm LabelResponse called: toolName=search_issues +753ms
+guard:wasm [guard:github] DEBUG: >>> alloc(17621) +273µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +228µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +220µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1119600 +12ms
+guard:wasm [guard:github] INFO: >>> label_response called +484µs
+guard:wasm [guard:github] INFO:     input_len=17621, output_size=4194304 +231µs
+guard:wasm [guard:github] INFO:     input_preview={"capabilities":{},"tool_args":{"perPage":5,"query":"bug"},"tool_name":"search_issues","tool_result":{"content":[{"text":"{\"total_count\":17702549,\"incomplete_results\":false,\"items\":[{\"id\":4006096933,\"number\":14153,\"state\":\"open\",\"locked\":false,\"title\":\"[Bug]: Bug chitters. Bugged as hell. Totally bugs.\",\"body\":\"### BYOND Version\\n\\n516.1679\\n\\n### Round Date\\n\\n2026-03-01\\n\\n### Round ID\\n\\n55646\\n\\n### Test merges\\n\\n[#14147](https://github.com/BeeStation/Be +189µs
+guard:wasm [guard:github] INFO:     tool_name=search_issues +295µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +179µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +248µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=16293 +221µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +330µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for BeeStation/BeeStation-Hornet +188µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +213µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:BeeStation/BeeStation-Hornet"} +196µs
+guard:wasm WASM guard calling backend: tool=search_repositories +227µs
+2026/03/02 01:51:43 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm LabelResponse called: toolName=search_repositories +326ms
+guard:wasm LabelResponse called: toolName=search_pull_requests +360ms
+guard:wasm [guard:github] INFO: <<< call_backend returned 735 bytes +594ms
+guard:wasm [guard:github] INFO: Repo visibility lookup result for BeeStation/BeeStation-Hornet: public +435µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for BeeStation/BeeStation-Hornet: public +427µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for openclaw/openclaw +377µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +195µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:openclaw/openclaw"} +384µs
+guard:wasm WASM guard calling backend: tool=search_repositories +231µs
+2026/03/02 01:51:44 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm [guard:github] INFO: <<< call_backend returned 696 bytes +1.1s
+guard:wasm [guard:github] INFO: Repo visibility lookup result for openclaw/openclaw: public +279µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for openclaw/openclaw: public +350µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for crocodilestick/Calibre-Web-Automated +319µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +245µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:crocodilestick/Calibre-Web-Automated"} +262µs
+guard:wasm WASM guard calling backend: tool=search_repositories +241µs
+2026/03/02 01:51:45 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm [guard:github] INFO: <<< call_backend returned 834 bytes +1.1s
+guard:wasm [guard:github] INFO: Repo visibility lookup result for crocodilestick/Calibre-Web-Automated: public +245µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for crocodilestick/Calibre-Web-Automated: public +439µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for illusivesoulworks/elytraslot +251µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +263µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:illusivesoulworks/elytraslot"} +192µs
+guard:wasm WASM guard calling backend: tool=search_repositories +282µs
+2026/03/02 01:51:46 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm [guard:github] INFO: <<< call_backend returned 633 bytes +1.2s
+guard:wasm [guard:github] INFO: Repo visibility lookup result for illusivesoulworks/elytraslot: public +344µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for illusivesoulworks/elytraslot: public +366µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for perfect-panel/frontend +459µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +267µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:perfect-panel/frontend"} +335µs
+guard:wasm WASM guard calling backend: tool=search_repositories +322µs
+2026/03/02 01:51:48 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm [guard:github] INFO: <<< call_backend returned 655 bytes +1.2s
+guard:wasm [guard:github] INFO: Repo visibility lookup result for perfect-panel/frontend: public +419µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for perfect-panel/frontend: public +543µs
+guard:wasm [guard:github] INFO:     using path-based labeling with 5 paths +358µs
+guard:wasm [guard:github] INFO:     path_output_preview={"labeled_paths":[{"path":"/items/0","labels":{"description":"issue:BeeStation/BeeStation-Hornet#14153","secrecy":[],"integrity":["none:BeeStation/BeeStation-Hornet"]}},{"path":"/items/1","labels":{"description":"issue:openclaw/openclaw#28290","secrecy":[],"integrity":["none:openclaw/openclaw"]}},{"path":"/items/2","labels":{"description":"issue:crocodilestick/Calibre-Web-Automated#1153","secrecy":[],"integrity":["none:crocodilestick/Calibre-Web-Automated"]}},{"path":"/items/3","labels":{"descri +189µs
+guard:wasm [guard:github] INFO: <<< label_response returning 847 bytes (path-based) +245µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1119600, size=4194304) +297µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +179µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=17621) +274µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +184µs
+2026/03/02 01:51:49 [DIFC] Filtered collection: 5/5 items accessible
+guard:wasm [guard:github] DEBUG: >>> alloc(5450) +677µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5325936 +241µs
+2026/03/02 01:51:49 [convertToCallToolResult] Backend returned array with 5 items, wrapping as text
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +261µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +371µs
+guard:wasm [guard:github] INFO: >>> label_response called +228µs
+guard:wasm [guard:github] INFO:     input_len=5450, output_size=4194304 +210µs
+guard:wasm [guard:github] INFO:     input_preview={"capabilities":{},"tool_args":{"perPage":10,"query":"git"},"tool_name":"search_repositories","tool_result":{"content":[{"text":"{\"total_count\":12490870,\"incomplete_results\":false,\"items\":[{\"id\":36502,\"name\":\"git\",\"full_name\":\"git/git\",\"description\":\"Git Source Code Mirror - This is a publish-only repository but pull requests can be turned into patches to the mailing list via GitGitGadget (https://gitgitgadget.github.io/). Please follow Documentation/SubmittingPatches procedur +227µs
+guard:wasm [guard:github] INFO:     tool_name=search_repositories +311µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +222µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +250µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=4772 +339µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +323µs
+guard:wasm [guard:github] INFO: label_response_paths: search_repositories found 10 items +250µs
+guard:wasm [guard:github] INFO:     using path-based labeling with 10 paths +295µs
+guard:wasm [guard:github] INFO:     path_output_preview={"labeled_paths":[{"path":"/items/0","labels":{"description":"repo:git/git","secrecy":[],"integrity":["none:git/git","reader-contributed:git/git","writer-contributed:git/git"]}},{"path":"/items/1","labels":{"description":"repo:github/gitignore","secrecy":[],"integrity":["none:github/gitignore","reader-contributed:github/gitignore","writer-contributed:github/gitignore"]}},{"path":"/items/2","labels":{"description":"repo:FFmpeg/FFmpeg","secrecy":[],"integrity":["none:FFmpeg/FFmpeg","reader-contrib +367µs
+guard:wasm [guard:github] INFO: <<< label_response returning 2137 bytes (path-based) +247µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=4194304) +328µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +409µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5325936, size=5450) +253µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +349µs
+2026/03/02 01:51:49 [DIFC] Filtered collection: 10/10 items accessible
+guard:wasm [guard:github] DEBUG: >>> alloc(31887) +644µs
+2026/03/02 01:51:49 [convertToCallToolResult] Backend returned array with 10 items, wrapping as text
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5325936 +252µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +405µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +212µs
+guard:wasm [guard:github] INFO: >>> label_response called +275µs
+guard:wasm [guard:github] INFO:     input_len=31887, output_size=4194304 +200µs
+guard:wasm [guard:github] INFO:     input_preview={"capabilities":{},"tool_args":{"perPage":5,"query":"is:open"},"tool_name":"search_pull_requests","tool_result":{"content":[{"text":"{\"total_count\":83455588,\"incomplete_results\":false,\"items\":[{\"id\":4008841625,\"number\":55,\"state\":\"open\",\"locked\":false,\"title\":\"fix(deps): update all non-major dependencies\",\"body\":\"This PR contains the following updates:\\n\\n| Package | Change | [Age](https://docs.renovatebot.com/merge-confidence/) | [Confidence](https://docs.renovatebot.co +216µs
+guard:wasm [guard:github] INFO:     tool_name=search_pull_requests +418µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +173µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +216µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=30395 +324µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +360µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for florian-lefebvre/astro-typed-ids +189µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +282µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:florian-lefebvre/astro-typed-ids"} +249µs
+guard:wasm WASM guard calling backend: tool=search_repositories +1ms
+2026/03/02 01:51:49 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm [guard:github] INFO: <<< call_backend returned 719 bytes +1.2s
+guard:wasm [guard:github] INFO: Repo visibility lookup result for florian-lefebvre/astro-typed-ids: public +289µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for florian-lefebvre/astro-typed-ids: public +313µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for jonesrussell/waaseyaa +397µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +195µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:jonesrussell/waaseyaa"} +240µs
+guard:wasm WASM guard calling backend: tool=search_repositories +218µs
+2026/03/02 01:51:50 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm [guard:github] INFO: <<< call_backend returned 580 bytes +1.1s
+guard:wasm [guard:github] INFO: Repo visibility lookup result for jonesrussell/waaseyaa: public +397µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for jonesrussell/waaseyaa: public +301µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for Ramanarao21/messagehub-backend +266µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +306µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:Ramanarao21/messagehub-backend"} +251µs
+guard:wasm WASM guard calling backend: tool=search_repositories +269µs
+2026/03/02 01:51:51 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm [guard:github] INFO: <<< call_backend returned 520 bytes +1.1s
+guard:wasm [guard:github] INFO: Repo visibility lookup result for Ramanarao21/messagehub-backend: public +357µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for Ramanarao21/messagehub-backend: public +425µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for nautobot/helm-charts +254µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +226µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:nautobot/helm-charts"} +346µs
+guard:wasm WASM guard calling backend: tool=search_repositories +223µs
+2026/03/02 01:51:52 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm [guard:github] INFO: <<< call_backend returned 643 bytes +1.1s
+guard:wasm [guard:github] INFO: Repo visibility lookup result for nautobot/helm-charts: public +490µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for nautobot/helm-charts: public +646µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for reservoir-data/tap-checkly +555µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +467µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:reservoir-data/tap-checkly"} +373µs
+guard:wasm WASM guard calling backend: tool=search_repositories +406µs
+2026/03/02 01:51:53 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm [guard:github] INFO: <<< call_backend returned 609 bytes +1.1s
+guard:wasm [guard:github] INFO: Repo visibility lookup result for reservoir-data/tap-checkly: public +586µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for reservoir-data/tap-checkly: public +412µs
+guard:wasm [guard:github] INFO:     using path-based labeling with 5 paths +447µs
+guard:wasm [guard:github] INFO:     path_output_preview={"labeled_paths":[{"path":"/items/0","labels":{"description":"pr:florian-lefebvre/astro-typed-ids#55","secrecy":[],"integrity":["none:florian-lefebvre/astro-typed-ids","reader-contributed:florian-lefebvre/astro-typed-ids"]}},{"path":"/items/1","labels":{"description":"pr:jonesrussell/waaseyaa#5","secrecy":[],"integrity":["none:jonesrussell/waaseyaa","reader-contributed:jonesrussell/waaseyaa","writer-contributed:jonesrussell/waaseyaa"]}},{"path":"/items/2","labels":{"description":"pr:Ramanarao21/ +521µs
+guard:wasm [guard:github] INFO: <<< label_response returning 1160 bytes (path-based) +495µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=4194304) +484µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +473µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5325936, size=31887) +407µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +330µs
+2026/03/02 01:51:54 [DIFC] Filtered collection: 5/5 items accessible
+2026/03/02 01:51:54 [convertToCallToolResult] Backend returned array with 5 items, wrapping as text
+2026/03/02 01:52:10 [ROUTED] Calling unified handler for: list_pull_requests
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 [ROUTED] Calling unified handler for: list_issues
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 [ROUTED] Calling unified handler for: list_commits
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 [ROUTED] Calling unified handler for: get_file_contents
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 [ROUTED] Calling unified handler for: list_branches
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Checking session for ID: test-api-key-12345
+2026/03/02 01:52:10 Session validated for ID: test-api-key-12345
+2026/03/02 01:52:10 Calling tool on github: list_pull_requests with DIFC enforcement
+server:unified callBackendTool: serverID=github, toolName=list_pull_requests, args=map[owner:lpcox perPage:5 repo:github-guard] +31.1s
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Checking session for ID: test-api-key-12345
+2026/03/02 01:52:10 Session validated for ID: test-api-key-12345
+2026/03/02 01:52:10 Calling tool on github: list_commits with DIFC enforcement
+server:unified callBackendTool: serverID=github, toolName=list_commits, args=map[owner:lpcox perPage:5 repo:github-guard] +873µs
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 [DIFC] Guard policy not configured for server 'github'; using legacy session labels
+2026/03/02 01:52:10 [DIFC] Agent test-api-key-12345 | Secrecy: [] | Integrity: []
+guard:wasm LabelResource called: toolName=list_commits, args=map[owner:lpcox perPage:5 repo:github-guard] +16.0s
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 [DIFC] Guard policy not configured for server 'github'; using legacy session labels
+2026/03/02 01:52:10 [DIFC] Agent test-api-key-12345 | Secrecy: [] | Integrity: []
+guard:wasm LabelResource called: toolName=list_pull_requests, args=map[owner:lpcox perPage:5 repo:github-guard] +1ms
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Checking session for ID: test-api-key-12345
+2026/03/02 01:52:10 Session validated for ID: test-api-key-12345
+2026/03/02 01:52:10 Calling tool on github: list_issues with DIFC enforcement
+server:unified callBackendTool: serverID=github, toolName=list_issues, args=map[owner:lpcox perPage:5 repo:github-guard] +2ms
+guard:wasm LabelResource input JSON (110 bytes): {"capabilities":{},"tool_args":{"owner":"lpcox","perPage":5,"repo":"github-guard"},"tool_name":"list_commits"} +1ms
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Checking session for ID: test-api-key-12345
+2026/03/02 01:52:10 Session validated for ID: test-api-key-12345
+2026/03/02 01:52:10 Calling tool on github: get_file_contents with DIFC enforcement
+server:unified callBackendTool: serverID=github, toolName=get_file_contents, args=map[owner:lpcox path:README.md repo:github-guard] +1ms
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 Checking session for ID: test-api-key-12345
+2026/03/02 01:52:10 Session validated for ID: test-api-key-12345
+2026/03/02 01:52:10 Calling tool on github: list_branches with DIFC enforcement
+server:unified callBackendTool: serverID=github, toolName=list_branches, args=map[owner:lpcox perPage:10 repo:github-guard] +412µs
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 [DIFC] Guard policy not configured for server 'github'; using legacy session labels
+2026/03/02 01:52:10 [DIFC] Agent test-api-key-12345 | Secrecy: [] | Integrity: []
+guard:wasm LabelResource called: toolName=list_issues, args=map[owner:lpcox perPage:5 repo:github-guard] +2ms
+guard:wasm [guard:github] DEBUG: >>> alloc(110) +443µs
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 [DIFC] Guard policy not configured for server 'github'; using legacy session labels
+2026/03/02 01:52:10 [DIFC] Agent test-api-key-12345 | Secrecy: [] | Integrity: []
+guard:wasm LabelResource called: toolName=get_file_contents, args=map[owner:lpcox path:README.md repo:github-guard] +430µs
+2026/03/02 01:52:10 Extracted session ID from context: test-api-key-12345
+2026/03/02 01:52:10 [DIFC] Guard policy not configured for server 'github'; using legacy session labels
+2026/03/02 01:52:10 [DIFC] Agent test-api-key-12345 | Secrecy: [] | Integrity: []
+guard:wasm LabelResource called: toolName=list_branches, args=map[owner:lpcox perPage:10 repo:github-guard] +607µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5324176 +724µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +693µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +197µs
+guard:wasm [guard:github] INFO: >>> label_resource called +386µs
+guard:wasm [guard:github] INFO:     input_len=110, output_size=4194304 +350µs
+guard:wasm [guard:github] INFO:     tool_name=list_commits +500µs
+guard:wasm [guard:github] DEBUG: Checking repo visibility for lpcox/github-guard +311µs
+guard:wasm [guard:github] INFO: >>> call_backend: tool=search_repositories +343µs
+guard:wasm [guard:github] DEBUG:     args={"perPage":10,"query":"repo:lpcox/github-guard"} +297µs
+guard:wasm WASM guard calling backend: tool=search_repositories +657µs
+2026/03/02 01:52:10 [DIFC] Guard calling backend github tool search_repositories for metadata
+guard:wasm [guard:github] INFO: <<< call_backend returned 544 bytes +1.1s
+guard:wasm [guard:github] INFO: Repo visibility lookup result for lpcox/github-guard: private +558µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +443µs
+guard:wasm [guard:github] INFO:     desc=resource:list_commits +242µs
+guard:wasm [guard:github] INFO:     secrecy=["private:lpcox/github-guard"] +187µs
+guard:wasm [guard:github] INFO:     integrity=["none:lpcox/github-guard", "reader-contributed:lpcox/github-guard", "writer-contributed:lpcox/github-guard", "merged:lpcox/github-guard"] +316µs
+guard:wasm [guard:github] INFO:     operation=read +284µs
+guard:wasm [guard:github] INFO: <<< label_resource returning 260 bytes +198µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=4194304) +381µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +231µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5324176, size=110) +184µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +272µs
+2026/03/02 01:52:11 [DIFC] Resource: resource:list_commits | Operation: read | Secrecy: [private:lpcox/github-guard] | Integrity: [writer-contributed:lpcox/github-guard merged:lpcox/github-guard none:lpcox/github-guard reader-contributed:lpcox/github-guard]
+2026/03/02 01:52:11 [DIFC] Coarse-grained check failed for read in strict mode - proceeding to backend for response labeling
+2026/03/02 01:52:11 [DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()
+guard:wasm LabelResource input JSON (116 bytes): {"capabilities":{},"tool_args":{"owner":"lpcox","perPage":5,"repo":"github-guard"},"tool_name":"list_pull_requests"} +741µs
+guard:wasm [guard:github] DEBUG: >>> alloc(116) +270µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5377760 +208µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +218µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +228µs
+guard:wasm [guard:github] INFO: >>> label_resource called +212µs
+guard:wasm [guard:github] INFO:     input_len=116, output_size=4194304 +267µs
+guard:wasm [guard:github] INFO:     tool_name=list_pull_requests +223µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +222µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +355µs
+guard:wasm [guard:github] INFO:     desc=resource:list_pull_requests +1ms
+guard:wasm [guard:github] INFO:     secrecy=["private:lpcox/github-guard"] +165µs
+guard:wasm [guard:github] INFO:     integrity=["none:lpcox/github-guard", "reader-contributed:lpcox/github-guard", "writer-contributed:lpcox/github-guard"] +320µs
+guard:wasm [guard:github] INFO:     operation=read +277µs
+guard:wasm [guard:github] INFO: <<< label_resource returning 238 bytes +330µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=4194304) +313µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +245µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5377760, size=116) +236µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +228µs
+2026/03/02 01:52:11 [DIFC] Resource: resource:list_pull_requests | Operation: read | Secrecy: [private:lpcox/github-guard] | Integrity: [none:lpcox/github-guard reader-contributed:lpcox/github-guard writer-contributed:lpcox/github-guard]
+2026/03/02 01:52:11 [DIFC] Coarse-grained check failed for read in strict mode - proceeding to backend for response labeling
+2026/03/02 01:52:11 [DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()
+guard:wasm LabelResource input JSON (109 bytes): {"capabilities":{},"tool_args":{"owner":"lpcox","perPage":5,"repo":"github-guard"},"tool_name":"list_issues"} +593µs
+guard:wasm [guard:github] DEBUG: >>> alloc(109) +379µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5377760 +196µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +266µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +239µs
+guard:wasm [guard:github] INFO: >>> label_resource called +220µs
+guard:wasm [guard:github] INFO:     input_len=109, output_size=4194304 +276µs
+guard:wasm [guard:github] INFO:     tool_name=list_issues +206µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +207µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +287µs
+guard:wasm [guard:github] INFO:     desc=resource:list_issues +897µs
+guard:wasm [guard:github] INFO:     secrecy=["private:lpcox/github-guard"] +211µs
+guard:wasm [guard:github] INFO:     integrity=["none:lpcox/github-guard", "reader-contributed:lpcox/github-guard", "writer-contributed:lpcox/github-guard"] +352µs
+guard:wasm [guard:github] INFO:     operation=read +199µs
+guard:wasm [guard:github] INFO: <<< label_resource returning 231 bytes +504µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=4194304) +215µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +354µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5377760, size=109) +221µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +289µs
+2026/03/02 01:52:11 [DIFC] Resource: resource:list_issues | Operation: read | Secrecy: [private:lpcox/github-guard] | Integrity: [none:lpcox/github-guard reader-contributed:lpcox/github-guard writer-contributed:lpcox/github-guard]
+2026/03/02 01:52:11 [DIFC] Coarse-grained check failed for read in strict mode - proceeding to backend for response labeling
+2026/03/02 01:52:11 [DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()
+guard:wasm LabelResource input JSON (122 bytes): {"capabilities":{},"tool_args":{"owner":"lpcox","path":"README.md","repo":"github-guard"},"tool_name":"get_file_contents"} +437µs
+guard:wasm [guard:github] DEBUG: >>> alloc(122) +429µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5377760 +154µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +175µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +224µs
+guard:wasm [guard:github] INFO: >>> label_resource called +207µs
+guard:wasm [guard:github] INFO:     input_len=122, output_size=4194304 +194µs
+guard:wasm [guard:github] INFO:     tool_name=get_file_contents +257µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +467µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +159µs
+guard:wasm [guard:github] INFO:     desc=resource:get_file_contents +256µs
+guard:wasm [guard:github] INFO:     secrecy=["private:lpcox/github-guard"] +148µs
+guard:wasm [guard:github] INFO:     integrity=["none:lpcox/github-guard", "reader-contributed:lpcox/github-guard", "writer-contributed:lpcox/github-guard", "merged:lpcox/github-guard"] +239µs
+guard:wasm [guard:github] INFO:     operation=read +158µs
+guard:wasm [guard:github] INFO: <<< label_resource returning 265 bytes +167µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=4194304) +182µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +192µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5377760, size=122) +157µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +158µs
+2026/03/02 01:52:11 [DIFC] Resource: resource:get_file_contents | Operation: read | Secrecy: [private:lpcox/github-guard] | Integrity: [writer-contributed:lpcox/github-guard merged:lpcox/github-guard none:lpcox/github-guard reader-contributed:lpcox/github-guard]
+2026/03/02 01:52:11 [DIFC] Coarse-grained check failed for read in strict mode - proceeding to backend for response labeling
+2026/03/02 01:52:11 [DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()
+guard:wasm LabelResource input JSON (112 bytes): {"capabilities":{},"tool_args":{"owner":"lpcox","perPage":10,"repo":"github-guard"},"tool_name":"list_branches"} +1ms
+guard:wasm [guard:github] DEBUG: >>> alloc(112) +183µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5377760 +252µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +204µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +265µs
+guard:wasm [guard:github] INFO: >>> label_resource called +248µs
+guard:wasm [guard:github] INFO:     input_len=112, output_size=4194304 +278µs
+guard:wasm [guard:github] INFO:     tool_name=list_branches +203µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +192µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +187µs
+guard:wasm [guard:github] INFO:     desc=resource:list_branches +179µs
+guard:wasm [guard:github] INFO:     secrecy=["private:lpcox/github-guard"] +157µs
+guard:wasm [guard:github] INFO:     integrity=["none:lpcox/github-guard", "reader-contributed:lpcox/github-guard", "writer-contributed:lpcox/github-guard"] +172µs
+guard:wasm [guard:github] INFO:     operation=read +167µs
+guard:wasm [guard:github] INFO: <<< label_resource returning 233 bytes +195µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=4194304) +204µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +152µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5377760, size=112) +145µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +207µs
+2026/03/02 01:52:11 [DIFC] Resource: resource:list_branches | Operation: read | Secrecy: [private:lpcox/github-guard] | Integrity: [none:lpcox/github-guard reader-contributed:lpcox/github-guard writer-contributed:lpcox/github-guard]
+2026/03/02 01:52:11 [DIFC] Coarse-grained check failed for read in strict mode - proceeding to backend for response labeling
+2026/03/02 01:52:11 [DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()
+guard:wasm LabelResponse called: toolName=list_branches +910ms
+guard:wasm [guard:github] DEBUG: >>> alloc(1418) +274µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5377760 +252µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +321µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +251µs
+guard:wasm [guard:github] INFO: >>> label_response called +287µs
+guard:wasm [guard:github] INFO:     input_len=1418, output_size=4194304 +284µs
+guard:wasm [guard:github] INFO:     input_preview={"capabilities":{},"tool_args":{"owner":"lpcox","perPage":10,"repo":"github-guard"},"tool_name":"list_branches","tool_result":{"content":[{"text":"[{\"name\":\"copilot/add-issue-driven-tests-and-experiments-workflow\",\"sha\":\"1db79d4ef3acd82eb787190a0ba61a429e9c75b8\",\"protected\":false},{\"name\":\"copilot/align-readme-with-makefile\",\"sha\":\"b10ee36b929db2741d4bd583f898041372f6b85c\",\"protected\":false},{\"name\":\"copilot/copy-wasm-build-process\",\"sha\":\"0b5bdd389f349a15157d39edbf262 +295µs
+guard:wasm [guard:github] INFO:     tool_name=list_branches +290µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +226µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +270µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=1152 +321µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +410µs
+guard:wasm [guard:github] INFO:     using legacy item-based labeling +589µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +244µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +214µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=1152 +201µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +317µs
+guard:wasm [guard:github] INFO:     no fine-grained items, creating fallback single-item label +263µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +258µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +310µs
+guard:wasm [guard:github] INFO:     fallback labels: secrecy=["private:lpcox/github-guard"], integrity=["none:lpcox/github-guard", "reader-contributed:lpcox/github-guard", "writer-contributed:lpcox/github-guard"] +261µs
+guard:wasm [guard:github] INFO:     generated 1 labeled items +313µs
+guard:wasm [guard:github] INFO:     output_preview={"items":[{"data":{"content":[{"text":"[{\"name\":\"copilot/add-issue-driven-tests-and-experiments-workflow\",\"sha\":\"1db79d4ef3acd82eb787190a0ba61a429e9c75b8\",\"protected\":false},{\"name\":\"copilot/align-readme-with-makefile\",\"sha\":\"b10ee36b929db2741d4bd583f898041372f6b85c\",\"protected\":false},{\"name\":\"copilot/copy-wasm-build-process\",\"sha\":\"0b5bdd389f349a15157d39edbf262120057f9836\",\"protected\":false},{\"name\":\"copilot/create-agentic-workflow\",\"sha\":\"85f3a3cbf3659dd80 +291µs
+guard:wasm [guard:github] INFO: <<< label_response returning 1523 bytes +353µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=4194304) +355µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +244µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5377760, size=1418) +349µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +238µs
+2026/03/02 01:52:12 [DIFC] Filtered collection: 0/1 items accessible
+2026/03/02 01:52:12 [DIFC] STRICT MODE: Blocking entire response - 1/1 items violate DIFC policy
+guard:wasm LabelResponse called: toolName=list_commits +2ms
+guard:wasm [guard:github] DEBUG: >>> alloc(7527) +327µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5325936 +284µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +297µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +299µs
+guard:wasm [guard:github] INFO: >>> label_response called +286µs
+guard:wasm [guard:github] INFO:     input_len=7527, output_size=4194304 +338µs
+guard:wasm [guard:github] INFO:     input_preview={"capabilities":{},"tool_args":{"owner":"lpcox","perPage":5,"repo":"github-guard"},"tool_name":"list_commits","tool_result":{"content":[{"text":"[{\"sha\":\"32d317eb9834707966cde901beef78b25843bfb8\",\"html_url\":\"https://github.com/lpcox/github-guard/commit/32d317eb9834707966cde901beef78b25843bfb8\",\"commit\":{\"message\":\"ci: define exp config via config file (#146)\\n\\n* feat: read experiment params from exp/experiment.conf in CI\\n\\nReplace hardcoded --lim-user 1 with dynamic config sou +359µs
+guard:wasm [guard:github] INFO:     tool_name=list_commits +485µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +297µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +374µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=6873 +291µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +441µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +262µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +363µs
+guard:wasm [guard:github] INFO:     using path-based labeling with 5 paths +331µs
+guard:wasm [guard:github] INFO:     path_output_preview={"labeled_paths":[{"path":"/0","labels":{"description":"commit:lpcox/github-guard@32d317e","secrecy":["private:lpcox/github-guard"],"integrity":["none:lpcox/github-guard","reader-contributed:lpcox/github-guard","writer-contributed:lpcox/github-guard","merged:lpcox/github-guard"]}},{"path":"/1","labels":{"description":"commit:lpcox/github-guard@ad5d9ba","secrecy":["private:lpcox/github-guard"],"integrity":["none:lpcox/github-guard","reader-contributed:lpcox/github-guard","writer-contributed:lpcox +229µs
+guard:wasm [guard:github] INFO: <<< label_response returning 1570 bytes (path-based) +243µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=4194304) +262µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +265µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5325936, size=7527) +174µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +237µs
+2026/03/02 01:52:12 [DIFC] Filtered collection: 0/5 items accessible
+2026/03/02 01:52:12 [DIFC] STRICT MODE: Blocking entire response - 5/5 items violate DIFC policy
+guard:wasm LabelResponse called: toolName=list_issues +159ms
+guard:wasm [guard:github] DEBUG: >>> alloc(54338) +488µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +213µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +265µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5381712 +15ms
+guard:wasm [guard:github] INFO: >>> label_response called +369µs
+guard:wasm [guard:github] INFO:     input_len=54338, output_size=4194304 +254µs
+guard:wasm [guard:github] INFO:     input_preview={"capabilities":{},"tool_args":{"owner":"lpcox","perPage":5,"repo":"github-guard"},"tool_name":"list_issues","tool_result":{"content":[{"text":"{\"issues\":[{\"id\":4008747097,\"number\":148,\"state\":\"OPEN\",\"title\":\"[rust-quality] Rust Code Quality Improvements - March 2026\",\"body\":\"## Rust Code Quality Evaluation - March 2, 2026\\n\\nThis automated analysis identified several opportunities to improve the rust-guard codebase for better maintainability, reduced duplication, and enhanced +312µs
+guard:wasm [guard:github] INFO:     tool_name=list_issues +441µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +245µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +312µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=52131 +263µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +289µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +235µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +363µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +204µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +210µs
+guard:wasm LabelResponse called: toolName=list_pull_requests +40µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +161µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +166µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +218µs
+guard:wasm [guard:github] INFO:     using path-based labeling with 5 paths +232µs
+guard:wasm [guard:github] INFO:     path_output_preview={"labeled_paths":[{"path":"/issues/0","labels":{"description":"issue:lpcox/github-guard#148","secrecy":["private:lpcox/github-guard"],"integrity":["none:lpcox/github-guard","reader-contributed:lpcox/github-guard","writer-contributed:lpcox/github-guard"]}},{"path":"/issues/1","labels":{"description":"issue:lpcox/github-guard#145","secrecy":["private:lpcox/github-guard"],"integrity":["none:lpcox/github-guard","reader-contributed:lpcox/github-guard","writer-contributed:lpcox/github-guard"]}},{"path +193µs
+guard:wasm [guard:github] INFO: <<< label_response returning 1434 bytes (path-based) +208µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5381712, size=4194304) +443µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +433µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=54338) +251µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +319µs
+2026/03/02 01:52:13 [DIFC] Filtered collection: 0/5 items accessible
+2026/03/02 01:52:13 [DIFC] STRICT MODE: Blocking entire response - 5/5 items violate DIFC policy
+guard:wasm [guard:github] DEBUG: >>> alloc(84071) +825µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +673µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +252µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5381712 +225µs
+guard:wasm [guard:github] INFO: >>> label_response called +228µs
+guard:wasm [guard:github] INFO:     input_len=84071, output_size=4194304 +239µs
+guard:wasm [guard:github] INFO:     input_preview={"capabilities":{},"tool_args":{"owner":"lpcox","perPage":5,"repo":"github-guard"},"tool_name":"list_pull_requests","tool_result":{"content":[{"text":"[{\"id\":3341355926,\"number\":147,\"state\":\"open\",\"locked\":false,\"title\":\"exp: run problems in parallel within any agentdojo suite\",\"body\":\"This PR parallelizes running AgentDojo experiments by breaking problems into chunks.\\n\\nThe new experiment parallelization matrix is: problem suite x chunk id.\",\"created_at\":\"2026-03-01T17:5 +276µs
+guard:wasm [guard:github] INFO:     tool_name=list_pull_requests +494µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +222µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 1 items +222µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=78648 +249µs
+guard:wasm [guard:github] INFO: extract_mcp_response: parsed content[0].text as JSON +563µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +287µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +245µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +223µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +264µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +238µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +268µs
+guard:wasm [guard:github] INFO:     using path-based labeling with 4 paths +358µs
+guard:wasm [guard:github] INFO:     path_output_preview={"labeled_paths":[{"path":"/0","labels":{"description":"pr:lpcox/github-guard#147","secrecy":["private:lpcox/github-guard"],"integrity":["none:lpcox/github-guard","reader-contributed:lpcox/github-guard","writer-contributed:lpcox/github-guard"]}},{"path":"/1","labels":{"description":"pr:lpcox/github-guard#144","secrecy":["private:lpcox/github-guard"],"integrity":["none:lpcox/github-guard","reader-contributed:lpcox/github-guard","writer-contributed:lpcox/github-guard"]}},{"path":"/2","labels":{"de +256µs
+guard:wasm [guard:github] INFO: <<< label_response returning 1140 bytes (path-based) +217µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5381712, size=4194304) +268µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +174µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=84071) +205µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +264µs
+2026/03/02 01:52:13 [DIFC] Filtered collection: 0/4 items accessible
+2026/03/02 01:52:13 [DIFC] STRICT MODE: Blocking entire response - 4/4 items violate DIFC policy
+guard:wasm LabelResponse called: toolName=get_file_contents +1.8s
+guard:wasm [guard:github] DEBUG: >>> alloc(16455) +396µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=5325936 +340µs
+guard:wasm [guard:github] DEBUG: >>> alloc(4194304) +294µs
+guard:wasm [guard:github] DEBUG: <<< alloc returning ptr=1101968 +236µs
+guard:wasm [guard:github] INFO: >>> label_response called +284µs
+guard:wasm [guard:github] INFO:     input_len=16455, output_size=4194304 +215µs
+guard:wasm [guard:github] INFO:     input_preview={"capabilities":{},"tool_args":{"owner":"lpcox","path":"README.md","repo":"github-guard"},"tool_name":"get_file_contents","tool_result":{"content":[{"text":"successfully downloaded text file (SHA: 4551fa2aff52bf25aeac97545ddd0c798faff4cb)","type":"text"},{"resource":{"mimeType":"text/plain; charset=utf-8","text":"# GitHub Guard for MCP Gateway\n\nA Rust-based WASM security guard implementing DIFC (Decentralized Information Flow Control) for GitHub MCP servers.\n\n## Overview\n\nThe GitHub Guard  +281µs
+guard:wasm [guard:github] INFO:     tool_name=get_file_contents +325µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +215µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 2 items +207µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=81 +237µs
+guard:wasm [guard:github] INFO: extract_mcp_response: failed to parse text as JSON +265µs
+guard:wasm [guard:github] INFO: extract_mcp_response: using response as-is +253µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +259µs
+guard:wasm [guard:github] INFO:     using legacy item-based labeling +352µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +254µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 2 items +249µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=81 +265µs
+guard:wasm [guard:github] INFO: extract_mcp_response: failed to parse text as JSON +270µs
+guard:wasm [guard:github] INFO: extract_mcp_response: using response as-is +335µs
+guard:wasm [guard:github] INFO: extract_mcp_response: top-level keys=["content"] +260µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found content array with 2 items +253µs
+guard:wasm [guard:github] INFO: extract_mcp_response: found text field, len=81 +222µs
+guard:wasm [guard:github] INFO: extract_mcp_response: failed to parse text as JSON +276µs
+guard:wasm [guard:github] INFO: extract_mcp_response: using response as-is +241µs
+guard:wasm [guard:github] DEBUG: Repo visibility lookup cache hit for lpcox/github-guard: private +277µs
+guard:wasm [guard:github] INFO:     generated 1 labeled items +252µs
+guard:wasm [guard:github] INFO:     output_preview={"items":[{"data":{"content":[{"text":"successfully downloaded text file (SHA: 4551fa2aff52bf25aeac97545ddd0c798faff4cb)","type":"text"},{"resource":{"mimeType":"text/plain; charset=utf-8","text":"# GitHub Guard for MCP Gateway\n\nA Rust-based WASM security guard implementing DIFC (Decentralized Information Flow Control) for GitHub MCP servers.\n\n## Overview\n\nThe GitHub Guard labels all GitHub operations and data for the MCP Gateway reference monitor. The guard runs as a sandboxed WebAssembly +285µs
+guard:wasm [guard:github] INFO: <<< label_response returning 16364 bytes +288µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=1101968, size=4194304) +281µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +306µs
+guard:wasm [guard:github] DEBUG: >>> dealloc(ptr=5325936, size=16455) +295µs
+guard:wasm [guard:github] DEBUG: <<< dealloc complete +360µs
+2026/03/02 01:52:14 [DIFC] Filtered collection: 0/1 items accessible
+2026/03/02 01:52:14 [DIFC] STRICT MODE: Blocking entire response - 1/1 items violate DIFC policy
+2026/03/02 01:52:19 Shutting down...

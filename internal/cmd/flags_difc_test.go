@@ -433,17 +433,17 @@ func TestBuildAllowOnlyPolicy(t *testing.T) {
 	})
 
 	t.Run("owner and repo scope valid", func(t *testing.T) {
-		policy, err := buildAllowOnlyPolicy(false, "lpcox", "gh-aw-mcpg", "reader")
+		policy, err := buildAllowOnlyPolicy(false, "lpcox", "gh-aw-mcpg", "unapproved")
 		require.NoError(t, err)
 		require.NotNil(t, policy)
 		repos, ok := policy.AllowOnly.Repos.([]string)
 		require.True(t, ok)
 		assert.Equal(t, []string{"lpcox/gh-aw-mcpg"}, repos)
-		assert.Equal(t, config.IntegrityReaderContrib, policy.AllowOnly.Integrity)
+		assert.Equal(t, config.IntegrityUnapproved, policy.AllowOnly.Integrity)
 	})
 
 	t.Run("repo without owner invalid", func(t *testing.T) {
-		_, err := buildAllowOnlyPolicy(false, "", "repo", "reader")
+		_, err := buildAllowOnlyPolicy(false, "", "repo", "unapproved")
 		require.Error(t, err)
 	})
 
@@ -491,11 +491,11 @@ func TestGetDefaultGuardPolicyInputs(t *testing.T) {
 	os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "1")
 	os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER", "lpcox")
 	os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", "gh-aw-mcpg")
-	os.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "reader")
+	os.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "unapproved")
 
 	assert.NotEmpty(t, getDefaultGuardPolicyJSON())
 	assert.True(t, getDefaultAllowOnlyScopePublic())
 	assert.Equal(t, "lpcox", getDefaultAllowOnlyScopeOwner())
 	assert.Equal(t, "gh-aw-mcpg", getDefaultAllowOnlyScopeRepo())
-	assert.Equal(t, "reader", getDefaultAllowOnlyMinIntegrity())
+	assert.Equal(t, "unapproved", getDefaultAllowOnlyMinIntegrity())
 }
