@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,7 +23,7 @@ func rejectIfShutdown(unifiedServer *UnifiedServer, next http.Handler, logNamesp
 		if unifiedServer.IsShutdown() {
 			log.Printf("Rejecting request during shutdown: remote=%s, method=%s, path=%s", r.RemoteAddr, r.Method, r.URL.Path)
 			logger.LogWarn("shutdown", "Request rejected during shutdown, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
-			writeJSONResponse(w, http.StatusServiceUnavailable, map[string]string{"error": "Gateway is shutting down"})
+			writeJSONResponse(w, http.StatusServiceUnavailable, json.RawMessage(shutdownErrorJSON))
 			return
 		}
 		next.ServeHTTP(w, r)
