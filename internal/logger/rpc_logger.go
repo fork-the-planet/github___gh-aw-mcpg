@@ -59,45 +59,34 @@ type RPCMessageInfo struct {
 	Error       string              // Error message if any (for responses)
 }
 
+// newRPCMessageInfo creates an RPCMessageInfo from the given parameters, truncating
+// the payload preview to maxPayloadLen characters.
+func newRPCMessageInfo(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error, maxPayloadLen int) *RPCMessageInfo {
+	info := &RPCMessageInfo{
+		Direction:   direction,
+		MessageType: messageType,
+		ServerID:    serverID,
+		Method:      method,
+		PayloadSize: len(payload),
+		Payload:     truncateAndSanitize(string(payload), maxPayloadLen),
+	}
+	if err != nil {
+		info.Error = err.Error()
+	}
+	return info
+}
+
 // logRPCMessageToAll is a helper that logs RPC messages to text, markdown, and JSONL logs
 func logRPCMessageToAll(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error) {
-	// Create info for text log (with larger payload preview)
-	infoText := &RPCMessageInfo{
-		Direction:   direction,
-		MessageType: messageType,
-		ServerID:    serverID,
-		Method:      method,
-		PayloadSize: len(payload),
-		Payload:     truncateAndSanitize(string(payload), MaxPayloadPreviewLengthText),
-	}
+	// Log to text file (with larger payload preview)
+	LogDebug("rpc", "%s", formatRPCMessage(newRPCMessageInfo(direction, messageType, serverID, method, payload, err, MaxPayloadPreviewLengthText)))
 
-	if err != nil {
-		infoText.Error = err.Error()
-	}
-
-	// Log to text file
-	LogDebug("rpc", "%s", formatRPCMessage(infoText))
-
-	// Create info for markdown log (with shorter payload preview)
-	infoMarkdown := &RPCMessageInfo{
-		Direction:   direction,
-		MessageType: messageType,
-		ServerID:    serverID,
-		Method:      method,
-		PayloadSize: len(payload),
-		Payload:     truncateAndSanitize(string(payload), MaxPayloadPreviewLengthMarkdown),
-	}
-
-	if err != nil {
-		infoMarkdown.Error = err.Error()
-	}
-
-	// Log to markdown file
+	// Log to markdown file (with shorter payload preview)
 	globalMarkdownMu.RLock()
 	defer globalMarkdownMu.RUnlock()
 
 	if globalMarkdownLogger != nil {
-		globalMarkdownLogger.Log(LogLevelDebug, "rpc", "%s", formatRPCMessageMarkdown(infoMarkdown))
+		globalMarkdownLogger.Log(LogLevelDebug, "rpc", "%s", formatRPCMessageMarkdown(newRPCMessageInfo(direction, messageType, serverID, method, payload, err, MaxPayloadPreviewLengthMarkdown)))
 	}
 
 	// Log to JSONL file (full payload, sanitized)

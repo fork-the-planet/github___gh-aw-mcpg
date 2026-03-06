@@ -16,6 +16,34 @@
 //			cmd.Flags().BoolVar(&myFeatureEnabled, "my-feature", false, "Enable my feature")
 //		})
 //	}
+//
+// # getDefault*() Flag Helper Pattern
+//
+// Each flag whose default value can be overridden by an environment variable has a
+// corresponding getDefault*() helper function that follows this pattern:
+//
+//	func getDefaultXxx() T {
+//	    return envutil.GetEnvT("MCP_GATEWAY_XXX", defaultXxx)
+//	}
+//
+// Current helpers and their environment variables:
+//
+//	flags_logging.go  getDefaultLogDir()              → MCP_GATEWAY_LOG_DIR
+//	flags_logging.go  getDefaultPayloadDir()          → MCP_GATEWAY_PAYLOAD_DIR
+//	flags_logging.go  getDefaultPayloadPathPrefix()   → MCP_GATEWAY_PAYLOAD_PATH_PREFIX
+//	flags_logging.go  getDefaultPayloadSizeThreshold() → MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD
+//	flags_difc.go     getDefaultEnableDIFC()          → MCP_GATEWAY_ENABLE_DIFC
+//
+// This pattern is intentionally kept in individual feature files because:
+//   - Each helper names the specific environment variable it reads, making the
+//     coupling between flag and env var explicit and discoverable.
+//   - The one-liner wrappers are trivial and unlikely to diverge.
+//   - Go's type system (string/int/bool) prevents a single generic helper without
+//     sacrificing readability.
+//
+// When adding a new flag with an environment variable override:
+//  1. Add a defaultXxx constant and a getDefaultXxx() function in the feature file.
+//  2. Add the new helper to the table above.
 package cmd
 
 import "github.com/spf13/cobra"
