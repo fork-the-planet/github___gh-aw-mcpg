@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"sync/atomic"
@@ -31,7 +33,7 @@ const (
 )
 
 // MCPProtocolVersion is the MCP protocol version used in initialization requests.
-const MCPProtocolVersion = "2024-11-05"
+const MCPProtocolVersion = "2025-11-25"
 
 // requestIDCounter is used to generate unique request IDs for HTTP requests
 var requestIDCounter uint64
@@ -46,18 +48,18 @@ type httpRequestResult struct {
 // transportConnector is a function that creates an SDK transport for a given URL and HTTP client
 type transportConnector func(url string, httpClient *http.Client) sdk.Transport
 
-// isHTTPConnectionError checks if an error is a network connection error
-// This helper reduces code duplication for checking common connection error patterns.
-// Note: Uses string matching which is fragile but consistent with existing patterns in the codebase.
-// TODO: Consider using errors.Is() or type assertions (*net.OpError) for more robust error classification.
+// isHTTPConnectionError checks if an error is a network connection error.
+// It uses errors.As to inspect the underlying *net.OpError for dial operations,
+// which covers connection refused, no such host, and network unreachable errors.
 func isHTTPConnectionError(err error) bool {
 	if err == nil {
 		return false
 	}
-	errMsg := err.Error()
-	return strings.Contains(errMsg, "connection refused") ||
-		strings.Contains(errMsg, "no such host") ||
-		strings.Contains(errMsg, "network is unreachable")
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return opErr.Op == "dial"
+	}
+	return false
 }
 
 // parseSSEResponse extracts JSON data from SSE-formatted response
