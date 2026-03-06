@@ -3,8 +3,10 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -639,22 +641,32 @@ func TestIsHTTPConnectionError(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "connection refused error",
-			err:      fmt.Errorf("dial tcp: connection refused"),
+			name:     "net.OpError dial connection refused",
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")},
 			expected: true,
 		},
 		{
-			name:     "no such host error",
-			err:      fmt.Errorf("dial tcp: lookup example.invalid: no such host"),
+			name:     "net.OpError dial no such host",
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: &net.DNSError{Err: "no such host", IsNotFound: true}},
 			expected: true,
 		},
 		{
-			name:     "network is unreachable error",
-			err:      fmt.Errorf("dial tcp: network is unreachable"),
+			name:     "net.OpError dial network unreachable",
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("network is unreachable")},
 			expected: true,
 		},
 		{
-			name:     "other error",
+			name:     "net.OpError non-dial (read) is not a connection error",
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: errors.New("broken pipe")},
+			expected: false,
+		},
+		{
+			name:     "wrapped net.OpError dial via fmt.Errorf",
+			err:      fmt.Errorf("Post %q: %w", "http://example.com", &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}),
+			expected: true,
+		},
+		{
+			name:     "plain string error",
 			err:      fmt.Errorf("some other error"),
 			expected: false,
 		},
