@@ -214,6 +214,28 @@ For the complete JSON configuration specification with all validation rules, see
   - For **other MCP servers** (Jira, WorkIQ, etc.), different policy schemas apply
   - JSON format uses `"guard-policies"` (with hyphen), TOML uses `guard_policies` (with underscore)
 
+#### Custom Schemas (`customSchemas`)
+
+The `customSchemas` top-level field allows you to define custom server types beyond the built-in `"stdio"` and `"http"` types. Each custom type maps to an HTTPS schema URL that describes its configuration format.
+
+```json
+{
+  "customSchemas": {
+    "myCustomType": "https://example.com/schemas/my-custom-type.json"
+  },
+  "mcpServers": {
+    "myServer": {
+      "type": "myCustomType"
+    }
+  }
+}
+```
+
+**Validation Rules for `customSchemas`:**
+- Custom type names must not conflict with reserved types (`stdio`, `http`)
+- Schema URLs must use `https://` (HTTP URLs are not permitted)
+- If a server's `type` references a custom type not listed in `customSchemas`, validation fails with a helpful error message
+
 **Validation Rules:**
 
 - **JSON stdin format**:
@@ -241,6 +263,7 @@ See **[Configuration Specification](https://github.com/github/gh-aw/blob/main/do
 - **`apiKey`** (optional): API key for authentication
 - **`domain`** (optional): Domain name for the gateway
   - Allowed values: `"localhost"`, `"host.docker.internal"`, or a variable expression (e.g., `"${MCP_GATEWAY_DOMAIN}"`)
+  - **Note**: Only **uppercase** variable names are accepted in variable expressions (e.g., `"${MY_VAR}"` is valid, `"${my_var}"` is not)
 - **`startupTimeout`** (optional): Seconds to wait for backend startup (default: 60)
   - Must be positive integer
 - **`toolTimeout`** (optional): Seconds to wait for tool execution (default: 120)
