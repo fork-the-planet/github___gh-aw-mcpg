@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
-	"time"
 )
 
 // TestPipeBasedLaunch tests launching the gateway using pipes via shell script.
@@ -44,6 +44,12 @@ func TestPipeBasedLaunch(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping pipe-based launch integration test in short mode")
 	}
+
+	// Start a mock HTTP MCP backend so gateways don't need Docker to register tools.
+	// This is shared across all subtests; each subtest connects to it via HTTP.
+	mockBackend := createMinimalMockMCPBackend(t)
+	defer mockBackend.Close()
+	t.Logf("Mock MCP backend started at %s", mockBackend.URL)
 
 	// Find the binary
 	binaryPath := findBinary(t)
@@ -99,6 +105,7 @@ func TestPipeBasedLaunch(t *testing.T) {
 				"PIPE_TYPE="+tt.pipeType,
 				"TIMEOUT=30",
 				"NO_CLEANUP=1", // Don't cleanup gateway so tests can interact with it
+				"MOCK_BACKEND_URL="+mockBackend.URL+"/mcp", // Use mock HTTP backend instead of Docker container
 			)
 
 			// Create context with timeout

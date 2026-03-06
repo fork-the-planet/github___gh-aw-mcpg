@@ -84,7 +84,27 @@ fi
 log_info "Using binary: $BINARY"
 
 # Prepare configuration JSON
-CONFIG_JSON=$(cat <<EOF
+# If MOCK_BACKEND_URL is set, use an HTTP backend instead of a Docker stdio container.
+# This avoids Docker pull delays in automated tests.
+if [ -n "${MOCK_BACKEND_URL:-}" ]; then
+    CONFIG_JSON=$(cat <<EOF
+{
+  "mcpServers": {
+    "testserver": {
+      "type": "http",
+      "url": "${MOCK_BACKEND_URL}"
+    }
+  },
+  "gateway": {
+    "port": ${PORT},
+    "domain": "localhost",
+    "apiKey": "test-key"
+  }
+}
+EOF
+)
+else
+    CONFIG_JSON=$(cat <<EOF
 {
   "mcpServers": {
     "testserver": {
@@ -100,6 +120,7 @@ CONFIG_JSON=$(cat <<EOF
 }
 EOF
 )
+fi
 
 # Function to start gateway with standard pipe
 start_with_standard_pipe() {
@@ -152,7 +173,7 @@ wait_for_gateway() {
     log_info "Waiting for gateway to be ready at $url (timeout: ${max_wait}s)..."
     
     while [ $waited -lt "$max_wait" ]; do
-        if curl -s -f "$url" > /dev/null 2>&1; then
+        if curl -s -f --max-time 2 "$url" > /dev/null 2>&1; then
             log_info "Gateway is ready!"
             return 0
         fi

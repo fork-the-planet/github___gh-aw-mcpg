@@ -411,7 +411,7 @@ CMD ["node", "mock-mcp-server.js"]
 			},
 		},
 		"gateway": map[string]interface{}{
-			"port":   13101,
+			"port":   13109,
 			"domain": "localhost",
 			"apiKey": "test-mock-key",
 		},
@@ -424,7 +424,7 @@ CMD ["node", "mock-mcp-server.js"]
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	port := "13101"
+	port := "13109"
 
 	// Kill any stale processes on this port from previous test runs
 	killProcessOnPort(t, port)
@@ -432,6 +432,7 @@ CMD ["node", "mock-mcp-server.js"]
 	cmd := exec.CommandContext(ctx, binaryPath,
 		"--config-stdin",
 		"--listen", "127.0.0.1:"+port,
+		"--unified",
 	)
 
 	cmd.Stdin = bytes.NewReader(configJSON)
@@ -487,7 +488,7 @@ CMD ["node", "mock-mcp-server.js"]
 			},
 		}
 
-		result := sendMCPRequest(t, serverURL+"/mcp/mock-playwright", "test-mock-key", initReq)
+		result := sendMCPRequest(t, serverURL+"/mcp", "test-mock-key", initReq)
 
 		// Verify initialize succeeded
 		if _, ok := result["error"]; ok {
@@ -502,7 +503,7 @@ CMD ["node", "mock-mcp-server.js"]
 			"params":  map[string]interface{}{},
 		}
 
-		result = sendMCPRequest(t, serverURL+"/mcp/mock-playwright", "test-mock-key", listReq)
+		result = sendMCPRequest(t, serverURL+"/mcp", "test-mock-key", listReq)
 
 		// The key test is that we didn't panic, not whether tools/list works perfectly
 		// Check if we got any tools registered (may be zero if backend connection failed)

@@ -7,14 +7,17 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
-	"time"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // TestBinaryInvocation_RoutedMode tests the awmg binary in routed mode
@@ -220,12 +223,16 @@ func TestBinaryInvocation_ConfigStdin(t *testing.T) {
 		"--routed",
 	)
 
+	// Use an in-process mock backend to avoid Docker dependency
+	mockBackend := createMinimalMockMCPBackend(t)
+	defer mockBackend.Close()
+
 	// Prepare config JSON for stdin
 	configJSON := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
 			"testserver": map[string]interface{}{
-				"type":      "local",
-				"container": "echo",
+				"type": "http",
+				"url":  mockBackend.URL + "/mcp",
 			},
 		},
 		"gateway": map[string]interface{}{
@@ -385,10 +392,14 @@ func TestBinaryInvocation_PipeInputOutput(t *testing.T) {
 		t.Skip("Skipping binary integration test in short mode")
 	}
 
+	// Start a mock HTTP MCP backend so the gateway can connect without Docker
+	mockBackend := createMinimalMockMCPBackend(t)
+	defer mockBackend.Close()
+
 	binaryPath := findBinary(t)
 	t.Logf("Using binary: %s", binaryPath)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	port := "13005"
@@ -398,12 +409,12 @@ func TestBinaryInvocation_PipeInputOutput(t *testing.T) {
 		"--unified",
 	)
 
-	// Prepare config JSON for stdin pipe
+	// Prepare config JSON for stdin pipe using the mock HTTP backend
 	configJSON := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
 			"pipetest": map[string]interface{}{
-				"type":      "local",
-				"container": "echo",
+				"type": "http",
+				"url":  mockBackend.URL + "/mcp",
 			},
 		},
 		"gateway": map[string]interface{}{
@@ -433,7 +444,7 @@ func TestBinaryInvocation_PipeInputOutput(t *testing.T) {
 
 	// Wait for server to start
 	serverURL := "http://127.0.0.1:" + port
-	if !waitForServer(t, serverURL+"/health", 5*time.Second) {
+	if !waitForServer(t, serverURL+"/health", 15*time.Second) {
 		t.Logf("STDOUT: %s", stdout.String())
 		t.Logf("STDERR: %s", stderr.String())
 		t.Fatal("Server did not start in time")
@@ -537,6 +548,31 @@ func TestBinaryInvocation_Version(t *testing.T) {
 }
 
 // Helper functions
+
+// createMinimalMockMCPBackend creates a minimal MCP HTTP server suitable for use as a
+// gateway backend in tests that don't need a real Docker container. It responds correctly
+// to initialize and tools/list so the gateway can register it and start the HTTP server.
+func createMinimalMockMCPBackend(t *testing.T) *httptest.Server {
+	t.Helper()
+	impl := &sdk.Implementation{Name: "mock-backend", Version: "1.0.0"}
+	mcpServer := sdk.NewServer(impl, nil)
+	mcpServer.AddTool(&sdk.Tool{
+		Name:        "mock_tool",
+		Description: "A mock tool for testing",
+		InputSchema: map[string]interface{}{"type": "object"},
+	}, func(_ context.Context, _ *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: "mock response"}},
+		}, nil
+	})
+	handler := sdk.NewStreamableHTTPHandler(func(_ *http.Request) *sdk.Server {
+		return mcpServer
+	}, nil)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp", handler)
+	mux.Handle("/mcp/", handler)
+	return httptest.NewServer(mux)
+}
 
 // findBinary locates the awmg binary
 func findBinary(t *testing.T) string {
