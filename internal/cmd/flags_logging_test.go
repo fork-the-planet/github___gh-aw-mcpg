@@ -3,6 +3,7 @@ package cmd
 import (
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,7 +17,7 @@ func TestGetDefaultLogDir(t *testing.T) {
 		{
 			name:     "no env var - returns default",
 			setEnv:   false,
-			expected: defaultLogDir,
+			expected: config.DefaultLogDir,
 		},
 		{
 			name:     "env var set - returns custom path",
@@ -28,7 +29,7 @@ func TestGetDefaultLogDir(t *testing.T) {
 			name:     "empty env var - returns default",
 			envValue: "",
 			setEnv:   true,
-			expected: defaultLogDir,
+			expected: config.DefaultLogDir,
 		},
 	}
 
@@ -56,7 +57,7 @@ func TestGetDefaultPayloadDir(t *testing.T) {
 		{
 			name:     "no env var - returns default",
 			setEnv:   false,
-			expected: defaultPayloadDir,
+			expected: config.DefaultPayloadDir,
 		},
 		{
 			name:     "env var set - returns custom path",
@@ -68,7 +69,7 @@ func TestGetDefaultPayloadDir(t *testing.T) {
 			name:     "empty env var - returns default",
 			envValue: "",
 			setEnv:   true,
-			expected: defaultPayloadDir,
+			expected: config.DefaultPayloadDir,
 		},
 	}
 
@@ -96,7 +97,7 @@ func TestGetDefaultPayloadSizeThreshold(t *testing.T) {
 		{
 			name:     "no env var - returns default",
 			setEnv:   false,
-			expected: defaultPayloadSizeThreshold,
+			expected: config.DefaultPayloadSizeThreshold,
 		},
 		{
 			name:     "valid env var",
@@ -120,19 +121,19 @@ func TestGetDefaultPayloadSizeThreshold(t *testing.T) {
 			name:     "invalid value - non-numeric",
 			envValue: "invalid",
 			setEnv:   true,
-			expected: defaultPayloadSizeThreshold,
+			expected: config.DefaultPayloadSizeThreshold,
 		},
 		{
 			name:     "invalid value - negative",
 			envValue: "-100",
 			setEnv:   true,
-			expected: defaultPayloadSizeThreshold,
+			expected: config.DefaultPayloadSizeThreshold,
 		},
 		{
 			name:     "invalid value - zero",
 			envValue: "0",
 			setEnv:   true,
-			expected: defaultPayloadSizeThreshold,
+			expected: config.DefaultPayloadSizeThreshold,
 		},
 	}
 

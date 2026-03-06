@@ -140,7 +140,7 @@ func ValidateContainerizedEnvironment(containerID string) *EnvValidationResult {
 	// Check if log directory is mounted (warning only)
 	logDir := os.Getenv("MCP_GATEWAY_LOG_DIR")
 	if logDir == "" {
-		logDir = "/tmp/gh-aw/mcp-logs"
+		logDir = DefaultLogDir
 	}
 	result.LogDirMounted = checkLogDirMounted(containerID, logDir)
 	logEnv.Printf("Log directory mount check: mounted=%v, logDir=%s", result.LogDirMounted, logDir)

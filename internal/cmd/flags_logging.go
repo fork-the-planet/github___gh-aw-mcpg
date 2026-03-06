@@ -3,16 +3,14 @@ package cmd
 // Logging-related flags
 
 import (
+	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/spf13/cobra"
 )
 
 // Logging flag defaults
 const (
-	defaultLogDir               = "/tmp/gh-aw/mcp-logs"
-	defaultPayloadDir           = "/tmp/jq-payloads"
-	defaultPayloadPathPrefix    = ""     // Empty by default - use actual filesystem path
-	defaultPayloadSizeThreshold = 524288 // 512KB default threshold
+	defaultPayloadPathPrefix = "" // Empty by default - use actual filesystem path
 )
 
 // Logging flag variables
@@ -35,13 +33,13 @@ func init() {
 // getDefaultLogDir returns the default log directory, checking MCP_GATEWAY_LOG_DIR
 // environment variable first, then falling back to the hardcoded default
 func getDefaultLogDir() string {
-	return envutil.GetEnvString("MCP_GATEWAY_LOG_DIR", defaultLogDir)
+	return envutil.GetEnvString("MCP_GATEWAY_LOG_DIR", config.DefaultLogDir)
 }
 
 // getDefaultPayloadDir returns the default payload directory, checking MCP_GATEWAY_PAYLOAD_DIR
 // environment variable first, then falling back to the hardcoded default
 func getDefaultPayloadDir() string {
-	return envutil.GetEnvString("MCP_GATEWAY_PAYLOAD_DIR", defaultPayloadDir)
+	return envutil.GetEnvString("MCP_GATEWAY_PAYLOAD_DIR", config.DefaultPayloadDir)
 }
 
 // getDefaultPayloadPathPrefix returns the default payload path prefix, checking MCP_GATEWAY_PAYLOAD_PATH_PREFIX
@@ -53,5 +51,5 @@ func getDefaultPayloadPathPrefix() string {
 // getDefaultPayloadSizeThreshold returns the default payload size threshold, checking
 // MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD environment variable first, then falling back to the hardcoded default
 func getDefaultPayloadSizeThreshold() int {
-	return envutil.GetEnvInt("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", defaultPayloadSizeThreshold)
+	return envutil.GetEnvInt("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", config.DefaultPayloadSizeThreshold)
 }

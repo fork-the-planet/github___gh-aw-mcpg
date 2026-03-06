@@ -220,7 +220,7 @@ func run(cmd *cobra.Command, args []string) error {
 	// Apply payload directory flag (if different from default, it was explicitly set)
 	if cmd.Flags().Changed("payload-dir") {
 		cfg.Gateway.PayloadDir = payloadDir
-	} else if payloadDir != "" && payloadDir != defaultPayloadDir {
+	} else if payloadDir != "" && payloadDir != config.DefaultPayloadDir {
 		// Environment variable was set
 		cfg.Gateway.PayloadDir = payloadDir
 	}
@@ -236,7 +236,7 @@ func run(cmd *cobra.Command, args []string) error {
 	// Apply payload size threshold flag (if different from default, it was explicitly set)
 	if cmd.Flags().Changed("payload-size-threshold") {
 		cfg.Gateway.PayloadSizeThreshold = payloadSizeThreshold
-	} else if payloadSizeThreshold != defaultPayloadSizeThreshold {
+	} else if payloadSizeThreshold != config.DefaultPayloadSizeThreshold {
 		// Environment variable was set
 		cfg.Gateway.PayloadSizeThreshold = payloadSizeThreshold
 	}
