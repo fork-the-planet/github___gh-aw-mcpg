@@ -28,14 +28,18 @@ func TestOutputConfigWithAuthHeaders(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Use an in-process mock backend to avoid Docker dependency
+	mockBackend := createMinimalMockMCPBackend(t)
+	defer mockBackend.Close()
+
 	// Prepare config JSON for stdin with API key
 	apiKey := "test-secret-key-12345"
 	port := 13010
 	configJSON := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
 			"echoserver": map[string]interface{}{
-				"type":      "local",
-				"container": "echo",
+				"type": "http",
+				"url":  mockBackend.URL + "/mcp",
 			},
 		},
 		"gateway": map[string]interface{}{
@@ -232,18 +236,24 @@ func TestOutputConfigUnifiedMode(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// Use in-process mock backends to avoid Docker dependency
+	mockBackend1 := createMinimalMockMCPBackend(t)
+	defer mockBackend1.Close()
+	mockBackend2 := createMinimalMockMCPBackend(t)
+	defer mockBackend2.Close()
+
 	// Prepare config JSON for stdin with API key
 	apiKey := "unified-test-key"
 	port := 13011
 	configJSON := map[string]interface{}{
 		"mcpServers": map[string]interface{}{
 			"server1": map[string]interface{}{
-				"type":      "local",
-				"container": "echo",
+				"type": "http",
+				"url":  mockBackend1.URL + "/mcp",
 			},
 			"server2": map[string]interface{}{
-				"type":      "local",
-				"container": "echo",
+				"type": "http",
+				"url":  mockBackend2.URL + "/mcp",
 			},
 		},
 		"gateway": map[string]interface{}{

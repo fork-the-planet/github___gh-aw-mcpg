@@ -84,7 +84,27 @@ fi
 log_info "Using binary: $BINARY"
 
 # Prepare configuration JSON
-CONFIG_JSON=$(cat <<EOF
+# If MOCK_BACKEND_URL is set, use an HTTP backend instead of a Docker stdio container.
+# This avoids Docker pull delays in automated tests.
+if [ -n "${MOCK_BACKEND_URL:-}" ]; then
+    CONFIG_JSON=$(cat <<EOF
+{
+  "mcpServers": {
+    "testserver": {
+      "type": "http",
+      "url": "${MOCK_BACKEND_URL}"
+    }
+  },
+  "gateway": {
+    "port": ${PORT},
+    "domain": "localhost",
+    "apiKey": "test-key"
+  }
+}
+EOF
+)
+else
+    CONFIG_JSON=$(cat <<EOF
 {
   "mcpServers": {
     "testserver": {
@@ -100,6 +120,7 @@ CONFIG_JSON=$(cat <<EOF
 }
 EOF
 )
+fi
 
 # Function to start gateway with standard pipe
 start_with_standard_pipe() {
@@ -146,15 +167,22 @@ start_with_named_pipe() {
 # Function to wait for gateway to be ready
 wait_for_gateway() {
     local max_wait="$TIMEOUT"
-    local waited=0
     local url="http://${HOST}:${PORT}/health"
+    local start_time
+    start_time=$(date +%s)
     
     log_info "Waiting for gateway to be ready at $url (timeout: ${max_wait}s)..."
     
-    while [ $waited -lt "$max_wait" ]; do
-        if curl -s -f "$url" > /dev/null 2>&1; then
+    while true; do
+        if curl -s -f --max-time 2 "$url" > /dev/null 2>&1; then
             log_info "Gateway is ready!"
             return 0
+        fi
+        
+        # Check elapsed time after the curl attempt
+        local elapsed=$(( $(date +%s) - start_time ))
+        if [ "$elapsed" -ge "$max_wait" ]; then
+            break
         fi
         
         # Check if process is still running
@@ -168,7 +196,6 @@ wait_for_gateway() {
         fi
         
         sleep 0.5
-        waited=$((waited + 1))
     done
     
     log_error "Gateway did not become ready within ${max_wait}s"

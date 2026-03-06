@@ -167,6 +167,7 @@ func TestSafeinputsHTTPBackend(t *testing.T) {
 
 	cmd := exec.CommandContext(ctx, binaryPath,
 		"--config-stdin",
+		"--listen", "127.0.0.1:3001",
 		"--routed",
 	)
 
@@ -185,8 +186,14 @@ func TestSafeinputsHTTPBackend(t *testing.T) {
 		cmd.Wait()
 	}()
 
-	// Wait for gateway to start and read the configuration output
-	time.Sleep(2 * time.Second)
+	// Wait for the gateway HTTP server to be ready
+	if !waitForServer(t, "http://127.0.0.1:3001/health", 20*time.Second) {
+		t.Logf("STDOUT: %s", stdout.String())
+		t.Logf("STDERR: %s", stderr.String())
+		t.Fatal("Gateway did not start in time")
+	}
+	// Small delay to ensure stdout JSON is written
+	time.Sleep(200 * time.Millisecond)
 
 	// Parse the gateway output to get the actual port
 	var gatewayConfig struct {

@@ -345,6 +345,7 @@ func TestGitHubMCPRealBackend(t *testing.T) {
 
 	// Test 2: Initialize connection
 	var sessionID string
+	var mcpSessionID string // Mcp-Session-Id from SDK, needed for stateful session reuse
 	t.Run("InitializeConnection", func(t *testing.T) {
 		initReq := map[string]interface{}{
 			"jsonrpc": "2.0",
@@ -373,6 +374,11 @@ func TestGitHubMCPRealBackend(t *testing.T) {
 
 		body, _ := io.ReadAll(resp.Body)
 		t.Logf("Initialize response: %s", string(body))
+
+		// Capture Mcp-Session-Id for stateful session reuse in subsequent requests
+		mcpSessionID = resp.Header.Get("Mcp-Session-Id")
+		t.Logf("Captured Mcp-Session-Id: %q", mcpSessionID)
+		require.NotEmpty(t, mcpSessionID, "Mcp-Session-Id header must be present for stateful session reuse; ensure the gateway/SDK returns this header on initialize")
 
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Initialize failed with status %d: %s", resp.StatusCode, string(body))
 
@@ -406,6 +412,9 @@ func TestGitHubMCPRealBackend(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json, text/event-stream")
 		req.Header.Set("Authorization", "test-github-key")
+		if mcpSessionID != "" {
+			req.Header.Set("Mcp-Session-Id", mcpSessionID)
+		}
 		resp, err = client.Do(req)
 		if err == nil {
 			resp.Body.Close()
@@ -434,6 +443,9 @@ func TestGitHubMCPRealBackend(t *testing.T) {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Accept", "application/json, text/event-stream")
 		req.Header.Set("Authorization", sessionID)
+		if mcpSessionID != "" {
+			req.Header.Set("Mcp-Session-Id", mcpSessionID)
+		}
 
 		client := &http.Client{Timeout: 30 * time.Second}
 		resp, err := client.Do(req)
@@ -442,11 +454,19 @@ func TestGitHubMCPRealBackend(t *testing.T) {
 
 		body, _ := io.ReadAll(resp.Body)
 		t.Logf("Tools list response length: %d bytes", len(body))
+		bodyStr := string(body)
+		const maxLoggedBodyLen = 1024
+		if len(bodyStr) > maxLoggedBodyLen {
+			t.Logf("Tools list response body (truncated to %d bytes): %q", maxLoggedBodyLen, bodyStr[:maxLoggedBodyLen])
+		} else {
+			t.Logf("Tools list response body: %q", bodyStr)
+		}
 
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Tools list failed with status %d: %s", resp.StatusCode, string(body))
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Tools list failed with status %d: %s", resp.StatusCode, bodyStr)
 
 		// Check if response uses SSE-formatted streaming
 		contentType := resp.Header.Get("Content-Type")
+		t.Logf("Tools list content-type: %q", contentType)
 		var result map[string]interface{}
 		if contentType == "text/event-stream" {
 			// Parse SSE-formatted response
@@ -583,6 +603,9 @@ func TestGitHubMCPRealBackend(t *testing.T) {
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("Accept", "application/json, text/event-stream")
 				req.Header.Set("Authorization", sessionID)
+				if mcpSessionID != "" {
+					req.Header.Set("Mcp-Session-Id", mcpSessionID)
+				}
 
 				client := &http.Client{Timeout: 30 * time.Second}
 				resp, err := client.Do(req)
