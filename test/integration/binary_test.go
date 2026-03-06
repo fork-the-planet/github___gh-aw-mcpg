@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/require"
 )
 
 // TestBinaryInvocation_RoutedMode tests the awmg binary in routed mode
