@@ -11,7 +11,7 @@ import (
 
 // TestGuardPolicies_ReposAllFormat tests repos field with "all" value
 func TestGuardPolicies_ReposAllFormat(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": "all", "min-integrity": "reader"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": "all", "min-integrity": "unapproved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -32,7 +32,7 @@ func TestGuardPolicies_ReposAllFormat(t *testing.T) {
 
 	githubPolicy := server.GuardPolicies["github"].(map[string]interface{})
 	assert.Equal(t, "all", githubPolicy["repos"], "repos should be 'all'")
-	assert.Equal(t, "reader", githubPolicy["min-integrity"], "min-integrity should be 'reader'")
+	assert.Equal(t, "unapproved", githubPolicy["min-integrity"], "min-integrity should be 'unapproved'")
 }
 
 // TestGuardPolicies_ReposPublicFormat tests repos field with "public" value
@@ -63,7 +63,7 @@ func TestGuardPolicies_ReposPublicFormat(t *testing.T) {
 
 // TestGuardPolicies_ReposWithWildcards tests repos field with wildcard patterns
 func TestGuardPolicies_ReposWithWildcards(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": ["myorg/*", "partner/shared-repo", "docs/api-*"], "min-integrity": "writer"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": ["myorg/*", "partner/shared-repo", "docs/api-*"], "min-integrity": "approved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -88,7 +88,7 @@ func TestGuardPolicies_ReposWithWildcards(t *testing.T) {
 	assert.Equal(t, "myorg/*", repos[0], "First pattern should be 'myorg/*'")
 	assert.Equal(t, "partner/shared-repo", repos[1], "Second pattern should be exact match")
 	assert.Equal(t, "docs/api-*", repos[2], "Third pattern should be prefix wildcard")
-	assert.Equal(t, "writer", githubPolicy["min-integrity"], "min-integrity should be 'writer'")
+	assert.Equal(t, "approved", githubPolicy["min-integrity"], "min-integrity should be 'approved'")
 }
 
 // TestGuardPolicies_AllMinIntegrityLevels tests all valid min-integrity values
@@ -98,8 +98,8 @@ func TestGuardPolicies_AllMinIntegrityLevels(t *testing.T) {
 		minIntegrity string
 	}{
 		{"none", "none"},
-		{"reader", "reader"},
-		{"writer", "writer"},
+		{"unapproved", "unapproved"},
+		{"approved", "approved"},
 		{"merged", "merged"},
 	}
 
@@ -140,7 +140,7 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 
 [servers.github.guard_policies.github]
 repos = "all"
-min-integrity = "reader"
+min-integrity = "unapproved"
 `
 
 	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
@@ -155,7 +155,7 @@ min-integrity = "reader"
 
 	githubPolicy := server.GuardPolicies["github"].(map[string]interface{})
 	assert.Equal(t, "all", githubPolicy["repos"], "repos should be 'all' in TOML")
-	assert.Equal(t, "reader", githubPolicy["min-integrity"], "min-integrity should be 'reader' in TOML")
+	assert.Equal(t, "unapproved", githubPolicy["min-integrity"], "min-integrity should be 'unapproved' in TOML")
 }
 
 // TestGuardPolicies_TOML_ReposWithWildcards tests TOML format with wildcard patterns
@@ -170,7 +170,7 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 
 [servers.github.guard_policies.github]
 repos = ["myorg/*", "partner/shared-repo", "docs/api-*"]
-min-integrity = "writer"
+min-integrity = "approved"
 `
 
 	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
@@ -189,7 +189,7 @@ min-integrity = "writer"
 	assert.Equal(t, "myorg/*", repos[0], "First pattern should be 'myorg/*' in TOML")
 	assert.Equal(t, "partner/shared-repo", repos[1], "Second pattern should be exact match in TOML")
 	assert.Equal(t, "docs/api-*", repos[2], "Third pattern should be prefix wildcard in TOML")
-	assert.Equal(t, "writer", githubPolicy["min-integrity"], "min-integrity should be 'writer' in TOML")
+	assert.Equal(t, "approved", githubPolicy["min-integrity"], "min-integrity should be 'approved' in TOML")
 }
 
 // TestGuardPolicies_TOML_AllMinIntegrityLevels tests all valid min-integrity values in TOML
@@ -199,8 +199,8 @@ func TestGuardPolicies_TOML_AllMinIntegrityLevels(t *testing.T) {
 		minIntegrity string
 	}{
 		{"none", "none"},
-		{"reader", "reader"},
-		{"writer", "writer"},
+		{"unapproved", "unapproved"},
+		{"approved", "approved"},
 		{"merged", "merged"},
 	}
 
@@ -263,7 +263,7 @@ func TestGuardPolicies_ExactRepoPatterns(t *testing.T) {
 
 // TestGuardPolicies_MixedPatterns tests combination of exact matches and wildcards
 func TestGuardPolicies_MixedPatterns(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": ["github/gh-aw-mcpg", "myorg/*", "partner/shared-*", "docs/api-reference"], "min-integrity": "writer"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": ["github/gh-aw-mcpg", "myorg/*", "partner/shared-*", "docs/api-reference"], "min-integrity": "approved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -337,7 +337,7 @@ func TestGuardPolicies_MissingGuardPolicies(t *testing.T) {
 
 // TestGuardPolicies_PreservesOtherServerConfig tests that guard policies don't interfere with other config
 func TestGuardPolicies_PreservesOtherServerConfig(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "", "DEBUG": "true"}, "guard-policies": {"github": {"repos": ["myorg/*"], "min-integrity": "reader"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "", "DEBUG": "true"}, "guard-policies": {"github": {"repos": ["myorg/*"], "min-integrity": "unapproved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin

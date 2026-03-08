@@ -134,7 +134,7 @@ For the complete JSON configuration specification with all validation rules, see
       "guard-policies": {
         "github": {
           "repos": ["github/gh-aw-mcpg", "github/gh-aw"],
-          "min-integrity": "reader"
+          "min-integrity": "unapproved"
         }
       }
     }
@@ -194,7 +194,7 @@ For the complete JSON configuration specification with all validation rules, see
     ```toml
     [servers.github.guard_policies.github]
     repos = ["github/gh-aw-mcpg", "github/gh-aw"]  # Repository patterns
-    min-integrity = "reader"                        # Minimum integrity level
+    min-integrity = "unapproved"                    # Minimum integrity level
     ```
     - **`repos`**: Repository access scope
       - `"all"` - All repositories accessible by the token
@@ -205,8 +205,8 @@ For the complete JSON configuration specification with all validation rules, see
         - `"owner/prefix*"` - Repositories with name prefix under owner
     - **`min-integrity`**: Minimum integrity level required
       - `"none"` - No integrity requirements
-      - `"reader"` - Read-level integrity
-      - `"writer"` - Write-level integrity
+      - `"unapproved"` - Unapproved integrity level
+      - `"approved"` - Approved integrity level
       - `"merged"` - Merged-level integrity
     - **Meaning**: Restricts the GitHub MCP server to only access specified repositories
     - Tools like `get_file_contents`, `search_code`, etc. will only work on allowed repositories
