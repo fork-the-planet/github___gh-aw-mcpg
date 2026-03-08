@@ -74,7 +74,12 @@ GITHUB_PERSONAL_ACCESS_TOKEN = ""  # Pass through from host
 # Example: Restrict access to specific GitHub organization and repositories
 # [servers.github.guard_policies.github]
 # repos = ["github/gh-aw-mcpg", "github/gh-aw"]  # Exact repository patterns
-# min-integrity = "reader"                       # Minimum integrity level: none, reader, writer, merged
+# min-integrity = "unapproved"                   # Minimum integrity level for GitHub changes:
+#                                                #   - none: allow any ref (branches, PRs, tags)
+#                                                #   - unapproved: allow open PRs even if not yet approved
+#                                                #   - approved: only allow PRs that have required approvals
+#                                                #   - merged: only allow merged code on the default branch
+#                                                # See the README "GitHub guard policies" section for more details.
 #
 # Other examples:
 # repos = "all"                                  # All repositories accessible by token

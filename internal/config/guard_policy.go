@@ -7,7 +7,7 @@ package config
 //
 // Structure (GitHub MCP Server):
 //   - repos: "all", "public", or array of patterns (e.g., ["owner/repo", "owner/*"])
-//   - min-integrity: "none", "reader", "writer", or "merged"
+//   - min-integrity: "none", "unapproved", "approved", or "merged"
 //
 // The guard policies are stored as map[string]interface{} to support
 // server-specific schemas without forcing all servers to use the same structure.
