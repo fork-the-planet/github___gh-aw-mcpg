@@ -92,6 +92,13 @@ Run both unit and integration tests:
 make test-all
 ```
 
+#### Serena MCP Tests (Optional)
+Run Serena MCP Server tests (requires Docker and network access):
+```bash
+make test-serena          # Direct connection tests
+make test-serena-gateway  # Tests routed via the MCP Gateway
+```
+
 ### Linting
 
 Run all linters (go vet, gofmt check, and golangci-lint):

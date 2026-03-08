@@ -678,7 +678,7 @@ Both GitHub MCP and Serena MCP servers pass comprehensive test suites including 
 ```bash
 # Both servers use stdio transport via Docker containers
 docker run -i ghcr.io/github/github-mcp-server          # GitHub MCP
-docker run -i ghcr.io/github/serena-mcp-server     # Serena MCP
+docker run -i ghcr.io/github/serena-mcp-server:latest   # Serena MCP
 ```
 
 ### Using MCP Servers with the Gateway
