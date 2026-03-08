@@ -153,10 +153,10 @@ func buildAllowOnlyPolicy(public bool, owner, repo, minIntegrity string) (*confi
 		return nil, fmt.Errorf("exactly one AllowOnly scope variant must be set (public or owner[/repo])")
 	}
 	if integrityInput == "" {
-		return nil, fmt.Errorf("allow-only integrity is required")
+		return nil, fmt.Errorf("min-integrity is required")
 	}
 	if !hasIntegrity {
-		return nil, fmt.Errorf("allow-only integrity must be one of: none, unapproved, approved, merged")
+		return nil, fmt.Errorf("min-integrity must be one of: none, unapproved, approved, merged")
 	}
 
 	var repos interface{}
