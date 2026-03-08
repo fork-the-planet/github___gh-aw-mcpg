@@ -203,11 +203,11 @@ For the complete JSON configuration specification with all validation rules, see
         - `"owner/repo"` - Exact repository match
         - `"owner/*"` - All repositories under owner
         - `"owner/prefix*"` - Repositories with name prefix under owner
-    - **`min-integrity`**: Minimum integrity level required
-      - `"none"` - No integrity requirements
-      - `"unapproved"` - Unapproved integrity level
-      - `"approved"` - Approved integrity level
-      - `"merged"` - Merged-level integrity
+    - **`min-integrity`**: Minimum integrity level required. Integrity levels are determined by the GitHub MCP server based on the `author_association` field of GitHub objects and whether the object is reachable from the main branch:
+      - `"none"` - No integrity requirements (includes objects with author_association: FIRST_TIME_CONTRIBUTOR, FIRST_TIMER, NONE)
+      - `"unapproved"` - Unapproved contributor level (includes objects with author_association: CONTRIBUTOR, FIRST_TIME_CONTRIBUTOR)
+      - `"approved"` - Approved contributor level (includes objects with author_association: OWNER, MEMBER, COLLABORATOR)
+      - `"merged"` - Merged to main branch (any object reachable from the main branch, regardless of authorship)
     - **Meaning**: Restricts the GitHub MCP server to only access specified repositories
     - Tools like `get_file_contents`, `search_code`, etc. will only work on allowed repositories
     - Attempts to access other repositories will be denied by the guard policy
