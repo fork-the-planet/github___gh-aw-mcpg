@@ -117,7 +117,7 @@ func TestOutputConfigWithAuthHeaders(t *testing.T) {
 			t.Errorf("Expected non-empty url, got: %v", echoserver["url"])
 		}
 
-		expectedURL := fmt.Sprintf("http://127.0.0.1:%d/mcp/echoserver", port)
+		expectedURL := fmt.Sprintf("http://localhost:%d/mcp/echoserver", port)
 		assert.Equal(t, expectedURL, url, "url = %q, got: %q")
 
 		// Verify headers object is present per spec section 5.4

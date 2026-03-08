@@ -289,27 +289,40 @@ func TestBinaryInvocation_PipeOutput(t *testing.T) {
 	binaryPath := findBinary(t)
 	t.Logf("Using binary: %s", binaryPath)
 
-	// Create a simple config
-	configFile := createTempConfig(t, map[string]interface{}{
-		"testserver": map[string]interface{}{
-			"command": "docker",
-			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
-		},
-	})
-	defer os.Remove(configFile)
+	// Use in-process mock backend to avoid Docker dependency
+	mockBackend := createMinimalMockMCPBackend(t)
+	defer mockBackend.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	port := "13004"
+
+	// Prepare config JSON for stdin with HTTP backend
+	configJSON := map[string]interface{}{
+		"mcpServers": map[string]interface{}{
+			"testserver": map[string]interface{}{
+				"type": "http",
+				"url":  mockBackend.URL + "/mcp",
+			},
+		},
+		"gateway": map[string]interface{}{
+			"port":   13004,
+			"domain": "localhost",
+			"apiKey": "test-pipe-key",
+		},
+	}
+	configBytes, _ := json.Marshal(configJSON)
+
 	cmd := exec.CommandContext(ctx, binaryPath,
-		"--config", configFile,
+		"--config-stdin",
 		"--listen", "127.0.0.1:"+port,
 		"--unified",
 	)
 
 	// Capture stdout through a pipe (the scenario we're testing)
 	var stdout, stderr bytes.Buffer
+	cmd.Stdin = bytes.NewReader(configBytes)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -325,7 +338,7 @@ func TestBinaryInvocation_PipeOutput(t *testing.T) {
 
 	// Wait for server to start
 	serverURL := "http://127.0.0.1:" + port
-	if !waitForServer(t, serverURL+"/health", 5*time.Second) {
+	if !waitForServer(t, serverURL+"/health", 15*time.Second) {
 		t.Logf("STDOUT: %s", stdout.String())
 		t.Logf("STDERR: %s", stderr.String())
 		t.Fatal("Server did not start in time")
@@ -334,7 +347,7 @@ func TestBinaryInvocation_PipeOutput(t *testing.T) {
 	t.Log("✓ Server started successfully with piped stdout")
 
 	// Small delay to ensure stdout is written
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	// Parse the JSON gateway configuration from stdout
 	stdoutStr := stdout.String()

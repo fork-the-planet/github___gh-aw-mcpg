@@ -50,7 +50,7 @@ func TestWriteGatewayConfigToStdout(t *testing.T) {
 			wantAPIKey: "test-api-key",
 		},
 		{
-			name: "unified mode with multiple servers",
+			name: "unified mode with multiple servers and wildcard bind",
 			cfg: &config.Config{
 				Servers: map[string]*config.ServerConfig{
 					"github": {
@@ -66,7 +66,7 @@ func TestWriteGatewayConfigToStdout(t *testing.T) {
 			},
 			listenAddr: "0.0.0.0:3000",
 			mode:       "unified",
-			wantHost:   "0.0.0.0",
+			wantHost:   "127.0.0.1",
 			wantPort:   "3000",
 			wantAPIKey: "unified-api-key",
 		},
@@ -117,6 +117,36 @@ func TestWriteGatewayConfigToStdout(t *testing.T) {
 			wantHost:   "2001:db8::1",
 			wantPort:   "3000",
 			wantAPIKey: "ipv6-key",
+		},
+		{
+			name: "domain config overrides listen host",
+			cfg: &config.Config{
+				Servers: map[string]*config.ServerConfig{
+					"github": {Command: "docker"},
+				},
+				Gateway: &config.GatewayConfig{
+					APIKey: "domain-key",
+					Domain: "my-gateway.local",
+				},
+			},
+			listenAddr: "0.0.0.0:8080",
+			mode:       "routed",
+			wantHost:   "my-gateway.local",
+			wantPort:   "8080",
+			wantAPIKey: "domain-key",
+		},
+		{
+			name: "IPv6 wildcard mapped to 127.0.0.1",
+			cfg: &config.Config{
+				Servers: map[string]*config.ServerConfig{
+					"test": {Command: "echo"},
+				},
+			},
+			listenAddr: "[::]:9090",
+			mode:       "routed",
+			wantHost:   "127.0.0.1",
+			wantPort:   "9090",
+			wantAPIKey: "",
 		},
 	}
 

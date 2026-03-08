@@ -498,8 +498,16 @@ func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, w io.Writer
 	}
 	debugLog.Printf("Parsed listen address: host=%s, port=%s", host, port)
 
-	// Determine domain (use host from listen address)
+	// Determine domain for client-reachable URLs.
+	// If the config specifies a domain, prefer that. Otherwise, use the listen
+	// host — but map wildcard bind addresses (0.0.0.0, ::) to 127.0.0.1 since
+	// clients cannot connect to wildcard addresses.
 	domain := host
+	if cfg.Gateway != nil && cfg.Gateway.Domain != "" {
+		domain = cfg.Gateway.Domain
+	} else if domain == "0.0.0.0" || domain == "::" || domain == "[::]" {
+		domain = "127.0.0.1"
+	}
 
 	debugLog.Printf("Resolved gateway address: host=%s, port=%s", host, port)
 
