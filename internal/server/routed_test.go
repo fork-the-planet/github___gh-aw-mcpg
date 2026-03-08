@@ -331,12 +331,11 @@ func TestRoutedMode_SysToolsBackend_DIFCEnabled(t *testing.T) {
 }
 
 func TestRoutedMode_SysRouteNotExposed_DIFCDisabled(t *testing.T) {
-	// When DIFC is disabled (default), /mcp/sys route should NOT be registered
+	// /mcp/sys route is never registered — sys tools are deprecated and not exposed to agents
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{
 			"github": {Command: "docker", Args: []string{}},
 		},
-		// EnableDIFC defaults to false, but explicitly set here for test clarity
 		EnableDIFC: false,
 	}
 
@@ -359,13 +358,14 @@ func TestRoutedMode_SysRouteNotExposed_DIFCDisabled(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code, "Expected 404 for /mcp/sys when DIFC is disabled")
 }
 
-func TestRoutedMode_SysRouteExposed_DIFCEnabled(t *testing.T) {
-	// When DIFC is enabled, /mcp/sys route SHOULD be registered
+func TestRoutedMode_SysRouteNotExposed_DIFCEnabled(t *testing.T) {
+	// /mcp/sys route is never registered — sys tools are deprecated and not exposed to agents
+	// even when DIFC is enabled
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{
 			"github": {Command: "docker", Args: []string{}},
 		},
-		EnableDIFC: true, // Enable DIFC
+		EnableDIFC: true,
 	}
 
 	ctx := context.Background()
@@ -376,15 +376,15 @@ func TestRoutedMode_SysRouteExposed_DIFCEnabled(t *testing.T) {
 	// Create routed mode server
 	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
 
-	// Try to access /mcp/sys route - should NOT get 404
+	// Try to access /mcp/sys route - should get 404 even when DIFC is enabled
 	req := httptest.NewRequest(http.MethodGet, "/mcp/sys", nil)
 	req.Header.Set("Authorization", "test-session")
 	w := httptest.NewRecorder()
 
 	httpServer.Handler.ServeHTTP(w, req)
 
-	// Should NOT return 404 because the route should be registered
-	assert.NotEqual(t, http.StatusNotFound, w.Code, "Expected /mcp/sys route to be registered when DIFC is enabled")
+	// Should return 404 because sys route is not registered regardless of DIFC state
+	assert.Equal(t, http.StatusNotFound, w.Code, "Expected 404 for /mcp/sys even when DIFC is enabled -- sys tools are deprecated")
 }
 
 // TestCloseEndpoint_EdgeCases tests edge cases for the close endpoint

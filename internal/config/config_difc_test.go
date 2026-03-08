@@ -576,7 +576,7 @@ func TestGuardPolicy_StdinParsingAndConversion(t *testing.T) {
 				"type": "wasm",
 				"path": "/guard/github-guard-rust.wasm",
 				"policy": {
-					"allowonly": {
+					"allow-only": {
 						"repos": ["lpcox/github-guard"],
 						"min-integrity": "unapproved"
 					}
@@ -629,19 +629,32 @@ func TestGuardPolicy_InvalidRejected(t *testing.T) {
 }
 
 func TestParseGuardPolicyJSON(t *testing.T) {
-	policy, err := ParseGuardPolicyJSON(`{"allowonly":{"repos":"public","min-integrity":"none"}}`)
-	require.NoError(t, err)
-	require.NotNil(t, policy)
+	t.Run("accepts allow-only key with dash (canonical form)", func(t *testing.T) {
+		policy, err := ParseGuardPolicyJSON(`{"allow-only":{"repos":"public","min-integrity":"none"}}`)
+		require.NoError(t, err)
+		require.NotNil(t, policy)
 
-	normalized, err := NormalizeGuardPolicy(policy)
-	require.NoError(t, err)
-	assert.Equal(t, "public", normalized.ScopeKind)
-	assert.Equal(t, IntegrityNone, normalized.MinIntegrity)
+		normalized, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Equal(t, "public", normalized.ScopeKind)
+		assert.Equal(t, IntegrityNone, normalized.MinIntegrity)
+	})
+
+	t.Run("accepts allowonly key without dash (backward compat)", func(t *testing.T) {
+		policy, err := ParseGuardPolicyJSON(`{"allowonly":{"repos":"public","min-integrity":"none"}}`)
+		require.NoError(t, err)
+		require.NotNil(t, policy)
+
+		normalized, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Equal(t, "public", normalized.ScopeKind)
+		assert.Equal(t, IntegrityNone, normalized.MinIntegrity)
+	})
 }
 
 func TestParseGuardPolicyJSON_UpdatedRepoRegex(t *testing.T) {
 	t.Run("accepts underscore scopes", func(t *testing.T) {
-		policy, err := ParseGuardPolicyJSON(`{"allowonly":{"repos":["owner_name/repo_name","owner-name/*","owner_name/repo_prefix*"],"min-integrity":"unapproved"}}`)
+		policy, err := ParseGuardPolicyJSON(`{"allow-only":{"repos":["owner_name/repo_name","owner-name/*","owner_name/repo_prefix*"],"min-integrity":"unapproved"}}`)
 		require.NoError(t, err)
 		require.NotNil(t, policy)
 
@@ -653,7 +666,7 @@ func TestParseGuardPolicyJSON_UpdatedRepoRegex(t *testing.T) {
 	})
 
 	t.Run("rejects dot in repo scope", func(t *testing.T) {
-		_, err := ParseGuardPolicyJSON(`{"allowonly":{"repos":["owner/repo.name"],"min-integrity":"unapproved"}}`)
+		_, err := ParseGuardPolicyJSON(`{"allow-only":{"repos":["owner/repo.name"],"min-integrity":"unapproved"}}`)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid")
 	})

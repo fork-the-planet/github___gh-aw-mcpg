@@ -487,7 +487,7 @@ func TestGetDefaultGuardPolicyInputs(t *testing.T) {
 		}
 	}()
 
-	os.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", `{"allowonly":{"repos":"public","min-integrity":"none"}}`)
+	os.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", `{"allow-only":{"repos":"public","min-integrity":"none"}}`)
 	os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "1")
 	os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER", "lpcox")
 	os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", "gh-aw-mcpg")

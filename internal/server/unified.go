@@ -453,10 +453,12 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 }
 
 // registerSysTool is a helper function that registers a sys tool by storing its metadata
-// in the internal tools map and registering it with the SDK. This eliminates duplication
-// of tool metadata (Name, Description, InputSchema) that was previously defined twice.
+// in the internal tools map. Sys tools are deprecated: agent labels are set when a guard
+// is initialized via label_agent, so sys tools no longer need to be exposed to agents.
+// The handler implementations are kept for potential future use.
 func (us *UnifiedServer) registerSysTool(name, description string, inputSchema map[string]interface{}, handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error)) {
-	// Store tool info
+	// Store tool info internally only -- sys tools are intentionally NOT registered
+	// with the MCP SDK server and therefore never appear in tools/list.
 	us.toolsMu.Lock()
 	us.tools[name] = &ToolInfo{
 		Name:        name,
@@ -466,13 +468,6 @@ func (us *UnifiedServer) registerSysTool(name, description string, inputSchema m
 		Handler:     handler,
 	}
 	us.toolsMu.Unlock()
-
-	// Register with SDK
-	sdk.AddTool(us.server, &sdk.Tool{
-		Name:        name,
-		Description: description,
-		InputSchema: inputSchema,
-	}, handler)
 }
 
 // registerSysTools registers built-in sys tools

@@ -30,7 +30,7 @@ var validMinIntegrityValues = map[string]struct{}{
 
 // GuardPolicy represents the policy payload passed to guard label_agent.
 type GuardPolicy struct {
-	AllowOnly *AllowOnlyPolicy `toml:"AllowOnly" json:"allowonly,omitempty"`
+	AllowOnly *AllowOnlyPolicy `toml:"AllowOnly" json:"allow-only,omitempty"`
 }
 
 // AllowOnlyPolicy configures scope and minimum required integrity.
@@ -55,7 +55,7 @@ func (p *GuardPolicy) UnmarshalJSON(data []byte) error {
 	var allowOnlyRaw json.RawMessage
 	for key, value := range raw {
 		switch strings.ToLower(key) {
-		case "allowonly":
+		case "allow-only", "allowonly":
 			allowOnlyRaw = value
 		default:
 			return fmt.Errorf("policy contains unsupported field %q", key)
@@ -63,7 +63,7 @@ func (p *GuardPolicy) UnmarshalJSON(data []byte) error {
 	}
 
 	if len(allowOnlyRaw) == 0 {
-		return fmt.Errorf("policy must include allowonly")
+		return fmt.Errorf("policy must include allow-only")
 	}
 
 	var allowOnly AllowOnlyPolicy
@@ -76,7 +76,7 @@ func (p *GuardPolicy) UnmarshalJSON(data []byte) error {
 
 func (p GuardPolicy) MarshalJSON() ([]byte, error) {
 	type serializedPolicy struct {
-		AllowOnly *AllowOnlyPolicy `json:"allowonly,omitempty"`
+		AllowOnly *AllowOnlyPolicy `json:"allow-only,omitempty"`
 	}
 
 	return json.Marshal(serializedPolicy(p))
@@ -92,22 +92,22 @@ func (p *AllowOnlyPolicy) UnmarshalJSON(data []byte) error {
 		switch strings.ToLower(key) {
 		case "repos":
 			if err := json.Unmarshal(value, &p.Repos); err != nil {
-				return fmt.Errorf("invalid allowonly.repos: %w", err)
+				return fmt.Errorf("invalid allow-only.repos: %w", err)
 			}
 		case "min-integrity", "integrity":
 			if err := json.Unmarshal(value, &p.MinIntegrity); err != nil {
-				return fmt.Errorf("invalid allowonly.min-integrity: %w", err)
+				return fmt.Errorf("invalid allow-only.min-integrity: %w", err)
 			}
 		default:
-			return fmt.Errorf("allowonly contains unsupported field %q", key)
+			return fmt.Errorf("allow-only contains unsupported field %q", key)
 		}
 	}
 
 	if p.Repos == nil {
-		return fmt.Errorf("allowonly must include repos")
+		return fmt.Errorf("allow-only must include repos")
 	}
 	if strings.TrimSpace(p.MinIntegrity) == "" {
-		return fmt.Errorf("allowonly must include min-integrity")
+		return fmt.Errorf("allow-only must include min-integrity")
 	}
 
 	return nil
@@ -131,12 +131,12 @@ func ValidateGuardPolicy(policy *GuardPolicy) error {
 // NormalizeGuardPolicy validates and normalizes policy shape.
 func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	if policy == nil || policy.AllowOnly == nil {
-		return nil, fmt.Errorf("policy must include allowonly")
+		return nil, fmt.Errorf("policy must include allow-only")
 	}
 
 	integrity := strings.ToLower(strings.TrimSpace(policy.AllowOnly.MinIntegrity))
 	if _, ok := validMinIntegrityValues[integrity]; !ok {
-		return nil, fmt.Errorf("allowonly.min-integrity must be one of: none, unapproved, approved, merged")
+		return nil, fmt.Errorf("allow-only.min-integrity must be one of: none, unapproved, approved, merged")
 	}
 
 	normalized := &NormalizedGuardPolicy{MinIntegrity: integrity}
@@ -145,7 +145,7 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	case string:
 		scopeValue := strings.ToLower(strings.TrimSpace(scope))
 		if scopeValue != "all" && scopeValue != "public" {
-			return nil, fmt.Errorf("allowonly.repos string must be 'all' or 'public'")
+			return nil, fmt.Errorf("allow-only.repos string must be 'all' or 'public'")
 		}
 		normalized.ScopeKind = scopeValue
 		return normalized, nil
@@ -173,13 +173,13 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 		return normalized, nil
 
 	default:
-		return nil, fmt.Errorf("allowonly.repos must be 'all', 'public', or a non-empty array of repo scope strings")
+		return nil, fmt.Errorf("allow-only.repos must be 'all', 'public', or a non-empty array of repo scope strings")
 	}
 }
 
 func normalizeAndValidateScopeArray(scopes []interface{}) ([]string, error) {
 	if len(scopes) == 0 {
-		return nil, fmt.Errorf("allowonly.repos array must contain at least one scope")
+		return nil, fmt.Errorf("allow-only.repos array must contain at least one scope")
 	}
 
 	seen := make(map[string]struct{}, len(scopes))
@@ -188,20 +188,20 @@ func normalizeAndValidateScopeArray(scopes []interface{}) ([]string, error) {
 	for _, scopeValue := range scopes {
 		scopeString, ok := scopeValue.(string)
 		if !ok {
-			return nil, fmt.Errorf("allowonly.repos array values must be strings")
+			return nil, fmt.Errorf("allow-only.repos array values must be strings")
 		}
 
 		scopeString = strings.TrimSpace(scopeString)
 		if scopeString == "" {
-			return nil, fmt.Errorf("allowonly.repos scope entries must not be empty")
+			return nil, fmt.Errorf("allow-only.repos scope entries must not be empty")
 		}
 
 		if !isValidRepoScope(scopeString) {
-			return nil, fmt.Errorf("allowonly.repos scope %q is invalid; expected owner/*, owner/repo, or owner/re*", scopeString)
+			return nil, fmt.Errorf("allow-only.repos scope %q is invalid; expected owner/*, owner/repo, or owner/re*", scopeString)
 		}
 
 		if _, exists := seen[scopeString]; exists {
-			return nil, fmt.Errorf("allowonly.repos must not contain duplicates")
+			return nil, fmt.Errorf("allow-only.repos must not contain duplicates")
 		}
 		seen[scopeString] = struct{}{}
 		normalized = append(normalized, scopeString)

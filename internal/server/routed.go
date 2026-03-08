@@ -84,20 +84,15 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 	// Register common endpoints (OAuth discovery, health, close)
 	registerCommonEndpoints(mux, unifiedServer, apiKey)
 
-	// Create routes for all backends, plus sys only if DIFC is enabled
+	// Create routes for all configured backend servers.
+	// Sys tools are deprecated and intentionally not exposed via /mcp/sys.
 	allBackends := unifiedServer.GetServerIDs()
-	if unifiedServer.IsDIFCEnabled() {
-		allBackends = append([]string{"sys"}, allBackends...)
-		logRouted.Printf("DIFC enabled: including sys in route registration")
-	} else {
-		logRouted.Printf("DIFC disabled: excluding sys from route registration")
-	}
 	logRouted.Printf("Registering routes for %d backends: %v", len(allBackends), allBackends)
 
 	// Create server cache for session-aware server instances
 	serverCache := newFilteredServerCache()
 
-	// Create a proxy for each backend server (sys included only when DIFC is enabled)
+	// Create a proxy for each backend server
 	for _, serverID := range allBackends {
 		// Capture serverID for the closure
 		backendID := serverID
