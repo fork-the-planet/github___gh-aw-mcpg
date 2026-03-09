@@ -405,7 +405,7 @@ fn check_file_secrecy(path: &str, default_secrecy: Vec<String>) -> Vec<String> {
     }
 
     // Workflow files may contain secrets
-    if path.starts_with(".github/workflows/") {
+    if path_lower.starts_with(".github/workflows/") {
         return secret_label();
     }
 
