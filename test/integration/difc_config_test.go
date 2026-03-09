@@ -48,7 +48,7 @@ func getFreePort(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
-// TestDIFCEnvironmentVariables tests that all DIFC-related environment variables are recognized
+// TestDIFCEnvironmentVariables tests that all guards-related environment variables are recognized
 func TestDIFCEnvironmentVariables(t *testing.T) {
 	binary := binaryPath(t)
 
@@ -58,30 +58,30 @@ func TestDIFCEnvironmentVariables(t *testing.T) {
 		// We verify the gateway starts without error, which means env vars are accepted
 	}{
 		{
-			name: "MCP_GATEWAY_ENABLE_DIFC",
+			name: "MCP_GATEWAY_ENABLE_GUARDS",
 			envVars: map[string]string{
-				"MCP_GATEWAY_ENABLE_DIFC": "true",
+				"MCP_GATEWAY_ENABLE_GUARDS": "true",
 			},
 		},
 		{
-			name: "MCP_GATEWAY_DIFC_MODE_strict",
+			name: "MCP_GATEWAY_GUARDS_MODE_strict",
 			envVars: map[string]string{
-				"MCP_GATEWAY_ENABLE_DIFC": "true",
-				"MCP_GATEWAY_DIFC_MODE":   "strict",
+				"MCP_GATEWAY_ENABLE_GUARDS": "true",
+				"MCP_GATEWAY_GUARDS_MODE":   "strict",
 			},
 		},
 		{
-			name: "MCP_GATEWAY_DIFC_MODE_filter",
+			name: "MCP_GATEWAY_GUARDS_MODE_filter",
 			envVars: map[string]string{
-				"MCP_GATEWAY_ENABLE_DIFC": "true",
-				"MCP_GATEWAY_DIFC_MODE":   "filter",
+				"MCP_GATEWAY_ENABLE_GUARDS": "true",
+				"MCP_GATEWAY_GUARDS_MODE":   "filter",
 			},
 		},
 		{
-			name: "MCP_GATEWAY_DIFC_MODE_propagate",
+			name: "MCP_GATEWAY_GUARDS_MODE_propagate",
 			envVars: map[string]string{
-				"MCP_GATEWAY_ENABLE_DIFC": "true",
-				"MCP_GATEWAY_DIFC_MODE":   "propagate",
+				"MCP_GATEWAY_ENABLE_GUARDS": "true",
+				"MCP_GATEWAY_GUARDS_MODE":   "propagate",
 			},
 		},
 		{
@@ -105,10 +105,10 @@ func TestDIFCEnvironmentVariables(t *testing.T) {
 			},
 		},
 		{
-			name: "all_DIFC_env_vars",
+			name: "all_guards_env_vars",
 			envVars: map[string]string{
-				"MCP_GATEWAY_ENABLE_DIFC":       "true",
-				"MCP_GATEWAY_DIFC_MODE":         "propagate",
+				"MCP_GATEWAY_ENABLE_GUARDS":     "true",
+				"MCP_GATEWAY_GUARDS_MODE":       "propagate",
 				"MCP_GATEWAY_CONFIG_EXTENSIONS": "true",
 				"MCP_GATEWAY_SESSION_SECRECY":   "internal,secret",
 				"MCP_GATEWAY_SESSION_INTEGRITY": "agent,verified",
@@ -165,7 +165,7 @@ func TestDIFCEnvironmentVariables(t *testing.T) {
 			stderrStr := stderr.String()
 
 			// Should not contain "invalid" errors related to our env vars
-			assert.NotContains(t, stderrStr, "invalid --difc-mode", "DIFC mode should be valid")
+			assert.NotContains(t, stderrStr, "invalid --guards-mode", "Guards mode should be valid")
 			assert.NotContains(t, stderrStr, "require --enable-config-extensions", "Config extensions should be respected when set")
 
 			t.Logf("✓ Environment variables accepted: %v", tt.envVars)
@@ -312,7 +312,7 @@ func TestDIFCSessionLabelsViaEnv(t *testing.T) {
 	t.Log("✓ Session labels configured via environment variables")
 }
 
-// TestDIFCModeFilterViaEnv tests filter mode via MCP_GATEWAY_DIFC_MODE
+// TestDIFCModeFilterViaEnv tests guards filter mode via MCP_GATEWAY_GUARDS_MODE
 func TestDIFCModeFilterViaEnv(t *testing.T) {
 	binary := binaryPath(t)
 
@@ -336,8 +336,8 @@ func TestDIFCModeFilterViaEnv(t *testing.T) {
 	cmd := exec.CommandContext(ctx2, binary, "--config-stdin")
 	cmd.Stdin = strings.NewReader(config)
 	cmd.Env = append(os.Environ(),
-		"MCP_GATEWAY_ENABLE_DIFC=true",
-		"MCP_GATEWAY_DIFC_MODE=filter",
+		"MCP_GATEWAY_ENABLE_GUARDS=true",
+		"MCP_GATEWAY_GUARDS_MODE=filter",
 		"MCP_GATEWAY_WASM_GUARDS_DIR=",
 	)
 
@@ -358,11 +358,11 @@ func TestDIFCModeFilterViaEnv(t *testing.T) {
 
 	// Verify filter mode is active
 	assert.Contains(t, stderrStr, "filter", "Filter mode should be logged")
-	assert.Contains(t, stderrStr, "DIFC enforcement enabled", "DIFC should be enabled")
-	t.Log("✓ DIFC filter mode enabled via MCP_GATEWAY_DIFC_MODE=filter")
+	assert.Contains(t, stderrStr, "Guards enforcement enabled", "Guards should be enabled")
+	t.Log("✓ Guards filter mode enabled via MCP_GATEWAY_GUARDS_MODE=filter")
 }
 
-// TestDIFCModePropagateViaEnv tests propagate mode via MCP_GATEWAY_DIFC_MODE
+// TestDIFCModePropagateViaEnv tests guards propagate mode via MCP_GATEWAY_GUARDS_MODE
 func TestDIFCModePropagateViaEnv(t *testing.T) {
 	binary := binaryPath(t)
 
@@ -386,8 +386,8 @@ func TestDIFCModePropagateViaEnv(t *testing.T) {
 	cmd := exec.CommandContext(ctx3, binary, "--config-stdin")
 	cmd.Stdin = strings.NewReader(config)
 	cmd.Env = append(os.Environ(),
-		"MCP_GATEWAY_ENABLE_DIFC=true",
-		"MCP_GATEWAY_DIFC_MODE=propagate",
+		"MCP_GATEWAY_ENABLE_GUARDS=true",
+		"MCP_GATEWAY_GUARDS_MODE=propagate",
 		"MCP_GATEWAY_WASM_GUARDS_DIR=",
 	)
 
@@ -408,8 +408,8 @@ func TestDIFCModePropagateViaEnv(t *testing.T) {
 
 	// Verify propagate mode is active
 	assert.Contains(t, stderrStr, "propagate", "Propagate mode should be logged")
-	assert.Contains(t, stderrStr, "DIFC enforcement enabled", "DIFC should be enabled")
-	t.Log("✓ DIFC propagate mode enabled via MCP_GATEWAY_DIFC_MODE=propagate")
+	assert.Contains(t, stderrStr, "Guards enforcement enabled", "Guards should be enabled")
+	t.Log("✓ Guards propagate mode enabled via MCP_GATEWAY_GUARDS_MODE=propagate")
 }
 
 // TestSessionLabelsRequireConfigExtensions verifies that session labels require config extensions
@@ -454,7 +454,7 @@ func TestSessionLabelsRequireConfigExtensions(t *testing.T) {
 	t.Log("✓ Session labels correctly require --enable-config-extensions")
 }
 
-// TestFullDIFCConfigFromJSON tests complete DIFC configuration from JSON
+// TestFullDIFCConfigFromJSON tests complete guards configuration from JSON
 func TestFullDIFCConfigFromJSON(t *testing.T) {
 	binary := binaryPath(t)
 
@@ -497,8 +497,8 @@ func TestFullDIFCConfigFromJSON(t *testing.T) {
 	cmd := exec.CommandContext(ctx5, binary, "--config-stdin", "--enable-config-extensions")
 	cmd.Stdin = strings.NewReader(config)
 	cmd.Env = append(os.Environ(),
-		"MCP_GATEWAY_ENABLE_DIFC=true",
-		"MCP_GATEWAY_DIFC_MODE=filter",
+		"MCP_GATEWAY_ENABLE_GUARDS=true",
+		"MCP_GATEWAY_GUARDS_MODE=filter",
 	)
 
 	var stdout, stderr bytes.Buffer
@@ -530,7 +530,7 @@ func TestFullDIFCConfigFromJSON(t *testing.T) {
 	// Verify configuration was loaded
 	assert.Contains(t, stderrStr, "server1", "Should contain server1")
 	assert.Contains(t, stderrStr, "server2", "Should contain server2")
-	assert.Contains(t, stderrStr, "DIFC enforcement enabled", "DIFC should be enabled")
+	assert.Contains(t, stderrStr, "Guards enforcement enabled", "Guards should be enabled")
 	assert.Contains(t, stderrStr, "filter", "Filter mode should be active")
-	t.Log("✓ Full DIFC configuration loaded successfully")
+	t.Log("✓ Full guards configuration loaded successfully")
 }

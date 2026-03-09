@@ -113,25 +113,25 @@ The DIFC evaluator supports three **mutually exclusive** enforcement modes. You 
 
 ### CLI Configuration
 
-Use the `--difc-mode` flag to specify the enforcement mode:
+Use the `--guards-mode` flag to specify the enforcement mode:
 
 ```bash
-# Enable DIFC with strict mode (default)
-./awmg --enable-difc --difc-mode strict
+# Enable guards with strict mode (default)
+./awmg --enable-guards --guards-mode strict
 
-# Enable DIFC with filter mode
-./awmg --enable-difc --difc-mode filter
+# Enable guards with filter mode
+./awmg --enable-guards --guards-mode filter
 
-# Enable DIFC with propagate mode
-./awmg --enable-difc --difc-mode propagate
+# Enable guards with propagate mode
+./awmg --enable-guards --guards-mode propagate
 ```
 
 ### CLI Flags Reference
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--enable-difc` | Enable DIFC enforcement and session requirement | `false` |
-| `--difc-mode` | Enforcement mode: `strict`, `filter`, or `propagate` | `strict` |
+| `--enable-guards` | Enable guards enforcement and session requirement | `false` |
+| `--guards-mode` | Enforcement mode: `strict`, `filter`, or `propagate` | `strict` |
 | `--enable-config-extensions` | Enable config extensions (guards, session labels) | `false` |
 | `--session-secrecy` | Comma-separated initial secrecy labels for sessions | `""` |
 | `--session-integrity` | Comma-separated initial integrity labels for sessions | `""` |
@@ -142,16 +142,16 @@ Use the `--difc-mode` flag to specify the enforcement mode:
 
 | Environment Variable | Description | Equivalent Flag |
 |---------------------|-------------|-----------------|
-| `MCP_GATEWAY_ENABLE_DIFC` | Enable DIFC (`true`, `1`, `yes`, `on`) | `--enable-difc` |
-| `MCP_GATEWAY_DIFC_MODE` | Enforcement mode: `strict`, `filter`, `propagate` | `--difc-mode` |
+| `MCP_GATEWAY_ENABLE_GUARDS` | Enable guards (`true`, `1`, `yes`, `on`) | `--enable-guards` |
+| `MCP_GATEWAY_GUARDS_MODE` | Enforcement mode: `strict`, `filter`, `propagate` | `--guards-mode` |
 | `MCP_GATEWAY_CONFIG_EXTENSIONS` | Enable config extensions (`true`, `1`, `yes`, `on`) | `--enable-config-extensions` |
 | `MCP_GATEWAY_SESSION_SECRECY` | Comma-separated initial secrecy labels | `--session-secrecy` |
 | `MCP_GATEWAY_SESSION_INTEGRITY` | Comma-separated initial integrity labels | `--session-integrity` |
 
 **Example:**
 ```bash
-export MCP_GATEWAY_ENABLE_DIFC=true
-export MCP_GATEWAY_DIFC_MODE=filter
+export MCP_GATEWAY_ENABLE_GUARDS=true
+export MCP_GATEWAY_GUARDS_MODE=filter
 export MCP_GATEWAY_CONFIG_EXTENSIONS=true
 export MCP_GATEWAY_SESSION_SECRECY=internal,confidential
 export MCP_GATEWAY_SESSION_INTEGRITY=trusted
@@ -163,8 +163,8 @@ export MCP_GATEWAY_SESSION_INTEGRITY=trusted
 
 ```toml
 [gateway]
-enable_difc = true
-difc_mode = "propagate"  # strict, filter, or propagate
+enable_guards = true
+guards_mode = "propagate"  # strict, filter, or propagate
 ```
 
 ### JSON Configuration (with Config Extensions)
@@ -222,7 +222,7 @@ When `MCP_GATEWAY_CONFIG_EXTENSIONS=true` or `--enable-config-extensions` is set
 
 **Important**: Filter and propagate modes are mutually exclusive. Attempting to use both will result in an error:
 ```
-Error: invalid --difc-mode flag: invalid DIFC mode "both": must be one of: strict, filter, propagate
+Error: invalid --guards-mode flag: invalid guards mode "both": must be one of: strict, filter, propagate
 ```
 
 The DIFC evaluator supports three enforcement modes:

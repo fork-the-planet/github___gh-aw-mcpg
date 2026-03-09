@@ -36,13 +36,13 @@ var (
 
 func init() {
 	RegisterFlag(func(cmd *cobra.Command) {
-		cmd.Flags().BoolVar(&enableDIFC, "enable-difc", getDefaultEnableDIFC(), "Enable DIFC enforcement for information flow control")
-		cmd.Flags().MarkHidden("enable-difc")
-		cmd.Flags().StringVar(&difcMode, "difc-mode", getDefaultDIFCMode(), "DIFC enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads)")
-		cmd.Flags().BoolVar(&enableConfigExt, "enable-config-extensions", getDefaultConfigExtensions(), "Enable config extensions (guards, session labels) - required for DIFC session label features")
+		cmd.Flags().BoolVar(&enableDIFC, "enable-guards", getDefaultEnableDIFC(), "Enable guards enforcement for information flow control")
+		cmd.Flags().MarkHidden("enable-guards")
+		cmd.Flags().StringVar(&difcMode, "guards-mode", getDefaultDIFCMode(), "Guards enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads)")
+		cmd.Flags().BoolVar(&enableConfigExt, "enable-config-extensions", getDefaultConfigExtensions(), "Enable config extensions (guards, session labels) - required for guards session label features")
 		cmd.Flags().StringVar(&sessionSecrecy, "session-secrecy", getDefaultSessionSecrecy(), "Comma-separated initial secrecy labels for agent sessions (requires --enable-config-extensions)")
 		cmd.Flags().StringVar(&sessionIntegrity, "session-integrity", getDefaultSessionIntegrity(), "Comma-separated initial integrity labels for agent sessions (requires --enable-config-extensions)")
-		cmd.Flags().StringVar(&difcSinkServerIDs, "difc-sink-server-ids", getDefaultDIFCSinkServerIDs(), "Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots")
+		cmd.Flags().StringVar(&difcSinkServerIDs, "guards-sink-server-ids", getDefaultDIFCSinkServerIDs(), "Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots")
 		cmd.Flags().StringVar(&guardPolicyJSON, "guard-policy-json", getDefaultGuardPolicyJSON(), "Guard policy JSON (e.g. {\"allow-only\":{\"repos\":\"public\",\"min-integrity\":\"none\"}})")
 		cmd.Flags().BoolVar(&allowOnlyPublic, "allowonly-scope-public", getDefaultAllowOnlyScopePublic(), "Use public AllowOnly scope")
 		cmd.Flags().StringVar(&allowOnlyOwner, "allowonly-scope-owner", getDefaultAllowOnlyScopeOwner(), "AllowOnly owner scope value")
@@ -51,16 +51,16 @@ func init() {
 	})
 }
 
-// getDefaultEnableDIFC returns the default DIFC setting, checking MCP_GATEWAY_ENABLE_DIFC
+// getDefaultEnableDIFC returns the default guards setting, checking MCP_GATEWAY_ENABLE_GUARDS
 // environment variable first, then falling back to the hardcoded default (false)
 func getDefaultEnableDIFC() bool {
-	return envutil.GetEnvBool("MCP_GATEWAY_ENABLE_DIFC", defaultEnableDIFC)
+	return envutil.GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", defaultEnableDIFC)
 }
 
-// getDefaultDIFCMode returns the default DIFC mode, checking MCP_GATEWAY_DIFC_MODE
+// getDefaultDIFCMode returns the default guards mode, checking MCP_GATEWAY_GUARDS_MODE
 // environment variable first, then falling back to the hardcoded default (strict)
 func getDefaultDIFCMode() string {
-	if envMode := os.Getenv("MCP_GATEWAY_DIFC_MODE"); envMode != "" {
+	if envMode := os.Getenv("MCP_GATEWAY_GUARDS_MODE"); envMode != "" {
 		mode := strings.ToLower(envMode)
 		if isValidDIFCMode(mode) {
 			return mode
@@ -98,7 +98,7 @@ func getDefaultSessionIntegrity() string {
 }
 
 func getDefaultDIFCSinkServerIDs() string {
-	return os.Getenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS")
+	return os.Getenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS")
 }
 
 func getDefaultGuardPolicyJSON() string {
@@ -184,10 +184,10 @@ func buildAllowOnlyPolicy(public bool, owner, repo, minIntegrity string) (*confi
 	return policy, nil
 }
 
-// ValidateDIFCMode validates the DIFC mode flag value and returns an error if invalid
+// ValidateDIFCMode validates the guards mode flag value and returns an error if invalid
 func ValidateDIFCMode(mode string) error {
 	if !isValidDIFCMode(strings.ToLower(mode)) {
-		return fmt.Errorf("invalid DIFC mode %q: must be one of: %s, %s, %s", mode, difc.ModeStrict, difc.ModeFilter, difc.ModePropagate)
+		return fmt.Errorf("invalid guards mode %q: must be one of: %s, %s, %s", mode, difc.ModeStrict, difc.ModeFilter, difc.ModePropagate)
 	}
 	return nil
 }
@@ -223,7 +223,7 @@ func parseDIFCSinkServerIDs(input string) ([]string, error) {
 			continue
 		}
 		if strings.ContainsAny(value, " \t\n\r") {
-			return nil, fmt.Errorf("invalid DIFC sink server ID %q: whitespace is not allowed", value)
+			return nil, fmt.Errorf("invalid guards sink server ID %q: whitespace is not allowed", value)
 		}
 		if _, exists := seen[value]; exists {
 			continue

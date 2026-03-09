@@ -154,15 +154,15 @@ echo "  Guard: /guards/github/00-github-guard.wasm (baked into image)"
 echo ""
 
 GATEWAY_TEST_MODE="integration"
-GATEWAY_DIFC_MODE="gateway-default"
+GATEWAY_GUARDS_MODE="gateway-default"
 GATEWAY_CLI_ARGS=(
     --enable-config-extensions
-    --enable-difc
+    --enable-guards
 )
 
 echo "Gateway runtime settings:"
 echo "  Test mode: $GATEWAY_TEST_MODE"
-echo "  DIFC mode: $GATEWAY_DIFC_MODE"
+echo "  Guards mode: $GATEWAY_GUARDS_MODE"
 echo "  Guard policy: $ALLOW_ONLY_INTEGRATION_POLICY"
 echo "  Enabled gateway flags:"
 for ((i=0; i<${#GATEWAY_CLI_ARGS[@]}; i++)); do
@@ -185,7 +185,7 @@ echo ""
     -e MCP_GATEWAY_DOMAIN=localhost \
     -e MCP_GATEWAY_API_KEY="$GATEWAY_API_KEY" \
     -e DOCKER_API_VERSION=1.44 \
-    -e MCP_GATEWAY_ENABLE_DIFC=1 \
+    -e MCP_GATEWAY_ENABLE_GUARDS=1 \
     -e MCP_GATEWAY_CONFIG_EXTENSIONS=1 \
     -e MCP_GATEWAY_WASM_GUARDS_DIR="/guards" \
     -v /var/run/docker.sock:/var/run/docker.sock \

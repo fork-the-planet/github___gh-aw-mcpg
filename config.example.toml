@@ -130,7 +130,7 @@ args = [
 # Enable Data Information Flow Control (DIFC) security model (default: false)
 # When enabled, enforces information flow control policies on tool calls
 # This is an experimental feature - keep disabled for standard MCP compatibility
-# enable_difc = false
+# enable_guards = false
 
 # ============================================================================
 # Notes

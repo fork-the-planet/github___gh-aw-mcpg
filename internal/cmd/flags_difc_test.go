@@ -63,7 +63,7 @@ func TestValidateDIFCMode(t *testing.T) {
 			err := ValidateDIFCMode(tt.mode)
 			if tt.wantErr {
 				assert.Error(t, err, "expected error for mode %q", tt.mode)
-				assert.Contains(t, err.Error(), "invalid DIFC mode")
+				assert.Contains(t, err.Error(), "invalid guards mode")
 			} else {
 				assert.NoError(t, err, "unexpected error for mode %q", tt.mode)
 			}
@@ -122,19 +122,19 @@ func TestGetDefaultEnableDIFC(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Save and restore original env
-			originalEnv := os.Getenv("MCP_GATEWAY_ENABLE_DIFC")
+			originalEnv := os.Getenv("MCP_GATEWAY_ENABLE_GUARDS")
 			defer func() {
 				if originalEnv != "" {
-					os.Setenv("MCP_GATEWAY_ENABLE_DIFC", originalEnv)
+					os.Setenv("MCP_GATEWAY_ENABLE_GUARDS", originalEnv)
 				} else {
-					os.Unsetenv("MCP_GATEWAY_ENABLE_DIFC")
+					os.Unsetenv("MCP_GATEWAY_ENABLE_GUARDS")
 				}
 			}()
 
 			if tt.envValue != "" {
-				os.Setenv("MCP_GATEWAY_ENABLE_DIFC", tt.envValue)
+				os.Setenv("MCP_GATEWAY_ENABLE_GUARDS", tt.envValue)
 			} else {
-				os.Unsetenv("MCP_GATEWAY_ENABLE_DIFC")
+				os.Unsetenv("MCP_GATEWAY_ENABLE_GUARDS")
 			}
 
 			got := getDefaultEnableDIFC()
@@ -184,19 +184,19 @@ func TestGetDefaultDIFCMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Save and restore original env
-			originalEnv := os.Getenv("MCP_GATEWAY_DIFC_MODE")
+			originalEnv := os.Getenv("MCP_GATEWAY_GUARDS_MODE")
 			defer func() {
 				if originalEnv != "" {
-					os.Setenv("MCP_GATEWAY_DIFC_MODE", originalEnv)
+					os.Setenv("MCP_GATEWAY_GUARDS_MODE", originalEnv)
 				} else {
-					os.Unsetenv("MCP_GATEWAY_DIFC_MODE")
+					os.Unsetenv("MCP_GATEWAY_GUARDS_MODE")
 				}
 			}()
 
 			if tt.envValue != "" {
-				os.Setenv("MCP_GATEWAY_DIFC_MODE", tt.envValue)
+				os.Setenv("MCP_GATEWAY_GUARDS_MODE", tt.envValue)
 			} else {
-				os.Unsetenv("MCP_GATEWAY_DIFC_MODE")
+				os.Unsetenv("MCP_GATEWAY_GUARDS_MODE")
 			}
 
 			got := getDefaultDIFCMode()
@@ -307,19 +307,19 @@ func TestGetDefaultSessionIntegrity(t *testing.T) {
 }
 
 func TestGetDefaultDIFCSinkServerIDs(t *testing.T) {
-	originalEnv := os.Getenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS")
+	originalEnv := os.Getenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS")
 	defer func() {
 		if originalEnv != "" {
-			os.Setenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS", originalEnv)
+			os.Setenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", originalEnv)
 		} else {
-			os.Unsetenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS")
+			os.Unsetenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS")
 		}
 	}()
 
-	os.Unsetenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS")
+	os.Unsetenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS")
 	assert.Equal(t, "", getDefaultDIFCSinkServerIDs())
 
-	os.Setenv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS", "safeoutputs,github")
+	os.Setenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", "safeoutputs,github")
 	assert.Equal(t, "safeoutputs,github", getDefaultDIFCSinkServerIDs())
 }
 

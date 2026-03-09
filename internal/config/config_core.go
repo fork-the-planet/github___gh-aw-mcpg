@@ -53,14 +53,14 @@ type Config struct {
 	// Gateway holds global gateway settings
 	Gateway *GatewayConfig `toml:"gateway" json:"gateway,omitempty"`
 
-	// EnableDIFC enables Decentralized Information Flow Control
-	EnableDIFC bool `toml:"enable_difc" json:"enable_difc,omitempty"`
+	// EnableDIFC enables guards enforcement for information flow control
+	EnableDIFC bool `toml:"enable_guards" json:"enable_guards,omitempty"`
 
-	// DIFCMode specifies the DIFC enforcement mode: strict (default), filter, or propagate
-	// strict: deny access that violates DIFC rules
-	// filter: silently remove tools/resources that violate DIFC rules
+	// DIFCMode specifies the guards enforcement mode: strict (default), filter, or propagate
+	// strict: deny access that violates guards rules
+	// filter: silently remove tools/resources that violate guards rules
 	// propagate: auto-adjust agent labels on reads to allow access
-	DIFCMode string `toml:"difc_mode" json:"difc_mode,omitempty"`
+	DIFCMode string `toml:"guards_mode" json:"guards_mode,omitempty"`
 
 	// SequentialLaunch launches servers sequentially instead of in parallel
 	SequentialLaunch bool `toml:"sequential_launch" json:"sequential_launch,omitempty"`

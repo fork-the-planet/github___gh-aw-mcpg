@@ -234,9 +234,9 @@ func run(cmd *cobra.Command, args []string) error {
 		log.Println("Config extensions enabled (guards, session labels)")
 	}
 
-	// Validate DIFC mode before applying
+	// Validate guards mode before applying
 	if err := ValidateDIFCMode(difcMode); err != nil {
-		return fmt.Errorf("invalid --difc-mode flag: %w", err)
+		return fmt.Errorf("invalid --guards-mode flag: %w", err)
 	}
 
 	// Apply command-line flags to config
@@ -281,26 +281,26 @@ func run(cmd *cobra.Command, args []string) error {
 		logger.LogInfoMd("startup", "Guard policy override configured (source=%s)", policySource)
 	}
 
-	if envSinkServerIDs, exists := os.LookupEnv("MCP_GATEWAY_DIFC_SINK_SERVER_IDS"); exists {
-		log.Printf("MCP_GATEWAY_DIFC_SINK_SERVER_IDS=%q", envSinkServerIDs)
-		logger.LogInfoMd("startup", "MCP_GATEWAY_DIFC_SINK_SERVER_IDS=%q", envSinkServerIDs)
+	if envSinkServerIDs, exists := os.LookupEnv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS"); exists {
+		log.Printf("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS=%q", envSinkServerIDs)
+		logger.LogInfoMd("startup", "MCP_GATEWAY_GUARDS_SINK_SERVER_IDS=%q", envSinkServerIDs)
 	}
 
 	resolvedSinkServerIDs, err := parseDIFCSinkServerIDs(difcSinkServerIDs)
 	if err != nil {
-		return fmt.Errorf("invalid --difc-sink-server-ids value: %w", err)
+		return fmt.Errorf("invalid --guards-sink-server-ids value: %w", err)
 	}
 	mcp.SetDIFCSinkServerIDs(resolvedSinkServerIDs)
 	if len(resolvedSinkServerIDs) == 0 {
-		log.Println("DIFC sink server ID logging enrichment disabled (no sink server IDs configured)")
-		logger.LogInfoMd("startup", "DIFC sink server ID logging enrichment disabled")
+		log.Println("Guards sink server ID logging enrichment disabled (no sink server IDs configured)")
+		logger.LogInfoMd("startup", "Guards sink server ID logging enrichment disabled")
 	} else {
-		log.Printf("DIFC sink server IDs configured for JSONL tag enrichment: %v", resolvedSinkServerIDs)
-		logger.LogInfoMd("startup", "DIFC sink server IDs configured for JSONL tag enrichment: %v", resolvedSinkServerIDs)
+		log.Printf("Guards sink server IDs configured for JSONL tag enrichment: %v", resolvedSinkServerIDs)
+		logger.LogInfoMd("startup", "Guards sink server IDs configured for JSONL tag enrichment: %v", resolvedSinkServerIDs)
 		for _, sinkServerID := range resolvedSinkServerIDs {
 			if _, exists := cfg.Servers[sinkServerID]; !exists {
-				log.Printf("Warning: DIFC sink server ID '%s' is not configured in mcpServers", sinkServerID)
-				logger.LogWarn("startup", "DIFC sink server ID '%s' is not configured in mcpServers", sinkServerID)
+				log.Printf("Warning: guards sink server ID '%s' is not configured in mcpServers", sinkServerID)
+				logger.LogWarn("startup", "Guards sink server ID '%s' is not configured in mcpServers", sinkServerID)
 			}
 		}
 	}
@@ -330,7 +330,7 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	if enableDIFC {
-		log.Printf("DIFC enforcement enabled with mode: %s", difcMode)
+		log.Printf("Guards enforcement enabled with mode: %s", difcMode)
 		switch difcMode {
 		case difc.ModeStrict:
 			log.Println("  - Strict mode: violations are denied")
@@ -340,7 +340,7 @@ func run(cmd *cobra.Command, args []string) error {
 			log.Println("  - Propagate mode: agent labels auto-adjusted on reads")
 		}
 	} else {
-		log.Println("DIFC enforcement disabled (sessions auto-created for standard MCP client compatibility)")
+		log.Println("Guards enforcement disabled (sessions auto-created for standard MCP client compatibility)")
 	}
 
 	if sequentialLaunch {
@@ -355,7 +355,7 @@ func run(cmd *cobra.Command, args []string) error {
 		mode = "unified"
 	}
 
-	debugLog.Printf("Server mode: %s, DIFC enabled: %v, DIFC mode: %s", mode, cfg.EnableDIFC, cfg.DIFCMode)
+	debugLog.Printf("Server mode: %s, guards enabled: %v, guards mode: %s", mode, cfg.EnableDIFC, cfg.DIFCMode)
 
 	// Create unified MCP server (backend for both modes)
 	unifiedServer, err := server.NewUnified(ctx, cfg)

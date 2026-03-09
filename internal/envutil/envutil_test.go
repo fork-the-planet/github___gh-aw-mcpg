@@ -421,31 +421,31 @@ func TestGetEnvIntRealWorldScenarios(t *testing.T) {
 // TestGetEnvBoolRealWorldScenarios tests realistic usage scenarios
 func TestGetEnvBoolRealWorldScenarios(t *testing.T) {
 	t.Run("DIFC enable configuration", func(t *testing.T) {
-		os.Unsetenv("MCP_GATEWAY_ENABLE_DIFC")
-		defer os.Unsetenv("MCP_GATEWAY_ENABLE_DIFC")
+		os.Unsetenv("MCP_GATEWAY_ENABLE_GUARDS")
+		defer os.Unsetenv("MCP_GATEWAY_ENABLE_GUARDS")
 
 		// Default case (disabled)
-		result := GetEnvBool("MCP_GATEWAY_ENABLE_DIFC", false)
+		result := GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", false)
 		assert.False(t, result)
 
 		// Enable with "1"
-		os.Setenv("MCP_GATEWAY_ENABLE_DIFC", "1")
-		result = GetEnvBool("MCP_GATEWAY_ENABLE_DIFC", false)
+		os.Setenv("MCP_GATEWAY_ENABLE_GUARDS", "1")
+		result = GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", false)
 		assert.True(t, result)
 
 		// Enable with "true"
-		os.Setenv("MCP_GATEWAY_ENABLE_DIFC", "true")
-		result = GetEnvBool("MCP_GATEWAY_ENABLE_DIFC", false)
+		os.Setenv("MCP_GATEWAY_ENABLE_GUARDS", "true")
+		result = GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", false)
 		assert.True(t, result)
 
 		// Disable with "0"
-		os.Setenv("MCP_GATEWAY_ENABLE_DIFC", "0")
-		result = GetEnvBool("MCP_GATEWAY_ENABLE_DIFC", true)
+		os.Setenv("MCP_GATEWAY_ENABLE_GUARDS", "0")
+		result = GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", true)
 		assert.False(t, result)
 
 		// Invalid value - uses default
-		os.Setenv("MCP_GATEWAY_ENABLE_DIFC", "maybe")
-		result = GetEnvBool("MCP_GATEWAY_ENABLE_DIFC", false)
+		os.Setenv("MCP_GATEWAY_ENABLE_GUARDS", "maybe")
+		result = GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", false)
 		assert.False(t, result)
 	})
 }

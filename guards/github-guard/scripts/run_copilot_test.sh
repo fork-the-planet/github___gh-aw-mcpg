@@ -309,9 +309,9 @@ DOCKER_ENV_ARGS=(
   fi
 
 # Forward optional DIFC sink-server-IDs when the caller sets it
-if [[ -n "${MCP_GATEWAY_DIFC_SINK_SERVER_IDS:-}" ]]; then
-    DOCKER_ENV_ARGS+=(-e MCP_GATEWAY_DIFC_SINK_SERVER_IDS="$MCP_GATEWAY_DIFC_SINK_SERVER_IDS")
-    echo -e "${BLUE}Forwarding MCP_GATEWAY_DIFC_SINK_SERVER_IDS=${MCP_GATEWAY_DIFC_SINK_SERVER_IDS}${NC}"
+if [[ -n "${MCP_GATEWAY_GUARDS_SINK_SERVER_IDS:-}" ]]; then
+    DOCKER_ENV_ARGS+=(-e MCP_GATEWAY_GUARDS_SINK_SERVER_IDS="$MCP_GATEWAY_GUARDS_SINK_SERVER_IDS")
+    echo -e "${BLUE}Forwarding MCP_GATEWAY_GUARDS_SINK_SERVER_IDS=${MCP_GATEWAY_GUARDS_SINK_SERVER_IDS}${NC}"
 fi
 
 case "$MODE" in
@@ -324,7 +324,7 @@ case "$MODE" in
     echo -e "${BLUE}Mode: all - Allow all repos with approved integrity floor${NC}"
     SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_ALL_POLICY"
     DOCKER_ENV_ARGS+=(
-      -e MCP_GATEWAY_ENABLE_DIFC=1
+      -e MCP_GATEWAY_ENABLE_GUARDS=1
       -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
       -e DEBUG='server:unified,guard:wasm'
     )
@@ -334,7 +334,7 @@ case "$MODE" in
         echo -e "${BLUE}Mode: public-only - Filtering private data (public repos only)${NC}"
       SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_PUBLIC_POLICY"
         DOCKER_ENV_ARGS+=(
-            -e MCP_GATEWAY_ENABLE_DIFC=1
+            -e MCP_GATEWAY_ENABLE_GUARDS=1
             -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
             -e DEBUG='server:unified,guard:wasm'
         )
@@ -344,7 +344,7 @@ case "$MODE" in
       echo -e "${BLUE}Mode: owner-only - Filtering data outside owner scope (${ALLOW_OWNER})${NC}"
       SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_OWNER_POLICY"
       DOCKER_ENV_ARGS+=(
-        -e MCP_GATEWAY_ENABLE_DIFC=1
+        -e MCP_GATEWAY_ENABLE_GUARDS=1
         -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
         -e DEBUG='server:unified,guard:wasm'
       )
@@ -354,7 +354,7 @@ case "$MODE" in
         echo -e "${BLUE}Mode: repo-only - Filtering data outside repo scope (${DIFC_SCOPE})${NC}"
       SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_REPO_POLICY"
         DOCKER_ENV_ARGS+=(
-        -e MCP_GATEWAY_ENABLE_DIFC=1
+        -e MCP_GATEWAY_ENABLE_GUARDS=1
         -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
         -e DEBUG='server:unified,guard:wasm'
         )
@@ -364,7 +364,7 @@ case "$MODE" in
         echo -e "${BLUE}Mode: prefix-only - Filtering data outside repo prefix scope (lpcox/git-*)${NC}"
         SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_PREFIX_POLICY"
         DOCKER_ENV_ARGS+=(
-        -e MCP_GATEWAY_ENABLE_DIFC=1
+        -e MCP_GATEWAY_ENABLE_GUARDS=1
         -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
         -e DEBUG='server:unified,guard:wasm'
         )
@@ -374,7 +374,7 @@ case "$MODE" in
         echo -e "${BLUE}Mode: multi-only - Filtering using multiple repo scopes (lpcox/git-* + lpcox/github-guard)${NC}"
         SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_MULTI_POLICY"
         DOCKER_ENV_ARGS+=(
-        -e MCP_GATEWAY_ENABLE_DIFC=1
+        -e MCP_GATEWAY_ENABLE_GUARDS=1
         -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
         -e DEBUG='server:unified,guard:wasm'
         )
@@ -463,40 +463,40 @@ if [ "$USE_ROUTED_MODE" != "1" ]; then
   DOCKER_ENV_ARGS+=(-e MCP_GATEWAY_MODE="--unified")
 fi
 
-GATEWAY_DIFC_MODE="disabled"
+GATEWAY_GUARDS_MODE="disabled"
 ACTIVE_ALLOW_ONLY_POLICY=""
 
 # Add DIFC flags for non-yolo modes
 if [ "$MODE" != "yolo" ] && [ "$MODE" != "lockdown" ]; then
     GATEWAY_CLI_ARGS+=(
         --enable-config-extensions
-        --enable-difc
+        --enable-guards
     )
     
     # DIFC mode is guard-managed at runtime (do not set via CLI)
     case "$MODE" in
       all)
-        GATEWAY_DIFC_MODE="guard-managed"
+        GATEWAY_GUARDS_MODE="guard-managed"
       ACTIVE_ALLOW_ONLY_POLICY="$ALLOW_ONLY_ALL_POLICY"
         ;;
         public-only)
-            GATEWAY_DIFC_MODE="guard-managed"
+            GATEWAY_GUARDS_MODE="guard-managed"
         ACTIVE_ALLOW_ONLY_POLICY="$ALLOW_ONLY_PUBLIC_POLICY"
             ;;
         owner-only)
-            GATEWAY_DIFC_MODE="guard-managed"
+            GATEWAY_GUARDS_MODE="guard-managed"
         ACTIVE_ALLOW_ONLY_POLICY="$ALLOW_ONLY_OWNER_POLICY"
             ;;
         repo-only)
-            GATEWAY_DIFC_MODE="guard-managed"
+            GATEWAY_GUARDS_MODE="guard-managed"
         ACTIVE_ALLOW_ONLY_POLICY="$ALLOW_ONLY_REPO_POLICY"
             ;;
         prefix-only)
-          GATEWAY_DIFC_MODE="guard-managed"
+          GATEWAY_GUARDS_MODE="guard-managed"
         ACTIVE_ALLOW_ONLY_POLICY="$ALLOW_ONLY_PREFIX_POLICY"
           ;;
         multi-only)
-          GATEWAY_DIFC_MODE="guard-managed"
+          GATEWAY_GUARDS_MODE="guard-managed"
         ACTIVE_ALLOW_ONLY_POLICY="$ALLOW_ONLY_MULTI_POLICY"
           ;;
     esac
@@ -507,7 +507,7 @@ fi
 
 echo "Gateway runtime settings:"
 echo "  Test mode: $MODE"
-echo "  DIFC mode: $GATEWAY_DIFC_MODE"
+echo "  Guards mode: $GATEWAY_GUARDS_MODE"
 if [ -n "$ACTIVE_ALLOW_ONLY_POLICY" ]; then
   echo "  AllowOnly policy: $ACTIVE_ALLOW_ONLY_POLICY"
 fi

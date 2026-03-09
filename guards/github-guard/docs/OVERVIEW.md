@@ -111,7 +111,7 @@ make test-copilot-public-only
 
 **Environment Variables**:
 ```bash
-MCP_GATEWAY_ENABLE_DIFC=1
+MCP_GATEWAY_ENABLE_GUARDS=1
 MCP_GATEWAY_CONFIG_EXTENSIONS=1
 MCP_GATEWAY_GUARD_POLICY_JSON='{"allow-only":{"repos":"public","min-integrity": "none"}}'
 ```
@@ -131,7 +131,7 @@ make test-copilot-owner-only
 
 **Environment Variables**:
 ```bash
-MCP_GATEWAY_ENABLE_DIFC=1
+MCP_GATEWAY_ENABLE_GUARDS=1
 MCP_GATEWAY_CONFIG_EXTENSIONS=1
 ALLOW_OWNER=lpcox
 MCP_GATEWAY_GUARD_POLICY_JSON='{"allow-only":{"repos":["lpcox/*"],"min-integrity": "none"}}'
@@ -152,7 +152,7 @@ make test-copilot-repo-only
 
 **Environment Variables**:
 ```bash
-MCP_GATEWAY_ENABLE_DIFC=1
+MCP_GATEWAY_ENABLE_GUARDS=1
 MCP_GATEWAY_CONFIG_EXTENSIONS=1
 MCP_GATEWAY_GUARD_POLICY_JSON='{"allow-only":{"repos":["owner/repo"],"min-integrity": "none"}}'
 ```
