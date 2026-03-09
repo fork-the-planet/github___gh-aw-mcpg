@@ -1,0 +1,5 @@
+# Build artifacts
+/target/
+
+# Compiled WASM (copied to project root)
+*.wasm

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/agentic-workflow-policy.schema.json",
+  "title": "Agentic Workflow AllowOnly Policy",
+  "description": "Strict schema for user-facing AllowOnly policy configuration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["allow-only"],
+  "properties": {
+    "allow-only": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repos", "min-integrity"],
+      "properties": {
+        "repos": {
+          "description": "Access scope for policy enforcement. Supports all, public, or an array of scoped strings (owner/repo, owner/re*, owner/*), all lowercase.",
+          "oneOf": [
+            {
+              "type": "string",
+              "const": "all"
+            },
+            {
+              "type": "string",
+              "const": "public"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "oneOf": [
+                  {
+                    "description": "Owner wildcard scope. Example: owner/*",
+                    "pattern": "^[a-z0-9_-]{1,39}/\\*$"
+                  },
+                  {
+                    "description": "Exact repository scope. Example: owner/repo",
+                    "pattern": "^[a-z0-9_-]{1,39}/[a-z0-9_-]{1,100}$"
+                  },
+                  {
+                    "description": "Repository prefix wildcard scope (trailing star only). Example: owner/re*",
+                    "pattern": "^[a-z0-9_-]{1,39}/[a-z0-9_-]{1,100}\\*$"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "min-integrity": {
+          "type": "string",
+          "enum": ["none", "unapproved", "approved", "merged"]
+        }
+      }
+    }
+  }
+}
