@@ -37,6 +37,7 @@ OCTO_SHORT1="${OCTO_SHA1:0:7}"
 
 CAPTURED_AT="$(date +%Y-%m-%d)"
 
+mkdir -p "$(dirname "$CORPUS_FILE")"
 cat > "$CORPUS_FILE" <<EOF
 {
   "version": "v1",
