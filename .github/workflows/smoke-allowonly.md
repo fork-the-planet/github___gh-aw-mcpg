@@ -39,22 +39,6 @@ tools:
     - "echo"
     - "date"
     - "mkdir"
-runtimes:
-  go:
-    version: "1.25"
-steps:
-  - name: Set up Go
-    uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
-    with:
-      go-version-file: go.mod
-      cache: true
-  - name: Set up Docker Buildx
-    uses: docker/setup-buildx-action@v3
-  - name: Build local MCP Gateway container
-    run: |
-      VERSION="dev-$(git rev-parse --short HEAD)"
-      docker build -t ghcr.io/github/gh-aw-mcpg:latest --build-arg VERSION=${VERSION} .
-      echo "✅ Built local MCP Gateway container: ghcr.io/github/gh-aw-mcpg:latest (VERSION=${VERSION})"
 sandbox:
   mcp:
     container: "ghcr.io/github/gh-aw-mcpg"
