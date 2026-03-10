@@ -672,6 +672,16 @@ func (us *UnifiedServer) requireGuardPolicyIfGuardEnabled(serverID string, g gua
 		return nil, err
 	}
 	if policy == nil {
+		// Check if this server has guard policies configured.
+		// If it does, keep the non-noop guard because DIFC will be auto-enabled later.
+		// If not, fall back to noop guard.
+		if us.cfg != nil && us.cfg.Servers != nil {
+			if serverCfg, ok := us.cfg.Servers[serverID]; ok && serverCfg != nil && len(serverCfg.GuardPolicies) > 0 {
+				log.Printf("[DIFC] Guard '%s' loaded for server '%s' with guard-policies config (policy will be resolved during guard initialization)", g.Name(), serverID)
+				return g, nil
+			}
+		}
+
 		log.Printf("[DIFC] WARNING: Guard '%s' is available for MCP server '%s' but no guard policy is set; falling back to noop guard", g.Name(), serverID)
 		return guard.NewNoopGuard(), nil
 	}
