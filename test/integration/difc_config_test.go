@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -48,9 +49,29 @@ func getFreePort(t *testing.T) int {
 	return l.Addr().(*net.TCPAddr).Port
 }
 
+// syncBuffer is a concurrency-safe writer that wraps bytes.Buffer with a
+// RWMutex so the subprocess can write to it (via cmd.Stderr) while
+// waitForStderr reads from it concurrently without a data race.
+type syncBuffer struct {
+	mu  sync.RWMutex
+	buf bytes.Buffer
+}
+
+func (sb *syncBuffer) Write(p []byte) (int, error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Write(p)
+}
+
+func (sb *syncBuffer) String() string {
+	sb.mu.RLock()
+	defer sb.mu.RUnlock()
+	return sb.buf.String()
+}
+
 // waitForStderr polls buf until it contains substr or the deadline expires.
 // Returns true if the substring was found within the deadline.
-func waitForStderr(buf *bytes.Buffer, substr string, deadline time.Duration) bool {
+func waitForStderr(buf *syncBuffer, substr string, deadline time.Duration) bool {
 	end := time.Now().Add(deadline)
 	for time.Now().Before(end) {
 		if strings.Contains(buf.String(), substr) {
@@ -204,7 +225,8 @@ func TestDIFCConfigWithGuards(t *testing.T) {
 	cmd := exec.CommandContext(ctx, binary, "--config-stdin")
 	cmd.Stdin = strings.NewReader(config)
 
-	var stdout, stderr bytes.Buffer
+	var stdout bytes.Buffer
+	var stderr syncBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -264,14 +286,16 @@ func TestDIFCModeFilterViaEnv(t *testing.T) {
 		"MCP_GATEWAY_WASM_GUARDS_DIR=",
 	)
 
-	var stdout, stderr bytes.Buffer
+	var stdout bytes.Buffer
+	var stderr syncBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err := cmd.Start()
 	require.NoError(t, err, "Failed to start gateway")
 
-	waitForStderr(&stderr, "Guards enforcement", 5*time.Second)
+	ok := waitForStderr(&stderr, "Guards enforcement", 5*time.Second)
+	require.Truef(t, ok, "timeout waiting for gateway stderr to contain %q within %s; stderr:\n%s", "Guards enforcement", 5*time.Second, stderr.String())
 
 	cmd.Process.Kill()
 	cmd.Wait()
@@ -314,14 +338,16 @@ func TestDIFCModePropagateViaEnv(t *testing.T) {
 		"MCP_GATEWAY_WASM_GUARDS_DIR=",
 	)
 
-	var stdout, stderr bytes.Buffer
+	var stdout bytes.Buffer
+	var stderr syncBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err := cmd.Start()
 	require.NoError(t, err, "Failed to start gateway")
 
-	waitForStderr(&stderr, "Guards enforcement", 5*time.Second)
+	ok := waitForStderr(&stderr, "Guards enforcement", 5*time.Second)
+	require.Truef(t, ok, "timeout waiting for gateway stderr to contain %q within %s; stderr:\n%s", "Guards enforcement", 5*time.Second, stderr.String())
 
 	cmd.Process.Kill()
 	cmd.Wait()
@@ -378,14 +404,16 @@ func TestFullDIFCConfigFromJSON(t *testing.T) {
 		"MCP_GATEWAY_GUARDS_MODE=filter",
 	)
 
-	var stdout, stderr bytes.Buffer
+	var stdout bytes.Buffer
+	var stderr syncBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	err := cmd.Start()
 	require.NoError(t, err, "Failed to start gateway")
 
-	waitForStderr(&stderr, "Guards enforcement", 5*time.Second)
+	ok := waitForStderr(&stderr, "Guards enforcement", 5*time.Second)
+	require.Truef(t, ok, "timeout waiting for gateway stderr to contain %q within %s; stderr:\n%s", "Guards enforcement", 5*time.Second, stderr.String())
 
 	// Try health check
 	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/health", port))
