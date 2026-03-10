@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
-	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/server"
@@ -182,12 +181,6 @@ func run(cmd *cobra.Command, args []string) error {
 	var cfg *config.Config
 	var err error
 
-	// Propagate enableConfigExt flag to environment for config.LoadFromStdin()
-	// This allows the config package to know if extensions are enabled via the flag
-	if enableConfigExt {
-		os.Setenv("MCP_GATEWAY_CONFIG_EXTENSIONS", "true")
-	}
-
 	if configStdin {
 		log.Println("Reading configuration from stdin...")
 		cfg, err = config.LoadFromStdin()
@@ -216,58 +209,18 @@ func run(cmd *cobra.Command, args []string) error {
 		logger.LogInfoMd("startup", "Loaded %d MCP server(s)", len(cfg.Servers))
 	}
 
-	// Validate extension flag prerequisites
-	// Session label features require --enable-config-extensions to be set
-	hasExtensionFeatures := sessionSecrecy != "" || sessionIntegrity != ""
-	if hasExtensionFeatures && !enableConfigExt {
-		var features []string
-		if sessionSecrecy != "" {
-			features = append(features, "--session-secrecy")
-		}
-		if sessionIntegrity != "" {
-			features = append(features, "--session-integrity")
-		}
-		return fmt.Errorf("the following flags require --enable-config-extensions (or MCP_GATEWAY_CONFIG_EXTENSIONS=1): %s", strings.Join(features, ", "))
-	}
-
-	if enableConfigExt {
-		log.Println("Config extensions enabled (guards, session labels)")
-	}
-
 	// Validate guards mode before applying
 	if err := ValidateDIFCMode(difcMode); err != nil {
 		return fmt.Errorf("invalid --guards-mode flag: %w", err)
 	}
 
 	// Apply command-line flags to config
-	cfg.EnableDIFC = enableDIFC
 	cfg.DIFCMode = difcMode
 	cfg.SequentialLaunch = sequentialLaunch
 
 	// Override gateway config with command-line flags
 	if cfg.Gateway == nil {
 		cfg.Gateway = &config.GatewayConfig{}
-	}
-
-	// Apply session labels from CLI flags (these override config file settings)
-	secrecyLabels := parseSessionLabels(sessionSecrecy)
-	integrityLabels := parseSessionLabels(sessionIntegrity)
-	if len(secrecyLabels) > 0 || len(integrityLabels) > 0 {
-		// Ensure Session config exists
-		if cfg.Gateway.Session == nil {
-			cfg.Gateway.Session = &config.SessionConfig{}
-		}
-		// Apply CLI flags (override config file)
-		if len(secrecyLabels) > 0 {
-			cfg.Gateway.Session.Secrecy = secrecyLabels
-		}
-		if len(integrityLabels) > 0 {
-			cfg.Gateway.Session.Integrity = integrityLabels
-		}
-		log.Printf("Session labels configured: secrecy=%v, integrity=%v",
-			cfg.Gateway.Session.Secrecy, cfg.Gateway.Session.Integrity)
-		logger.LogInfoMd("startup", "Session labels: secrecy=%v, integrity=%v",
-			cfg.Gateway.Session.Secrecy, cfg.Gateway.Session.Integrity)
 	}
 
 	policyOverride, policySource, err := resolveGuardPolicyOverride(cmd)
@@ -329,20 +282,6 @@ func run(cmd *cobra.Command, args []string) error {
 		cfg.Gateway.PayloadSizeThreshold = payloadSizeThreshold
 	}
 
-	if enableDIFC {
-		log.Printf("Guards enforcement enabled with mode: %s", difcMode)
-		switch difcMode {
-		case difc.ModeStrict:
-			log.Println("  - Strict mode: violations are denied")
-		case difc.ModeFilter:
-			log.Println("  - Filter mode: denied tools/resources are silently removed")
-		case difc.ModePropagate:
-			log.Println("  - Propagate mode: agent labels auto-adjusted on reads")
-		}
-	} else {
-		log.Println("Guards enforcement disabled (sessions auto-created for standard MCP client compatibility)")
-	}
-
 	if sequentialLaunch {
 		log.Println("Sequential server launching enabled")
 	} else {
@@ -355,7 +294,7 @@ func run(cmd *cobra.Command, args []string) error {
 		mode = "unified"
 	}
 
-	debugLog.Printf("Server mode: %s, guards enabled: %v, guards mode: %s", mode, cfg.EnableDIFC, cfg.DIFCMode)
+	debugLog.Printf("Server mode: %s, guards mode: %s", mode, cfg.DIFCMode)
 
 	// Create unified MCP server (backend for both modes)
 	unifiedServer, err := server.NewUnified(ctx, cfg)

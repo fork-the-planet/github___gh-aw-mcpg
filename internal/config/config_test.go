@@ -206,10 +206,10 @@ func TestLoadFromStdin_DirectCommand(t *testing.T) {
 	cfg, err := LoadFromStdin()
 	os.Stdin = oldStdin
 
-	// Command field is no longer supported - should cause validation error
+	// Command field is silently ignored; missing container causes validation error
 	require.Error(t, err)
 
-	assert.Contains(t, err.Error(), "validation error", "Expected validation error")
+	assert.Contains(t, err.Error(), "container", "Expected container validation error")
 
 	// Config should be nil on validation error
 	assert.Nil(t, cfg, "Config should be nil when validation fails")
@@ -822,17 +822,17 @@ func TestLoadFromStdin_InvalidMountFormat(t *testing.T) {
 		{
 			name:     "invalid mode",
 			mounts:   `["/host:/container:invalid"]`,
-			errorMsg: "validation error",
+			errorMsg: "does not match required pattern",
 		},
 		{
 			name:     "empty source",
 			mounts:   `[":/container:ro"]`,
-			errorMsg: "validation error",
+			errorMsg: "does not match required pattern",
 		},
 		{
 			name:     "empty destination",
 			mounts:   `["/host::ro"]`,
-			errorMsg: "validation error",
+			errorMsg: "does not match required pattern",
 		},
 		{
 			name:     "relative source path",

@@ -58,6 +58,18 @@ func (r *Registry) Has(serverID string) bool {
 	return ok
 }
 
+// HasNonNoopGuard returns true if any registered guard is not a noop guard
+func (r *Registry) HasNonNoopGuard() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, g := range r.guards {
+		if g.Name() != "noop" {
+			return true
+		}
+	}
+	return false
+}
+
 // Remove removes a guard registration
 func (r *Registry) Remove(serverID string) {
 	debugLog.Printf("Removing guard for serverID=%s", serverID)

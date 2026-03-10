@@ -109,7 +109,6 @@ func TestCallBackendTool_ReturnsNonNilCallToolResult(t *testing.T) {
 				URL:  backend.URL,
 			},
 		},
-		EnableDIFC: false, // Disable DIFC for simpler testing
 	}
 
 	us, err := NewUnified(context.Background(), cfg)
@@ -226,7 +225,6 @@ func TestCallBackendTool_ErrorStillReturnsCallToolResult(t *testing.T) {
 				URL:  backend.URL,
 			},
 		},
-		EnableDIFC: false,
 	}
 
 	us, err := NewUnified(context.Background(), cfg)

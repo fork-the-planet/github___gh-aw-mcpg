@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
@@ -33,22 +32,12 @@ type StdinConfig struct {
 // StdinGatewayConfig represents gateway configuration in stdin JSON format.
 // Uses pointers for optional fields to distinguish between unset and zero values.
 type StdinGatewayConfig struct {
-	Port           *int                `json:"port,omitempty"`
-	APIKey         string              `json:"apiKey,omitempty"`
-	Domain         string              `json:"domain,omitempty"`
-	StartupTimeout *int                `json:"startupTimeout,omitempty"`
-	ToolTimeout    *int                `json:"toolTimeout,omitempty"`
-	PayloadDir     string              `json:"payloadDir,omitempty"`
-	Session        *StdinSessionConfig `json:"session,omitempty"`
-}
-
-// StdinSessionConfig represents session label configuration in stdin JSON format.
-type StdinSessionConfig struct {
-	// Secrecy is a list of initial secrecy labels for agent sessions
-	Secrecy []string `json:"secrecy,omitempty"`
-
-	// Integrity is a list of initial integrity labels for agent sessions
-	Integrity []string `json:"integrity,omitempty"`
+	Port           *int   `json:"port,omitempty"`
+	APIKey         string `json:"apiKey,omitempty"`
+	Domain         string `json:"domain,omitempty"`
+	StartupTimeout *int   `json:"startupTimeout,omitempty"`
+	ToolTimeout    *int   `json:"toolTimeout,omitempty"`
+	PayloadDir     string `json:"payloadDir,omitempty"`
 }
 
 // StdinGuardConfig represents a guard configuration in stdin JSON format.
@@ -162,13 +151,6 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// isConfigExtensionsEnabled checks if config extensions are enabled via environment variable.
-// When enabled, schema validation is relaxed to allow extension fields like "guards", "guard", and "session".
-func isConfigExtensionsEnabled() bool {
-	val := strings.ToLower(os.Getenv("MCP_GATEWAY_CONFIG_EXTENSIONS"))
-	return val == "true" || val == "1" || val == "yes" || val == "on"
-}
-
 // intPtrOrDefault returns the value of the int pointer if not nil, otherwise returns the default value.
 // This helper reduces code duplication when handling optional integer fields with defaults.
 func intPtrOrDefault(ptr *int, defaultValue int) int {
@@ -203,16 +185,9 @@ func LoadFromStdin() (*Config, error) {
 	}
 
 	// Validate against JSON schema (fail-fast, spec-compliant)
-	// Skip schema validation when config extensions are enabled, as extensions like
-	// "guards", "guard", and "session" are not in the official schema yet.
-	if isConfigExtensionsEnabled() {
-		logConfig.Print("Config extensions enabled - skipping strict JSON schema validation")
-		log.Println("Config extensions enabled - schema validation relaxed for extension fields")
-	} else {
-		if err := validateJSONSchema(data); err != nil {
-			return nil, err
-		}
-	}
+	// Schema validation is skipped because extension fields like "guards", "guard",
+	// and "guard-policies" are not in the official schema yet.
+	logConfig.Print("Skipping strict JSON schema validation (extension fields may be present)")
 
 	var stdinCfg StdinConfig
 	if err := json.Unmarshal(data, &stdinCfg); err != nil {
@@ -264,13 +239,6 @@ func convertStdinConfig(stdinCfg *StdinConfig) (*Config, error) {
 		}
 		if stdinCfg.Gateway.PayloadDir != "" {
 			cfg.Gateway.PayloadDir = stdinCfg.Gateway.PayloadDir
-		}
-		// Convert session config
-		if stdinCfg.Gateway.Session != nil {
-			cfg.Gateway.Session = &SessionConfig{
-				Secrecy:   stdinCfg.Gateway.Session.Secrecy,
-				Integrity: stdinCfg.Gateway.Session.Integrity,
-			}
 		}
 	} else {
 		logStdin.Print("No gateway config in stdin, applying defaults")

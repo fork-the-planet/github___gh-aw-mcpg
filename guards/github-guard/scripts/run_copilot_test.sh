@@ -327,8 +327,6 @@ case "$MODE" in
     echo -e "${BLUE}Mode: all - Allow all repos with approved integrity floor${NC}"
     SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_ALL_POLICY"
     DOCKER_ENV_ARGS+=(
-      -e MCP_GATEWAY_ENABLE_GUARDS=1
-      -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
       -e DEBUG='server:unified,guard:wasm'
     )
     ;;
@@ -337,8 +335,6 @@ case "$MODE" in
         echo -e "${BLUE}Mode: public-only - Filtering private data (public repos only)${NC}"
       SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_PUBLIC_POLICY"
         DOCKER_ENV_ARGS+=(
-            -e MCP_GATEWAY_ENABLE_GUARDS=1
-            -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
             -e DEBUG='server:unified,guard:wasm'
         )
         ;;
@@ -347,8 +343,6 @@ case "$MODE" in
       echo -e "${BLUE}Mode: owner-only - Filtering data outside owner scope (${ALLOW_OWNER})${NC}"
       SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_OWNER_POLICY"
       DOCKER_ENV_ARGS+=(
-        -e MCP_GATEWAY_ENABLE_GUARDS=1
-        -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
         -e DEBUG='server:unified,guard:wasm'
       )
       ;;
@@ -357,8 +351,6 @@ case "$MODE" in
         echo -e "${BLUE}Mode: repo-only - Filtering data outside repo scope (${DIFC_SCOPE})${NC}"
       SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_REPO_POLICY"
         DOCKER_ENV_ARGS+=(
-        -e MCP_GATEWAY_ENABLE_GUARDS=1
-        -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
         -e DEBUG='server:unified,guard:wasm'
         )
         ;;
@@ -367,8 +359,6 @@ case "$MODE" in
         echo -e "${BLUE}Mode: prefix-only - Filtering data outside repo prefix scope (lpcox/git-*)${NC}"
         SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_PREFIX_POLICY"
         DOCKER_ENV_ARGS+=(
-        -e MCP_GATEWAY_ENABLE_GUARDS=1
-        -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
         -e DEBUG='server:unified,guard:wasm'
         )
         ;;
@@ -377,8 +367,6 @@ case "$MODE" in
         echo -e "${BLUE}Mode: multi-only - Filtering using multiple repo scopes (lpcox/git-* + lpcox/github-guard)${NC}"
         SERVER_GUARD_POLICIES_JSON="$ALLOW_ONLY_MULTI_POLICY"
         DOCKER_ENV_ARGS+=(
-        -e MCP_GATEWAY_ENABLE_GUARDS=1
-        -e MCP_GATEWAY_CONFIG_EXTENSIONS=1
         -e DEBUG='server:unified,guard:wasm'
         )
         ;;
@@ -472,8 +460,6 @@ ACTIVE_ALLOW_ONLY_POLICY=""
 # Add DIFC flags for non-yolo modes
 if [ "$MODE" != "yolo" ] && [ "$MODE" != "lockdown" ]; then
     GATEWAY_CLI_ARGS+=(
-        --enable-config-extensions
-        --enable-guards
     )
     
     # DIFC mode is guard-managed at runtime (do not set via CLI)

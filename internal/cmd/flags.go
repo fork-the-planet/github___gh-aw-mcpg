@@ -32,7 +32,8 @@
 //	flags_logging.go  getDefaultPayloadDir()          → MCP_GATEWAY_PAYLOAD_DIR
 //	flags_logging.go  getDefaultPayloadPathPrefix()   → MCP_GATEWAY_PAYLOAD_PATH_PREFIX
 //	flags_logging.go  getDefaultPayloadSizeThreshold() → MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD
-//	flags_difc.go     getDefaultEnableDIFC()          → MCP_GATEWAY_ENABLE_GUARDS
+//	flags_difc.go     getDefaultDIFCMode()             → MCP_GATEWAY_GUARDS_MODE
+//	flags_difc.go     getDefaultDIFCSinkServerIDs()    → MCP_GATEWAY_GUARDS_SINK_SERVER_IDS
 //
 // This pattern is intentionally kept in individual feature files because:
 //   - Each helper names the specific environment variable it reads, making the

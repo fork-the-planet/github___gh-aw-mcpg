@@ -74,84 +74,6 @@ func TestStdinConfigWithGuards(t *testing.T) {
 	assert.Equal(t, "test-api-key", stdinCfg.Gateway.APIKey, "API key mismatch")
 }
 
-// TestStdinConfigWithSessionLabels tests session label configuration parsing
-func TestStdinConfigWithSessionLabels(t *testing.T) {
-	jsonConfig := `{
-		"mcpServers": {
-			"test": {
-				"type": "stdio",
-				"container": "test/container:latest"
-			}
-		},
-		"gateway": {
-			"port": 3000,
-			"session": {
-				"secrecy": ["secret", "confidential"],
-				"integrity": ["trusted", "verified"]
-			}
-		}
-	}`
-
-	var stdinCfg StdinConfig
-	err := json.Unmarshal([]byte(jsonConfig), &stdinCfg)
-	require.NoError(t, err, "JSON unmarshal failed")
-
-	// Verify session config
-	require.NotNil(t, stdinCfg.Gateway, "Gateway should not be nil")
-	require.NotNil(t, stdinCfg.Gateway.Session, "Session config should not be nil")
-	assert.Equal(t, []string{"secret", "confidential"}, stdinCfg.Gateway.Session.Secrecy, "Secrecy labels mismatch")
-	assert.Equal(t, []string{"trusted", "verified"}, stdinCfg.Gateway.Session.Integrity, "Integrity labels mismatch")
-}
-
-// TestStdinConfigWithSessionLabelsEmpty tests empty session labels parsing
-func TestStdinConfigWithSessionLabelsEmpty(t *testing.T) {
-	jsonConfig := `{
-		"mcpServers": {
-			"test": {
-				"type": "stdio",
-				"container": "test/container:latest"
-			}
-		},
-		"gateway": {
-			"port": 3000,
-			"session": {
-				"secrecy": [],
-				"integrity": []
-			}
-		}
-	}`
-
-	var stdinCfg StdinConfig
-	err := json.Unmarshal([]byte(jsonConfig), &stdinCfg)
-	require.NoError(t, err, "JSON unmarshal failed")
-
-	require.NotNil(t, stdinCfg.Gateway.Session, "Session config should not be nil even if empty")
-	assert.Empty(t, stdinCfg.Gateway.Session.Secrecy, "Secrecy should be empty")
-	assert.Empty(t, stdinCfg.Gateway.Session.Integrity, "Integrity should be empty")
-}
-
-// TestStdinConfigNoSessionConfig tests config without session section
-func TestStdinConfigNoSessionConfig(t *testing.T) {
-	jsonConfig := `{
-		"mcpServers": {
-			"test": {
-				"type": "stdio",
-				"container": "test/container:latest"
-			}
-		},
-		"gateway": {
-			"port": 3000
-		}
-	}`
-
-	var stdinCfg StdinConfig
-	err := json.Unmarshal([]byte(jsonConfig), &stdinCfg)
-	require.NoError(t, err, "JSON unmarshal failed")
-
-	require.NotNil(t, stdinCfg.Gateway, "Gateway should not be nil")
-	assert.Nil(t, stdinCfg.Gateway.Session, "Session should be nil when not configured")
-}
-
 // TestStdinConfigMultipleGuards tests multiple guard configurations
 func TestStdinConfigMultipleGuards(t *testing.T) {
 	jsonConfig := `{
@@ -302,10 +224,6 @@ func TestConvertStdinConfigWithGuards(t *testing.T) {
 			Port:   intPtrDIFC(3000),
 			Domain: "localhost",
 			APIKey: "test-key",
-			Session: &StdinSessionConfig{
-				Secrecy:   []string{"internal"},
-				Integrity: []string{"trusted"},
-			},
 		},
 	}
 
@@ -323,11 +241,6 @@ func TestConvertStdinConfigWithGuards(t *testing.T) {
 	server, ok := cfg.Servers["github"]
 	require.True(t, ok, "github server not found")
 	assert.Equal(t, "github-guard", server.Guard)
-
-	// Verify session config
-	require.NotNil(t, cfg.Gateway.Session, "Session should not be nil")
-	assert.Equal(t, []string{"internal"}, cfg.Gateway.Session.Secrecy)
-	assert.Equal(t, []string{"trusted"}, cfg.Gateway.Session.Integrity)
 }
 
 // TestConvertStdinConfigWithoutGuards tests conversion when no guards are defined
@@ -380,11 +293,7 @@ func TestFullDIFCConfigParsing(t *testing.T) {
 		"gateway": {
 			"port": 3001,
 			"domain": "localhost",
-			"apiKey": "test-api-key",
-			"session": {
-				"secrecy": ["internal"],
-				"integrity": ["agent"]
-			}
+			"apiKey": "test-api-key"
 		}
 	}`
 
@@ -409,21 +318,15 @@ func TestFullDIFCConfigParsing(t *testing.T) {
 	assert.Equal(t, "wasm", guard.Type)
 	assert.Equal(t, "/guard/github-guard-rust.wasm", guard.Path)
 
-	// Verify gateway and session configuration
+	// Verify gateway configuration
 	assert.Equal(t, 3001, cfg.Gateway.Port)
 	assert.Equal(t, "localhost", cfg.Gateway.Domain)
 	assert.Equal(t, "test-api-key", cfg.Gateway.APIKey)
-	assert.Equal(t, []string{"internal"}, cfg.Gateway.Session.Secrecy)
-	assert.Equal(t, []string{"agent"}, cfg.Gateway.Session.Integrity)
 }
 
-// TestLoadFromStdin_WithConfigExtensionsEnabled tests that LoadFromStdin accepts
-// extension fields (guards, guard, session) when MCP_GATEWAY_CONFIG_EXTENSIONS is set
-func TestLoadFromStdin_WithConfigExtensionsEnabled(t *testing.T) {
-	// Enable config extensions
-	os.Setenv("MCP_GATEWAY_CONFIG_EXTENSIONS", "true")
-	defer os.Unsetenv("MCP_GATEWAY_CONFIG_EXTENSIONS")
-
+// TestLoadFromStdin_WithExtensionFields tests that LoadFromStdin accepts
+// extension fields (guards, guard) without requiring any special flag
+func TestLoadFromStdin_WithExtensionFields(t *testing.T) {
 	jsonConfig := `{
 		"mcpServers": {
 			"github": {
@@ -432,65 +335,6 @@ func TestLoadFromStdin_WithConfigExtensionsEnabled(t *testing.T) {
 				"env": {
 					"GITHUB_PERSONAL_ACCESS_TOKEN": "test-token"
 				},
-				"guard": "github-guard"
-			}
-		},
-		"guards": {
-			"github-guard": {
-				"type": "wasm",
-				"path": "/guard/github-guard-rust.wasm"
-			}
-		},
-		"gateway": {
-			"port": 3001,
-			"domain": "localhost",
-			"apiKey": "test-api-key",
-			"session": {
-				"secrecy": ["internal"],
-				"integrity": ["trusted"]
-			}
-		}
-	}`
-
-	// Mock stdin
-	r, w, _ := os.Pipe()
-	oldStdin := os.Stdin
-	os.Stdin = r
-	go func() {
-		w.Write([]byte(jsonConfig))
-		w.Close()
-	}()
-
-	cfg, err := LoadFromStdin()
-	os.Stdin = oldStdin
-
-	require.NoError(t, err, "LoadFromStdin() should succeed with config extensions enabled")
-	require.NotNil(t, cfg, "Config should not be nil")
-
-	// Verify extension fields were parsed
-	assert.Len(t, cfg.Servers, 1, "Expected 1 server")
-	assert.Equal(t, "github-guard", cfg.Servers["github"].Guard, "Server guard should be set")
-
-	require.NotNil(t, cfg.Guards, "Guards should not be nil")
-	assert.Len(t, cfg.Guards, 1, "Expected 1 guard")
-	assert.Equal(t, "wasm", cfg.Guards["github-guard"].Type, "Guard type should be wasm")
-
-	require.NotNil(t, cfg.Gateway.Session, "Session should not be nil")
-	assert.Equal(t, []string{"internal"}, cfg.Gateway.Session.Secrecy, "Session secrecy should be set")
-	assert.Equal(t, []string{"trusted"}, cfg.Gateway.Session.Integrity, "Session integrity should be set")
-}
-
-// TestLoadFromStdin_WithConfigExtensionsDisabled tests that LoadFromStdin rejects
-// extension fields when MCP_GATEWAY_CONFIG_EXTENSIONS is not set
-func TestLoadFromStdin_WithConfigExtensionsDisabled(t *testing.T) {
-	// Ensure config extensions are disabled
-	os.Unsetenv("MCP_GATEWAY_CONFIG_EXTENSIONS")
-
-	jsonConfig := `{
-		"mcpServers": {
-			"github": {
-				"type": "stdio",
-				"container": "ghcr.io/github/github-mcp-server:latest",
 				"guard": "github-guard"
 			}
 		},
@@ -516,50 +360,19 @@ func TestLoadFromStdin_WithConfigExtensionsDisabled(t *testing.T) {
 		w.Close()
 	}()
 
-	_, err := LoadFromStdin()
+	cfg, err := LoadFromStdin()
 	os.Stdin = oldStdin
 
-	// Should fail because schema validation rejects extension fields
-	require.Error(t, err, "LoadFromStdin() should fail without config extensions enabled")
-	assert.Contains(t, err.Error(), "guards", "Error should mention the unknown 'guards' field")
-}
+	require.NoError(t, err, "LoadFromStdin() should succeed with extension fields")
+	require.NotNil(t, cfg, "Config should not be nil")
 
-// TestIsConfigExtensionsEnabled tests the isConfigExtensionsEnabled helper function
-func TestIsConfigExtensionsEnabled(t *testing.T) {
-	tests := []struct {
-		name     string
-		envValue string
-		expected bool
-	}{
-		{"not set", "", false},
-		{"true", "true", true},
-		{"TRUE", "TRUE", true},
-		{"True", "True", true},
-		{"1", "1", true},
-		{"yes", "yes", true},
-		{"YES", "YES", true},
-		{"on", "on", true},
-		{"ON", "ON", true},
-		{"false", "false", false},
-		{"0", "0", false},
-		{"no", "no", false},
-		{"off", "off", false},
-		{"invalid", "invalid", false},
-	}
+	// Verify extension fields were parsed
+	assert.Len(t, cfg.Servers, 1, "Expected 1 server")
+	assert.Equal(t, "github-guard", cfg.Servers["github"].Guard, "Server guard should be set")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.envValue == "" {
-				os.Unsetenv("MCP_GATEWAY_CONFIG_EXTENSIONS")
-			} else {
-				os.Setenv("MCP_GATEWAY_CONFIG_EXTENSIONS", tt.envValue)
-			}
-			defer os.Unsetenv("MCP_GATEWAY_CONFIG_EXTENSIONS")
-
-			result := isConfigExtensionsEnabled()
-			assert.Equal(t, tt.expected, result, "isConfigExtensionsEnabled() for %q", tt.envValue)
-		})
-	}
+	require.NotNil(t, cfg.Guards, "Guards should not be nil")
+	assert.Len(t, cfg.Guards, 1, "Expected 1 guard")
+	assert.Equal(t, "wasm", cfg.Guards["github-guard"].Type, "Guard type should be wasm")
 }
 
 func TestGuardPolicy_StdinParsingAndConversion(t *testing.T) {

@@ -116,45 +116,33 @@ The DIFC evaluator supports three **mutually exclusive** enforcement modes. You 
 Use the `--guards-mode` flag to specify the enforcement mode:
 
 ```bash
-# Enable guards with strict mode (default)
-./awmg --enable-guards --guards-mode strict
+# Guards are auto-enabled when a policy is detected
+./awmg --guards-mode strict
 
-# Enable guards with filter mode
-./awmg --enable-guards --guards-mode filter
+# Use filter mode
+./awmg --guards-mode filter
 
-# Enable guards with propagate mode
-./awmg --enable-guards --guards-mode propagate
+# Use propagate mode
+./awmg --guards-mode propagate
 ```
 
 ### CLI Flags Reference
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--enable-guards` | Enable guards enforcement and session requirement | `false` |
 | `--guards-mode` | Enforcement mode: `strict`, `filter`, or `propagate` | `strict` |
-| `--enable-config-extensions` | Enable config extensions (guards, session labels) | `false` |
-| `--session-secrecy` | Comma-separated initial secrecy labels for sessions | `""` |
-| `--session-integrity` | Comma-separated initial integrity labels for sessions | `""` |
 
-**Note:** `--session-secrecy` and `--session-integrity` require `--enable-config-extensions` to be set.
+**Note:** Guards are automatically enabled when an allow-only policy is detected in the configuration. No explicit enable flag is needed.
 
 ### Environment Variables Reference
 
 | Environment Variable | Description | Equivalent Flag |
 |---------------------|-------------|-----------------|
-| `MCP_GATEWAY_ENABLE_GUARDS` | Enable guards (`true`, `1`, `yes`, `on`) | `--enable-guards` |
 | `MCP_GATEWAY_GUARDS_MODE` | Enforcement mode: `strict`, `filter`, `propagate` | `--guards-mode` |
-| `MCP_GATEWAY_CONFIG_EXTENSIONS` | Enable config extensions (`true`, `1`, `yes`, `on`) | `--enable-config-extensions` |
-| `MCP_GATEWAY_SESSION_SECRECY` | Comma-separated initial secrecy labels | `--session-secrecy` |
-| `MCP_GATEWAY_SESSION_INTEGRITY` | Comma-separated initial integrity labels | `--session-integrity` |
 
 **Example:**
 ```bash
-export MCP_GATEWAY_ENABLE_GUARDS=true
 export MCP_GATEWAY_GUARDS_MODE=filter
-export MCP_GATEWAY_CONFIG_EXTENSIONS=true
-export MCP_GATEWAY_SESSION_SECRECY=internal,confidential
-export MCP_GATEWAY_SESSION_INTEGRITY=trusted
 
 ./awmg --config-stdin < config.json
 ```
@@ -163,13 +151,12 @@ export MCP_GATEWAY_SESSION_INTEGRITY=trusted
 
 ```toml
 [gateway]
-enable_guards = true
 guards_mode = "propagate"  # strict, filter, or propagate
 ```
 
-### JSON Configuration (with Config Extensions)
+### JSON Configuration
 
-When `MCP_GATEWAY_CONFIG_EXTENSIONS=true` or `--enable-config-extensions` is set, the JSON config schema supports additional fields for guards and session labels:
+The JSON config schema supports guard and policy fields:
 
 ```json
 {
@@ -177,7 +164,13 @@ When `MCP_GATEWAY_CONFIG_EXTENSIONS=true` or `--enable-config-extensions` is set
     "github": {
       "type": "stdio",
       "container": "ghcr.io/github/github-mcp-server:latest",
-      "guard": "github-guard"
+      "guard": "github-guard",
+      "guard-policies": {
+        "allow-only": {
+          "repos": ["owner/repo"],
+          "min-integrity": "none"
+        }
+      }
     },
     "filesystem": {
       "type": "stdio", 
@@ -198,25 +191,18 @@ When `MCP_GATEWAY_CONFIG_EXTENSIONS=true` or `--enable-config-extensions` is set
   "gateway": {
     "port": 3000,
     "domain": "localhost",
-    "apiKey": "your-api-key",
-    "session": {
-      "secrecy": ["internal", "confidential"],
-      "integrity": ["trusted"]
-    }
+    "apiKey": "your-api-key"
   }
 }
 ```
 
-**Config Extension Fields:**
+**Extension Fields:**
 - `mcpServers.<server>.guard` - Name of the guard to use for this server
+- `mcpServers.<server>.guard-policies` - Per-server allow-only policies
 - `guards` - Map of guard name to guard configuration
 - `guards.<name>.type` - Guard type (`wasm`, `noop`, etc.)
 - `guards.<name>.path` - Path to guard implementation (for `wasm` type)
 - `guards.<name>.config` - Guard-specific configuration object
-- `gateway.session.secrecy` - Array of initial secrecy labels for new sessions
-- `gateway.session.integrity` - Array of initial integrity labels for new sessions
-
-**Important**: Config extensions are **not** part of the standard MCP Gateway JSON schema. When enabled, schema validation is relaxed to allow these extension fields.
 
 ### Mode Configuration
 

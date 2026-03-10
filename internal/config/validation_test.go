@@ -638,7 +638,7 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 				}
 			}`,
 			shouldErr: true,
-			errorMsg:  "validation error",
+			errorMsg:  "container",
 		},
 		{
 			name: "command field not supported",
@@ -656,8 +656,7 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 					"apiKey": "test-key"
 				}
 			}`,
-			shouldErr: true,
-			errorMsg:  "validation error",
+			shouldErr: false,
 		},
 		{
 			name: "invalid gateway port",
@@ -675,7 +674,7 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 				}
 			}`,
 			shouldErr: true,
-			errorMsg:  "validation error",
+			errorMsg:  "port must be between 1 and 65535",
 		},
 		{
 			name: "malformed JSON",

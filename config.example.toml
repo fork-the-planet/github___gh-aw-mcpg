@@ -72,7 +72,7 @@ GITHUB_PERSONAL_ACCESS_TOKEN = ""  # Pass through from host
 # Optional: Guard policies for access control at the MCP gateway level
 # The structure is server-specific. For GitHub MCP server, this controls repository access.
 # Example: Restrict access to specific GitHub organization and repositories
-# [servers.github.guard_policies.github]
+# [servers.github.guard_policies.allow-only]
 # repos = ["github/gh-aw-mcpg", "github/gh-aw"]  # Exact repository patterns
 # min-integrity = "unapproved"                   # Minimum integrity level for GitHub changes:
 #                                                #   - none: allow any ref (branches, PRs, tags)
@@ -127,10 +127,10 @@ args = [
 # Advanced Options
 # ============================================================================
 
-# Enable Data Information Flow Control (DIFC) security model (default: false)
-# When enabled, enforces information flow control policies on tool calls
-# This is an experimental feature - keep disabled for standard MCP compatibility
-# enable_guards = false
+# Guards enforcement mode: strict, filter, or propagate (default: strict)
+# Guards are automatically enabled when an allow-only policy is detected
+# in the server configuration (guard-policies field)
+# guards_mode = "strict"
 
 # ============================================================================
 # Notes

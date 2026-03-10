@@ -132,7 +132,7 @@ For the complete JSON configuration specification with all validation rules, see
         "EXPANDED_VAR": "${MY_HOME}/config"
       },
       "guard-policies": {
-        "github": {
+        "allow-only": {
           "repos": ["github/gh-aw-mcpg", "github/gh-aw"],
           "min-integrity": "unapproved"
         }
@@ -189,12 +189,21 @@ For the complete JSON configuration specification with all validation rules, see
 - **`url`** (required for http): HTTP endpoint URL for `type: "http"` servers
 
 - **`guard-policies`** (optional): Guard policies for access control at the MCP gateway level
-  - Structure is server-specific and depends on the MCP server implementation
+  - Uses the `"allow-only"` policy format to restrict which repositories a guard allows
   - For **GitHub MCP server**, controls repository access with the following structure:
+    ```json
+    "guard-policies": {
+      "allow-only": {
+        "repos": ["github/gh-aw-mcpg", "github/gh-aw"],
+        "min-integrity": "unapproved"
+      }
+    }
+    ```
+    TOML equivalent:
     ```toml
-    [servers.github.guard_policies.github]
-    repos = ["github/gh-aw-mcpg", "github/gh-aw"]  # Repository patterns
-    min-integrity = "unapproved"                    # Minimum integrity level
+    [servers.github.guard_policies.allow-only]
+    repos = ["github/gh-aw-mcpg", "github/gh-aw"]
+    min-integrity = "unapproved"
     ```
     - **`repos`**: Repository access scope
       - `"all"` - All repositories accessible by the token

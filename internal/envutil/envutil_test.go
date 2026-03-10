@@ -420,32 +420,32 @@ func TestGetEnvIntRealWorldScenarios(t *testing.T) {
 
 // TestGetEnvBoolRealWorldScenarios tests realistic usage scenarios
 func TestGetEnvBoolRealWorldScenarios(t *testing.T) {
-	t.Run("DIFC enable configuration", func(t *testing.T) {
-		os.Unsetenv("MCP_GATEWAY_ENABLE_GUARDS")
-		defer os.Unsetenv("MCP_GATEWAY_ENABLE_GUARDS")
+	t.Run("AllowOnly scope public configuration", func(t *testing.T) {
+		os.Unsetenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC")
+		defer os.Unsetenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC")
 
 		// Default case (disabled)
-		result := GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", false)
+		result := GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false)
 		assert.False(t, result)
 
 		// Enable with "1"
-		os.Setenv("MCP_GATEWAY_ENABLE_GUARDS", "1")
-		result = GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", false)
+		os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "1")
+		result = GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false)
 		assert.True(t, result)
 
 		// Enable with "true"
-		os.Setenv("MCP_GATEWAY_ENABLE_GUARDS", "true")
-		result = GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", false)
+		os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "true")
+		result = GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false)
 		assert.True(t, result)
 
 		// Disable with "0"
-		os.Setenv("MCP_GATEWAY_ENABLE_GUARDS", "0")
-		result = GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", true)
+		os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "0")
+		result = GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", true)
 		assert.False(t, result)
 
 		// Invalid value - uses default
-		os.Setenv("MCP_GATEWAY_ENABLE_GUARDS", "maybe")
-		result = GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", false)
+		os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "maybe")
+		result = GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false)
 		assert.False(t, result)
 	})
 }

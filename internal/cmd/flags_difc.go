@@ -13,19 +13,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// DIFC flag defaults
-const (
-	defaultEnableDIFC       = false
-	defaultConfigExtensions = false
-)
-
 // DIFC flag variables
 var (
-	enableDIFC        bool
 	difcMode          string
-	enableConfigExt   bool   // Enable config extensions (guards, session labels)
-	sessionSecrecy    string // Comma-separated initial secrecy labels
-	sessionIntegrity  string // Comma-separated initial integrity labels
 	difcSinkServerIDs string // Comma-separated server IDs that should include DIFC tag snapshots in RPC JSONL logs
 	guardPolicyJSON   string
 	allowOnlyPublic   bool
@@ -36,12 +26,7 @@ var (
 
 func init() {
 	RegisterFlag(func(cmd *cobra.Command) {
-		cmd.Flags().BoolVar(&enableDIFC, "enable-guards", getDefaultEnableDIFC(), "Enable guards enforcement for information flow control")
-		cmd.Flags().MarkHidden("enable-guards")
 		cmd.Flags().StringVar(&difcMode, "guards-mode", getDefaultDIFCMode(), "Guards enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads)")
-		cmd.Flags().BoolVar(&enableConfigExt, "enable-config-extensions", getDefaultConfigExtensions(), "Enable config extensions (guards, session labels) - required for guards session label features")
-		cmd.Flags().StringVar(&sessionSecrecy, "session-secrecy", getDefaultSessionSecrecy(), "Comma-separated initial secrecy labels for agent sessions (requires --enable-config-extensions)")
-		cmd.Flags().StringVar(&sessionIntegrity, "session-integrity", getDefaultSessionIntegrity(), "Comma-separated initial integrity labels for agent sessions (requires --enable-config-extensions)")
 		cmd.Flags().StringVar(&difcSinkServerIDs, "guards-sink-server-ids", getDefaultDIFCSinkServerIDs(), "Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots")
 		cmd.Flags().StringVar(&guardPolicyJSON, "guard-policy-json", getDefaultGuardPolicyJSON(), "Guard policy JSON (e.g. {\"allow-only\":{\"repos\":\"public\",\"min-integrity\":\"none\"}})")
 		cmd.Flags().BoolVar(&allowOnlyPublic, "allowonly-scope-public", getDefaultAllowOnlyScopePublic(), "Use public AllowOnly scope")
@@ -49,12 +34,6 @@ func init() {
 		cmd.Flags().StringVar(&allowOnlyRepo, "allowonly-scope-repo", getDefaultAllowOnlyScopeRepo(), "AllowOnly repo name (requires owner)")
 		cmd.Flags().StringVar(&allowOnlyMinInt, "allowonly-min-integrity", getDefaultAllowOnlyMinIntegrity(), "AllowOnly integrity: none|unapproved|approved|merged")
 	})
-}
-
-// getDefaultEnableDIFC returns the default guards setting, checking MCP_GATEWAY_ENABLE_GUARDS
-// environment variable first, then falling back to the hardcoded default (false)
-func getDefaultEnableDIFC() bool {
-	return envutil.GetEnvBool("MCP_GATEWAY_ENABLE_GUARDS", defaultEnableDIFC)
 }
 
 // getDefaultDIFCMode returns the default guards mode, checking MCP_GATEWAY_GUARDS_MODE
@@ -77,24 +56,6 @@ func isValidDIFCMode(mode string) bool {
 		}
 	}
 	return false
-}
-
-// getDefaultConfigExtensions returns the default config extensions setting,
-// checking MCP_GATEWAY_CONFIG_EXTENSIONS environment variable first
-func getDefaultConfigExtensions() bool {
-	return envutil.GetEnvBool("MCP_GATEWAY_CONFIG_EXTENSIONS", defaultConfigExtensions)
-}
-
-// getDefaultSessionSecrecy returns the default session secrecy labels from
-// MCP_GATEWAY_SESSION_SECRECY environment variable
-func getDefaultSessionSecrecy() string {
-	return os.Getenv("MCP_GATEWAY_SESSION_SECRECY")
-}
-
-// getDefaultSessionIntegrity returns the default session integrity labels from
-// MCP_GATEWAY_SESSION_INTEGRITY environment variable
-func getDefaultSessionIntegrity() string {
-	return os.Getenv("MCP_GATEWAY_SESSION_INTEGRITY")
 }
 
 func getDefaultDIFCSinkServerIDs() string {
@@ -190,22 +151,6 @@ func ValidateDIFCMode(mode string) error {
 		return fmt.Errorf("invalid guards mode %q: must be one of: %s, %s, %s", mode, difc.ModeStrict, difc.ModeFilter, difc.ModePropagate)
 	}
 	return nil
-}
-
-// parseSessionLabels parses a comma-separated string of labels into a slice
-func parseSessionLabels(labels string) []string {
-	if labels == "" {
-		return nil
-	}
-	parts := strings.Split(labels, ",")
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
 }
 
 func parseDIFCSinkServerIDs(input string) ([]string, error) {

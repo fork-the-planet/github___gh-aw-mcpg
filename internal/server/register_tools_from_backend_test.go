@@ -105,7 +105,6 @@ func TestRegisterToolsFromBackend_Success(t *testing.T) {
 				URL:  backend.URL,
 			},
 		},
-		EnableDIFC: false,
 	}
 
 	us, err := NewUnified(context.Background(), cfg)
@@ -156,7 +155,6 @@ func TestRegisterToolsFromBackend_ConnectionFailure(t *testing.T) {
 				URL:  "http://localhost:99999", // Invalid port
 			},
 		},
-		EnableDIFC: false,
 	}
 
 	us, err := NewUnified(context.Background(), cfg)
@@ -229,7 +227,6 @@ func TestRegisterToolsFromBackend_BackendError(t *testing.T) {
 				URL:  backend.URL,
 			},
 		},
-		EnableDIFC: false,
 	}
 
 	us, err := NewUnified(context.Background(), cfg)
@@ -300,7 +297,6 @@ func TestRegisterToolsFromBackend_InvalidJSON(t *testing.T) {
 				URL:  backend.URL,
 			},
 		},
-		EnableDIFC: false,
 	}
 
 	us, err := NewUnified(context.Background(), cfg)
@@ -372,7 +368,6 @@ func TestRegisterToolsFromBackend_EmptyToolList(t *testing.T) {
 				URL:  backend.URL,
 			},
 		},
-		EnableDIFC: false,
 	}
 
 	us, err := NewUnified(context.Background(), cfg)
@@ -395,8 +390,7 @@ func TestRegisterToolsFromBackend_UnknownServerID(t *testing.T) {
 	require := require.New(t)
 
 	cfg := &config.Config{
-		Servers:    map[string]*config.ServerConfig{},
-		EnableDIFC: false,
+		Servers: map[string]*config.ServerConfig{},
 	}
 
 	us, err := NewUnified(context.Background(), cfg)
@@ -476,7 +470,6 @@ func TestRegisterToolsFromBackend_ToolNaming(t *testing.T) {
 				URL:  backend.URL,
 			},
 		},
-		EnableDIFC: false,
 	}
 
 	us, err := NewUnified(context.Background(), cfg)
@@ -569,7 +562,6 @@ func TestRegisterToolsFromBackend_SchemaNormalization(t *testing.T) {
 				URL:  backend.URL,
 			},
 		},
-		EnableDIFC: false,
 	}
 
 	us, err := NewUnified(context.Background(), cfg)
@@ -688,7 +680,6 @@ func TestRegisterToolsFromBackend_MultipleTools(t *testing.T) {
 				URL:  backend.URL,
 			},
 		},
-		EnableDIFC: false,
 	}
 
 	us, err := NewUnified(context.Background(), cfg)
@@ -785,7 +776,6 @@ func TestRegisterToolsFromBackend_HandlerCreation(t *testing.T) {
 				URL:  backend.URL,
 			},
 		},
-		EnableDIFC: false,
 	}
 
 	us, err := NewUnified(context.Background(), cfg)

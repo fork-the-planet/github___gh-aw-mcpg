@@ -120,8 +120,7 @@ func TestCallBackendTool_LabelAgentInitializationCached(t *testing.T) {
 	})
 
 	cfg := &config.Config{
-		EnableDIFC: true,
-		DIFCMode:   "strict",
+		DIFCMode: "strict",
 		Servers: map[string]*config.ServerConfig{
 			"test-backend": {
 				Type:  "http",
@@ -253,8 +252,7 @@ func TestCallBackendTool_LabelAgentInitializationFromServerGuardPolicies(t *test
 	})
 
 	cfg := &config.Config{
-		EnableDIFC: true,
-		DIFCMode:   "strict",
+		DIFCMode: "strict",
 		Servers: map[string]*config.ServerConfig{
 			"test-backend": {
 				Type:  "http",

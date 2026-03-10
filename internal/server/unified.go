@@ -116,7 +116,7 @@ type UnifiedServer struct {
 
 // NewUnified creates a new unified MCP server
 func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error) {
-	logUnified.Printf("Creating new unified server: enableDIFC=%v, sequentialLaunch=%v, servers=%d", cfg.EnableDIFC, cfg.SequentialLaunch, len(cfg.Servers))
+	logUnified.Printf("Creating new unified server: sequentialLaunch=%v, servers=%d", cfg.SequentialLaunch, len(cfg.Servers))
 	l := launcher.New(ctx, cfg)
 
 	// Get payload directory from config, with fallback to default
@@ -146,20 +146,6 @@ func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error)
 		difcMode = difc.EnforcementStrict
 	}
 
-	// Get default session labels from config
-	var defaultSecrecy, defaultIntegrity []difc.Tag
-	if cfg.Gateway != nil && cfg.Gateway.Session != nil {
-		for _, s := range cfg.Gateway.Session.Secrecy {
-			defaultSecrecy = append(defaultSecrecy, difc.Tag(s))
-		}
-		for _, i := range cfg.Gateway.Session.Integrity {
-			defaultIntegrity = append(defaultIntegrity, difc.Tag(i))
-		}
-		if len(defaultSecrecy) > 0 || len(defaultIntegrity) > 0 {
-			logUnified.Printf("Using default session labels: secrecy=%v, integrity=%v", defaultSecrecy, defaultIntegrity)
-		}
-	}
-
 	us := &UnifiedServer{
 		launcher:             l,
 		sysServer:            sys.NewSysServer(l.ServerIDs()),
@@ -173,10 +159,9 @@ func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error)
 
 		// Initialize DIFC components
 		guardRegistry: guard.NewRegistry(),
-		agentRegistry: difc.NewAgentRegistryWithDefaults(defaultSecrecy, defaultIntegrity),
+		agentRegistry: difc.NewAgentRegistryWithDefaults(nil, nil),
 		capabilities:  difc.NewCapabilities(),
 		evaluator:     difc.NewEvaluatorWithMode(difcMode),
-		enableDIFC:    cfg.EnableDIFC,
 		cfg:           cfg, // Store config for guard loading
 	}
 
@@ -196,6 +181,19 @@ func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error)
 		if err := us.registerGuard(serverID); err != nil {
 			return nil, fmt.Errorf("failed to register guard for server %q: %w", serverID, err)
 		}
+	}
+
+	// Auto-enable DIFC if any non-noop guard was registered or a global policy override exists
+	if !us.enableDIFC && (us.guardRegistry.HasNonNoopGuard() || cfg.GuardPolicy != nil) {
+		us.enableDIFC = true
+		logUnified.Printf("Auto-enabled DIFC: non-noop guard or policy detected")
+	}
+
+	// Log guards status early (before backend launch which may take time)
+	if us.enableDIFC {
+		log.Printf("Guards enforcement enabled with mode: %s", cfg.DIFCMode)
+	} else {
+		log.Println("Guards enforcement disabled (sessions auto-created for standard MCP client compatibility)")
 	}
 
 	// Register aggregated tools from all backends
@@ -640,8 +638,10 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 		}
 	}
 
-	if err := us.requireGuardPolicyIfGuardEnabled(serverID, g); err != nil {
-		return err
+	var policyErr error
+	g, policyErr = us.requireGuardPolicyIfGuardEnabled(serverID, g)
+	if policyErr != nil {
+		return policyErr
 	}
 
 	us.guardRegistry.Register(serverID, g)
@@ -649,20 +649,21 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 	return nil
 }
 
-func (us *UnifiedServer) requireGuardPolicyIfGuardEnabled(serverID string, g guard.Guard) error {
+func (us *UnifiedServer) requireGuardPolicyIfGuardEnabled(serverID string, g guard.Guard) (guard.Guard, error) {
 	if g == nil || g.Name() == "noop" {
-		return nil
+		return g, nil
 	}
 
 	policy, _, err := us.resolveGuardPolicy(serverID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if policy == nil {
-		return fmt.Errorf("guard '%s' is available for MCP server '%s' but no guard policy is set", g.Name(), serverID)
+		log.Printf("[DIFC] WARNING: Guard '%s' is available for MCP server '%s' but no guard policy is set; falling back to noop guard", g.Name(), serverID)
+		return guard.NewNoopGuard(), nil
 	}
 
-	return nil
+	return g, nil
 }
 
 func (us *UnifiedServer) logServerGuardPolicies(serverID string) {

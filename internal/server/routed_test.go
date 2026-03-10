@@ -282,7 +282,6 @@ func TestRoutedMode_SysToolsBackend_DIFCDisabled(t *testing.T) {
 		Servers: map[string]*config.ServerConfig{
 			"github": {Command: "docker", Args: []string{}},
 		},
-		EnableDIFC: false, // Explicitly disable DIFC (this is the default)
 	}
 
 	ctx := context.Background()
@@ -296,12 +295,14 @@ func TestRoutedMode_SysToolsBackend_DIFCDisabled(t *testing.T) {
 }
 
 func TestRoutedMode_SysToolsBackend_DIFCEnabled(t *testing.T) {
-	// When DIFC is enabled, sys tools SHOULD be registered
+	// When a guard policy is set, DIFC is auto-enabled and sys tools SHOULD be registered
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{
 			"github": {Command: "docker", Args: []string{}},
 		},
-		EnableDIFC: true, // Enable DIFC
+		GuardPolicy: &config.GuardPolicy{
+			AllowOnly: &config.AllowOnlyPolicy{Repos: "public", MinIntegrity: "none"},
+		},
 	}
 
 	ctx := context.Background()
@@ -336,7 +337,6 @@ func TestRoutedMode_SysRouteNotExposed_DIFCDisabled(t *testing.T) {
 		Servers: map[string]*config.ServerConfig{
 			"github": {Command: "docker", Args: []string{}},
 		},
-		EnableDIFC: false,
 	}
 
 	ctx := context.Background()
@@ -360,12 +360,14 @@ func TestRoutedMode_SysRouteNotExposed_DIFCDisabled(t *testing.T) {
 
 func TestRoutedMode_SysRouteNotExposed_DIFCEnabled(t *testing.T) {
 	// /mcp/sys route is never registered — sys tools are deprecated and not exposed to agents
-	// even when DIFC is enabled
+	// even when DIFC is enabled via guard policy
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{
 			"github": {Command: "docker", Args: []string{}},
 		},
-		EnableDIFC: true,
+		GuardPolicy: &config.GuardPolicy{
+			AllowOnly: &config.AllowOnlyPolicy{Repos: "public", MinIntegrity: "none"},
+		},
 	}
 
 	ctx := context.Background()

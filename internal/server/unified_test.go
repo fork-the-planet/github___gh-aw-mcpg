@@ -162,8 +162,7 @@ func TestGetSessionID_FromContext(t *testing.T) {
 
 func TestRequireSession(t *testing.T) {
 	cfg := &config.Config{
-		Servers:    map[string]*config.ServerConfig{},
-		EnableDIFC: true, // Enable DIFC for this test
+		Servers: map[string]*config.ServerConfig{},
 	}
 
 	ctx := context.Background()
@@ -197,8 +196,7 @@ func TestRequireSession(t *testing.T) {
 
 func TestRequireSession_DifcDisabled(t *testing.T) {
 	cfg := &config.Config{
-		Servers:    map[string]*config.ServerConfig{},
-		EnableDIFC: false, // DIFC disabled (default)
+		Servers: map[string]*config.ServerConfig{},
 	}
 
 	ctx := context.Background()
@@ -225,8 +223,7 @@ func TestRequireSession_DifcDisabled(t *testing.T) {
 
 func TestRequireSession_DifcDisabled_Concurrent(t *testing.T) {
 	cfg := &config.Config{
-		Servers:    map[string]*config.ServerConfig{},
-		EnableDIFC: false, // DIFC disabled (default)
+		Servers: map[string]*config.ServerConfig{},
 	}
 
 	ctx := context.Background()
@@ -420,51 +417,45 @@ func TestGetSessionID_EdgeCases(t *testing.T) {
 func TestRequireSession_EdgeCases(t *testing.T) {
 	tests := []struct {
 		name        string
-		enableDIFC  bool
 		sessionID   string
 		preCreate   bool
 		wantErr     bool
 		description string
 	}{
 		{
-			name:        "DIFC enabled with existing session",
-			enableDIFC:  true,
+			name:        "existing session",
 			sessionID:   "existing",
 			preCreate:   true,
 			wantErr:     false,
-			description: "should allow access to existing session when DIFC enabled",
+			description: "should allow access to existing session",
 		},
 		{
-			name:        "DIFC enabled without session",
-			enableDIFC:  true,
+			name:        "nonexistent session auto-created",
 			sessionID:   "nonexistent",
 			preCreate:   false,
-			wantErr:     false, // Sessions are auto-created regardless of DIFC setting
-			description: "should auto-create session even when DIFC enabled",
+			wantErr:     false,
+			description: "should auto-create session",
 		},
 		{
-			name:        "DIFC disabled without session",
-			enableDIFC:  false,
+			name:        "auto-create without pre-creation",
 			sessionID:   "autocreate",
 			preCreate:   false,
 			wantErr:     false,
-			description: "should auto-create session when DIFC disabled",
+			description: "should auto-create session",
 		},
 		{
-			name:        "DIFC disabled with existing session",
-			enableDIFC:  false,
+			name:        "reuse existing session",
 			sessionID:   "existing2",
 			preCreate:   true,
 			wantErr:     false,
-			description: "should reuse existing session when DIFC disabled",
+			description: "should reuse existing session",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Servers:    map[string]*config.ServerConfig{},
-				EnableDIFC: tt.enableDIFC,
+				Servers: map[string]*config.ServerConfig{},
 			}
 
 			ctx := context.Background()
