@@ -279,7 +279,7 @@ jobs:
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@a0b538fa0b742a6aa35d6e2c169b4bd06d225a98 # v1.15.3
         with:
-          targets: wasm32-wasip1
+          target: wasm32-wasip1
 
       - name: Build baked WASM guard
         run: |
