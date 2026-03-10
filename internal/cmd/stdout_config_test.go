@@ -119,7 +119,7 @@ func TestWriteGatewayConfigToStdout(t *testing.T) {
 			wantAPIKey: "ipv6-key",
 		},
 		{
-			name: "domain config overrides listen host",
+			name: "domain config does not override listen host in gateway output",
 			cfg: &config.Config{
 				Servers: map[string]*config.ServerConfig{
 					"github": {Command: "docker"},
@@ -131,7 +131,7 @@ func TestWriteGatewayConfigToStdout(t *testing.T) {
 			},
 			listenAddr: "0.0.0.0:8080",
 			mode:       "routed",
-			wantHost:   "my-gateway.local",
+			wantHost:   "127.0.0.1",
 			wantPort:   "8080",
 			wantAPIKey: "domain-key",
 		},

@@ -437,14 +437,16 @@ func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, w io.Writer
 	}
 	debugLog.Printf("Parsed listen address: host=%s, port=%s", host, port)
 
-	// Determine domain for client-reachable URLs.
-	// If the config specifies a domain, prefer that. Otherwise, use the listen
-	// host — but map wildcard bind addresses (0.0.0.0, ::) to 127.0.0.1 since
-	// clients cannot connect to wildcard addresses.
+	// Determine domain for gateway output URLs.
+	// Use the listen host, but map wildcard bind addresses (0.0.0.0, ::) to
+	// 127.0.0.1 since clients cannot connect to wildcard addresses.
+	// Note: cfg.Gateway.Domain is NOT used here because the gateway output is
+	// consumed by host-side tools (health checks, connectivity checks) that
+	// need localhost-reachable URLs. The domain field (e.g., "host.docker.internal")
+	// is applied by the downstream converter when generating agent configs for
+	// container-side access.
 	domain := host
-	if cfg.Gateway != nil && cfg.Gateway.Domain != "" {
-		domain = cfg.Gateway.Domain
-	} else if domain == "0.0.0.0" || domain == "::" || domain == "[::]" {
+	if domain == "0.0.0.0" || domain == "::" || domain == "[::]" {
 		domain = "127.0.0.1"
 	}
 
