@@ -160,6 +160,39 @@ func intPtrOrDefault(ptr *int, defaultValue int) int {
 	return defaultValue
 }
 
+// stripExtensionFieldsForValidation returns a copy of the raw JSON with known gateway
+// extension fields removed, so the copy can be validated against the upstream MCP Gateway
+// schema. These fields are gateway-specific additions that are not part of the upstream
+// schema definition, so they must be removed before schema validation to prevent spurious
+// "additional properties" errors.
+//
+// Fields stripped:
+//   - Top-level "guards": gateway-specific guard configuration
+//   - Per-server "guard": reference to a named guard
+//
+// Note: "guard-policies" and "registry" are already injected into the upstream schema
+// by fetchAndFixSchema, so they do not need to be stripped here.
+func stripExtensionFieldsForValidation(data []byte) ([]byte, error) {
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, err
+	}
+
+	// Strip top-level "guards" extension field
+	delete(config, "guards")
+
+	// Strip per-server "guard" extension field
+	if servers, ok := config["mcpServers"].(map[string]interface{}); ok {
+		for _, server := range servers {
+			if serverMap, ok := server.(map[string]interface{}); ok {
+				delete(serverMap, "guard")
+			}
+		}
+	}
+
+	return json.Marshal(config)
+}
+
 // LoadFromStdin loads configuration from stdin JSON.
 func LoadFromStdin() (*Config, error) {
 	logConfig.Print("Loading configuration from stdin JSON")
@@ -184,10 +217,17 @@ func LoadFromStdin() (*Config, error) {
 		return nil, err
 	}
 
-	// Validate against JSON schema (fail-fast, spec-compliant)
-	// Schema validation is skipped because extension fields like "guards", "guard",
-	// and "guard-policies" are not in the official schema yet.
-	logConfig.Print("Skipping strict JSON schema validation (extension fields may be present)")
+	// Validate against JSON schema (fail-fast, spec-compliant).
+	// Extension fields "guard" (per-server) and "guards" (top-level) are stripped from
+	// a copy of the data before validation because they are not in the upstream schema.
+	// "guard-policies" and "registry" are already injected into the schema by fetchAndFixSchema.
+	validationData, err := stripExtensionFieldsForValidation(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare data for schema validation: %w", err)
+	}
+	if err := validateJSONSchema(validationData); err != nil {
+		return nil, err
+	}
 
 	var stdinCfg StdinConfig
 	if err := json.Unmarshal(data, &stdinCfg); err != nil {

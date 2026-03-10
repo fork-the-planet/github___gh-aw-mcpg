@@ -183,10 +183,11 @@ func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error)
 		}
 	}
 
-	// Auto-enable DIFC if any non-noop guard was registered or a global policy override exists
-	if !us.enableDIFC && (us.guardRegistry.HasNonNoopGuard() || cfg.GuardPolicy != nil) {
+	// Auto-enable DIFC if any non-noop guard was registered, a global policy override
+	// exists, or any server has per-server guard policies configured.
+	if !us.enableDIFC && (us.guardRegistry.HasNonNoopGuard() || cfg.GuardPolicy != nil || hasServerGuardPolicies(cfg)) {
 		us.enableDIFC = true
-		logUnified.Printf("Auto-enabled DIFC: non-noop guard or policy detected")
+		logUnified.Printf("Auto-enabled DIFC: non-noop guard, global policy, or per-server guard policies detected")
 	}
 
 	// Log guards status early (before backend launch which may take time)
@@ -581,6 +582,18 @@ func (us *UnifiedServer) registerSysTools() error {
 
 	log.Println("Registered 2 sys tools")
 	return nil
+}
+
+// hasServerGuardPolicies reports whether any server in cfg has per-server guard policies
+// configured. This is used during DIFC auto-detection to enable enforcement when policies
+// are present even if no non-noop guard was registered (e.g., guard missing or failed to load).
+func hasServerGuardPolicies(cfg *config.Config) bool {
+	for _, srv := range cfg.Servers {
+		if len(srv.GuardPolicies) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // registerGuard registers a guard for a specific backend server
