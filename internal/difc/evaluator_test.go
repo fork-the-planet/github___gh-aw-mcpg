@@ -944,6 +944,33 @@ func TestEvaluator_PropagateMode_Write(t *testing.T) {
 	})
 }
 
+// TestNewEmptyEvaluationResult tests the newEmptyEvaluationResult helper
+func TestNewEmptyEvaluationResult(t *testing.T) {
+	t.Run("creates result with default values", func(t *testing.T) {
+		result := newEmptyEvaluationResult()
+		require.NotNil(t, result)
+		assert.Equal(t, AccessAllow, result.Decision)
+		assert.NotNil(t, result.SecrecyToAdd)
+		assert.Empty(t, result.SecrecyToAdd)
+		assert.NotNil(t, result.IntegrityToDrop)
+		assert.Empty(t, result.IntegrityToDrop)
+		assert.Empty(t, result.Reason)
+	})
+
+	t.Run("multiple calls create independent results", func(t *testing.T) {
+		result1 := newEmptyEvaluationResult()
+		result2 := newEmptyEvaluationResult()
+
+		// Modify result1
+		result1.Decision = AccessDeny
+		result1.SecrecyToAdd = append(result1.SecrecyToAdd, Tag("test"))
+
+		// result2 should be unaffected
+		assert.Equal(t, AccessAllow, result2.Decision)
+		assert.Empty(t, result2.SecrecyToAdd)
+	})
+}
+
 // TestEvaluator_StrictMode_Read_Unchanged verifies strict mode still denies reads
 func TestEvaluator_StrictMode_Read_Unchanged(t *testing.T) {
 	eval := NewEvaluator() // Default is strict mode

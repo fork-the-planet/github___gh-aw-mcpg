@@ -659,6 +659,143 @@ func TestViolationError_Detailed(t *testing.T) {
 	})
 }
 
+// TestCheckFlowHelper_Secrecy tests the generic checkFlowHelper with secrecy semantics
+func TestCheckFlowHelper_Secrecy(t *testing.T) {
+	tests := []struct {
+		name        string
+		src         []Tag
+		target      []Tag
+		nilSrc      bool
+		nilTarget   bool
+		wantOK      bool
+		wantViolate []Tag
+	}{
+		{
+			name:   "nil source can flow to anything (secrecy)",
+			nilSrc: true,
+			target: []Tag{"any"},
+			wantOK: true,
+		},
+		{
+			name:      "empty source can flow to nil target (secrecy)",
+			src:       nil,
+			nilTarget: true,
+			wantOK:    true,
+		},
+		{
+			name:        "non-empty source cannot flow to nil target (secrecy)",
+			src:         []Tag{"secret"},
+			nilTarget:   true,
+			wantOK:      false,
+			wantViolate: []Tag{"secret"},
+		},
+		{
+			name:   "source subset of target allowed (secrecy)",
+			src:    []Tag{"tag1"},
+			target: []Tag{"tag1", "tag2"},
+			wantOK: true,
+		},
+		{
+			name:        "source has extra tags denied (secrecy)",
+			src:         []Tag{"tag1", "extra"},
+			target:      []Tag{"tag1"},
+			wantOK:      false,
+			wantViolate: []Tag{"extra"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var src, target *Label
+			if !tt.nilSrc {
+				src = newLabelWithTags(tt.src)
+			}
+			if !tt.nilTarget {
+				target = newLabelWithTags(tt.target)
+			}
+
+			ok, violatingTags := checkFlowHelper(src, target, true, "Secrecy")
+			assert.Equal(t, tt.wantOK, ok)
+			if tt.wantOK {
+				assert.Empty(t, violatingTags)
+			} else {
+				assert.NotEmpty(t, violatingTags)
+				for _, expectedTag := range tt.wantViolate {
+					assert.Contains(t, violatingTags, expectedTag)
+				}
+			}
+		})
+	}
+}
+
+// TestCheckFlowHelper_Integrity tests the generic checkFlowHelper with integrity semantics
+func TestCheckFlowHelper_Integrity(t *testing.T) {
+	tests := []struct {
+		name        string
+		src         []Tag
+		target      []Tag
+		nilSrc      bool
+		nilTarget   bool
+		wantOK      bool
+		wantViolate []Tag
+	}{
+		{
+			name:      "nil source nil target allowed (integrity)",
+			nilSrc:    true,
+			nilTarget: true,
+			wantOK:    true,
+		},
+		{
+			name:   "nil source empty target allowed (integrity)",
+			nilSrc: true,
+			target: nil,
+			wantOK: true,
+		},
+		{
+			name:      "any source nil target allowed (integrity)",
+			src:       []Tag{"trust"},
+			nilTarget: true,
+			wantOK:    true,
+		},
+		{
+			name:   "source superset of target allowed (integrity)",
+			src:    []Tag{"t1", "t2"},
+			target: []Tag{"t1"},
+			wantOK: true,
+		},
+		{
+			name:        "source missing tag denied (integrity)",
+			src:         []Tag{"t1"},
+			target:      []Tag{"t1", "t2"},
+			wantOK:      false,
+			wantViolate: []Tag{"t2"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var src, target *Label
+			if !tt.nilSrc {
+				src = newLabelWithTags(tt.src)
+			}
+			if !tt.nilTarget {
+				target = newLabelWithTags(tt.target)
+			}
+
+			ok, violatingTags := checkFlowHelper(src, target, false, "Integrity")
+			assert.Equal(t, tt.wantOK, ok)
+			if tt.wantOK {
+				assert.Empty(t, violatingTags)
+			} else {
+				assert.NotEmpty(t, violatingTags)
+				for _, expectedTag := range tt.wantViolate {
+					assert.Contains(t, violatingTags, expectedTag)
+				}
+			}
+		})
+	}
+}
+
 // TestViolationError_implementsError verifies ViolationError satisfies the error interface.
 func TestViolationError_implementsError(t *testing.T) {
 	var _ error = (*ViolationError)(nil)

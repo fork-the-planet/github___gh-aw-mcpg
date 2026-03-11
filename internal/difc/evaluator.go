@@ -155,6 +155,17 @@ func (e *Evaluator) GetMode() EnforcementMode {
 	return e.mode
 }
 
+// newEmptyEvaluationResult creates a new EvaluationResult with default initialization.
+// This helper centralizes the common pattern of creating an empty result with AccessAllow decision
+// and empty tag slices, reducing duplication across evaluation functions.
+func newEmptyEvaluationResult() *EvaluationResult {
+	return &EvaluationResult{
+		Decision:        AccessAllow,
+		SecrecyToAdd:    []Tag{},
+		IntegrityToDrop: []Tag{},
+	}
+}
+
 // Evaluate checks if an agent can perform an operation on a resource
 func (e *Evaluator) Evaluate(
 	agentSecrecy *SecrecyLabel,
@@ -163,12 +174,6 @@ func (e *Evaluator) Evaluate(
 	operation OperationType,
 ) *EvaluationResult {
 	logEvaluator.Printf("Evaluating access: operation=%s, resource=%s", operation, resource.Description)
-
-	result := &EvaluationResult{
-		Decision:        AccessAllow,
-		SecrecyToAdd:    []Tag{},
-		IntegrityToDrop: []Tag{},
-	}
 
 	switch operation {
 	case OperationRead:
@@ -190,7 +195,7 @@ func (e *Evaluator) Evaluate(
 		}
 	}
 
-	return result
+	return newEmptyEvaluationResult()
 }
 
 // evaluateRead checks if agent can read from resource
@@ -202,11 +207,7 @@ func (e *Evaluator) evaluateRead(
 	logEvaluator.Printf("Evaluating read access (mode=%s): resource=%s, agentSecrecy=%v, agentIntegrity=%v",
 		e.mode, resource.Description, agentSecrecy.Label.GetTags(), agentIntegrity.Label.GetTags())
 
-	result := &EvaluationResult{
-		Decision:        AccessAllow,
-		SecrecyToAdd:    []Tag{},
-		IntegrityToDrop: []Tag{},
-	}
+	result := newEmptyEvaluationResult()
 
 	// For reads: resource integrity must flow to agent (trust check)
 	// Agent must trust the resource (resource has all integrity tags agent requires)
@@ -276,11 +277,7 @@ func (e *Evaluator) evaluateWrite(
 	logEvaluator.Printf("Evaluating write access: resource=%s, agentSecrecy=%v, agentIntegrity=%v",
 		resource.Description, agentSecrecy.Label.GetTags(), agentIntegrity.Label.GetTags())
 
-	result := &EvaluationResult{
-		Decision:        AccessAllow,
-		SecrecyToAdd:    []Tag{},
-		IntegrityToDrop: []Tag{},
-	}
+	result := newEmptyEvaluationResult()
 
 	// For writes: agent integrity must flow to resource
 	// Agent must be trustworthy enough (agent has all integrity tags resource requires)

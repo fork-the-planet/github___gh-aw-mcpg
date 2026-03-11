@@ -186,37 +186,92 @@ func (l *SecrecyLabel) CanFlowTo(target *SecrecyLabel) bool {
 	return true
 }
 
-// CheckFlow checks if this secrecy label can flow to target and returns violation details if not
-func (l *SecrecyLabel) CheckFlow(target *SecrecyLabel) (bool, []Tag) {
-	if l == nil || l.Label == nil {
-		return true, nil
-	}
-	if target == nil || target.Label == nil {
-		if l.Label.IsEmpty() {
+// checkFlowHelper is a generic helper that implements the common CheckFlow pattern.
+// It checks if tags can flow from source to target according to the specified flow semantics.
+//
+// Parameters:
+//   - srcLabel: The source label (may be nil)
+//   - targetLabel: The target label (may be nil)
+//   - checkSubset: If true, checks source ⊆ target (secrecy semantics: source must be subset of target)
+//     If false, checks source ⊇ target (integrity semantics: source must be superset of target)
+//   - labelType: The type of label being checked ("Secrecy" or "Integrity") for logging
+//
+// Returns:
+//   - bool: true if flow is allowed
+//   - []Tag: violating tags (tags that prevent the flow)
+func checkFlowHelper(srcLabel *Label, targetLabel *Label, checkSubset bool, labelType string) (bool, []Tag) {
+	// Handle nil source
+	if srcLabel == nil {
+		if checkSubset {
+			// Secrecy: nil/empty source can flow to anything
 			return true, nil
 		}
-		extraTags := l.Label.GetTags()
-		logLabels.Printf("Secrecy CheckFlow denied: target is nil/empty but source has tags=%v", extraTags)
-		return false, extraTags
+		// Integrity: nil source can only flow to nil/empty target
+		if targetLabel == nil || targetLabel.IsEmpty() {
+			return true, nil
+		}
+		violatingTags := targetLabel.GetTags()
+		logLabels.Printf("%s CheckFlow denied: source is nil but target requires tags=%v", labelType, violatingTags)
+		return false, violatingTags
 	}
 
-	l.Label.mu.RLock()
-	defer l.Label.mu.RUnlock()
-	target.Label.mu.RLock()
-	defer target.Label.mu.RUnlock()
+	// Handle nil target
+	if targetLabel == nil {
+		if checkSubset {
+			// Secrecy: only empty source can flow to nil target
+			if srcLabel.IsEmpty() {
+				return true, nil
+			}
+			violatingTags := srcLabel.GetTags()
+			logLabels.Printf("%s CheckFlow denied: target is nil/empty but source has tags=%v", labelType, violatingTags)
+			return false, violatingTags
+		}
+		// Integrity: any source can flow to nil target
+		return true, nil
+	}
 
-	var extraTags []Tag
-	// Check if all tags in l are in target
-	for tag := range l.Label.tags {
-		if _, ok := target.Label.tags[tag]; !ok {
-			extraTags = append(extraTags, tag)
+	// Both labels are non-nil, perform the actual check
+	srcLabel.mu.RLock()
+	defer srcLabel.mu.RUnlock()
+	targetLabel.mu.RLock()
+	defer targetLabel.mu.RUnlock()
+
+	var violatingTags []Tag
+	if checkSubset {
+		// Secrecy semantics: Check if all tags in source are in target (source ⊆ target)
+		for tag := range srcLabel.tags {
+			if _, ok := targetLabel.tags[tag]; !ok {
+				violatingTags = append(violatingTags, tag)
+			}
+		}
+		if len(violatingTags) > 0 {
+			logLabels.Printf("%s CheckFlow denied: source has tags not in target, extraTags=%v", labelType, violatingTags)
+		}
+	} else {
+		// Integrity semantics: Check if all tags in target are in source (source ⊇ target)
+		for tag := range targetLabel.tags {
+			if _, ok := srcLabel.tags[tag]; !ok {
+				violatingTags = append(violatingTags, tag)
+			}
+		}
+		if len(violatingTags) > 0 {
+			logLabels.Printf("%s CheckFlow denied: source missing required tags=%v", labelType, violatingTags)
 		}
 	}
 
-	if len(extraTags) > 0 {
-		logLabels.Printf("Secrecy CheckFlow denied: source has tags not in target, extraTags=%v", extraTags)
+	return len(violatingTags) == 0, violatingTags
+}
+
+// CheckFlow checks if this secrecy label can flow to target and returns violation details if not
+func (l *SecrecyLabel) CheckFlow(target *SecrecyLabel) (bool, []Tag) {
+	var srcLabel, targetLabel *Label
+	if l != nil {
+		srcLabel = l.Label
 	}
-	return len(extraTags) == 0, extraTags
+	if target != nil {
+		targetLabel = target.Label
+	}
+	return checkFlowHelper(srcLabel, targetLabel, true, "Secrecy")
 }
 
 // Clone creates a copy of the secrecy label
@@ -272,35 +327,14 @@ func (l *IntegrityLabel) CanFlowTo(target *IntegrityLabel) bool {
 
 // CheckFlow checks if this integrity label can flow to target and returns violation details if not
 func (l *IntegrityLabel) CheckFlow(target *IntegrityLabel) (bool, []Tag) {
-	if l == nil || l.Label == nil {
-		if target == nil || target.Label == nil || target.Label.IsEmpty() {
-			return true, nil
-		}
-		missingTags := target.Label.GetTags()
-		logLabels.Printf("Integrity CheckFlow denied: source is nil but target requires tags=%v", missingTags)
-		return false, missingTags
+	var srcLabel, targetLabel *Label
+	if l != nil {
+		srcLabel = l.Label
 	}
-	if target == nil || target.Label == nil {
-		return true, nil
+	if target != nil {
+		targetLabel = target.Label
 	}
-
-	l.Label.mu.RLock()
-	defer l.Label.mu.RUnlock()
-	target.Label.mu.RLock()
-	defer target.Label.mu.RUnlock()
-
-	var missingTags []Tag
-	// Check if all tags in target are in l
-	for tag := range target.Label.tags {
-		if _, ok := l.Label.tags[tag]; !ok {
-			missingTags = append(missingTags, tag)
-		}
-	}
-
-	if len(missingTags) > 0 {
-		logLabels.Printf("Integrity CheckFlow denied: source missing required tags=%v", missingTags)
-	}
-	return len(missingTags) == 0, missingTags
+	return checkFlowHelper(srcLabel, targetLabel, false, "Integrity")
 }
 
 // Clone creates a copy of the integrity label
