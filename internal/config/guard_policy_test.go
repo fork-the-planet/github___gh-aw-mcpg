@@ -1,0 +1,674 @@
+package config
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// TestNormalizeGuardPolicy tests NormalizeGuardPolicy with all branch paths.
+func TestNormalizeGuardPolicy(t *testing.T) {
+	tests := []struct {
+		name          string
+		policy        *GuardPolicy
+		wantScopeKind string
+		wantScopes    []string
+		wantIntegrity string
+		wantErr       string
+	}{
+		{
+			name:    "nil policy",
+			policy:  nil,
+			wantErr: "policy must include allow-only",
+		},
+		{
+			name:    "policy with nil AllowOnly",
+			policy:  &GuardPolicy{AllowOnly: nil},
+			wantErr: "policy must include allow-only",
+		},
+		{
+			name: "repos string all",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        "all",
+				MinIntegrity: "none",
+			}},
+			wantScopeKind: "all",
+			wantIntegrity: "none",
+		},
+		{
+			name: "repos string ALL (case-insensitive)",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        "ALL",
+				MinIntegrity: "none",
+			}},
+			wantScopeKind: "all",
+			wantIntegrity: "none",
+		},
+		{
+			name: "repos string public",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        "public",
+				MinIntegrity: "unapproved",
+			}},
+			wantScopeKind: "public",
+			wantIntegrity: "unapproved",
+		},
+		{
+			name: "repos string with whitespace trimmed",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        "  all  ",
+				MinIntegrity: "approved",
+			}},
+			wantScopeKind: "all",
+			wantIntegrity: "approved",
+		},
+		{
+			name: "repos string invalid value",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        "private",
+				MinIntegrity: "none",
+			}},
+			wantErr: "allow-only.repos string must be 'all' or 'public'",
+		},
+		{
+			name: "repos array with valid scopes sorted",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        []interface{}{"zorg/repo", "aorg/repo"},
+				MinIntegrity: "merged",
+			}},
+			wantScopeKind: "scoped",
+			wantScopes:    []string{"aorg/repo", "zorg/repo"},
+			wantIntegrity: "merged",
+		},
+		{
+			name: "repos []string type",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        []string{"myorg/repo", "myorg/*"},
+				MinIntegrity: "approved",
+			}},
+			wantScopeKind: "scoped",
+			wantScopes:    []string{"myorg/*", "myorg/repo"},
+			wantIntegrity: "approved",
+		},
+		{
+			name: "repos empty array",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        []interface{}{},
+				MinIntegrity: "none",
+			}},
+			wantErr: "allow-only.repos array must contain at least one scope",
+		},
+		{
+			name: "repos array with duplicates",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        []interface{}{"myorg/repo", "myorg/repo"},
+				MinIntegrity: "none",
+			}},
+			wantErr: "allow-only.repos must not contain duplicates",
+		},
+		{
+			name: "repos unsupported type (integer)",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        42,
+				MinIntegrity: "none",
+			}},
+			wantErr: "allow-only.repos must be 'all', 'public', or a non-empty array",
+		},
+		{
+			name: "invalid min-integrity value",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        "all",
+				MinIntegrity: "invalid",
+			}},
+			wantErr: "allow-only.min-integrity must be one of",
+		},
+		{
+			name: "min-integrity case-insensitive",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        "all",
+				MinIntegrity: "NONE",
+			}},
+			wantScopeKind: "all",
+			wantIntegrity: "none",
+		},
+		{
+			name: "min-integrity with whitespace trimmed",
+			policy: &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        "all",
+				MinIntegrity: "  merged  ",
+			}},
+			wantScopeKind: "all",
+			wantIntegrity: "merged",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NormalizeGuardPolicy(tt.policy)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.Nil(t, got)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			assert.Equal(t, tt.wantScopeKind, got.ScopeKind)
+			assert.Equal(t, tt.wantIntegrity, got.MinIntegrity)
+			if tt.wantScopes != nil {
+				assert.Equal(t, tt.wantScopes, got.ScopeValues)
+			}
+		})
+	}
+}
+
+// TestIsValidRepoScope tests all branch paths in isValidRepoScope.
+func TestIsValidRepoScope(t *testing.T) {
+	tests := []struct {
+		name  string
+		scope string
+		want  bool
+	}{
+		// Valid cases
+		{"simple exact match", "owner/repo", true},
+		{"owner wildcard", "owner/*", true},
+		{"prefix wildcard", "owner/prefix*", true},
+		{"owner with hyphen", "my-org/repo-name", true},
+		{"owner with underscore", "my_org/repo_name", true},
+		{"owner with digits", "org123/repo456", true},
+		{"single char owner", "a/b", true},
+		{"long valid owner 39 chars", strings.Repeat("a", 39) + "/repo", true},
+		{"long valid repo 100 chars", "owner/" + strings.Repeat("a", 100), true},
+
+		// Invalid: wrong number of parts
+		{"empty string", "", false},
+		{"no slash", "ownerrepo", false},
+		{"three parts", "owner/repo/extra", false},
+		{"leading slash", "/repo", false},
+		{"trailing slash", "owner/", false},
+
+		// Invalid owner
+		{"owner too long 40 chars", strings.Repeat("a", 40) + "/repo", false},
+		{"owner with uppercase", "Owner/repo", false},
+		{"owner with dot", "owner.name/repo", false},
+		{"owner with space", "owner name/repo", false},
+		{"owner with slash", "owner//repo", false},
+
+		// Invalid repo
+		{"repo too long 101 chars", "owner/" + strings.Repeat("a", 101), false},
+		{"repo with dot", "owner/repo.name", false},
+		{"repo with uppercase", "owner/Repo", false},
+		{"repo with space", "owner/repo name", false},
+
+		// Wildcard edge cases
+		{"double wildcard", "owner/**", false},
+		{"wildcard in middle", "owner/re*po", false},
+		{"wildcard at start of repo", "owner/*prefix", false},
+		{"double wildcard count", "owner/a*b*", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isValidRepoScope(tt.scope)
+			assert.Equal(t, tt.want, got, "isValidRepoScope(%q)", tt.scope)
+		})
+	}
+}
+
+// TestIsValidRepoOwner tests boundary conditions.
+func TestIsValidRepoOwner(t *testing.T) {
+	tests := []struct {
+		name  string
+		owner string
+		want  bool
+	}{
+		{"empty string", "", false},
+		{"single char", "a", true},
+		{"exactly 39 chars", strings.Repeat("a", 39), true},
+		{"exactly 40 chars", strings.Repeat("a", 40), false},
+		{"lowercase letters", "abcdef", true},
+		{"digits", "123456", true},
+		{"hyphen", "my-org", true},
+		{"underscore", "my_org", true},
+		{"uppercase letter", "MyOrg", false},
+		{"dot", "my.org", false},
+		{"space", "my org", false},
+		{"at sign", "my@org", false},
+		{"mixed valid chars", "my-org_123", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isValidRepoOwner(tt.owner)
+			assert.Equal(t, tt.want, got, "isValidRepoOwner(%q)", tt.owner)
+		})
+	}
+}
+
+// TestIsValidRepoName tests boundary conditions.
+func TestIsValidRepoName(t *testing.T) {
+	tests := []struct {
+		name     string
+		repoName string
+		want     bool
+	}{
+		{"empty string", "", false},
+		{"single char", "a", true},
+		{"exactly 100 chars", strings.Repeat("a", 100), true},
+		{"exactly 101 chars", strings.Repeat("a", 101), false},
+		{"lowercase letters", "my-repo", true},
+		{"digits", "repo123", true},
+		{"hyphen", "my-repo", true},
+		{"underscore", "my_repo", true},
+		{"uppercase letter", "MyRepo", false},
+		{"dot", "my.repo", false},
+		{"space", "my repo", false},
+		{"mixed valid chars", "my-repo_123", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isValidRepoName(tt.repoName)
+			assert.Equal(t, tt.want, got, "isValidRepoName(%q)", tt.repoName)
+		})
+	}
+}
+
+// TestNormalizeAndValidateScopeArray tests all branches in normalizeAndValidateScopeArray.
+func TestNormalizeAndValidateScopeArray(t *testing.T) {
+	tests := []struct {
+		name       string
+		scopes     []interface{}
+		wantResult []string
+		wantErr    string
+	}{
+		{
+			name:    "empty array",
+			scopes:  []interface{}{},
+			wantErr: "allow-only.repos array must contain at least one scope",
+		},
+		{
+			name:    "non-string element",
+			scopes:  []interface{}{42},
+			wantErr: "allow-only.repos array values must be strings",
+		},
+		{
+			name:    "empty string element",
+			scopes:  []interface{}{""},
+			wantErr: "allow-only.repos scope entries must not be empty",
+		},
+		{
+			name:    "whitespace-only element",
+			scopes:  []interface{}{"   "},
+			wantErr: "allow-only.repos scope entries must not be empty",
+		},
+		{
+			name:    "invalid scope pattern",
+			scopes:  []interface{}{"owner/repo.invalid"},
+			wantErr: "is invalid",
+		},
+		{
+			name:    "duplicate scopes",
+			scopes:  []interface{}{"myorg/repo", "myorg/repo"},
+			wantErr: "allow-only.repos must not contain duplicates",
+		},
+		{
+			name:       "valid single scope",
+			scopes:     []interface{}{"myorg/repo"},
+			wantResult: []string{"myorg/repo"},
+		},
+		{
+			name:       "multiple scopes sorted",
+			scopes:     []interface{}{"zorg/repo", "aorg/repo", "morg/*"},
+			wantResult: []string{"aorg/repo", "morg/*", "zorg/repo"},
+		},
+		{
+			name:       "scope with wildcard org",
+			scopes:     []interface{}{"myorg/*"},
+			wantResult: []string{"myorg/*"},
+		},
+		{
+			name:       "scope with prefix wildcard",
+			scopes:     []interface{}{"myorg/prefix*"},
+			wantResult: []string{"myorg/prefix*"},
+		},
+		{
+			name:    "mixed non-string and string",
+			scopes:  []interface{}{"myorg/repo", true},
+			wantErr: "allow-only.repos array values must be strings",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeAndValidateScopeArray(tt.scopes)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.Nil(t, got)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantResult, got)
+		})
+	}
+}
+
+// TestGuardPolicyUnmarshalJSON tests GuardPolicy.UnmarshalJSON edge cases.
+func TestGuardPolicyUnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		json    string
+		wantErr string
+		check   func(t *testing.T, p *GuardPolicy)
+	}{
+		{
+			name:    "invalid JSON",
+			json:    `{not json}`,
+			wantErr: "invalid character",
+		},
+		{
+			name:    "unsupported top-level field",
+			json:    `{"allow-only":{"repos":"all","min-integrity":"none"},"extra":"field"}`,
+			wantErr: `unsupported field "extra"`,
+		},
+		{
+			name:    "missing allow-only field",
+			json:    `{}`,
+			wantErr: "policy must include allow-only",
+		},
+		{
+			name: "canonical allow-only key",
+			json: `{"allow-only":{"repos":"all","min-integrity":"none"}}`,
+			check: func(t *testing.T, p *GuardPolicy) {
+				require.NotNil(t, p.AllowOnly)
+				assert.Equal(t, "all", p.AllowOnly.Repos)
+				assert.Equal(t, "none", p.AllowOnly.MinIntegrity)
+			},
+		},
+		{
+			name: "backward compat allowonly key (no dash)",
+			json: `{"allowonly":{"repos":"all","min-integrity":"none"}}`,
+			check: func(t *testing.T, p *GuardPolicy) {
+				require.NotNil(t, p.AllowOnly)
+				assert.Equal(t, "all", p.AllowOnly.Repos)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &GuardPolicy{}
+			err := json.Unmarshal([]byte(tt.json), p)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.check != nil {
+				tt.check(t, p)
+			}
+		})
+	}
+}
+
+// TestAllowOnlyPolicyUnmarshalJSON tests AllowOnlyPolicy.UnmarshalJSON edge cases.
+func TestAllowOnlyPolicyUnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		json    string
+		wantErr string
+		check   func(t *testing.T, p *AllowOnlyPolicy)
+	}{
+		{
+			name:    "invalid JSON",
+			json:    `{not json}`,
+			wantErr: "invalid character",
+		},
+		{
+			name:    "unsupported field",
+			json:    `{"repos":"all","min-integrity":"none","unknown":"field"}`,
+			wantErr: `allow-only contains unsupported field "unknown"`,
+		},
+		{
+			name:    "missing repos field",
+			json:    `{"min-integrity":"none"}`,
+			wantErr: "allow-only must include repos",
+		},
+		{
+			name:    "missing min-integrity field",
+			json:    `{"repos":"all"}`,
+			wantErr: "allow-only must include min-integrity",
+		},
+		{
+			name:    "whitespace-only min-integrity",
+			json:    `{"repos":"all","min-integrity":"   "}`,
+			wantErr: "allow-only must include min-integrity",
+		},
+		{
+			name: "canonical min-integrity key",
+			json: `{"repos":"all","min-integrity":"none"}`,
+			check: func(t *testing.T, p *AllowOnlyPolicy) {
+				assert.Equal(t, "none", p.MinIntegrity)
+				assert.Equal(t, "all", p.Repos)
+			},
+		},
+		{
+			name: "legacy integrity key accepted",
+			json: `{"repos":"public","integrity":"merged"}`,
+			check: func(t *testing.T, p *AllowOnlyPolicy) {
+				assert.Equal(t, "merged", p.MinIntegrity)
+				assert.Equal(t, "public", p.Repos)
+			},
+		},
+		{
+			name: "repos as array",
+			json: `{"repos":["myorg/*","myorg/repo"],"min-integrity":"unapproved"}`,
+			check: func(t *testing.T, p *AllowOnlyPolicy) {
+				assert.Equal(t, "unapproved", p.MinIntegrity)
+				repos, ok := p.Repos.([]interface{})
+				require.True(t, ok, "Repos should be []interface{}")
+				assert.Len(t, repos, 2)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &AllowOnlyPolicy{}
+			err := json.Unmarshal([]byte(tt.json), p)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			if tt.check != nil {
+				tt.check(t, p)
+			}
+		})
+	}
+}
+
+// TestGuardPolicyMarshalJSON tests round-trip JSON serialization.
+func TestGuardPolicyMarshalJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		policy  GuardPolicy
+		wantKey string
+	}{
+		{
+			name: "marshals with allow-only key (canonical)",
+			policy: GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+				Repos:        "all",
+				MinIntegrity: "none",
+			}},
+			wantKey: `"allow-only"`,
+		},
+		{
+			name:    "marshals empty policy (no AllowOnly)",
+			policy:  GuardPolicy{},
+			wantKey: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.policy)
+			require.NoError(t, err)
+
+			jsonStr := string(data)
+			if tt.wantKey != "" {
+				assert.Contains(t, jsonStr, tt.wantKey)
+				// Should NOT use legacy "allowonly" key
+				assert.NotContains(t, jsonStr, `"allowonly"`)
+			}
+		})
+	}
+}
+
+// TestAllowOnlyPolicyMarshalJSON tests AllowOnlyPolicy serializes with canonical keys.
+func TestAllowOnlyPolicyMarshalJSON(t *testing.T) {
+	policy := AllowOnlyPolicy{
+		Repos:        []interface{}{"myorg/*", "myorg/repo"},
+		MinIntegrity: "approved",
+	}
+
+	data, err := json.Marshal(policy)
+	require.NoError(t, err)
+
+	jsonStr := string(data)
+	assert.Contains(t, jsonStr, `"min-integrity"`)
+	assert.Contains(t, jsonStr, `"approved"`)
+	// Should NOT use legacy "integrity" key
+	assert.NotContains(t, jsonStr, `"integrity":`)
+}
+
+// TestParseGuardPolicyJSONComprehensive tests ParseGuardPolicyJSON edge cases.
+func TestParseGuardPolicyJSONComprehensive(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr string
+		check   func(t *testing.T, p *GuardPolicy)
+	}{
+		{
+			name:    "invalid JSON syntax",
+			input:   `{not valid json}`,
+			wantErr: "invalid guard policy JSON",
+		},
+		{
+			name:    "valid JSON but invalid policy structure",
+			input:   `{"allow-only":{"repos":"private","min-integrity":"none"}}`,
+			wantErr: "allow-only.repos string must be 'all' or 'public'",
+		},
+		{
+			name:    "valid JSON but invalid min-integrity",
+			input:   `{"allow-only":{"repos":"all","min-integrity":"bad"}}`,
+			wantErr: "allow-only.min-integrity must be one of",
+		},
+		{
+			name:    "missing allow-only entirely",
+			input:   `{}`,
+			wantErr: "invalid guard policy JSON",
+		},
+		{
+			name:  "valid policy all/none",
+			input: `{"allow-only":{"repos":"all","min-integrity":"none"}}`,
+			check: func(t *testing.T, p *GuardPolicy) {
+				require.NotNil(t, p.AllowOnly)
+				assert.Equal(t, "all", p.AllowOnly.Repos)
+				assert.Equal(t, "none", p.AllowOnly.MinIntegrity)
+			},
+		},
+		{
+			name:  "valid policy with scoped repos",
+			input: `{"allow-only":{"repos":["myorg/repo","myorg/*"],"min-integrity":"merged"}}`,
+			check: func(t *testing.T, p *GuardPolicy) {
+				require.NotNil(t, p.AllowOnly)
+				assert.Equal(t, "merged", p.AllowOnly.MinIntegrity)
+			},
+		},
+		{
+			name:  "valid policy with integrity key (legacy)",
+			input: `{"allow-only":{"repos":"public","integrity":"unapproved"}}`,
+			check: func(t *testing.T, p *GuardPolicy) {
+				require.NotNil(t, p.AllowOnly)
+				assert.Equal(t, "unapproved", p.AllowOnly.MinIntegrity)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseGuardPolicyJSON(tt.input)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.Nil(t, got)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, got)
+			if tt.check != nil {
+				tt.check(t, got)
+			}
+		})
+	}
+}
+
+// TestValidateGuardPolicy tests that ValidateGuardPolicy delegates to NormalizeGuardPolicy.
+func TestValidateGuardPolicy(t *testing.T) {
+	t.Run("nil policy returns error", func(t *testing.T) {
+		err := ValidateGuardPolicy(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "policy must include allow-only")
+	})
+
+	t.Run("valid policy returns nil", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:        "all",
+			MinIntegrity: "none",
+		}}
+		err := ValidateGuardPolicy(policy)
+		require.NoError(t, err)
+	})
+
+	t.Run("invalid policy returns error", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:        "all",
+			MinIntegrity: "invalid",
+		}}
+		err := ValidateGuardPolicy(policy)
+		require.Error(t, err)
+	})
+}
+
+// TestIsScopeTokenChar tests valid and invalid characters for scope tokens.
+func TestIsScopeTokenChar(t *testing.T) {
+	validChars := "abcdefghijklmnopqrstuvwxyz0123456789_-"
+	for i := 0; i < len(validChars); i++ {
+		c := validChars[i]
+		assert.True(t, isScopeTokenChar(c), "expected isScopeTokenChar(%q) == true", c)
+	}
+
+	invalidChars := "ABCDEFGHIJKLMNOPQRSTUVWXYZ./ @#$%^&*()"
+	for i := 0; i < len(invalidChars); i++ {
+		c := invalidChars[i]
+		assert.False(t, isScopeTokenChar(c), "expected isScopeTokenChar(%q) == false", c)
+	}
+}
