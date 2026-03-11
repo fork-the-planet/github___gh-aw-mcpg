@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/github/gh-aw-mcpg/internal/logger"
 )
+
+var logPathLabels = logger.New("difc:path_labels")
 
 // PathLabels represents a collection of labeled paths in a JSON response.
 // Guards return this structure to indicate which elements in the response
@@ -75,6 +79,7 @@ type PathLabeledData struct {
 // so that path labels can be applied to the inner JSON structure.
 func NewPathLabeledData(originalData interface{}, pathLabels *PathLabels) (*PathLabeledData, error) {
 	unwrapped, isMCPWrapped := unwrapMCPResponse(originalData)
+	logPathLabels.Printf("NewPathLabeledData: isMCPWrapped=%v, labeledPaths=%d", isMCPWrapped, len(pathLabels.LabeledPaths))
 
 	pld := &PathLabeledData{
 		OriginalData:  originalData,
@@ -125,6 +130,7 @@ func unwrapMCPResponse(data interface{}) (interface{}, bool) {
 		return data, false
 	}
 
+	logPathLabels.Print("unwrapMCPResponse: detected MCP-wrapped response, unwrapping inner JSON")
 	return inner, true
 }
 
@@ -141,6 +147,7 @@ func (p *PathLabeledData) resolve() error {
 	}
 
 	if items == nil {
+		logPathLabels.Print("resolve: no collection found, treating data as single item")
 		// No collection to label, treat as single item
 		p.resolvedItems = []LabeledItem{{
 			Data:   p.OriginalData,
@@ -163,6 +170,7 @@ func (p *PathLabeledData) resolve() error {
 	}
 
 	// Build labeled items
+	logPathLabels.Printf("resolve: resolving %d items with %d explicit path labels", len(items), len(indexLabels))
 	p.resolvedItems = make([]LabeledItem, len(items))
 	for i, item := range items {
 		labels := indexLabels[i]
@@ -354,9 +362,11 @@ func (p *PathLabeledData) ToCollectionLabeledData() *CollectionLabeledData {
 
 // ParsePathLabels parses a JSON response from a guard into PathLabels
 func ParsePathLabels(data []byte) (*PathLabels, error) {
+	logPathLabels.Printf("ParsePathLabels: parsing %d bytes", len(data))
 	var pl PathLabels
 	if err := json.Unmarshal(data, &pl); err != nil {
 		return nil, fmt.Errorf("failed to parse path labels: %w", err)
 	}
+	logPathLabels.Printf("ParsePathLabels: parsed %d labeled paths, hasDefaultLabels=%v", len(pl.LabeledPaths), pl.DefaultLabels != nil)
 	return &pl, nil
 }
