@@ -400,19 +400,13 @@ func TestNoopGuard_BlocksWriteAfterGitHubRead(t *testing.T) {
 	require.NotNil(result1)
 
 	// Step 2: Write to safeoutputs — noop guard should cause DIFC violation
-	result2, _, err := us.callBackendTool(ctx, "safeoutputs", "create_issue", map[string]interface{}{
+	_, _, err = us.callBackendTool(ctx, "safeoutputs", "create_issue", map[string]interface{}{
 		"title": "Should be blocked by noop",
 	})
 
-	// In filter mode, the result should be filtered (isError=true)
-	if err != nil {
-		// Expected in strict mode
-		require.Contains(err.Error(), "integrity", "noop should fail on integrity check")
-	} else {
-		// In filter mode, isError should be true
-		require.NotNil(result2)
-		require.True(result2.IsError, "noop guard should cause DIFC violation in filter mode")
-	}
+	// Non-read writes that fail DIFC should always return an error (even in filter mode).
+	require.Error(err)
+	require.Contains(err.Error(), "integrity", "noop should fail on integrity check")
 }
 
 // TestWriteSinkPolicy_ResolvedForWriteSinkServer verifies that
