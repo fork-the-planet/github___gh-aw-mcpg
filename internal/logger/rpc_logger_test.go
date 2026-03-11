@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"bufio"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -60,9 +62,7 @@ func TestFormatRPCMessage(t *testing.T) {
 			result := formatRPCMessage(tt.info)
 
 			for _, expected := range tt.want {
-				if !strings.Contains(result, expected) {
-					t.Errorf("Expected result to contain %q, got: %s", expected, result)
-				}
+				assert.Contains(t, result, expected, "formatRPCMessage result should contain %q", expected)
 			}
 		})
 	}
@@ -184,13 +184,11 @@ func TestFormatRPCMessageMarkdown(t *testing.T) {
 			result := formatRPCMessageMarkdown(tt.info)
 
 			for _, expected := range tt.want {
-				if !strings.Contains(result, expected) {
-					t.Errorf("Expected result to contain %q, got:\n%s", expected, result)
-				}
+				assert.Contains(t, result, expected, "formatRPCMessageMarkdown result should contain %q", expected)
 			}
 
 			for _, notExpected := range tt.notWant {
-				assert.False(t, strings.Contains(result, notExpected), "Expected result NOT to contain %q, got:\n%s")
+				assert.NotContains(t, result, notExpected, "formatRPCMessageMarkdown result should NOT contain %q", notExpected)
 			}
 		})
 	}
@@ -266,18 +264,15 @@ func TestFormatJSONWithoutFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, isValid, isEmpty := formatJSONWithoutFields(tt.input, tt.fieldsToRemove)
 
-			assert.Equal(t, tt.wantValid, isValid, "isValid=%v, got %v")
-
-			assert.Equal(t, tt.wantEmpty, isEmpty, "isEmpty=%v, got %v")
+			assert.Equal(t, tt.wantValid, isValid, "isValid mismatch")
+			assert.Equal(t, tt.wantEmpty, isEmpty, "isEmpty mismatch")
 
 			for _, want := range tt.wantContains {
-				if !strings.Contains(result, want) {
-					t.Errorf("Expected result to contain %q, got:\n%s", want, result)
-				}
+				assert.Contains(t, result, want, "result should contain %q", want)
 			}
 
 			for _, notWant := range tt.wantNotContain {
-				assert.False(t, strings.Contains(result, notWant), "Expected result NOT to contain %q, got:\n%s")
+				assert.NotContains(t, result, notWant, "result should NOT contain %q", notWant)
 			}
 		})
 	}
@@ -287,15 +282,10 @@ func TestLogRPCRequest(t *testing.T) {
 	tmpDir := t.TempDir()
 	logDir := filepath.Join(tmpDir, "logs")
 
-	// Initialize both loggers
-	if err := InitFileLogger(logDir, "test.log"); err != nil {
-		t.Fatalf("InitFileLogger failed: %v", err)
-	}
+	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
 	defer CloseGlobalLogger()
 
-	if err := InitMarkdownLogger(logDir, "test.md"); err != nil {
-		t.Fatalf("InitMarkdownLogger failed: %v", err)
-	}
+	require.NoError(t, InitMarkdownLogger(logDir, "test.md"), "InitMarkdownLogger failed")
 	defer CloseMarkdownLogger()
 
 	// Log an RPC request
@@ -312,40 +302,25 @@ func TestLogRPCRequest(t *testing.T) {
 	require.NoError(t, err, "Failed to read text log")
 
 	textStr := string(textContent)
-	expectedInText := []string{"github→tools/list", "58b"}
-	for _, expected := range expectedInText {
-		if !strings.Contains(textStr, expected) {
-			t.Errorf("Text log does not contain %q", expected)
-		}
-	}
+	assert.Contains(t, textStr, "github→tools/list")
+	assert.Contains(t, textStr, "58b")
 
 	// Check markdown log
 	mdLog := filepath.Join(logDir, "test.md")
 	mdContent, err := os.ReadFile(mdLog)
 	require.NoError(t, err, "Failed to read markdown log")
 
-	mdStr := string(mdContent)
-	expectedInMd := []string{"**github**→`tools/list`"}
-	for _, expected := range expectedInMd {
-		if !strings.Contains(mdStr, expected) {
-			t.Errorf("Markdown log does not contain %q", expected)
-		}
-	}
+	assert.Contains(t, string(mdContent), "**github**→`tools/list`")
 }
 
 func TestLogRPCResponse(t *testing.T) {
 	tmpDir := t.TempDir()
 	logDir := filepath.Join(tmpDir, "logs")
 
-	// Initialize both loggers
-	if err := InitFileLogger(logDir, "test.log"); err != nil {
-		t.Fatalf("InitFileLogger failed: %v", err)
-	}
+	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
 	defer CloseGlobalLogger()
 
-	if err := InitMarkdownLogger(logDir, "test.md"); err != nil {
-		t.Fatalf("InitMarkdownLogger failed: %v", err)
-	}
+	require.NoError(t, InitMarkdownLogger(logDir, "test.md"), "InitMarkdownLogger failed")
 	defer CloseMarkdownLogger()
 
 	// Log an RPC response with error
@@ -359,44 +334,31 @@ func TestLogRPCResponse(t *testing.T) {
 
 	// Check text log
 	textLog := filepath.Join(logDir, "test.log")
-	textContent, err := os.ReadFile(textLog)
-	require.NoError(t, err, "Failed to read text log")
+	textContent, readErr := os.ReadFile(textLog)
+	require.NoError(t, readErr, "Failed to read text log")
 
 	textStr := string(textContent)
-	expectedInText := []string{"github←resp", "err:backend connection failed"}
-	for _, expected := range expectedInText {
-		if !strings.Contains(textStr, expected) {
-			t.Errorf("Text log does not contain %q", expected)
-		}
-	}
+	assert.Contains(t, textStr, "github←resp")
+	assert.Contains(t, textStr, "err:backend connection failed")
 
 	// Check markdown log
 	mdLog := filepath.Join(logDir, "test.md")
-	mdContent, err := os.ReadFile(mdLog)
-	require.NoError(t, err, "Failed to read markdown log")
+	mdContent, readErr := os.ReadFile(mdLog)
+	require.NoError(t, readErr, "Failed to read markdown log")
 
 	mdStr := string(mdContent)
-	expectedInMd := []string{"**github**←`resp`", "⚠️`backend connection failed`"}
-	for _, expected := range expectedInMd {
-		if !strings.Contains(mdStr, expected) {
-			t.Errorf("Markdown log does not contain %q", expected)
-		}
-	}
+	assert.Contains(t, mdStr, "**github**←`resp`")
+	assert.Contains(t, mdStr, "⚠️`backend connection failed`")
 }
 
 func TestLogRPCRequestWithSecrets(t *testing.T) {
 	tmpDir := t.TempDir()
 	logDir := filepath.Join(tmpDir, "logs")
 
-	// Initialize both loggers
-	if err := InitFileLogger(logDir, "test.log"); err != nil {
-		t.Fatalf("InitFileLogger failed: %v", err)
-	}
+	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
 	defer CloseGlobalLogger()
 
-	if err := InitMarkdownLogger(logDir, "test.md"); err != nil {
-		t.Fatalf("InitMarkdownLogger failed: %v", err)
-	}
+	require.NoError(t, InitMarkdownLogger(logDir, "test.md"), "InitMarkdownLogger failed")
 	defer CloseMarkdownLogger()
 
 	// Log an RPC request with a secret
@@ -407,16 +369,16 @@ func TestLogRPCRequestWithSecrets(t *testing.T) {
 	CloseGlobalLogger()
 	CloseMarkdownLogger()
 
+	const secret = "ghp_1234567890123456789012345678901234567890"
+
 	// Check text log - should NOT contain the actual token
 	textLog := filepath.Join(logDir, "test.log")
 	textContent, err := os.ReadFile(textLog)
 	require.NoError(t, err, "Failed to read text log")
 
 	textStr := string(textContent)
-	if strings.Contains(textStr, "ghp_1234567890123456789012345678901234567890") {
-		t.Errorf("Text log contains secret that should be redacted")
-	}
-	assert.True(t, strings.Contains(textStr, "[REDACTED]"), "Text log does not contain [REDACTED] marker")
+	assert.NotContains(t, textStr, secret, "Text log should not contain the raw secret")
+	assert.Contains(t, textStr, "[REDACTED]", "Text log should contain [REDACTED] marker")
 
 	// Check markdown log - should NOT contain the actual token
 	mdLog := filepath.Join(logDir, "test.md")
@@ -424,25 +386,18 @@ func TestLogRPCRequestWithSecrets(t *testing.T) {
 	require.NoError(t, err, "Failed to read markdown log")
 
 	mdStr := string(mdContent)
-	if strings.Contains(mdStr, "ghp_1234567890123456789012345678901234567890") {
-		t.Errorf("Markdown log contains secret that should be redacted")
-	}
-	assert.True(t, strings.Contains(mdStr, "[REDACTED]"), "Markdown log does not contain [REDACTED] marker")
+	assert.NotContains(t, mdStr, secret, "Markdown log should not contain the raw secret")
+	assert.Contains(t, mdStr, "[REDACTED]", "Markdown log should contain [REDACTED] marker")
 }
 
 func TestLogRPCRequestPayloadTruncation(t *testing.T) {
 	tmpDir := t.TempDir()
 	logDir := filepath.Join(tmpDir, "logs")
 
-	// Initialize both loggers
-	if err := InitFileLogger(logDir, "test.log"); err != nil {
-		t.Fatalf("InitFileLogger failed: %v", err)
-	}
+	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
 	defer CloseGlobalLogger()
 
-	if err := InitMarkdownLogger(logDir, "test.md"); err != nil {
-		t.Fatalf("InitMarkdownLogger failed: %v", err)
-	}
+	require.NoError(t, InitMarkdownLogger(logDir, "test.md"), "InitMarkdownLogger failed")
 	defer CloseMarkdownLogger()
 
 	// Create a large payload (> 10KB for text, > 512 chars for markdown)
@@ -460,14 +415,9 @@ func TestLogRPCRequestPayloadTruncation(t *testing.T) {
 	require.NoError(t, err, "Failed to read text log")
 
 	textStr := string(textContent)
-	assert.True(t, strings.Contains(textStr, "..."), "Text log does not show truncation marker")
-
-	// The logged payload should not contain the full 12KB of x's
-	// (it should be truncated to 10KB + "...")
-	xCount := strings.Count(textStr, strings.Repeat("x", 11*1024))
-	if xCount > 0 {
-		t.Errorf("Text log contains more data than expected after truncation (should be ~10KB)")
-	}
+	assert.Contains(t, textStr, "...", "Text log should show truncation marker")
+	assert.Equal(t, 0, strings.Count(textStr, strings.Repeat("x", 11*1024)),
+		"Text log should not contain more than 10KB of data after truncation")
 
 	// Check markdown log - should be truncated at 512 chars
 	mdLog := filepath.Join(logDir, "test.md")
@@ -475,11 +425,172 @@ func TestLogRPCRequestPayloadTruncation(t *testing.T) {
 	require.NoError(t, err, "Failed to read markdown log")
 
 	mdStr := string(mdContent)
-	assert.True(t, strings.Contains(mdStr, "..."), "Markdown log does not show truncation marker")
+	assert.Contains(t, mdStr, "...", "Markdown log should show truncation marker")
+	assert.Equal(t, 0, strings.Count(mdStr, strings.Repeat("x", 600)),
+		"Markdown log should not contain more than 512 chars of data after truncation")
+}
 
-	// Markdown should have much less data (truncated at 512 chars)
-	xCountMd := strings.Count(mdStr, strings.Repeat("x", 600))
-	if xCountMd > 0 {
-		t.Errorf("Markdown log contains more data than expected after truncation (should be ~512 chars)")
+func TestLogRPCRequestWithAgentSnapshot(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
+	defer CloseGlobalLogger()
+
+	require.NoError(t, InitJSONLLogger(logDir, "test.jsonl"), "InitJSONLLogger failed")
+	defer CloseJSONLLogger()
+
+	agentSecrecy := []string{"private", "confidential"}
+	agentIntegrity := []string{"trusted"}
+
+	payload := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{}}`)
+	LogRPCRequestWithAgentSnapshot(RPCDirectionOutbound, "github", "tools/call", payload, agentSecrecy, agentIntegrity)
+
+	CloseGlobalLogger()
+	CloseJSONLLogger()
+
+	// Verify agent tags are recorded in the JSONL log
+	jsonlPath := filepath.Join(logDir, "test.jsonl")
+	content, err := os.ReadFile(jsonlPath)
+	require.NoError(t, err, "Failed to read JSONL log")
+
+	var entry JSONLRPCMessage
+	require.NoError(t, json.Unmarshal(content, &entry), "Failed to parse JSONL entry")
+
+	assert.Equal(t, "REQUEST", entry.Type)
+	assert.Equal(t, "OUT", entry.Direction)
+	assert.Equal(t, "github", entry.ServerID)
+	assert.Equal(t, "tools/call", entry.Method)
+	assert.ElementsMatch(t, agentSecrecy, entry.AgentSecrecy, "AgentSecrecy tags should be recorded")
+	assert.ElementsMatch(t, agentIntegrity, entry.AgentIntegrity, "AgentIntegrity tags should be recorded")
+}
+
+func TestLogRPCResponseWithAgentSnapshot(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
+	defer CloseGlobalLogger()
+
+	require.NoError(t, InitJSONLLogger(logDir, "test.jsonl"), "InitJSONLLogger failed")
+	defer CloseJSONLLogger()
+
+	agentSecrecy := []string{"public"}
+	agentIntegrity := []string{"approved", "merged"}
+
+	payload := []byte(`{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}`)
+	LogRPCResponseWithAgentSnapshot(RPCDirectionInbound, "github", payload, nil, agentSecrecy, agentIntegrity)
+
+	CloseGlobalLogger()
+	CloseJSONLLogger()
+
+	// Verify agent tags are recorded in the JSONL log
+	jsonlPath := filepath.Join(logDir, "test.jsonl")
+	content, err := os.ReadFile(jsonlPath)
+	require.NoError(t, err, "Failed to read JSONL log")
+
+	var entry JSONLRPCMessage
+	require.NoError(t, json.Unmarshal(content, &entry), "Failed to parse JSONL entry")
+
+	assert.Equal(t, "RESPONSE", entry.Type)
+	assert.Equal(t, "IN", entry.Direction)
+	assert.Equal(t, "github", entry.ServerID)
+	assert.ElementsMatch(t, agentSecrecy, entry.AgentSecrecy, "AgentSecrecy tags should be recorded")
+	assert.ElementsMatch(t, agentIntegrity, entry.AgentIntegrity, "AgentIntegrity tags should be recorded")
+}
+
+func TestLogRPCRequestWithAgentSnapshot_EmptyTags(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
+	defer CloseGlobalLogger()
+
+	require.NoError(t, InitJSONLLogger(logDir, "test.jsonl"), "InitJSONLLogger failed")
+	defer CloseJSONLLogger()
+
+	payload := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
+	LogRPCRequestWithAgentSnapshot(RPCDirectionOutbound, "github", "tools/list", payload, nil, nil)
+
+	CloseGlobalLogger()
+	CloseJSONLLogger()
+
+	jsonlPath := filepath.Join(logDir, "test.jsonl")
+	content, err := os.ReadFile(jsonlPath)
+	require.NoError(t, err, "Failed to read JSONL log")
+
+	var entry JSONLRPCMessage
+	require.NoError(t, json.Unmarshal(content, &entry), "Failed to parse JSONL entry")
+
+	// nil slices should not appear as fields in JSON
+	assert.Nil(t, entry.AgentSecrecy, "AgentSecrecy should be nil when empty tags passed")
+	assert.Nil(t, entry.AgentIntegrity, "AgentIntegrity should be nil when empty tags passed")
+}
+
+func TestLogRPCMessage(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
+	defer CloseGlobalLogger()
+
+	require.NoError(t, InitMarkdownLogger(logDir, "test.md"), "InitMarkdownLogger failed")
+	defer CloseMarkdownLogger()
+
+	info := &RPCMessageInfo{
+		Direction:   RPCDirectionOutbound,
+		MessageType: RPCMessageRequest,
+		ServerID:    "custom-server",
+		Method:      "custom/method",
+		PayloadSize: 42,
+		Payload:     `{"key":"value"}`,
 	}
+	LogRPCMessage(info)
+
+	CloseGlobalLogger()
+	CloseMarkdownLogger()
+
+	// Verify text log
+	textContent, err := os.ReadFile(filepath.Join(logDir, "test.log"))
+	require.NoError(t, err)
+	assert.Contains(t, string(textContent), "custom-server→custom/method")
+
+	// Verify markdown log
+	mdContent, err := os.ReadFile(filepath.Join(logDir, "test.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(mdContent), "**custom-server**→`custom/method`")
+}
+
+func TestLogRPCResponse_NoError(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
+	defer CloseGlobalLogger()
+
+	require.NoError(t, InitJSONLLogger(logDir, "test.jsonl"), "InitJSONLLogger failed")
+	defer CloseJSONLLogger()
+
+	payload := []byte(`{"jsonrpc":"2.0","id":1,"result":{}}`)
+	LogRPCResponse(RPCDirectionInbound, "backend", payload, nil)
+
+	CloseGlobalLogger()
+	CloseJSONLLogger()
+
+	// Verify JSONL entry has no error field when nil error is passed
+	jsonlContent, err := os.ReadFile(filepath.Join(logDir, "test.jsonl"))
+	require.NoError(t, err)
+
+	var jsonlLines []string
+	scanner := bufio.NewScanner(strings.NewReader(string(jsonlContent)))
+	for scanner.Scan() {
+		jsonlLines = append(jsonlLines, scanner.Text())
+	}
+	require.Len(t, jsonlLines, 1, "Expected exactly 1 JSONL entry")
+
+	var entry JSONLRPCMessage
+	require.NoError(t, json.Unmarshal([]byte(jsonlLines[0]), &entry))
+	assert.Empty(t, entry.Error, "Error field should be empty when no error")
+	assert.Equal(t, "RESPONSE", entry.Type)
+	assert.Equal(t, "backend", entry.ServerID)
 }
