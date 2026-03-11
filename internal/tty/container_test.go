@@ -8,12 +8,28 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// unsetEnvForTest unsets key for the duration of a test, restoring its original state
+// via t.Cleanup. Use t.Setenv(key, value) to set a value instead.
+func unsetEnvForTest(t *testing.T, key string) {
+	t.Helper()
+	orig, existed := os.LookupEnv(key)
+	t.Cleanup(func() {
+		if existed {
+			os.Setenv(key, orig)
+		} else {
+			os.Unsetenv(key)
+		}
+	})
+	os.Unsetenv(key)
+}
+
 func TestIsRunningInContainer_EnvironmentVariable(t *testing.T) {
 	tests := []struct {
 		name     string
 		envValue string
-		// Note: expected value may vary based on actual environment
-		// If running in a container, file-based checks may return true
+		unset    bool // when true, the env var should not be set for this test case
+		// Note: expected value may vary based on actual environment.
+		// If running in a container, file-based checks may return true.
 		expectEnvDetection bool
 	}{
 		{
@@ -33,7 +49,7 @@ func TestIsRunningInContainer_EnvironmentVariable(t *testing.T) {
 		},
 		{
 			name:               "RUNNING_IN_CONTAINER not set",
-			envValue:           "__UNSET__",
+			unset:              true,
 			expectEnvDetection: false,
 		},
 		{
@@ -45,46 +61,26 @@ func TestIsRunningInContainer_EnvironmentVariable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save original environment variable
-			originalValue, originalExists := os.LookupEnv("RUNNING_IN_CONTAINER")
-			defer func() {
-				if originalExists {
-					os.Setenv("RUNNING_IN_CONTAINER", originalValue)
-				} else {
-					os.Unsetenv("RUNNING_IN_CONTAINER")
-				}
-			}()
-
-			// Set test environment variable
-			if tt.envValue == "__UNSET__" {
-				os.Unsetenv("RUNNING_IN_CONTAINER")
+			if tt.unset {
+				unsetEnvForTest(t, "RUNNING_IN_CONTAINER")
 			} else {
-				os.Setenv("RUNNING_IN_CONTAINER", tt.envValue)
+				t.Setenv("RUNNING_IN_CONTAINER", tt.envValue)
 			}
 
 			result := IsRunningInContainer()
 
-			// If the environment variable detection should trigger, verify it does
-			// If not, the result depends on file-based checks which we can't control
+			// If the environment variable detection should trigger, verify it does.
+			// We don't assert false because file-based checks might return true.
 			if tt.expectEnvDetection {
 				assert.True(t, result, "Expected true when RUNNING_IN_CONTAINER=%s", tt.envValue)
 			}
-			// Note: We don't assert false here because file-based checks might return true
 		})
 	}
 }
 
 func TestIsRunningInContainer_FileBasedDetection(t *testing.T) {
-	// Clear the environment variable to test only file-based detection
-	originalValue, originalExists := os.LookupEnv("RUNNING_IN_CONTAINER")
-	defer func() {
-		if originalExists {
-			os.Setenv("RUNNING_IN_CONTAINER", originalValue)
-		} else {
-			os.Unsetenv("RUNNING_IN_CONTAINER")
-		}
-	}()
-	os.Unsetenv("RUNNING_IN_CONTAINER")
+	// Clear the environment variable to test only file-based detection.
+	unsetEnvForTest(t, "RUNNING_IN_CONTAINER")
 
 	result := IsRunningInContainer()
 
@@ -114,35 +110,25 @@ func TestIsRunningInContainer_FileBasedDetection(t *testing.T) {
 }
 
 func TestIsRunningInContainer_AllMethodsCombined(t *testing.T) {
-	// This test documents the complete detection logic
-	// It will pass regardless of environment, serving as documentation
-
-	// Save original environment
-	originalValue, originalExists := os.LookupEnv("RUNNING_IN_CONTAINER")
-	defer func() {
-		if originalExists {
-			os.Setenv("RUNNING_IN_CONTAINER", originalValue)
-		} else {
-			os.Unsetenv("RUNNING_IN_CONTAINER")
-		}
-	}()
+	// This test documents the complete detection logic.
+	// It passes regardless of environment, serving as documentation.
 
 	tests := []struct {
 		name                  string
-		setupEnv              func()
+		setupEnv              func(t *testing.T)
 		verifyAgainstFilesSys bool
 	}{
 		{
 			name: "with RUNNING_IN_CONTAINER=true",
-			setupEnv: func() {
-				os.Setenv("RUNNING_IN_CONTAINER", "true")
+			setupEnv: func(t *testing.T) {
+				t.Setenv("RUNNING_IN_CONTAINER", "true")
 			},
 			verifyAgainstFilesSys: false, // Env var takes precedence
 		},
 		{
 			name: "without RUNNING_IN_CONTAINER env var",
-			setupEnv: func() {
-				os.Unsetenv("RUNNING_IN_CONTAINER")
+			setupEnv: func(t *testing.T) {
+				unsetEnvForTest(t, "RUNNING_IN_CONTAINER")
 			},
 			verifyAgainstFilesSys: true, // Should check files
 		},
@@ -150,7 +136,7 @@ func TestIsRunningInContainer_AllMethodsCombined(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.setupEnv()
+			tt.setupEnv(t)
 
 			result := IsRunningInContainer()
 
@@ -193,16 +179,6 @@ func TestIsRunningInContainer_AllMethodsCombined(t *testing.T) {
 }
 
 func TestIsRunningInContainer_EdgeCases(t *testing.T) {
-	// Save original environment
-	originalValue, originalExists := os.LookupEnv("RUNNING_IN_CONTAINER")
-	defer func() {
-		if originalExists {
-			os.Setenv("RUNNING_IN_CONTAINER", originalValue)
-		} else {
-			os.Unsetenv("RUNNING_IN_CONTAINER")
-		}
-	}()
-
 	tests := []struct {
 		name     string
 		envValue string
@@ -237,7 +213,7 @@ func TestIsRunningInContainer_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			os.Setenv("RUNNING_IN_CONTAINER", tt.envValue)
+			t.Setenv("RUNNING_IN_CONTAINER", tt.envValue)
 
 			result := IsRunningInContainer()
 
@@ -253,18 +229,8 @@ func TestIsRunningInContainer_EdgeCases(t *testing.T) {
 }
 
 func TestIsRunningInContainer_Consistency(t *testing.T) {
-	// Test that multiple calls return the same result (no race conditions)
-	// Save original environment
-	originalValue, originalExists := os.LookupEnv("RUNNING_IN_CONTAINER")
-	defer func() {
-		if originalExists {
-			os.Setenv("RUNNING_IN_CONTAINER", originalValue)
-		} else {
-			os.Unsetenv("RUNNING_IN_CONTAINER")
-		}
-	}()
-
-	os.Unsetenv("RUNNING_IN_CONTAINER")
+	// Test that multiple calls return the same result (no race conditions).
+	unsetEnvForTest(t, "RUNNING_IN_CONTAINER")
 
 	// Call multiple times and verify consistency
 	results := make([]bool, 10)
@@ -280,18 +246,8 @@ func TestIsRunningInContainer_Consistency(t *testing.T) {
 }
 
 func TestIsRunningInContainer_ConcurrentAccess(t *testing.T) {
-	// Test thread safety with concurrent calls
-	// Save original environment
-	originalValue, originalExists := os.LookupEnv("RUNNING_IN_CONTAINER")
-	defer func() {
-		if originalExists {
-			os.Setenv("RUNNING_IN_CONTAINER", originalValue)
-		} else {
-			os.Unsetenv("RUNNING_IN_CONTAINER")
-		}
-	}()
-
-	os.Setenv("RUNNING_IN_CONTAINER", "true")
+	// Test thread safety with concurrent calls.
+	t.Setenv("RUNNING_IN_CONTAINER", "true")
 
 	// Run 100 concurrent checks
 	done := make(chan bool, 100)
