@@ -63,35 +63,38 @@ func newMCPBackend(t *testing.T, tools []map[string]interface{}) *httptest.Serve
 			return
 		}
 		method, _ := req["method"].(string)
+		w.Header().Set("Content-Type", "application/json")
 		switch method {
 		case "initialize":
-			resp := map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0", "id": req["id"],
 				"result": map[string]interface{}{
 					"protocolVersion": "2024-11-05",
 					"capabilities":    map[string]interface{}{},
 					"serverInfo":      map[string]interface{}{"name": "test-backend", "version": "1.0"},
 				},
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(resp)
+			})
 		case "tools/list":
-			resp := map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0", "id": req["id"],
 				"result": map[string]interface{}{"tools": tools},
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(resp)
+			})
 		case "tools/call":
-			resp := map[string]interface{}{
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"jsonrpc": "2.0", "id": req["id"],
 				"result": map[string]interface{}{
 					"content": []map[string]interface{}{{"type": "text", "text": "ok"}},
 					"isError": false,
 				},
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(resp)
+			})
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"error": map[string]interface{}{
+					"code":    -32601,
+					"message": "method not found: " + method,
+				},
+			})
 		}
 	}))
 }
@@ -313,26 +316,13 @@ func TestWriteSinkGuard_RejectsSecrecyMismatch(t *testing.T) {
 	require.NoError(err)
 	require.NotNil(result1)
 
-	// Step 2: Write to safeoutputs — should be BLOCKED in filter mode
-	// because agent has private:github/secret-org* which is NOT in accept list
-	result2, _, err := us.callBackendTool(ctx, "safeoutputs", "create_issue", map[string]interface{}{
+	// Step 2: Write to safeoutputs — should be BLOCKED because agent has
+	// private:github/secret-org* which is NOT covered by the accept list.
+	// Non-read writes that fail DIFC always return an error (even in filter mode).
+	_, _, err = us.callBackendTool(ctx, "safeoutputs", "create_issue", map[string]interface{}{
 		"title": "Should be blocked",
 	})
-
-	// In filter mode, DIFC violations return a filtered response (not an error)
-	// The result should indicate it was blocked/filtered
-	if err != nil {
-		// Strict mode would return an error
-		require.Contains(err.Error(), "secrecy", "should fail due to secrecy mismatch")
-	} else {
-		// Filter mode returns isError=true with DIFC violation message
-		require.NotNil(result2)
-		if result2.IsError {
-			// Check the content for DIFC violation
-			content := result2.Content
-			require.NotEmpty(content, "filtered result should have content explaining the violation")
-		}
-	}
+	require.Error(err, "write-sink should reject write when agent has uncovered secrecy tags")
 }
 
 // TestNoopGuard_BlocksWriteAfterGitHubRead demonstrates that without a
