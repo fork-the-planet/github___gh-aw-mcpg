@@ -405,21 +405,28 @@ Available Commands:
   help        Help about any command
 
 Flags:
-  -c, --config string                Path to config file
-      --config-stdin                 Read MCP server configuration from stdin (JSON format). When enabled, overrides --config
-      --env string                   Path to .env file to load environment variables
-  -h, --help                         help for awmg
-  -l, --listen string                HTTP server listen address (default "127.0.0.1:3000")
-      --log-dir string               Directory for log files (falls back to stdout if directory cannot be created) (default "/tmp/gh-aw/mcp-logs")
-      --payload-dir string           Directory for storing large payload files (segmented by session ID) (default "/tmp/jq-payloads")
-      --payload-path-prefix string   Path prefix to use when returning payloadPath to clients (allows remapping host paths to client/agent container paths)
-      --payload-size-threshold int   Size threshold (in bytes) for storing payloads to disk. Payloads larger than this are stored, smaller ones returned inline (default 524288)
-      --routed                       Run in routed mode (each backend at /mcp/<server>)
-      --sequential-launch            Launch MCP servers sequentially during startup (parallel launch is default)
-      --unified                      Run in unified mode (all backends at /mcp)
-      --validate-env                 Validate execution environment (Docker, env vars) before starting
-  -v, --verbose count                Increase verbosity level (use -v for info, -vv for debug, -vvv for trace)
-      --version                      version for awmg
+      --allowonly-min-integrity string   AllowOnly integrity: none|unapproved|approved|merged
+      --allowonly-scope-owner string     AllowOnly owner scope value
+      --allowonly-scope-public           Use public AllowOnly scope
+      --allowonly-scope-repo string      AllowOnly repo name (requires owner)
+  -c, --config string                    Path to config file
+      --config-stdin                     Read MCP server configuration from stdin (JSON format). When enabled, overrides --config
+      --env string                       Path to .env file to load environment variables
+      --guard-policy-json string         Guard policy JSON (e.g. {"allow-only":{"repos":"public","min-integrity":"none"}})
+      --guards-mode string               Guards enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads) (default "strict")
+      --guards-sink-server-ids string    Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots
+  -h, --help                             help for awmg
+  -l, --listen string                    HTTP server listen address (default "127.0.0.1:3000")
+      --log-dir string                   Directory for log files (falls back to stdout if directory cannot be created) (default "/tmp/gh-aw/mcp-logs")
+      --payload-dir string               Directory for storing large payload files (segmented by session ID) (default "/tmp/jq-payloads")
+      --payload-path-prefix string       Path prefix to use when returning payloadPath to clients (allows remapping host paths to client/agent container paths)
+      --payload-size-threshold int       Size threshold (in bytes) for storing payloads to disk. Payloads larger than this are stored, smaller ones returned inline (default 524288)
+      --routed                           Run in routed mode (each backend at /mcp/<server>)
+      --sequential-launch                Launch MCP servers sequentially during startup (parallel launch is default)
+      --unified                          Run in unified mode (all backends at /mcp)
+      --validate-env                     Validate execution environment (Docker, env vars) before starting
+  -v, --verbose count                    Increase verbosity level (use -v for info, -vv for debug, -vvv for trace)
+      --version                          version for awmg
 
 Use "awmg [command] --help" for more information about a command.
 ```
@@ -452,6 +459,7 @@ When running locally (`run.sh`), these variables are optional (warnings shown if
 | `MCP_GATEWAY_PAYLOAD_PATH_PREFIX` | Path prefix for remapping payloadPath returned to clients (sets default for `--payload-path-prefix` flag) | (empty - use actual filesystem path) |
 | `MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD` | Size threshold in bytes for payload storage (sets default for `--payload-size-threshold` flag) | `524288` |
 | `MCP_GATEWAY_WASM_GUARDS_DIR` | Root directory for per-server WASM guards (`<root>/<serverID>/*.wasm`, first match is loaded) | (disabled) |
+| `MCP_GATEWAY_GUARDS_MODE` | Guards enforcement mode: `strict` (deny violations), `filter` (remove denied tools), `propagate` (auto-adjust agent labels) (sets default for `--guards-mode`) | `strict` |
 | `MCP_GATEWAY_GUARDS_SINK_SERVER_IDS` | Comma-separated sink server IDs for JSONL guards tag enrichment (sets default for `--guards-sink-server-ids`) | (disabled) |
 | `DEBUG` | Enable debug logging with pattern matching (e.g., `*`, `server:*,launcher:*`) | (disabled) |
 | `DEBUG_COLORS` | Control colored debug output (0 to disable, auto-disabled when piping) | Auto-detect |
@@ -474,6 +482,18 @@ When using `run_containerized.sh`, these additional variables are available:
 |----------|-------------|---------|
 | `DOCKER_HOST` | Docker daemon socket path | `/var/run/docker.sock` |
 | `DOCKER_API_VERSION` | Docker API version (set by helper scripts, Docker client auto-negotiates) | Set by querying Docker daemon's current API version; falls back to `1.44` if detection fails |
+
+### DIFC / Guard Policy Configuration
+
+These environment variables configure guard policies (e.g., AllowOnly policies for restricting tool access to specific GitHub repositories):
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MCP_GATEWAY_GUARD_POLICY_JSON` | Guard policy JSON (e.g., `{"allow-only":{"repos":"public","min-integrity":"none"}}`) (sets default for `--guard-policy-json`) | (disabled) |
+| `MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC` | Use public AllowOnly scope (sets default for `--allowonly-scope-public`) | `false` |
+| `MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER` | AllowOnly owner scope value (sets default for `--allowonly-scope-owner`) | (disabled) |
+| `MCP_GATEWAY_ALLOWONLY_SCOPE_REPO` | AllowOnly repo name (requires owner) (sets default for `--allowonly-scope-repo`) | (disabled) |
+| `MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY` | AllowOnly integrity level: `none`, `unapproved`, `approved`, `merged` (sets default for `--allowonly-min-integrity`) | (disabled) |
 
 ## Containerized Mode
 
