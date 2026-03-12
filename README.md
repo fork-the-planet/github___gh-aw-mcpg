@@ -21,6 +21,7 @@ This gateway is used with [GitHub Agentic Workflows](https://github.com/github/g
   - **Unified**: Single endpoint `/mcp` that routes to configured servers
 - **Docker Support**: Launch backend MCP servers as Docker containers
 - **Stdio Transport**: JSON-RPC 2.0 over stdin/stdout for MCP communication
+- **HTTP Transport**: Full support for HTTP-based MCP backends with session state preserved across requests
 - **Container Detection**: Automatic detection of containerized environments with security warnings
 - **Enhanced Debugging**: Detailed error context and troubleshooting suggestions for command failures
 - **Per-ServerID Logs**: Separate log files for each backend MCP server (`{serverID}.log`) for easier troubleshooting
@@ -731,6 +732,7 @@ This Go port focuses on core MCP proxy functionality with optional security feat
 - ✅ TOML and JSON stdin configuration with spec-compliant validation
 - ✅ Environment variable expansion (`${VAR_NAME}`) with fail-fast behavior
 - ✅ Stdio transport for backend servers (containerized execution only)
+- ✅ HTTP transport for backend servers (session state preserved across requests)
 - ✅ Docker container launching
 - ✅ Routed and unified modes
 - ✅ Basic request/response proxying
