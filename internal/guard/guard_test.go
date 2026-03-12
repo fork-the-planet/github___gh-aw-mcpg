@@ -756,3 +756,311 @@ func TestParseLabelAgentResponse(t *testing.T) {
 		assert.Contains(t, err.Error(), "missing field allow-only")
 	})
 }
+
+func TestIsValidAllowOnlyRepos(t *testing.T) {
+	tests := []struct {
+		name  string
+		input interface{}
+		want  bool
+	}{
+		// String "all" variants
+		{name: "string all lowercase", input: "all", want: true},
+		{name: "string all uppercase", input: "ALL", want: true},
+		{name: "string all with spaces", input: "  all  ", want: true},
+		// String "public" variants
+		{name: "string public lowercase", input: "public", want: true},
+		{name: "string public uppercase", input: "PUBLIC", want: true},
+		{name: "string public mixed case", input: "Public", want: true},
+		// Invalid strings
+		{name: "string private", input: "private", want: false},
+		{name: "string empty", input: "", want: false},
+		{name: "string whitespace only", input: "   ", want: false},
+		{name: "string random", input: "owner/repo", want: false},
+		// Valid arrays
+		{name: "array with one string", input: []interface{}{"owner/repo"}, want: true},
+		{name: "array with multiple strings", input: []interface{}{"owner/repo1", "owner/repo2"}, want: true},
+		// Invalid arrays
+		{name: "empty array", input: []interface{}{}, want: false},
+		{name: "array with non-string element", input: []interface{}{42}, want: false},
+		{name: "array with mixed string and non-string", input: []interface{}{"owner/repo", 42}, want: false},
+		{name: "array with nil element", input: []interface{}{nil}, want: false},
+		// Other types
+		{name: "integer", input: 42, want: false},
+		{name: "nil", input: nil, want: false},
+		{name: "bool true", input: true, want: false},
+		{name: "map", input: map[string]interface{}{"key": "value"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isValidAllowOnlyRepos(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestParseResourceResponse(t *testing.T) {
+	t.Run("valid resource with secrecy and integrity labels and read operation", func(t *testing.T) {
+		response := map[string]interface{}{
+			"resource": map[string]interface{}{
+				"description": "test resource",
+				"secrecy":     []interface{}{"private:owner/repo"},
+				"integrity":   []interface{}{"approved"},
+			},
+			"operation": "read",
+		}
+
+		resource, operation, err := parseResourceResponse(response)
+		require.NoError(t, err)
+		require.NotNil(t, resource)
+		assert.Equal(t, "test resource", resource.Description)
+		assert.Equal(t, difc.OperationRead, operation)
+		assert.Contains(t, resource.Secrecy.Label.GetTags(), difc.Tag("private:owner/repo"))
+		assert.Contains(t, resource.Integrity.Label.GetTags(), difc.Tag("approved"))
+	})
+
+	t.Run("write operation", func(t *testing.T) {
+		response := map[string]interface{}{
+			"resource":  map[string]interface{}{},
+			"operation": "write",
+		}
+
+		_, operation, err := parseResourceResponse(response)
+		require.NoError(t, err)
+		assert.Equal(t, difc.OperationWrite, operation)
+	})
+
+	t.Run("read-write operation", func(t *testing.T) {
+		response := map[string]interface{}{
+			"resource":  map[string]interface{}{},
+			"operation": "read-write",
+		}
+
+		_, operation, err := parseResourceResponse(response)
+		require.NoError(t, err)
+		assert.Equal(t, difc.OperationReadWrite, operation)
+	})
+
+	t.Run("missing operation defaults to write", func(t *testing.T) {
+		response := map[string]interface{}{
+			"resource": map[string]interface{}{"description": "no-op"},
+		}
+
+		_, operation, err := parseResourceResponse(response)
+		require.NoError(t, err)
+		assert.Equal(t, difc.OperationWrite, operation, "missing operation should default to write (most restrictive)")
+	})
+
+	t.Run("unknown operation string defaults to write", func(t *testing.T) {
+		response := map[string]interface{}{
+			"resource":  map[string]interface{}{},
+			"operation": "unknown-op",
+		}
+
+		_, operation, err := parseResourceResponse(response)
+		require.NoError(t, err)
+		assert.Equal(t, difc.OperationWrite, operation)
+	})
+
+	t.Run("missing resource key returns error", func(t *testing.T) {
+		response := map[string]interface{}{
+			"operation": "read",
+		}
+
+		resource, _, err := parseResourceResponse(response)
+		require.Error(t, err)
+		assert.Nil(t, resource)
+		assert.Contains(t, err.Error(), "invalid resource format")
+	})
+
+	t.Run("resource not a map returns error", func(t *testing.T) {
+		response := map[string]interface{}{
+			"resource":  "not-a-map",
+			"operation": "read",
+		}
+
+		resource, _, err := parseResourceResponse(response)
+		require.Error(t, err)
+		assert.Nil(t, resource)
+	})
+
+	t.Run("resource without description uses empty string", func(t *testing.T) {
+		response := map[string]interface{}{
+			"resource": map[string]interface{}{
+				"secrecy": []interface{}{"tag1"},
+			},
+		}
+
+		resource, _, err := parseResourceResponse(response)
+		require.NoError(t, err)
+		assert.Equal(t, "", resource.Description)
+	})
+
+	t.Run("resource without labels has empty labels", func(t *testing.T) {
+		response := map[string]interface{}{
+			"resource": map[string]interface{}{
+				"description": "minimal resource",
+			},
+		}
+
+		resource, _, err := parseResourceResponse(response)
+		require.NoError(t, err)
+		assert.True(t, resource.Secrecy.Label.IsEmpty(), "secrecy should be empty when not specified")
+		assert.True(t, resource.Integrity.Label.IsEmpty(), "integrity should be empty when not specified")
+	})
+
+	t.Run("non-string secrecy tags are skipped", func(t *testing.T) {
+		response := map[string]interface{}{
+			"resource": map[string]interface{}{
+				"secrecy": []interface{}{"valid-tag", 42, nil, "another-valid-tag"},
+			},
+		}
+
+		resource, _, err := parseResourceResponse(response)
+		require.NoError(t, err)
+		tags := resource.Secrecy.Label.GetTags()
+		assert.Len(t, tags, 2, "non-string secrecy entries should be skipped")
+		assert.Contains(t, tags, difc.Tag("valid-tag"))
+		assert.Contains(t, tags, difc.Tag("another-valid-tag"))
+	})
+
+	t.Run("multiple secrecy and integrity tags", func(t *testing.T) {
+		response := map[string]interface{}{
+			"resource": map[string]interface{}{
+				"secrecy":   []interface{}{"private:org/repo1", "private:org/repo2"},
+				"integrity": []interface{}{"approved", "merged"},
+			},
+		}
+
+		resource, _, err := parseResourceResponse(response)
+		require.NoError(t, err)
+		assert.Len(t, resource.Secrecy.Label.GetTags(), 2)
+		assert.Len(t, resource.Integrity.Label.GetTags(), 2)
+	})
+}
+
+func TestParseCollectionLabeledData(t *testing.T) {
+	t.Run("empty items returns empty collection", func(t *testing.T) {
+		result, err := parseCollectionLabeledData([]interface{}{})
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Empty(t, result.Items)
+	})
+
+	t.Run("nil items returns empty collection", func(t *testing.T) {
+		result, err := parseCollectionLabeledData(nil)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Empty(t, result.Items)
+	})
+
+	t.Run("single item with labels", func(t *testing.T) {
+		items := []interface{}{
+			map[string]interface{}{
+				"data": map[string]interface{}{"id": "123", "title": "Test Issue"},
+				"labels": map[string]interface{}{
+					"description": "issue data",
+					"secrecy":     []interface{}{"private:owner/repo"},
+					"integrity":   []interface{}{"approved"},
+				},
+			},
+		}
+
+		result, err := parseCollectionLabeledData(items)
+		require.NoError(t, err)
+		require.Len(t, result.Items, 1)
+
+		item := result.Items[0]
+		require.NotNil(t, item.Labels)
+		assert.Equal(t, "issue data", item.Labels.Description)
+		assert.Contains(t, item.Labels.Secrecy.Label.GetTags(), difc.Tag("private:owner/repo"))
+		assert.Contains(t, item.Labels.Integrity.Label.GetTags(), difc.Tag("approved"))
+	})
+
+	t.Run("item without labels field has nil labels", func(t *testing.T) {
+		items := []interface{}{
+			map[string]interface{}{
+				"data": "some data",
+			},
+		}
+
+		result, err := parseCollectionLabeledData(items)
+		require.NoError(t, err)
+		require.Len(t, result.Items, 1)
+		assert.Nil(t, result.Items[0].Labels)
+	})
+
+	t.Run("non-map item is skipped", func(t *testing.T) {
+		items := []interface{}{
+			"string-not-a-map",
+			42,
+			map[string]interface{}{"data": "valid item"},
+		}
+
+		result, err := parseCollectionLabeledData(items)
+		require.NoError(t, err)
+		assert.Len(t, result.Items, 1, "non-map items should be skipped")
+	})
+
+	t.Run("multiple items with different labels", func(t *testing.T) {
+		items := []interface{}{
+			map[string]interface{}{
+				"data": "public item",
+				"labels": map[string]interface{}{
+					"secrecy":   []interface{}{"public"},
+					"integrity": []interface{}{},
+				},
+			},
+			map[string]interface{}{
+				"data": "private item",
+				"labels": map[string]interface{}{
+					"secrecy":   []interface{}{"private:owner/repo"},
+					"integrity": []interface{}{"approved"},
+				},
+			},
+		}
+
+		result, err := parseCollectionLabeledData(items)
+		require.NoError(t, err)
+		require.Len(t, result.Items, 2)
+
+		assert.Contains(t, result.Items[0].Labels.Secrecy.Label.GetTags(), difc.Tag("public"))
+		assert.Contains(t, result.Items[1].Labels.Secrecy.Label.GetTags(), difc.Tag("private:owner/repo"))
+	})
+
+	t.Run("item labels without secrecy or integrity use empty labels", func(t *testing.T) {
+		items := []interface{}{
+			map[string]interface{}{
+				"data": "item",
+				"labels": map[string]interface{}{
+					"description": "minimal labels",
+				},
+			},
+		}
+
+		result, err := parseCollectionLabeledData(items)
+		require.NoError(t, err)
+		require.Len(t, result.Items, 1)
+		require.NotNil(t, result.Items[0].Labels)
+		assert.True(t, result.Items[0].Labels.Secrecy.Label.IsEmpty())
+		assert.True(t, result.Items[0].Labels.Integrity.Label.IsEmpty())
+	})
+
+	t.Run("non-string tags in labels are skipped", func(t *testing.T) {
+		items := []interface{}{
+			map[string]interface{}{
+				"data": "item",
+				"labels": map[string]interface{}{
+					"secrecy":   []interface{}{"valid-tag", 99, nil},
+					"integrity": []interface{}{"ok", true},
+				},
+			},
+		}
+
+		result, err := parseCollectionLabeledData(items)
+		require.NoError(t, err)
+		require.Len(t, result.Items, 1)
+		assert.Len(t, result.Items[0].Labels.Secrecy.Label.GetTags(), 1)
+		assert.Len(t, result.Items[0].Labels.Integrity.Label.GetTags(), 1)
+	})
+}
