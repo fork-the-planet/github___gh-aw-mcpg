@@ -39,7 +39,6 @@ type WasmGuard struct {
 
 	// Backend caller provided to the guard via host functions
 	backend BackendCaller
-	ctx     context.Context
 
 	// mu serializes all calls to the WASM module
 	// WASM modules are single-threaded and cannot handle concurrent calls
@@ -70,8 +69,10 @@ func NewWasmGuardFromBytes(ctx context.Context, name string, wasmBytes []byte, b
 func NewWasmGuardWithOptions(ctx context.Context, name string, wasmBytes []byte, backend BackendCaller, opts *WasmGuardOptions) (*WasmGuard, error) {
 	logWasm.Printf("Creating WASM guard from bytes: name=%s, size=%d", name, len(wasmBytes))
 
-	// Create WASM runtime
-	runtime := wazero.NewRuntime(ctx)
+	// Create WASM runtime with explicit compiler config and context-based cancellation
+	// WithCloseOnContextDone enables request-scoped timeouts to propagate into guard execution
+	runtimeConfig := wazero.NewRuntimeConfigCompiler().WithCloseOnContextDone(true)
+	runtime := wazero.NewRuntimeWithConfig(ctx, runtimeConfig)
 
 	// Instantiate WASI
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
@@ -83,7 +84,6 @@ func NewWasmGuardWithOptions(ctx context.Context, name string, wasmBytes []byte,
 		name:    name,
 		runtime: runtime,
 		backend: backend,
-		ctx:     ctx,
 	}
 
 	// Create host functions for the guard to call
@@ -92,8 +92,12 @@ func NewWasmGuardWithOptions(ctx context.Context, name string, wasmBytes []byte,
 		return nil, fmt.Errorf("failed to instantiate host functions: %w", err)
 	}
 
-	// Configure module options with stdout/stderr
-	moduleConfig := wazero.NewModuleConfig().WithName("guard").WithStartFunctions()
+	// Configure module options with stdout/stderr and stdin isolation
+	// WithStdin prevents WASM from accidentally reading gateway's MCP protocol stdin
+	moduleConfig := wazero.NewModuleConfig().
+		WithName("guard").
+		WithStartFunctions().
+		WithStdin(strings.NewReader("")) // Isolate stdin
 	if opts != nil {
 		if opts.Stdout != nil {
 			moduleConfig = moduleConfig.WithStdout(opts.Stdout)
@@ -496,7 +500,7 @@ func (g *WasmGuard) LabelAgent(ctx context.Context, policy interface{}, backend 
 
 	logWasm.Printf("LabelAgent input JSON (%d bytes): %s", len(inputJSON), string(inputJSON))
 
-	resultJSON, err := g.callWasmFunction("label_agent", inputJSON)
+	resultJSON, err := g.callWasmFunction(ctx, "label_agent", inputJSON)
 	if err != nil {
 		logWasm.Printf("LabelAgent callWasmFunction failed: guard=%s, error=%v", g.name, err)
 		return nil, err
@@ -552,7 +556,7 @@ func (g *WasmGuard) LabelResource(ctx context.Context, toolName string, args int
 	logWasm.Printf("LabelResource input JSON (%d bytes): %s", len(inputJSON), string(inputJSON))
 
 	// Call WASM function
-	resultJSON, err := g.callWasmFunction("label_resource", inputJSON)
+	resultJSON, err := g.callWasmFunction(ctx, "label_resource", inputJSON)
 	if err != nil {
 		return nil, difc.OperationWrite, err
 	}
@@ -599,7 +603,7 @@ func (g *WasmGuard) LabelResponse(ctx context.Context, toolName string, result i
 	}
 
 	// Call WASM function
-	resultJSON, err := g.callWasmFunction("label_response", inputJSON)
+	resultJSON, err := g.callWasmFunction(ctx, "label_response", inputJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -647,7 +651,7 @@ func parsePathLabeledResponse(responseJSON []byte, originalData interface{}) (di
 }
 
 // callWasmFunction calls an exported function in the WASM module
-func (g *WasmGuard) callWasmFunction(funcName string, inputJSON []byte) ([]byte, error) {
+func (g *WasmGuard) callWasmFunction(ctx context.Context, funcName string, inputJSON []byte) ([]byte, error) {
 	fn := g.module.ExportedFunction(funcName)
 	if fn == nil {
 		return nil, fmt.Errorf("function %s not exported from WASM module", funcName)
@@ -672,7 +676,7 @@ func (g *WasmGuard) callWasmFunction(funcName string, inputJSON []byte) ([]byte,
 	const maxRetries = 3
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		result, requiredSize, err := g.tryCallWasmFunction(fn, mem, inputJSON, outputSize)
+		result, requiredSize, err := g.tryCallWasmFunction(ctx, fn, mem, inputJSON, outputSize)
 		if err != nil {
 			return nil, err
 		}
@@ -703,7 +707,7 @@ func (g *WasmGuard) callWasmFunction(funcName string, inputJSON []byte) ([]byte,
 // Returns (result, 0, nil) on success
 // Returns (nil, requiredSize, nil) if buffer was too small
 // Returns (nil, 0, error) on actual error
-func (g *WasmGuard) tryCallWasmFunction(fn api.Function, mem api.Memory, inputJSON []byte, outputSize uint32) ([]byte, uint32, error) {
+func (g *WasmGuard) tryCallWasmFunction(ctx context.Context, fn api.Function, mem api.Memory, inputJSON []byte, outputSize uint32) ([]byte, uint32, error) {
 	inputSize := uint32(len(inputJSON))
 
 	// Preferred path: use guard allocator if exported to avoid overlapping
@@ -711,23 +715,23 @@ func (g *WasmGuard) tryCallWasmFunction(fn api.Function, mem api.Memory, inputJS
 	allocFn := g.module.ExportedFunction("alloc")
 	deallocFn := g.module.ExportedFunction("dealloc")
 	if allocFn != nil {
-		inputPtr, err := g.wasmAlloc(allocFn, inputSize)
+		inputPtr, err := g.wasmAlloc(ctx, allocFn, inputSize)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to allocate WASM input buffer: %w", err)
 		}
-		defer g.wasmDealloc(deallocFn, inputPtr, inputSize)
+		defer g.wasmDealloc(ctx, deallocFn, inputPtr, inputSize)
 
-		outputPtr, err := g.wasmAlloc(allocFn, outputSize)
+		outputPtr, err := g.wasmAlloc(ctx, allocFn, outputSize)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to allocate WASM output buffer: %w", err)
 		}
-		defer g.wasmDealloc(deallocFn, outputPtr, outputSize)
+		defer g.wasmDealloc(ctx, deallocFn, outputPtr, outputSize)
 
 		if !mem.Write(inputPtr, inputJSON) {
 			return nil, 0, fmt.Errorf("failed to write input to WASM memory")
 		}
 
-		results, err := fn.Call(g.ctx,
+		results, err := fn.Call(ctx,
 			uint64(inputPtr),
 			uint64(inputSize),
 			uint64(outputPtr),
@@ -789,7 +793,7 @@ func (g *WasmGuard) tryCallWasmFunction(fn api.Function, mem api.Memory, inputJS
 	}
 
 	// Call the WASM function
-	results, err := fn.Call(g.ctx,
+	results, err := fn.Call(ctx,
 		uint64(inputPtr),
 		uint64(inputSize),
 		uint64(outputPtr),
@@ -835,8 +839,8 @@ func (g *WasmGuard) tryCallWasmFunction(fn api.Function, mem api.Memory, inputJS
 	return resultCopy, 0, nil
 }
 
-func (g *WasmGuard) wasmAlloc(allocFn api.Function, size uint32) (uint32, error) {
-	results, err := allocFn.Call(g.ctx, uint64(size))
+func (g *WasmGuard) wasmAlloc(ctx context.Context, allocFn api.Function, size uint32) (uint32, error) {
+	results, err := allocFn.Call(ctx, uint64(size))
 	if err != nil {
 		return 0, err
 	}
@@ -850,11 +854,11 @@ func (g *WasmGuard) wasmAlloc(allocFn api.Function, size uint32) (uint32, error)
 	return ptr, nil
 }
 
-func (g *WasmGuard) wasmDealloc(deallocFn api.Function, ptr, size uint32) {
+func (g *WasmGuard) wasmDealloc(ctx context.Context, deallocFn api.Function, ptr, size uint32) {
 	if deallocFn == nil || ptr == 0 || size == 0 {
 		return
 	}
-	if _, err := deallocFn.Call(g.ctx, uint64(ptr), uint64(size)); err != nil {
+	if _, err := deallocFn.Call(ctx, uint64(ptr), uint64(size)); err != nil {
 		logWasm.Printf("WASM dealloc failed: ptr=%d size=%d err=%v", ptr, size, err)
 	}
 }
