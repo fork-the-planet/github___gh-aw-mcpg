@@ -41,14 +41,14 @@ var blockingGuardWasm = []byte{
 	// The bytes below represent a valid module exporting "loop".
 	0x00, 0x61, 0x73, 0x6d, // WASM magic number
 	0x01, 0x00, 0x00, 0x00, // WASM version
-	// type section
-	0x01, 0x07, 0x01, 0x60, 0x00, 0x00,
-	// function section
+	// type section: 1 type () -> ()
+	0x01, 0x04, 0x01, 0x60, 0x00, 0x00,
+	// function section: 1 function, type index 0
 	0x03, 0x02, 0x01, 0x00,
-	// export section
-	0x07, 0x07, 0x01, 0x04, 0x6c, 0x6f, 0x6f, 0x70, 0x00, 0x00,
-	// code section
-	0x0a, 0x06, 0x01, 0x04, 0x00, 0x03, 0x00, 0x0c, 0x00, 0x0b,
+	// export section: export "loop" as function 0
+	0x07, 0x08, 0x01, 0x04, 0x6c, 0x6f, 0x6f, 0x70, 0x00, 0x00,
+	// code section: 1 body — loop (br 0) end end
+	0x0a, 0x09, 0x01, 0x07, 0x00, 0x03, 0x40, 0x0c, 0x00, 0x0b, 0x0b,
 }
 
 // mockBackendCaller is a test implementation of BackendCaller
@@ -432,11 +432,12 @@ func TestParsePathLabeledResponse(t *testing.T) {
 		assert.Contains(t, err.Error(), "parse path labels")
 	})
 
-	t.Run("valid path labels with nil original data returns error", func(t *testing.T) {
+	t.Run("valid path labels with nil original data returns collection labeled data", func(t *testing.T) {
 		responseJSON := []byte(`{"labeled_paths":[]}`)
 		result, err := parsePathLabeledResponse(responseJSON, nil)
-		assert.Error(t, err)
-		assert.Nil(t, result)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		require.IsType(t, &difc.CollectionLabeledData{}, result)
 	})
 }
 
