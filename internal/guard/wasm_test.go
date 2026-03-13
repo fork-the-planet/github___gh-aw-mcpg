@@ -15,6 +15,10 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/difc"
 )
 
+type ctxKey string
+
+const testCtxKey ctxKey = "test-key"
+
 // minimalGuardWasm is a minimal WASM binary that exports the required guard functions
 // This is compiled from WAT (WebAssembly Text Format) for zero-dependency testing
 // The functions return minimal valid JSON responses
@@ -75,10 +79,10 @@ func TestWasmGuardContextPropagation(t *testing.T) {
 
 	t.Run("context values are accessible in guard methods", func(t *testing.T) {
 		ctx := context.Background()
-		ctx = context.WithValue(ctx, "test-key", "test-value")
+		ctx = context.WithValue(ctx, testCtxKey, "test-value")
 
 		// Verify context is preserved
-		value := ctx.Value("test-key")
+		value := ctx.Value(testCtxKey)
 		assert.Equal(t, "test-value", value)
 	})
 }
