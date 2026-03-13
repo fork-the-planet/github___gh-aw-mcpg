@@ -105,7 +105,8 @@ func TestWasmGuardContextPropagation(t *testing.T) {
 		}()
 
 		// Instantiate the blocking WASM module.
-		mod, err := runtime.InstantiateModuleFromBinary(ctx, blockingGuardWasm)
+		moduleConfig := wazero.NewModuleConfig().WithName("blocking_guard")
+		mod, err := runtime.InstantiateWithConfig(ctx, blockingGuardWasm, moduleConfig)
 		require.NoError(t, err, "failed to instantiate blocking WASM module")
 
 		loopFn := mod.ExportedFunction("loop")
