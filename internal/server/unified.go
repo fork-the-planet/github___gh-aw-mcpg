@@ -469,6 +469,21 @@ func (us *UnifiedServer) registerSysTool(name, description string, inputSchema m
 	us.toolsMu.Unlock()
 }
 
+// callSysServer is a helper that calls a sys tool by marshaling the tool name,
+// delegating to sysServer.HandleRequest, and returning the result.
+// This consolidates the common pattern used by sys tool handlers.
+func (us *UnifiedServer) callSysServer(toolName string) (interface{}, error) {
+	params, _ := json.Marshal(map[string]interface{}{
+		"name":      toolName,
+		"arguments": map[string]interface{}{},
+	})
+	result, err := us.sysServer.HandleRequest("tools/call", json.RawMessage(params))
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // registerSysTools registers built-in sys tools
 func (us *UnifiedServer) registerSysTools() error {
 	// Create sys_init handler
@@ -511,11 +526,7 @@ func (us *UnifiedServer) registerSysTools() error {
 		log.Printf("Initialized session: %s", sessionID)
 
 		// Call sys_init
-		params, _ := json.Marshal(map[string]interface{}{
-			"name":      "sys_init",
-			"arguments": map[string]interface{}{},
-		})
-		result, err := us.sysServer.HandleRequest("tools/call", json.RawMessage(params))
+		result, err := us.callSysServer("sys_init")
 		if err != nil {
 			logger.LogError("client", "MCP session initialization: sys_init call failed, session=%s, error=%v", sessionID, err)
 			return newErrorCallToolResult(err)
@@ -554,11 +565,7 @@ func (us *UnifiedServer) registerSysTools() error {
 			return newErrorCallToolResult(err)
 		}
 
-		params, _ := json.Marshal(map[string]interface{}{
-			"name":      "sys_list_servers",
-			"arguments": map[string]interface{}{},
-		})
-		result, err := us.sysServer.HandleRequest("tools/call", json.RawMessage(params))
+		result, err := us.callSysServer("sys_list_servers")
 		if err != nil {
 			logger.LogError("client", "MCP sys_list_servers error, session=%s, error=%v", sessionID, err)
 			return newErrorCallToolResult(err)
@@ -783,6 +790,43 @@ func (us *UnifiedServer) createGuardFromConfig(name string, cfg *config.GuardCon
 	}
 }
 
+// executeBackendToolCall executes a backend MCP tool call and returns the raw result.
+// This helper consolidates the common pattern of:
+// 1. Get or launch backend connection
+// 2. Send tools/call request
+// 3. Check for backend error
+// 4. Unmarshal and return result
+//
+// Callers are responsible for adapting the result to their specific return types
+// and wrapping errors as needed.
+func executeBackendToolCall(ctx context.Context, l *launcher.Launcher, serverID, sessionID, toolName string, args interface{}) (interface{}, error) {
+	conn, err := launcher.GetOrLaunchForSession(l, serverID, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect: %w", err)
+	}
+
+	response, err := conn.SendRequestWithServerID(ctx, "tools/call", map[string]interface{}{
+		"name":      toolName,
+		"arguments": args,
+	}, serverID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if the backend returned an error
+	if response.Error != nil {
+		return nil, fmt.Errorf("backend error: code=%d, message=%s", response.Error.Code, response.Error.Message)
+	}
+
+	// Parse the result
+	var result interface{}
+	if err := json.Unmarshal(response.Result, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse result: %w", err)
+	}
+
+	return result, nil
+}
+
 // guardBackendCaller implements guard.BackendCaller for guards to query backend metadata
 type guardBackendCaller struct {
 	server   *UnifiedServer
@@ -800,31 +844,8 @@ func (g *guardBackendCaller) CallTool(ctx context.Context, toolName string, args
 	if sessionID == nil {
 		sessionID = "default"
 	}
-	conn, err := launcher.GetOrLaunchForSession(g.server.launcher, g.serverID, sessionID.(string))
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %w", err)
-	}
 
-	response, err := conn.SendRequestWithServerID(g.ctx, "tools/call", map[string]interface{}{
-		"name":      toolName,
-		"arguments": args,
-	}, g.serverID)
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if the backend returned an error
-	if response.Error != nil {
-		return nil, fmt.Errorf("backend error: code=%d, message=%s", response.Error.Code, response.Error.Message)
-	}
-
-	// Parse the result
-	var result interface{}
-	if err := json.Unmarshal(response.Result, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse result: %w", err)
-	}
-
-	return result, nil
+	return executeBackendToolCall(g.ctx, g.server.launcher, g.serverID, sessionID.(string), toolName, args)
 }
 
 // convertToCallToolResult converts backend result data to SDK CallToolResult format
@@ -1004,29 +1025,9 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	}
 
 	// **Phase 3: Execute the backend call**
-	// Get or launch backend connection (use session-aware connection for stateful backends)
-	conn, err := launcher.GetOrLaunchForSession(us.launcher, serverID, sessionID)
-	if err != nil {
-		return newErrorCallToolResult(fmt.Errorf("failed to connect: %w", err))
-	}
-
-	response, err := conn.SendRequestWithServerID(ctx, "tools/call", map[string]interface{}{
-		"name":      toolName,
-		"arguments": args,
-	}, serverID)
+	backendResult, err := executeBackendToolCall(ctx, us.launcher, serverID, sessionID, toolName, args)
 	if err != nil {
 		return newErrorCallToolResult(err)
-	}
-
-	// Check if the backend returned an error
-	if response.Error != nil {
-		return newErrorCallToolResult(fmt.Errorf("backend error: code=%d, message=%s", response.Error.Code, response.Error.Message))
-	}
-
-	// Parse the backend result
-	var backendResult interface{}
-	if err := json.Unmarshal(response.Result, &backendResult); err != nil {
-		return newErrorCallToolResult(fmt.Errorf("failed to parse result: %w", err))
 	}
 
 	// **Phase 4: Guard labels the response data (for fine-grained filtering)**
