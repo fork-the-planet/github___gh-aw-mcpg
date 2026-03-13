@@ -256,14 +256,39 @@ For the complete JSON configuration specification with all validation rules, see
     Accept = ["private:github/gh-aw*"]
     ```
     - **`accept`**: Array of secrecy label patterns the sink accepts
-      - `"private:owner/repo*"` - Accept writes from agents that accessed private repos matching the pattern
+      - `"private:owner/repo"` - Accept writes from agents that accessed a specific private repo
+      - `"private:owner/prefix*"` - Accept writes from agents that accessed private repos matching the prefix
+      - `"private:owner"` - Accept writes from agents that accessed any repo in the owner's org (bare owner format)
       - `"public:owner/repo*"` - Accept writes from agents that accessed public repos matching the pattern
       - `"internal:owner/repo*"` - Accept writes from agents that accessed internal repos matching the pattern
-      - `"owner/repo*"` - Accept writes without visibility prefix (matches the repo scope pattern)
     - **How it works**: The write-sink classifies all operations as writes. For DIFC write checks:
       - Resource secrecy is set to the `accept` patterns → agent secrecy ⊆ resource secrecy passes
       - Resource integrity is left empty → no integrity requirements for writes
     - **When to use**: For servers like `safeoutputs` that buffer agent outputs for review, or any server that only receives data from the agent
+
+  ##### Mapping allow-only repos to write-sink accept
+
+  The write-sink `accept` entries must match the secrecy tags the GitHub guard assigns
+  to the agent via `label_agent`. The mapping depends on the `repos` configuration:
+
+  | `allow-only.repos` | Agent secrecy tags | `write-sink.accept` |
+  |---|---|---|
+  | `"all"` | `[]` (none) | Not needed |
+  | `"public"` | `[]` (none) | Not needed |
+  | `["owner/repo"]` | `["private:owner/repo"]` | `["private:owner/repo"]` |
+  | `["owner/*"]` | `["private:owner"]` | `["private:owner"]` |
+  | `["owner/prefix*"]` | `["private:owner/prefix*"]` | `["private:owner/prefix*"]` |
+  | `["O/R1", "O/R2"]` | `["private:O/R1", "private:O/R2"]` | `["private:O/R1", "private:O/R2"]` |
+  | `["O1/*", "O2/R"]` | `["private:O1", "private:O2/R"]` | `["private:O1", "private:O2/R"]` |
+
+  **Key rules**:
+  - `repos="all"` or `repos="public"` → no secrecy tags → write-sink not required
+  - `repos=["owner/*"]` (owner wildcard) → bare owner tag `"private:owner"` (no `/*` suffix)
+  - `repos=["owner/prefix*"]` (prefix wildcard) → `"private:owner/prefix*"` (suffix preserved)
+  - `repos=["owner/repo"]` (exact) → `"private:owner/repo"`
+  - Multi-entry repos produce one tag per entry; `accept` must include all of them
+  - `accept` can be a superset of the agent's secrecy (extra entries are harmless)
+  - `min-integrity` does not affect these rules (it only changes integrity labels)
 
   - For **other MCP servers** (Jira, WorkIQ, etc.), different policy schemas apply
   - JSON format uses `"guard-policies"` (with hyphen), TOML uses `guard_policies` (with underscore)

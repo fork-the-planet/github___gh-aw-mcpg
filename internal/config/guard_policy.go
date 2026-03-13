@@ -185,8 +185,15 @@ func ValidateWriteSinkPolicy(ws *WriteSinkPolicy) error {
 }
 
 // validateAcceptEntry validates a single accept entry.
-// Format: "visibility:owner/repo-pattern" (e.g., "private:github/gh-aw*")
-// or just "owner/repo-pattern" (e.g., "github/gh-aw*").
+// Accepted formats:
+//   - "visibility:owner/repo-pattern" (e.g., "private:github/gh-aw*")
+//   - "visibility:owner"              (e.g., "private:myorg" — for owner-wildcard scopes)
+//   - "owner/repo-pattern"            (e.g., "github/gh-aw*" — without visibility prefix)
+//   - "owner"                         (e.g., "myorg" — bare owner without visibility prefix)
+//
+// The accept entries must match the secrecy tags produced by the GitHub guard's
+// label_agent. See WriteSinkAcceptRules for the mapping from allow-only repos
+// to the required accept values.
 func validateAcceptEntry(entry string) error {
 	scope := entry
 	if idx := strings.Index(entry, ":"); idx > 0 {
@@ -199,11 +206,41 @@ func validateAcceptEntry(entry string) error {
 			return fmt.Errorf("visibility prefix must be private, public, or internal; got %q", visibility)
 		}
 	}
-	if !isValidRepoScope(scope) {
-		return fmt.Errorf("scope %q is invalid; expected owner/*, owner/repo, or owner/re*", scope)
+	// Accept either "owner/repo-pattern" or bare "owner" (for owner-wildcard scopes
+	// where repos=["owner/*"] produces agent secrecy "private:owner")
+	if !isValidRepoScope(scope) && !isValidRepoOwner(scope) {
+		return fmt.Errorf("scope %q is invalid; expected owner, owner/*, owner/repo, or owner/re*", scope)
 	}
 	return nil
 }
+
+// WriteSinkAcceptRules documents the mapping from allow-only repos configuration
+// to the required write-sink accept values.
+//
+// The write-sink accept field must be a superset of the agent's secrecy tags,
+// which are determined by the allow-only repos configuration:
+//
+//	repos = "all"              → agent secrecy = []           → write-sink not required
+//	repos = "public"           → agent secrecy = []           → write-sink not required
+//	repos = ["O/R"]            → agent secrecy = ["private:O/R"]
+//	                             accept = ["private:O/R"]
+//	repos = ["O/*"]            → agent secrecy = ["private:O"]
+//	                             accept = ["private:O"]
+//	repos = ["O/P*"]           → agent secrecy = ["private:O/P*"]
+//	                             accept = ["private:O/P*"]
+//	repos = ["O/R1", "O/R2"]  → agent secrecy = ["private:O/R1", "private:O/R2"]
+//	                             accept = ["private:O/R1", "private:O/R2"]
+//	repos = ["O1/*", "O2/R"]  → agent secrecy = ["private:O1", "private:O2/R"]
+//	                             accept = ["private:O1", "private:O2/R"]
+//
+// The transformation rule:
+//
+//	repos entry "O/*"  (owner wildcard)  → accept "private:O"    (bare owner)
+//	repos entry "O/P*" (prefix wildcard) → accept "private:O/P*" (prefix preserved)
+//	repos entry "O/R"  (exact repo)      → accept "private:O/R"  (exact preserved)
+//
+// Note: min-integrity has no effect on these rules (it only affects integrity labels).
+var WriteSinkAcceptRules = "see godoc" // exists for documentation only
 
 // IsWriteSinkPolicy returns true if this policy configures a write-sink guard.
 func (p *GuardPolicy) IsWriteSinkPolicy() bool {

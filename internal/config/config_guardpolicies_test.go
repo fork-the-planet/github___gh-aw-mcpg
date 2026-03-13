@@ -447,3 +447,187 @@ Accept = ["private:github/gh-aw*"]
 	assert.Len(t, acceptRaw, 1)
 	assert.Equal(t, "private:github/gh-aw*", acceptRaw[0])
 }
+
+// =============================================================================
+// Write-Sink Accept Entry Validation Tests
+//
+// These tests verify that validateAcceptEntry correctly validates all accept
+// entry formats, including bare owner names (for owner-wildcard scopes).
+// =============================================================================
+
+func TestValidateAcceptEntry_AllFormats(t *testing.T) {
+	tests := []struct {
+		name    string
+		entry   string
+		wantErr bool
+		desc    string
+	}{
+		// Valid: exact repo with visibility prefix
+		{
+			name:  "private:owner/repo",
+			entry: "private:github/gh-aw",
+			desc:  "exact repo with private prefix",
+		},
+		{
+			name:  "public:owner/repo",
+			entry: "public:github/gh-aw",
+			desc:  "exact repo with public prefix",
+		},
+		{
+			name:  "internal:owner/repo",
+			entry: "internal:github/gh-aw",
+			desc:  "exact repo with internal prefix",
+		},
+		// Valid: prefix wildcard with visibility prefix
+		{
+			name:  "private:owner/prefix*",
+			entry: "private:github/gh-aw*",
+			desc:  "prefix wildcard (repos=[\"github/gh-aw*\"])",
+		},
+		// Valid: owner wildcard with visibility prefix
+		{
+			name:  "private:owner/*",
+			entry: "private:github/*",
+			desc:  "owner wildcard scope (repos=[\"github/*\"])",
+		},
+		// Valid: bare owner (for repos=["owner/*"] → agent secrecy "private:owner")
+		{
+			name:  "private:owner (bare)",
+			entry: "private:myorg",
+			desc:  "bare owner name — matches repos=[\"myorg/*\"] agent secrecy",
+		},
+		{
+			name:  "private:owner with hyphen",
+			entry: "private:my-org",
+			desc:  "bare owner with hyphen",
+		},
+		{
+			name:  "private:owner with numbers",
+			entry: "private:org123",
+			desc:  "bare owner with numbers",
+		},
+		// Valid: without visibility prefix
+		{
+			name:  "owner/repo (no prefix)",
+			entry: "github/gh-aw",
+			desc:  "repo scope without visibility prefix",
+		},
+		{
+			name:  "owner/prefix* (no prefix)",
+			entry: "github/gh-aw*",
+			desc:  "prefix wildcard without visibility prefix",
+		},
+		{
+			name:  "owner/* (no prefix)",
+			entry: "github/*",
+			desc:  "owner wildcard without visibility prefix",
+		},
+		{
+			name:  "owner (no prefix, bare)",
+			entry: "myorg",
+			desc:  "bare owner without visibility prefix",
+		},
+		// Invalid entries
+		{
+			name:    "invalid visibility prefix",
+			entry:   "secret:github/gh-aw",
+			wantErr: true,
+			desc:    "unknown visibility prefix",
+		},
+		{
+			name:    "empty string",
+			entry:   "",
+			wantErr: true,
+			desc:    "empty entry is invalid",
+		},
+		{
+			name:    "wildcard in middle",
+			entry:   "private:github/gh*aw",
+			wantErr: true,
+			desc:    "wildcard must be at end only",
+		},
+		{
+			name:    "double wildcard",
+			entry:   "private:github/gh**",
+			wantErr: true,
+			desc:    "multiple wildcards not allowed",
+		},
+		{
+			name:    "owner too long",
+			entry:   "private:" + string(make([]byte, 40)),
+			wantErr: true,
+			desc:    "owner name exceeds 39 chars",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateAcceptEntry(tc.entry)
+			if tc.wantErr {
+				assert.Error(t, err, "entry %q should be invalid: %s", tc.entry, tc.desc)
+			} else {
+				assert.NoError(t, err, "entry %q should be valid: %s", tc.entry, tc.desc)
+			}
+		})
+	}
+}
+
+// TestValidateWriteSinkPolicy_BareOwnerAccept tests that a write-sink policy with
+// bare owner accept entries (for repos=["owner/*"]) passes validation.
+func TestValidateWriteSinkPolicy_BareOwnerAccept(t *testing.T) {
+	policy := &WriteSinkPolicy{
+		Accept: []string{"private:myorg", "private:partner/shared-lib"},
+	}
+	err := ValidateWriteSinkPolicy(policy)
+	assert.NoError(t, err, "bare owner + repo pattern should both validate")
+}
+
+// TestValidateWriteSinkPolicy_AllScopeAcceptFormats tests validation for accept
+// entries derived from every repos scope type.
+func TestValidateWriteSinkPolicy_AllScopeAcceptFormats(t *testing.T) {
+	tests := []struct {
+		name   string
+		repos  string // description of the repos config
+		accept []string
+	}{
+		{
+			name:   "exact repo",
+			repos:  `["github/gh-aw"]`,
+			accept: []string{"private:github/gh-aw"},
+		},
+		{
+			name:   "owner wildcard",
+			repos:  `["myorg/*"]`,
+			accept: []string{"private:myorg"},
+		},
+		{
+			name:   "prefix wildcard",
+			repos:  `["github/gh-aw*"]`,
+			accept: []string{"private:github/gh-aw*"},
+		},
+		{
+			name:   "multiple exact repos",
+			repos:  `["github/repo1", "github/repo2"]`,
+			accept: []string{"private:github/repo1", "private:github/repo2"},
+		},
+		{
+			name:   "mixed owner + exact",
+			repos:  `["myorg/*", "partner/lib"]`,
+			accept: []string{"private:myorg", "private:partner/lib"},
+		},
+		{
+			name:   "mixed prefix + exact + owner",
+			repos:  `["github/gh-aw*", "github/copilot", "partner/*"]`,
+			accept: []string{"private:github/gh-aw*", "private:github/copilot", "private:partner"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			policy := &WriteSinkPolicy{Accept: tc.accept}
+			err := ValidateWriteSinkPolicy(policy)
+			assert.NoError(t, err,
+				"repos=%s → accept=%v should pass validation", tc.repos, tc.accept)
+		})
+	}
+}

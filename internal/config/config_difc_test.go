@@ -521,7 +521,8 @@ func TestParseGuardPolicyJSON_WriteSink(t *testing.T) {
 	})
 
 	t.Run("rejects write-sink with invalid repo scope", func(t *testing.T) {
-		_, err := ParseGuardPolicyJSON(`{"write-sink":{"accept":["invalid-no-slash"]}}`)
+		// Use an entry with invalid characters (uppercase not allowed in owner names)
+		_, err := ParseGuardPolicyJSON(`{"write-sink":{"accept":["private:INVALID/repo"]}}`)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid")
 	})
