@@ -844,3 +844,91 @@ func TestIntegrityLabel_CanFlowTo_NilCases(t *testing.T) {
 		assert.True(t, l.CanFlowTo(nil))
 	})
 }
+
+// TestLabel_Intersect tests the Intersect method which keeps only tags present
+// in both labels. Previous coverage was 66.7%.
+func TestLabel_Intersect(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    []Tag
+		other    []Tag
+		nilOther bool
+		want     []Tag
+		notWant  []Tag
+	}{
+		{
+			name:     "intersection with nil other clears all tags",
+			setup:    []Tag{"a", "b", "c"},
+			nilOther: true,
+			want:     []Tag{},
+			notWant:  []Tag{"a", "b", "c"},
+		},
+		{
+			name:  "intersection keeps common tags only",
+			setup: []Tag{"a", "b", "c"},
+			other: []Tag{"b", "c", "d"},
+			want:  []Tag{"b", "c"},
+			notWant: []Tag{"a", "d"},
+		},
+		{
+			name:    "intersection of identical sets is unchanged",
+			setup:   []Tag{"x", "y"},
+			other:   []Tag{"x", "y"},
+			want:    []Tag{"x", "y"},
+			notWant: []Tag{},
+		},
+		{
+			name:    "intersection with empty other clears all tags",
+			setup:   []Tag{"a", "b"},
+			other:   nil, // newLabelWithTags(nil) creates empty (non-nil) label
+			want:    []Tag{},
+			notWant: []Tag{"a", "b"},
+		},
+		{
+			name:    "intersection of empty set with anything stays empty",
+			setup:   nil,
+			other:   []Tag{"a", "b"},
+			want:    []Tag{},
+			notWant: []Tag{"a", "b"},
+		},
+		{
+			name:     "intersection of empty set with nil stays empty",
+			setup:    nil,
+			nilOther: true,
+			want:     []Tag{},
+			notWant:  []Tag{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := newLabelWithTags(tt.setup)
+
+			if tt.nilOther {
+				l.Intersect(nil)
+			} else {
+				other := newLabelWithTags(tt.other)
+				l.Intersect(other)
+			}
+
+			tags := l.GetTags()
+			assert.ElementsMatch(t, tt.want, tags, "label should contain expected tags after intersection")
+			for _, absent := range tt.notWant {
+				assert.False(t, l.Contains(absent), "label should NOT contain %q after intersection", absent)
+			}
+		})
+	}
+}
+
+// TestCheckFlowHelper_NilSrcNonEmptyTargetIntegrity covers the previously
+// untested branch: nil source, non-empty target, integrity mode (checkSubset=false).
+// In integrity semantics a nil source cannot satisfy a non-empty target requirement.
+func TestCheckFlowHelper_NilSrcNonEmptyTargetIntegrity(t *testing.T) {
+	target := newLabelWithTags([]Tag{"required-tag"})
+
+	ok, violatingTags := checkFlowHelper(nil, target, false, "Integrity")
+
+	assert.False(t, ok, "nil source should not satisfy non-empty integrity requirement")
+	require.NotEmpty(t, violatingTags)
+	assert.Contains(t, violatingTags, Tag("required-tag"))
+}
