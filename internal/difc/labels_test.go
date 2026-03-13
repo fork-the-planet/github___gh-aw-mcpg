@@ -846,7 +846,7 @@ func TestIntegrityLabel_CanFlowTo_NilCases(t *testing.T) {
 }
 
 // TestLabel_Intersect tests the Intersect method which keeps only tags present
-// in both labels. Previous coverage was 66.7%.
+// in both labels.
 func TestLabel_Intersect(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -864,10 +864,10 @@ func TestLabel_Intersect(t *testing.T) {
 			notWant:  []Tag{"a", "b", "c"},
 		},
 		{
-			name:  "intersection keeps common tags only",
-			setup: []Tag{"a", "b", "c"},
-			other: []Tag{"b", "c", "d"},
-			want:  []Tag{"b", "c"},
+			name:    "intersection keeps common tags only",
+			setup:   []Tag{"a", "b", "c"},
+			other:   []Tag{"b", "c", "d"},
+			want:    []Tag{"b", "c"},
 			notWant: []Tag{"a", "d"},
 		},
 		{

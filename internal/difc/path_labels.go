@@ -253,8 +253,6 @@ func (p *PathLabeledData) extractIndexFromPath(path, itemsPath string) (int, err
 		remainder = path
 	} else if strings.HasPrefix(path, itemsPath+"/") {
 		remainder = strings.TrimPrefix(path, itemsPath)
-	} else if strings.HasPrefix(path, itemsPath) && len(path) > len(itemsPath) {
-		remainder = path[len(itemsPath):]
 	} else {
 		return -1, fmt.Errorf("path %q does not match items path %q", path, itemsPath)
 	}

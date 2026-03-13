@@ -293,17 +293,16 @@ func TestToCollectionLabeledData_NotYetResolved(t *testing.T) {
 	assert.True(t, collection.Items[1].Labels.Secrecy.Label.Contains(Tag("s2")))
 }
 
-// TestExtractIndexFromPath_ThirdHasPrefix covers the branch where the path
-// starts with itemsPath but not itemsPath+"/" (no slash separator).
-func TestExtractIndexFromPath_ThirdHasPrefix(t *testing.T) {
-	// path "items3" (no slash between prefix and index), itemsPath "items"
-	// After normalization: path="/items3", itemsPath="/items"
-	// HasPrefix("/items3", "/items/") = false
-	// HasPrefix("/items3", "/items") = true AND len > len → third branch
+// TestExtractIndexFromPath_NoSlashSeparator covers the case where the path starts
+// with itemsPath but is not followed by a "/" separator.
+// Per RFC 6901, "/items3" refers to key "items3" and must not match prefix "/items".
+func TestExtractIndexFromPath_NoSlashSeparator(t *testing.T) {
+	// path "items3" normalizes to "/items3", itemsPath "items" normalizes to "/items"
+	// "/items3" does not start with "/items/" → error: does not match items path
 	pld := &PathLabeledData{}
-	idx, err := pld.extractIndexFromPath("items3", "items")
-	require.NoError(t, err)
-	assert.Equal(t, 3, idx)
+	_, err := pld.extractIndexFromPath("items3", "items")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not match items path")
 }
 
 // TestExtractIndexFromPath_EmptyRemainder covers the branch where the extracted
@@ -367,8 +366,9 @@ func TestPathLabeledData_MCPWrapped_SingleItem(t *testing.T) {
 	assert.True(t, items[0].Labels.Secrecy.Label.Contains(Tag("public")))
 }
 
-// TestPathLabeledData_ResolveNotCalledTwice ensures that calling resolve() on
-// an already-resolved PathLabeledData is a no-op (covers the p.resolved early return).
+// TestPathLabeledData_ResolveNotCalledTwice verifies that GetItems returns
+// consistent, cached results across multiple calls on an already-resolved
+// PathLabeledData (exercises the p.resolved guard in GetItems).
 func TestPathLabeledData_ResolveNotCalledTwice(t *testing.T) {
 	originalData := []interface{}{
 		map[string]interface{}{"id": "item"},
@@ -386,7 +386,7 @@ func TestPathLabeledData_ResolveNotCalledTwice(t *testing.T) {
 
 	items1 := pld.GetItems()
 
-	// Call GetItems again — hits the p.resolved guard (early return in resolve)
+	// Call GetItems again — p.resolved is true so resolvedItems is returned directly
 	items2 := pld.GetItems()
 	assert.Equal(t, items1, items2)
 }

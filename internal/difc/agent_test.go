@@ -1083,8 +1083,7 @@ func TestPropagateMode_EndToEnd(t *testing.T) {
 	})
 }
 
-// TestAgentLabels_AddIntegrityTags tests the AddIntegrityTags method which was
-// previously at 0% coverage.
+// TestAgentLabels_AddIntegrityTags tests the AddIntegrityTags method.
 func TestAgentLabels_AddIntegrityTags(t *testing.T) {
 	tests := []struct {
 		name     string
