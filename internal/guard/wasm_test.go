@@ -360,12 +360,11 @@ func TestParsePathLabeledResponse(t *testing.T) {
 		assert.Contains(t, err.Error(), "parse path labels")
 	})
 
-	t.Run("valid path labels with nil original data", func(t *testing.T) {
+	t.Run("valid path labels with nil original data returns error", func(t *testing.T) {
 		responseJSON := []byte(`{"labeled_paths":[]}`)
 		result, err := parsePathLabeledResponse(responseJSON, nil)
-		// May succeed with empty paths or fail on nil data - both are acceptable
-		_ = result
-		_ = err
+		assert.Error(t, err)
+		assert.Nil(t, result)
 	})
 }
 
