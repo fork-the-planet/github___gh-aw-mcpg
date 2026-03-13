@@ -273,8 +273,8 @@ For the complete JSON configuration specification with all validation rules, see
 
   | `allow-only.repos` | Agent secrecy tags | `write-sink.accept` |
   |---|---|---|
-  | `"all"` | `[]` (none) | Not needed |
-  | `"public"` | `[]` (none) | Not needed |
+  | `"all"` | `[]` (none) | `["*"]` (wildcard) |
+  | `"public"` | `[]` (none) | `["*"]` (wildcard) |
   | `["owner/repo"]` | `["private:owner/repo"]` | `["private:owner/repo"]` |
   | `["owner/*"]` | `["private:owner"]` | `["private:owner"]` |
   | `["owner/prefix*"]` | `["private:owner/prefix*"]` | `["private:owner/prefix*"]` |
@@ -282,7 +282,9 @@ For the complete JSON configuration specification with all validation rules, see
   | `["O1/*", "O2/R"]` | `["private:O1", "private:O2/R"]` | `["private:O1", "private:O2/R"]` |
 
   **Key rules**:
-  - `repos="all"` or `repos="public"` → no secrecy tags → write-sink not required
+  - `repos="all"` or `repos="public"` → no secrecy tags → use `accept: ["*"]` (wildcard)
+  - Write-sink is **required for ALL output servers** when DIFC guards are enabled (prevents noop guard integrity violations)
+  - `accept: ["*"]` is a special wildcard that accepts writes from agents with any secrecy; it must be the sole entry
   - `repos=["owner/*"]` (owner wildcard) → bare owner tag `"private:owner"` (no `/*` suffix)
   - `repos=["owner/prefix*"]` (prefix wildcard) → `"private:owner/prefix*"` (suffix preserved)
   - `repos=["owner/repo"]` (exact) → `"private:owner/repo"`

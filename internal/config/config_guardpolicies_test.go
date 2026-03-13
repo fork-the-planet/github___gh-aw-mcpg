@@ -631,3 +631,28 @@ func TestValidateWriteSinkPolicy_AllScopeAcceptFormats(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateWriteSinkPolicy_WildcardAccept tests that accept=["*"] passes validation.
+func TestValidateWriteSinkPolicy_WildcardAccept(t *testing.T) {
+	policy := &WriteSinkPolicy{Accept: []string{"*"}}
+	err := ValidateWriteSinkPolicy(policy)
+	assert.NoError(t, err, `accept=["*"] should be valid (wildcard)`)
+}
+
+// TestValidateWriteSinkPolicy_WildcardWithOtherEntries tests that "*" cannot
+// be mixed with other accept entries.
+func TestValidateWriteSinkPolicy_WildcardWithOtherEntries(t *testing.T) {
+	policy := &WriteSinkPolicy{Accept: []string{"*", "private:org/repo"}}
+	err := ValidateWriteSinkPolicy(policy)
+	assert.Error(t, err, `accept=["*", "private:org/repo"] should be invalid`)
+	assert.Contains(t, err.Error(), "wildcard")
+}
+
+// TestValidateWriteSinkPolicy_WildcardNotFirst tests that "*" anywhere in a
+// multi-entry list is rejected.
+func TestValidateWriteSinkPolicy_WildcardNotFirst(t *testing.T) {
+	policy := &WriteSinkPolicy{Accept: []string{"private:org/repo", "*"}}
+	err := ValidateWriteSinkPolicy(policy)
+	assert.Error(t, err, `accept=["private:org/repo", "*"] should be invalid`)
+	assert.Contains(t, err.Error(), "wildcard")
+}

@@ -160,8 +160,8 @@ func TestWriteSinkGuard_SecrecyMismatchFails(t *testing.T) {
 // repos scope. The write-sink accept must be a superset of those tags for
 // writes to succeed:
 //
-//   repos = "all"              → agent secrecy = []                → no write-sink needed
-//   repos = "public"           → agent secrecy = []                → no write-sink needed
+//   repos = "all"              → agent secrecy = []                → accept = ["*"]
+//   repos = "public"           → agent secrecy = []                → accept = ["*"]
 //   repos = ["O/R"]            → agent secrecy = ["private:O/R"]   → accept = ["private:O/R"]
 //   repos = ["O/*"]            → agent secrecy = ["private:O"]     → accept = ["private:O"]
 //   repos = ["O/P*"]           → agent secrecy = ["private:O/P*"]  → accept = ["private:O/P*"]
@@ -300,10 +300,10 @@ func TestWriteSinkAcceptRules_SupersetAcceptAllowed(t *testing.T) {
 }
 
 // TestWriteSinkAcceptRules_EmptyAgentSecrecy tests that an agent with no secrecy
-// (repos="all" or repos="public") can write to ANY sink, even without a write-sink.
+// (repos="all" or repos="public") can write through a wildcard accept sink.
 func TestWriteSinkAcceptRules_EmptyAgentSecrecy(t *testing.T) {
-	// Even an empty accept works if agent has no secrecy
-	g := NewWriteSinkGuard([]string{})
+	// Wildcard accept: agent has no secrecy, write passes
+	g := NewWriteSinkGuard([]string{"*"})
 
 	agentSecrecy := difc.NewSecrecyLabelWithTags(nil) // repos="all" or repos="public"
 	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
@@ -313,7 +313,7 @@ func TestWriteSinkAcceptRules_EmptyAgentSecrecy(t *testing.T) {
 
 	evaluator := difc.NewEvaluatorWithMode(difc.EnforcementFilter)
 	result := evaluator.Evaluate(agentSecrecy, agentIntegrity, resource, operation)
-	assert.True(t, result.IsAllowed(), "empty agent secrecy: always passes write check; got: %s", result.Reason)
+	assert.True(t, result.IsAllowed(), "empty agent secrecy with wildcard accept: always passes; got: %s", result.Reason)
 }
 
 // TestWriteSinkAcceptRules_PartialAcceptFails tests that if accept covers only SOME
@@ -350,17 +350,24 @@ func TestWriteSinkAcceptRules_AllScopeTypes(t *testing.T) {
 		expectAllowed bool
 	}{
 		{
-			name:          "repos=all → empty secrecy, no sink needed",
+			name:          "repos=all → wildcard accept",
 			repos:         `"all"`,
 			agentSecrecy:  nil,
-			accept:        []string{},
+			accept:        []string{"*"},
 			expectAllowed: true,
 		},
 		{
-			name:          "repos=public → empty secrecy, no sink needed",
+			name:          "repos=public → wildcard accept",
 			repos:         `"public"`,
 			agentSecrecy:  nil,
-			accept:        []string{},
+			accept:        []string{"*"},
+			expectAllowed: true,
+		},
+		{
+			name:          "repos=all → wildcard accept with tainted agent",
+			repos:         `"all" (agent tainted by other guard)`,
+			agentSecrecy:  []difc.Tag{"private:org/repo"},
+			accept:        []string{"*"},
 			expectAllowed: true,
 		},
 		{
@@ -451,4 +458,53 @@ func TestWriteSinkAcceptRules_AllScopeTypes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWriteSinkGuard_WildcardAccept_WithIntegrity tests the key scenario:
+// agent has integrity tags from GitHub guard + wildcard accept.
+// This is the primary use case — write-sink with accept=["*"] prevents
+// the noop guard integrity violation for repos="all"/"public".
+func TestWriteSinkGuard_WildcardAccept_WithIntegrity(t *testing.T) {
+	g := NewWriteSinkGuard([]string{"*"})
+
+	// Agent has integrity from GitHub guard (repos="all" still gets integrity)
+	agentSecrecy := difc.NewSecrecyLabelWithTags(nil)
+	agentIntegrity := difc.NewIntegrityLabelWithTags([]difc.Tag{
+		"none:*",
+		"unapproved:*",
+		"approved:*",
+	})
+
+	resource, operation, err := g.LabelResource(context.Background(), "safe_output", nil, nil, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, difc.OperationWrite, operation)
+
+	evaluator := difc.NewEvaluatorWithMode(difc.EnforcementFilter)
+	result := evaluator.Evaluate(agentSecrecy, agentIntegrity, resource, operation)
+	assert.True(t, result.IsAllowed(),
+		"wildcard accept + empty agent secrecy + agent integrity: write should pass; got: %s", result.Reason)
+}
+
+// TestWriteSinkGuard_WildcardAccept_TaintedAgent tests that wildcard accept
+// allows writes even from agents tainted with secrecy from another guard.
+func TestWriteSinkGuard_WildcardAccept_TaintedAgent(t *testing.T) {
+	g := NewWriteSinkGuard([]string{"*"})
+
+	// Agent tainted with secrecy from some other source
+	agentSecrecy := difc.NewSecrecyLabelWithTags([]difc.Tag{
+		"private:github/secret-repo",
+		"private:other-org/internal",
+	})
+	agentIntegrity := difc.NewIntegrityLabelWithTags([]difc.Tag{
+		"approved:github/secret-repo",
+	})
+
+	resource, operation, err := g.LabelResource(context.Background(), "safe_output", nil, nil, nil)
+	require.NoError(t, err)
+
+	evaluator := difc.NewEvaluatorWithMode(difc.EnforcementFilter)
+	result := evaluator.Evaluate(agentSecrecy, agentIntegrity, resource, operation)
+	assert.True(t, result.IsAllowed(),
+		"wildcard accept should allow writes from any tainted agent; got: %s", result.Reason)
 }

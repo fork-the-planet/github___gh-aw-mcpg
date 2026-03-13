@@ -12,6 +12,12 @@ var logLabels = logger.New("difc:labels")
 // Tag represents a single DIFC tag (e.g., "repo:owner/name", "agent:demo-agent")
 type Tag string
 
+// WildcardTag is a special tag that matches all other tags in subset checks.
+// When the "superset" side of a flow check contains WildcardTag, the check
+// passes regardless of what tags the other side has. This is used by write-sink
+// guards with accept=["*"] to allow writes from agents with any secrecy.
+const WildcardTag = Tag("*")
+
 // Label represents a set of DIFC tags
 type Label struct {
 	tags map[Tag]struct{}
@@ -177,6 +183,11 @@ func (l *SecrecyLabel) CanFlowTo(target *SecrecyLabel) bool {
 	target.Label.mu.RLock()
 	defer target.Label.mu.RUnlock()
 
+	// Wildcard: if target contains "*", it accepts all secrecy tags
+	if _, ok := target.Label.tags[WildcardTag]; ok {
+		return true
+	}
+
 	// Check if all tags in l are in target
 	for tag := range l.Label.tags {
 		if _, ok := target.Label.tags[tag]; !ok {
@@ -235,6 +246,19 @@ func checkFlowHelper(srcLabel *Label, targetLabel *Label, checkSubset bool, labe
 	defer srcLabel.mu.RUnlock()
 	targetLabel.mu.RLock()
 	defer targetLabel.mu.RUnlock()
+
+	// Wildcard: "*" in the superset side means "accept all"
+	if checkSubset {
+		// Secrecy: src ⊆ target — wildcard in target means target accepts all
+		if _, ok := targetLabel.tags[WildcardTag]; ok {
+			return true, nil
+		}
+	} else {
+		// Integrity: target ⊆ src — wildcard in src means src has all
+		if _, ok := srcLabel.tags[WildcardTag]; ok {
+			return true, nil
+		}
+	}
 
 	var violatingTags []Tag
 	if checkSubset {
@@ -315,6 +339,11 @@ func (l *IntegrityLabel) CanFlowTo(target *IntegrityLabel) bool {
 	defer l.Label.mu.RUnlock()
 	target.Label.mu.RLock()
 	defer target.Label.mu.RUnlock()
+
+	// Wildcard: if l (superset side) contains "*", it satisfies all target tags
+	if _, ok := l.Label.tags[WildcardTag]; ok {
+		return true
+	}
 
 	// Check if all tags in target are in l
 	for tag := range target.Label.tags {

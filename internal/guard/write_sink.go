@@ -25,8 +25,21 @@ var logWriteSink = logger.New("guard:write-sink")
 //   - Integrity: resource requires no tags (empty), agent has all zero required → OK
 //   - Secrecy: resource secrecy includes the agent's secrecy patterns → agentSecrecy ⊆ resourceSecrecy → OK
 //
-// Configuration example:
+// Write-sink is required for ALL output servers when DIFC guards are enabled,
+// including when repos="all" or repos="public". Without it, the noop guard
+// assigns OperationRead + empty labels, causing integrity violations when the
+// agent has integrity tags from other guards.
 //
+// Configuration examples:
+//
+//	// For repos="all" or repos="public" (agent has no secrecy):
+//	"guard-policies": {
+//	  "write-sink": {
+//	    "accept": ["*"]
+//	  }
+//	}
+//
+//	// For scoped repos (agent has secrecy tags):
 //	"guard-policies": {
 //	  "write-sink": {
 //	    "accept": ["private:github/gh-aw*"]

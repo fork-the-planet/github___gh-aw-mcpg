@@ -164,11 +164,18 @@ func ValidateWriteSinkPolicy(ws *WriteSinkPolicy) error {
 	if len(ws.Accept) == 0 {
 		return fmt.Errorf("write-sink.accept must contain at least one entry")
 	}
+	// Special case: ["*"] is a valid wildcard that accepts all writes
+	if len(ws.Accept) == 1 && strings.TrimSpace(ws.Accept[0]) == "*" {
+		return nil
+	}
 	seen := make(map[string]struct{})
 	for _, entry := range ws.Accept {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			return fmt.Errorf("write-sink.accept entries must not be empty")
+		}
+		if entry == "*" {
+			return fmt.Errorf("write-sink.accept wildcard \"*\" must be the only entry")
 		}
 		if _, exists := seen[entry]; exists {
 			return fmt.Errorf("write-sink.accept must not contain duplicates")
@@ -217,8 +224,8 @@ func validateAcceptEntry(entry string) error {
 // The write-sink accept field must be a superset of the agent's secrecy tags,
 // which are determined by the allow-only repos configuration:
 //
-//	repos = "all"              → agent secrecy = []           → write-sink not required
-//	repos = "public"           → agent secrecy = []           → write-sink not required
+//	repos = "all"              → agent secrecy = []           → accept = ["*"] (wildcard)
+//	repos = "public"           → agent secrecy = []           → accept = ["*"] (wildcard)
 //	repos = ["O/R"]            → agent secrecy = ["private:O/R"]
 //	                             accept = ["private:O/R"]
 //	repos = ["O/*"]            → agent secrecy = ["private:O"]
@@ -235,6 +242,14 @@ func validateAcceptEntry(entry string) error {
 //	repos entry "O/*"  (owner wildcard)  → accept "private:O"    (bare owner)
 //	repos entry "O/P*" (prefix wildcard) → accept "private:O/P*" (prefix preserved)
 //	repos entry "O/R"  (exact repo)      → accept "private:O/R"  (exact preserved)
+//
+// Wildcard accept:
+//
+//	accept = ["*"] means "accept writes from any agent regardless of secrecy".
+//	This is the correct configuration for repos="all" and repos="public" where
+//	the agent has no secrecy tags. The write-sink is still required to prevent
+//	the noop guard integrity violation (see WriteSinkGuard godoc).
+//	The wildcard "*" must be the sole entry — it cannot be mixed with other patterns.
 //
 // Note: min-integrity has no effect on these rules (it only affects integrity labels).
 var WriteSinkAcceptRules = "see godoc" // exists for documentation only

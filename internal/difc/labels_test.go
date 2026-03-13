@@ -932,3 +932,159 @@ func TestCheckFlowHelper_NilSrcNonEmptyTargetIntegrity(t *testing.T) {
 	require.NotEmpty(t, violatingTags)
 	assert.Contains(t, violatingTags, Tag("required-tag"))
 }
+
+// =============================================================================
+// Wildcard Tag Tests
+// =============================================================================
+
+func TestWildcardTag_SecrecyCanFlowTo(t *testing.T) {
+	tests := []struct {
+		name     string
+		src      []Tag
+		target   []Tag
+		expected bool
+	}{
+		{
+			name:     "wildcard in target accepts any source",
+			src:      []Tag{"private:org/repo", "private:org/other"},
+			target:   []Tag{WildcardTag},
+			expected: true,
+		},
+		{
+			name:     "wildcard in target accepts empty source",
+			src:      nil,
+			target:   []Tag{WildcardTag},
+			expected: true,
+		},
+		{
+			name:     "wildcard in source does NOT help (source is subset side)",
+			src:      []Tag{WildcardTag},
+			target:   []Tag{"private:org/repo"},
+			expected: false,
+		},
+		{
+			name:     "wildcard in both passes",
+			src:      []Tag{WildcardTag},
+			target:   []Tag{WildcardTag},
+			expected: true,
+		},
+		{
+			name:     "wildcard in target with extra tags still passes",
+			src:      []Tag{"private:org/repo"},
+			target:   []Tag{WildcardTag, "private:other"},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := NewSecrecyLabelWithTags(tc.src)
+			target := NewSecrecyLabelWithTags(tc.target)
+			assert.Equal(t, tc.expected, src.CanFlowTo(target))
+		})
+	}
+}
+
+func TestWildcardTag_SecrecyCheckFlow(t *testing.T) {
+	// CheckFlow returns (bool, []Tag) — verify wildcard in target passes with no violations
+	src := NewSecrecyLabelWithTags([]Tag{"private:org/repo", "private:org/secret"})
+	target := NewSecrecyLabelWithTags([]Tag{WildcardTag})
+
+	ok, violations := src.CheckFlow(target)
+	assert.True(t, ok, "wildcard target should accept all source tags")
+	assert.Empty(t, violations)
+}
+
+func TestWildcardTag_IntegrityCanFlowTo(t *testing.T) {
+	tests := []struct {
+		name     string
+		src      []Tag // integrity source (superset side)
+		target   []Tag // integrity target (subset side)
+		expected bool
+	}{
+		{
+			name:     "wildcard in source (superset) satisfies any target",
+			src:      []Tag{WildcardTag},
+			target:   []Tag{"approved:org/repo", "merged:org/repo"},
+			expected: true,
+		},
+		{
+			name:     "wildcard in target does NOT help (target is subset side)",
+			src:      []Tag{"approved:org/repo"},
+			target:   []Tag{WildcardTag},
+			expected: false,
+		},
+		{
+			name:     "wildcard in source satisfies empty target",
+			src:      []Tag{WildcardTag},
+			target:   nil,
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			src := NewIntegrityLabelWithTags(tc.src)
+			target := NewIntegrityLabelWithTags(tc.target)
+			assert.Equal(t, tc.expected, src.CanFlowTo(target))
+		})
+	}
+}
+
+func TestWildcardTag_IntegrityCheckFlow(t *testing.T) {
+	// Integrity: src ⊇ target. Wildcard in src means src has everything.
+	src := NewIntegrityLabelWithTags([]Tag{WildcardTag})
+	target := NewIntegrityLabelWithTags([]Tag{"approved:org/repo", "merged:org/repo"})
+
+	ok, violations := src.CheckFlow(target)
+	assert.True(t, ok, "wildcard in source should satisfy all target integrity tags")
+	assert.Empty(t, violations)
+}
+
+func TestWildcardTag_CheckFlowHelper(t *testing.T) {
+	tests := []struct {
+		name        string
+		src         []Tag
+		target      []Tag
+		checkSubset bool
+		expectedOk  bool
+	}{
+		{
+			name:        "secrecy: wildcard in target",
+			src:         []Tag{"a", "b", "c"},
+			target:      []Tag{WildcardTag},
+			checkSubset: true,
+			expectedOk:  true,
+		},
+		{
+			name:        "integrity: wildcard in src",
+			src:         []Tag{WildcardTag},
+			target:      []Tag{"x", "y"},
+			checkSubset: false,
+			expectedOk:  true,
+		},
+		{
+			name:        "secrecy: wildcard in src only (wrong side)",
+			src:         []Tag{WildcardTag},
+			target:      []Tag{"a"},
+			checkSubset: true,
+			expectedOk:  false,
+		},
+		{
+			name:        "integrity: wildcard in target only (wrong side)",
+			src:         []Tag{"a"},
+			target:      []Tag{WildcardTag},
+			checkSubset: false,
+			expectedOk:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srcLabel := newLabelWithTags(tc.src)
+			targetLabel := newLabelWithTags(tc.target)
+			ok, _ := checkFlowHelper(srcLabel, targetLabel, tc.checkSubset, "Test")
+			assert.Equal(t, tc.expectedOk, ok)
+		})
+	}
+}
