@@ -1082,3 +1082,72 @@ func TestPropagateMode_EndToEnd(t *testing.T) {
 		assert.False(t, writeResult.IsAllowed(), "Write to production should be blocked after reading untrusted")
 	})
 }
+
+// TestAgentLabels_AddIntegrityTags tests the AddIntegrityTags method.
+func TestAgentLabels_AddIntegrityTags(t *testing.T) {
+	tests := []struct {
+		name     string
+		initial  []Tag
+		add      []Tag
+		wantTags []Tag
+	}{
+		{
+			name:     "add tags to empty integrity label",
+			initial:  nil,
+			add:      []Tag{"verified", "trusted"},
+			wantTags: []Tag{"verified", "trusted"},
+		},
+		{
+			name:     "add tags to non-empty integrity label",
+			initial:  []Tag{"existing"},
+			add:      []Tag{"new-tag"},
+			wantTags: []Tag{"existing", "new-tag"},
+		},
+		{
+			name:     "add empty slice is a no-op",
+			initial:  []Tag{"keep"},
+			add:      []Tag{},
+			wantTags: []Tag{"keep"},
+		},
+		{
+			name:     "add nil slice is a no-op",
+			initial:  []Tag{"keep"},
+			add:      nil,
+			wantTags: []Tag{"keep"},
+		},
+		{
+			name:     "add duplicate tags does not create duplicates",
+			initial:  []Tag{"trusted"},
+			add:      []Tag{"trusted", "verified"},
+			wantTags: []Tag{"trusted", "verified"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agent := NewAgentLabels("test-agent")
+			for _, tag := range tt.initial {
+				agent.AddIntegrityTag(tag)
+			}
+
+			agent.AddIntegrityTags(tt.add)
+
+			got := agent.GetIntegrityTags()
+			assert.ElementsMatch(t, tt.wantTags, got)
+		})
+	}
+}
+
+// TestAgentLabels_AddIntegrityTags_IsIndependentOfSecrecy verifies that
+// AddIntegrityTags only modifies integrity labels and leaves secrecy unchanged.
+func TestAgentLabels_AddIntegrityTags_IsIndependentOfSecrecy(t *testing.T) {
+	agent := NewAgentLabels("agent")
+	agent.AddSecrecyTag("confidential")
+
+	agent.AddIntegrityTags([]Tag{"verified", "trusted"})
+
+	// Integrity should have new tags
+	assert.ElementsMatch(t, []Tag{"verified", "trusted"}, agent.GetIntegrityTags())
+	// Secrecy should be unchanged
+	assert.ElementsMatch(t, []Tag{"confidential"}, agent.GetSecrecyTags())
+}
