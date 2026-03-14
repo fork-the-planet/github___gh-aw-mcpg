@@ -193,6 +193,7 @@ func (p *PathLabeledData) getItems() ([]interface{}, error) {
 	if p.PathLabels.ItemsPath == "" {
 		// Root-level array
 		if arr, ok := p.UnwrappedData.([]interface{}); ok {
+			logPathLabels.Printf("getItems: found root-level array with %d items", len(arr))
 			return arr, nil
 		}
 		// Not an array, return nil (single item)
@@ -200,6 +201,7 @@ func (p *PathLabeledData) getItems() ([]interface{}, error) {
 	}
 
 	// Navigate to the items path using UnwrappedData (which may have been extracted from MCP wrapper)
+	logPathLabels.Printf("getItems: navigating to items at path=%s", p.PathLabels.ItemsPath)
 	current := p.UnwrappedData
 	parts := splitJSONPointer(p.PathLabels.ItemsPath)
 
@@ -230,6 +232,7 @@ func (p *PathLabeledData) getItems() ([]interface{}, error) {
 	}
 
 	if arr, ok := current.([]interface{}); ok {
+		logPathLabels.Printf("getItems: found %d items at path=%s", len(arr), p.PathLabels.ItemsPath)
 		return arr, nil
 	}
 
@@ -274,6 +277,7 @@ func (p *PathLabeledData) extractIndexFromPath(path, itemsPath string) (int, err
 // pathEntryToResource converts a PathLabelEntry to a LabeledResource
 func (p *PathLabeledData) pathEntryToResource(entry *PathLabelEntry) *LabeledResource {
 	if entry == nil {
+		logPathLabels.Print("pathEntryToResource: no entry provided, returning unlabeled resource")
 		// Return empty labels if no entry
 		return NewLabeledResource("unlabeled")
 	}
@@ -332,6 +336,8 @@ func (p *PathLabeledData) Overall() *LabeledResource {
 		}
 	}
 
+	logPathLabels.Printf("Overall: computed aggregate labels for %d items: secrecy=%v, integrity=%v",
+		len(p.resolvedItems), overall.Secrecy.Label.GetTags(), overall.Integrity.Label.GetTags())
 	return overall
 }
 
