@@ -16,8 +16,7 @@ import (
 // GetAgentTagsSnapshotFromContext helper.
 func TestGetAgentTagsSnapshotFromContext(t *testing.T) {
 	t.Run("nil context returns false", func(t *testing.T) {
-		//nolint:staticcheck // SA1012: intentionally testing nil context handling
-		snapshot, ok := GetAgentTagsSnapshotFromContext(nil) //nolint:staticcheck
+		snapshot, ok := GetAgentTagsSnapshotFromContext(nil) //nolint:staticcheck // SA1012: intentionally testing nil context handling
 		assert.False(t, ok)
 		assert.Nil(t, snapshot)
 	})
