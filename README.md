@@ -198,6 +198,24 @@ For the complete JSON configuration specification with all validation rules, see
 
 - **`url`** (required for http): HTTP endpoint URL for `type: "http"` servers
 
+- **`headers`** (optional): HTTP headers to include in requests (for `type: "http"` servers)
+  - Map of header name to value (e.g., `{"Authorization": "Bearer token"}`)
+
+- **`tools`** (optional): List of tool names to expose from this server
+  - If omitted or empty, all tools are exposed
+  - Example: `["get_file_contents", "search_code"]`
+
+- **`registry`** (optional): Informational URI to the server's entry in an MCP registry
+  - Used for documentation and discoverability purposes only; not used at runtime
+
+- **`guard`** (optional): Name of the guard to use for this server (DIFC)
+  - References a guard defined in the top-level `[guards]` section
+  - Enables per-server DIFC guard assignment independent of `guard-policies`
+  - Example: `guard = "github"` (uses the guard named `github` from `[guards.github]`)
+
+- **`working_directory`** (optional): Working directory for the server process
+  - **Note**: This field is parsed and stored but not yet implemented in the launcher; it has no runtime effect currently
+
 - **`guard-policies`** (optional): Guard policies for access control at the MCP gateway level
   - **`allow-only`**: Restricts which repositories a guard allows (used for GitHub MCP server)
   - **`write-sink`**: Marks a server as a write-only output channel that accepts writes from agents with matching secrecy labels (used for safe-outputs, buffered update servers)
@@ -392,8 +410,31 @@ See **[Configuration Specification](https://github.com/github/gh-aw/blob/main/do
   - This allows agents running in containers to access payload files via mounted volumes
 - **`sequential_launch`** is only supported in TOML config and CLI. Use:
   - CLI flag: `--sequential-launch` (default: parallel launch)
-  - TOML config file: `sequential_launch = true` in `[gateway]` section
+  - TOML config file: `sequential_launch = true` at the **top level** (outside of any `[section]`)
   - When enabled, MCP servers are started one-by-one instead of in parallel; useful when servers have ordering dependencies or for debugging startup issues
+  - Example (top-level TOML placement):
+    ```toml
+    sequential_launch = true
+
+    [gateway]
+    port = 3000
+
+    [servers.github]
+    command = "docker"
+    # ...
+    ```
+- **`guards_mode`** is only supported in TOML config and CLI. Use:
+  - CLI flag: `--guards-mode <mode>` (default: `strict`)
+  - Environment variable: `MCP_GATEWAY_GUARDS_MODE=<mode>`
+  - TOML config file: `guards_mode = "strict"` at the **top level** (outside of any `[section]`)
+  - Valid values: `strict` (deny violations), `filter` (silently remove denied tools/resources), `propagate` (auto-adjust agent labels on reads to allow access)
+  - Example (top-level TOML placement):
+    ```toml
+    guards_mode = "filter"
+
+    [gateway]
+    port = 3000
+    ```
 
 **Environment Variable Features**:
 - **Passthrough**: Set value to empty string (`""`) to pass through from host

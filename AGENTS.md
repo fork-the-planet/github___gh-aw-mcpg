@@ -10,6 +10,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 **Test-Unit**: `make test-unit` (run unit tests only)  
 **Test-Integration**: `make test-integration` (run binary integration tests, requires build)  
 **Test-All**: `make test-all` (run both unit and integration tests)  
+**Test-CI**: `make test-ci` (unit tests with coverage and JSON output for CI)  
 **Lint**: `make lint` (runs go vet, gofmt checks, and golangci-lint)  
 **Coverage**: `make coverage` (unit tests with coverage report)  
 **Format**: `make format` (auto-format code with gofmt)  
@@ -25,7 +26,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 - `internal/cmd/` - CLI (Cobra)
 - `internal/config/` - Config parsing (TOML/JSON) with validation
   - `validation.go` - Variable expansion and fail-fast validation
-  - `validation_test.go` - 21 comprehensive validation tests
+  - `validation_test.go` - Comprehensive validation tests
 - `internal/difc/` - Data Information Flow Control
 - `internal/envutil/` - Environment variable utilities
 - `internal/guard/` - Security guards (AllowOnly, WriteSink, NoopGuard)
@@ -372,6 +373,14 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `MCP_GATEWAY_LOG_DIR` - Log file directory (sets default for `--log-dir` flag, default: `/tmp/gh-aw/mcp-logs`)
 - `MCP_GATEWAY_PAYLOAD_DIR` - Large payload storage directory (sets default for `--payload-dir` flag, default: `/tmp/jq-payloads`)
 - `MCP_GATEWAY_GUARDS_SINK_SERVER_IDS` - Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots (sets default for `--guards-sink-server-ids`)
+- `MCP_GATEWAY_GUARDS_MODE` - Guards enforcement mode: `strict` (deny violations), `filter` (remove denied tools), `propagate` (auto-adjust agent labels) (sets default for `--guards-mode`, default: `strict`)
+- `MCP_GATEWAY_WASM_GUARDS_DIR` - Root directory for per-server WASM guards (`<root>/<serverID>/*.wasm`, first match is loaded)
+- `MCP_GATEWAY_GUARD_POLICY_JSON` - Guard policy JSON (e.g., `{"allow-only":{"repos":"public","min-integrity":"none"}}`) (sets default for `--guard-policy-json`)
+- `MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC` - Use public AllowOnly scope; set to `"true"` to enable (sets default for `--allowonly-scope-public`)
+- `MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER` - AllowOnly owner scope value (sets default for `--allowonly-scope-owner`)
+- `MCP_GATEWAY_ALLOWONLY_SCOPE_REPO` - AllowOnly repo name, requires owner (sets default for `--allowonly-scope-repo`)
+- `MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY` - AllowOnly integrity level: `none`, `unapproved`, `approved`, `merged` (sets default for `--allowonly-min-integrity`)
+- `RUNNING_IN_CONTAINER` - Set to `"true"` to force container detection when `/.dockerenv` and cgroup detection are unavailable
 
 **Note:** `PORT`, `HOST`, and `MODE` are not read by the `awmg` binary directly. However, `run.sh` does use `HOST` (default: `0.0.0.0`) and `MODE` (default: `--routed`) to set the bind address and routing mode. Use the `--listen` and `--routed`/`--unified` flags when running `awmg` directly.
 
