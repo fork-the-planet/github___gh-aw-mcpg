@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // Close Pattern for Logger Types
@@ -261,6 +262,14 @@ import (
 // When adding a new logger access point:
 //  1. Use withGlobalLogger instead of manual RLock/RUnlock
 //  2. Pass the appropriate mutex, logger pointer, and callback function
+
+// formatLogLine builds the standard log line used by FileLogger and ServerFileLogger.
+// Centralizing the format ensures consistency across all file-based loggers.
+func formatLogLine(level LogLevel, category, format string, args ...interface{}) string {
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+	message := fmt.Sprintf(format, args...)
+	return fmt.Sprintf("[%s] [%s] [%s] %s", timestamp, level, category, message)
+}
 
 // It syncs buffered data before closing and handles errors appropriately.
 // The mutex should already be held by the caller.
