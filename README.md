@@ -390,6 +390,10 @@ See **[Configuration Specification](https://github.com/github/gh-aw/blob/main/do
   - When set, the `payloadPath` returned to clients uses this prefix instead of the actual filesystem path
   - Example: Gateway saves to `/tmp/jq-payloads/session/query/payload.json`, but returns `/workspace/payloads/session/query/payload.json` to clients if `payload_path_prefix = "/workspace/payloads"`
   - This allows agents running in containers to access payload files via mounted volumes
+- **`sequential_launch`** is only supported in TOML config and CLI. Use:
+  - CLI flag: `--sequential-launch` (default: parallel launch)
+  - TOML config file: `sequential_launch = true` in `[gateway]` section
+  - When enabled, MCP servers are started one-by-one instead of in parallel; useful when servers have ordering dependencies or for debugging startup issues
 
 **Environment Variable Features**:
 - **Passthrough**: Set value to empty string (`""`) to pass through from host
@@ -513,9 +517,9 @@ When running locally (`run.sh`), these variables are optional (warnings shown if
 | `MCP_GATEWAY_GUARDS_SINK_SERVER_IDS` | Comma-separated sink server IDs for JSONL guards tag enrichment (sets default for `--guards-sink-server-ids`) | (disabled) |
 | `DEBUG` | Enable debug logging with pattern matching (e.g., `*`, `server:*,launcher:*`) | (disabled) |
 | `DEBUG_COLORS` | Control colored debug output (0 to disable, auto-disabled when piping) | Auto-detect |
-| `RUNNING_IN_CONTAINER` | Signals the gateway is running inside a container (set automatically by container runtimes) | `true` |
+| `RUNNING_IN_CONTAINER` | Manual override; set to `"true"` to force container detection when `/.dockerenv` and cgroup detection are unavailable | (unset) |
 
-**Note:** The `PORT`, `HOST`, and `MODE` environment variables are not used by the gateway application. Use the `--listen` flag to set the bind address (default: `127.0.0.1:3000`) and the `--routed` or `--unified` flags to set the gateway mode.
+**Note:** `PORT`, `HOST`, and `MODE` are not read by the `awmg` binary directly. However, `run.sh` does use `HOST` (default: `0.0.0.0`) and `MODE` (default: `--routed`) to set the bind address and routing mode. Use the `--listen` and `--routed`/`--unified` flags when running `awmg` directly.
 
 ### Containerized Deployment Variables
 

@@ -42,8 +42,8 @@ test-unit:
 	@go mod tidy
 	@go test -v ./internal/...
 
-# Run all tests (unit + integration)
-test-all:
+# Run all tests (unit + integration) — requires a built binary for integration tests
+test-all: build
 	@echo "Running all tests..."
 	@go mod tidy
 	@go test -v ./...

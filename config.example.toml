@@ -163,6 +163,10 @@ args = [
 # in the server configuration (guard-policies field)
 # guards_mode = "strict"
 
+# Launch MCP servers sequentially during startup (default: parallel launch)
+# Useful when servers have ordering dependencies or for debugging startup issues
+# sequential_launch = false
+
 # ============================================================================
 # Notes
 # ============================================================================
