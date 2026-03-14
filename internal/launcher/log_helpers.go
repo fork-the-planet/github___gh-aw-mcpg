@@ -29,13 +29,13 @@ func (l *Launcher) logSecurityWarning(serverID string, serverCfg *config.ServerC
 
 // logLaunchStart logs server launch initiation
 func (l *Launcher) logLaunchStart(serverID, sessionID string, serverCfg *config.ServerConfig, isDirectCommand bool) {
+	suffix := sessionSuffix(sessionID)
+	logger.LogInfoWithServer(serverID, "backend", "Launching MCP backend server%s: server=%s%s, command=%s, args=%v",
+		suffix, serverID, suffix, serverCfg.Command, sanitize.SanitizeArgs(serverCfg.Args))
+	log.Printf("[LAUNCHER] Starting MCP server: %s%s", serverID, suffix)
 	if sessionID != "" {
-		logger.LogInfoWithServer(serverID, "backend", "Launching MCP backend server for session: server=%s, session=%s, command=%s, args=%v", serverID, sessionID, serverCfg.Command, sanitize.SanitizeArgs(serverCfg.Args))
-		log.Printf("[LAUNCHER] Starting MCP server for session: %s (session: %s)", serverID, sessionID)
 		logLauncher.Printf("Launching new session server: serverID=%s, sessionID=%s, command=%s", serverID, sessionID, serverCfg.Command)
 	} else {
-		logger.LogInfoWithServer(serverID, "backend", "Launching MCP backend server: %s, command=%s, args=%v", serverID, serverCfg.Command, sanitize.SanitizeArgs(serverCfg.Args))
-		log.Printf("[LAUNCHER] Starting MCP server: %s", serverID)
 		logLauncher.Printf("Launching new server: serverID=%s, command=%s, inContainer=%v, isDirectCommand=%v",
 			serverID, serverCfg.Command, l.runningInContainer, isDirectCommand)
 	}
@@ -96,31 +96,19 @@ func (l *Launcher) logLaunchError(serverID, sessionID string, err error, serverC
 
 // logTimeoutError logs startup timeout diagnostics
 func (l *Launcher) logTimeoutError(serverID, sessionID string) {
+	suffix := sessionSuffix(sessionID)
 	logger.LogErrorWithServer(serverID, "backend", "MCP backend server startup timeout%s: server=%s%s, timeout=%v",
-		sessionSuffix(sessionID), serverID, sessionSuffix(sessionID), l.startupTimeout)
-	if sessionID != "" {
-		log.Printf("[LAUNCHER] ❌ Server '%s' (session: %s) startup timed out after %v", serverID, sessionID, l.startupTimeout)
-	} else {
-		log.Printf("[LAUNCHER] ❌ Server '%s' startup timed out after %v", serverID, l.startupTimeout)
-	}
+		suffix, serverID, suffix, l.startupTimeout)
+	log.Printf("[LAUNCHER] ❌ Server '%s'%s startup timed out after %v", serverID, suffix, l.startupTimeout)
 	log.Printf("[LAUNCHER] ⚠️  The server may be hanging or taking too long to initialize")
 	log.Printf("[LAUNCHER] ⚠️  Consider increasing 'startupTimeout' in gateway config if server needs more time")
-	if sessionID != "" {
-		logLauncher.Printf("Startup timeout occurred: serverID=%s, sessionID=%s, timeout=%v", serverID, sessionID, l.startupTimeout)
-	} else {
-		logLauncher.Printf("Startup timeout occurred: serverID=%s, timeout=%v", serverID, l.startupTimeout)
-	}
+	logLauncher.Printf("Startup timeout occurred: serverID=%s%s, timeout=%v", serverID, suffix, l.startupTimeout)
 }
 
 // logLaunchSuccess logs successful server launch
 func (l *Launcher) logLaunchSuccess(serverID, sessionID string) {
-	if sessionID != "" {
-		logger.LogInfoWithServer(serverID, "backend", "Successfully launched MCP backend server for session: server=%s, session=%s", serverID, sessionID)
-		log.Printf("[LAUNCHER] Successfully launched: %s (session: %s)", serverID, sessionID)
-		logLauncher.Printf("Session connection established: serverID=%s, sessionID=%s", serverID, sessionID)
-	} else {
-		logger.LogInfoWithServer(serverID, "backend", "Successfully launched MCP backend server: %s", serverID)
-		log.Printf("[LAUNCHER] Successfully launched: %s", serverID)
-		logLauncher.Printf("Connection established: serverID=%s", serverID)
-	}
+	suffix := sessionSuffix(sessionID)
+	logger.LogInfoWithServer(serverID, "backend", "Successfully launched MCP backend server%s: server=%s%s", suffix, serverID, suffix)
+	log.Printf("[LAUNCHER] Successfully launched: %s%s", serverID, suffix)
+	logLauncher.Printf("Connection established: serverID=%s%s", serverID, suffix)
 }

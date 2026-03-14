@@ -421,46 +421,34 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 		// Validate container pattern for stdio servers
 		if server.Type == "" || server.Type == "stdio" || server.Type == "local" {
 			if server.Container != "" && !containerPattern.MatchString(server.Container) {
-				return &rules.ValidationError{
-					Field:      "container",
-					Message:    fmt.Sprintf("container image '%s' does not match required pattern", server.Container),
-					JSONPath:   fmt.Sprintf("%s.container", jsonPath),
-					Suggestion: "Use a valid container image format (e.g., 'ghcr.io/owner/image:tag' or 'owner/image:latest')",
-				}
+				return rules.InvalidPattern("container", server.Container,
+					fmt.Sprintf("%s.container", jsonPath),
+					"Use a valid container image format (e.g., 'ghcr.io/owner/image:tag' or 'owner/image:latest')")
 			}
 
 			// Validate mount patterns
 			for i, mount := range server.Mounts {
 				if !mountPattern.MatchString(mount) {
-					return &rules.ValidationError{
-						Field:      "mounts",
-						Message:    fmt.Sprintf("mount '%s' does not match required pattern", mount),
-						JSONPath:   fmt.Sprintf("%s.mounts[%d]", jsonPath, i),
-						Suggestion: "Use format 'source:dest:mode' where mode is 'ro' or 'rw'",
-					}
+					return rules.InvalidPattern("mounts", mount,
+						fmt.Sprintf("%s.mounts[%d]", jsonPath, i),
+						"Use format 'source:dest:mode' where mode is 'ro' or 'rw'")
 				}
 			}
 
 			// Validate entrypoint is not empty if provided
 			if server.Entrypoint != "" && len(strings.TrimSpace(server.Entrypoint)) == 0 {
-				return &rules.ValidationError{
-					Field:      "entrypoint",
-					Message:    "entrypoint cannot be empty or whitespace only",
-					JSONPath:   fmt.Sprintf("%s.entrypoint", jsonPath),
-					Suggestion: "Provide a valid entrypoint path or remove the field",
-				}
+				return rules.InvalidValue("entrypoint", "entrypoint cannot be empty or whitespace only",
+					fmt.Sprintf("%s.entrypoint", jsonPath),
+					"Provide a valid entrypoint path or remove the field")
 			}
 		}
 
 		// Validate URL pattern for HTTP servers
 		if server.Type == "http" {
 			if server.URL != "" && !urlPattern.MatchString(server.URL) {
-				return &rules.ValidationError{
-					Field:      "url",
-					Message:    fmt.Sprintf("url '%s' does not match required pattern", server.URL),
-					JSONPath:   fmt.Sprintf("%s.url", jsonPath),
-					Suggestion: "Use a valid HTTP or HTTPS URL (e.g., 'https://api.example.com/mcp')",
-				}
+				return rules.InvalidPattern("url", server.URL,
+					fmt.Sprintf("%s.url", jsonPath),
+					"Use a valid HTTP or HTTPS URL (e.g., 'https://api.example.com/mcp')")
 			}
 		}
 	}
@@ -477,12 +465,10 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 		if stdinCfg.Gateway.Domain != "" {
 			domain := stdinCfg.Gateway.Domain
 			if domain != "localhost" && domain != "host.docker.internal" && !domainVarPattern.MatchString(domain) {
-				return &rules.ValidationError{
-					Field:      "domain",
-					Message:    fmt.Sprintf("domain '%s' must be 'localhost', 'host.docker.internal', or a variable expression", domain),
-					JSONPath:   "gateway.domain",
-					Suggestion: "Use 'localhost', 'host.docker.internal', or a variable like '${MCP_GATEWAY_DOMAIN}'",
-				}
+				return rules.InvalidValue("domain",
+					fmt.Sprintf("domain '%s' must be 'localhost', 'host.docker.internal', or a variable expression", domain),
+					"gateway.domain",
+					"Use 'localhost', 'host.docker.internal', or a variable like '${MCP_GATEWAY_DOMAIN}'")
 			}
 		}
 	}

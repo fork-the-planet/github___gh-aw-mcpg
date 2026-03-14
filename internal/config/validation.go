@@ -206,12 +206,10 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 	schemaJSON, err := fetchAndFixSchema(schemaURL)
 	if err != nil {
 		logValidation.Printf("Failed to fetch custom schema: name=%s, url=%s, error=%v", name, schemaURL, err)
-		return &rules.ValidationError{
-			Field:      "type",
-			Message:    fmt.Sprintf("failed to fetch custom schema for server type '%s': %v", server.Type, err),
-			JSONPath:   jsonPath,
-			Suggestion: fmt.Sprintf("Ensure the schema URL '%s' is accessible and returns a valid JSON Schema", schemaURL),
-		}
+		return rules.SchemaValidationError(server.Type,
+			fmt.Sprintf("failed to fetch custom schema: %v", err),
+			jsonPath,
+			fmt.Sprintf("Ensure the schema URL '%s' is accessible and returns a valid JSON Schema", schemaURL))
 	}
 
 	logValidation.Printf("Custom schema fetched successfully: name=%s, size=%d bytes", name, len(schemaJSON))
@@ -219,12 +217,10 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 	// Parse the schema to extract its $id
 	var schemaObj map[string]interface{}
 	if err := json.Unmarshal(schemaJSON, &schemaObj); err != nil {
-		return &rules.ValidationError{
-			Field:      "type",
-			Message:    fmt.Sprintf("failed to parse custom schema for server type '%s': %v", server.Type, err),
-			JSONPath:   jsonPath,
-			Suggestion: fmt.Sprintf("The schema at '%s' must be valid JSON", schemaURL),
-		}
+		return rules.SchemaValidationError(server.Type,
+			fmt.Sprintf("failed to parse custom schema: %v", err),
+			jsonPath,
+			fmt.Sprintf("The schema at '%s' must be valid JSON", schemaURL))
 	}
 
 	schemaID, ok := schemaObj["$id"].(string)
@@ -238,32 +234,26 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 
 	// Add the schema with both URLs (the fetch URL and the $id URL)
 	if err := compiler.AddResource(schemaURL, strings.NewReader(string(schemaJSON))); err != nil {
-		return &rules.ValidationError{
-			Field:      "type",
-			Message:    fmt.Sprintf("failed to compile custom schema for server type '%s': %v", server.Type, err),
-			JSONPath:   jsonPath,
-			Suggestion: fmt.Sprintf("The schema at '%s' must be a valid JSON Schema Draft 7 document", schemaURL),
-		}
+		return rules.SchemaValidationError(server.Type,
+			fmt.Sprintf("failed to compile custom schema: %v", err),
+			jsonPath,
+			fmt.Sprintf("The schema at '%s' must be a valid JSON Schema Draft 7 document", schemaURL))
 	}
 	if schemaID != schemaURL {
 		if err := compiler.AddResource(schemaID, strings.NewReader(string(schemaJSON))); err != nil {
-			return &rules.ValidationError{
-				Field:      "type",
-				Message:    fmt.Sprintf("failed to compile custom schema with $id for server type '%s': %v", server.Type, err),
-				JSONPath:   jsonPath,
-				Suggestion: fmt.Sprintf("Check the $id field in the schema at '%s'", schemaURL),
-			}
+			return rules.SchemaValidationError(server.Type,
+				fmt.Sprintf("failed to compile custom schema with $id: %v", err),
+				jsonPath,
+				fmt.Sprintf("Check the $id field in the schema at '%s'", schemaURL))
 		}
 	}
 
 	schema, err := compiler.Compile(schemaID)
 	if err != nil {
-		return &rules.ValidationError{
-			Field:      "type",
-			Message:    fmt.Sprintf("failed to compile custom schema for server type '%s': %v", server.Type, err),
-			JSONPath:   jsonPath,
-			Suggestion: fmt.Sprintf("The schema at '%s' must be a valid JSON Schema Draft 7 document", schemaURL),
-		}
+		return rules.SchemaValidationError(server.Type,
+			fmt.Sprintf("failed to compile custom schema: %v", err),
+			jsonPath,
+			fmt.Sprintf("The schema at '%s' must be a valid JSON Schema Draft 7 document", schemaURL))
 	}
 
 	logValidation.Printf("Custom schema compiled successfully: name=%s", name)
@@ -275,22 +265,16 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 	// Marshal the struct to JSON first
 	serverJSON, err := json.Marshal(server)
 	if err != nil {
-		return &rules.ValidationError{
-			Field:      "type",
-			Message:    fmt.Sprintf("failed to marshal server config for validation: %v", err),
-			JSONPath:   jsonPath,
-			Suggestion: "Internal error - please report this issue",
-		}
+		return rules.SchemaValidationError(server.Type,
+			fmt.Sprintf("failed to marshal server config for validation: %v", err),
+			jsonPath, "Internal error - please report this issue")
 	}
 
 	// Unmarshal to map to get struct fields
 	if err := json.Unmarshal(serverJSON, &serverMap); err != nil {
-		return &rules.ValidationError{
-			Field:      "type",
-			Message:    fmt.Sprintf("failed to unmarshal server config for validation: %v", err),
-			JSONPath:   jsonPath,
-			Suggestion: "Internal error - please report this issue",
-		}
+		return rules.SchemaValidationError(server.Type,
+			fmt.Sprintf("failed to unmarshal server config for validation: %v", err),
+			jsonPath, "Internal error - please report this issue")
 	}
 
 	// Merge additional properties (custom fields) into the map
@@ -301,12 +285,10 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 	// Validate the merged map against the custom schema
 	if err := schema.Validate(serverMap); err != nil {
 		logValidation.Printf("Custom schema validation failed: name=%s, error=%v", name, err)
-		return &rules.ValidationError{
-			Field:      "type",
-			Message:    fmt.Sprintf("server configuration does not match custom schema for type '%s': %v", server.Type, err),
-			JSONPath:   jsonPath,
-			Suggestion: fmt.Sprintf("Update the server configuration to match the schema requirements at '%s'", schemaURL),
-		}
+		return rules.SchemaValidationError(server.Type,
+			fmt.Sprintf("server configuration does not match custom schema: %v", err),
+			jsonPath,
+			fmt.Sprintf("Update the server configuration to match the schema requirements at '%s'", schemaURL))
 	}
 
 	logValidation.Printf("Custom schema validation passed: name=%s, type=%s", name, server.Type)
@@ -331,12 +313,10 @@ func validateCustomSchemas(customSchemas map[string]interface{}) error {
 		if schemaURL, ok := schemaValue.(string); ok && schemaURL != "" {
 			if !strings.HasPrefix(schemaURL, "https://") {
 				logValidation.Printf("Non-HTTPS schema URL in customSchemas: typeName=%s, url=%s", typeName, schemaURL)
-				return &rules.ValidationError{
-					Field:      "customSchemas." + typeName,
-					Message:    fmt.Sprintf("custom schema URL must use HTTPS, got '%s'", schemaURL),
-					JSONPath:   "customSchemas." + typeName,
-					Suggestion: "Use an HTTPS URL for the custom schema (e.g., 'https://example.com/schema.json')",
-				}
+				return rules.InvalidValue("customSchemas."+typeName,
+					fmt.Sprintf("custom schema URL must use HTTPS, got '%s'", schemaURL),
+					"customSchemas."+typeName,
+					"Use an HTTPS URL for the custom schema (e.g., 'https://example.com/schema.json')")
 			}
 		}
 	}

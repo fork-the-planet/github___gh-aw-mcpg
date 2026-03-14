@@ -249,3 +249,36 @@ func AbsolutePath(value, fieldName, jsonPath string) *ValidationError {
 		Suggestion: "Use an absolute path: Unix paths start with '/' (e.g., '/tmp/payloads'), Windows paths start with a drive letter (e.g., 'C:\\payloads')",
 	}
 }
+
+// InvalidPattern creates a ValidationError for values that don't match a required pattern.
+// Used by validation_schema.go for container, mount, URL, and other pattern validations.
+func InvalidPattern(fieldName, value, jsonPath, suggestion string) *ValidationError {
+	return &ValidationError{
+		Field:      fieldName,
+		Message:    fmt.Sprintf("%s '%s' does not match required pattern", fieldName, value),
+		JSONPath:   jsonPath,
+		Suggestion: suggestion,
+	}
+}
+
+// InvalidValue creates a ValidationError for field values that violate a constraint.
+// The message describes the specific constraint violation.
+func InvalidValue(fieldName, message, jsonPath, suggestion string) *ValidationError {
+	return &ValidationError{
+		Field:      fieldName,
+		Message:    message,
+		JSONPath:   jsonPath,
+		Suggestion: suggestion,
+	}
+}
+
+// SchemaValidationError creates a ValidationError for custom schema validation failures.
+// Used by validation.go for the various stages of custom schema fetching, parsing, and validation.
+func SchemaValidationError(serverType, message, jsonPath, suggestion string) *ValidationError {
+	return &ValidationError{
+		Field:      "type",
+		Message:    fmt.Sprintf("%s for server type '%s'", message, serverType),
+		JSONPath:   jsonPath,
+		Suggestion: suggestion,
+	}
+}

@@ -1,13 +1,11 @@
 package logger
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 )
 
 // FileLogger manages logging to a file with fallback to stdout
@@ -82,10 +80,7 @@ func (fl *FileLogger) Log(level LogLevel, category, format string, args ...inter
 	fl.mu.Lock()
 	defer fl.mu.Unlock()
 
-	timestamp := time.Now().UTC().Format(time.RFC3339)
-	message := fmt.Sprintf(format, args...)
-
-	logLine := fmt.Sprintf("[%s] [%s] [%s] %s", timestamp, level, category, message)
+	logLine := formatLogLine(level, category, format, args...)
 	fl.logger.Println(logLine)
 
 	// Flush the log to disk immediately to ensure it's readable by other processes

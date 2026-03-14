@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 )
 
 // ServerFileLogger manages per-serverID log files
@@ -108,10 +107,7 @@ func (sfl *ServerFileLogger) Log(serverID string, level LogLevel, category, form
 		return
 	}
 
-	timestamp := time.Now().UTC().Format(time.RFC3339)
-	message := fmt.Sprintf(format, args...)
-	logLine := fmt.Sprintf("[%s] [%s] [%s] %s", timestamp, level, category, message)
-
+	logLine := formatLogLine(level, category, format, args...)
 	logger.Println(logLine)
 
 	// Flush to disk immediately
