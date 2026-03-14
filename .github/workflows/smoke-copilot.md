@@ -11,7 +11,6 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
-  discussions: read
   actions: read
   
 name: Smoke Copilot
@@ -20,9 +19,7 @@ engine:
 strict: false
 imports:
   - shared/mcp-pagination.md
-  - shared/gh.md
   - shared/reporting.md
-  - shared/github-queries-safe-input.md
   - shared/go-make.md
   - shared/github-mcp-app.md
 network:
@@ -32,7 +29,6 @@ network:
     - playwright
     - github.com
 tools:
-  agentic-workflows:
   cache-memory: true
   github:
     toolsets: [repos, pull_requests]
@@ -80,24 +76,14 @@ timeout-minutes: 15
 ## Test Requirements
 
 1. **GitHub MCP Testing**: Review the last 2 merged pull requests in ${{ github.repository }}
-2. **Safe Inputs GH CLI Testing**: Use the `safeinputs-gh` tool to query 2 pull requests from ${{ github.repository }} (use args: "pr list --repo ${{ github.repository }} --limit 2 --json number,title,author")
-3. **Serena MCP Testing**:
+2. **Make Build Testing**: Use the `safeinputs-make` tool to build the project (use args: "build") and verify it succeeds
+3. **Playwright Testing**: Use the playwright tools to navigate to https://github.com and verify the page title contains "GitHub" (do NOT try to install playwright - use the provided MCP tools)
+4. **File Writing Testing**: Create a test file `/tmp/gh-aw/agent/smoke-test-copilot-${{ github.run_id }}.txt` with content "Smoke test passed for Copilot at $(date)" (create the directory if it doesn't exist)
+5. **Bash Tool Testing**: Execute bash commands to verify file creation was successful (use `cat` to read the file back)
+6. **Serena MCP Testing**:
    - Call the `serena-get_symbols_overview` tool DIRECTLY with `relative_path: "internal/server"` to get an overview of Go source files — do NOT use `mcp-inspect` or any other diagnostic tool to pre-check availability; just call the tool and observe whether it succeeds or returns an error
    - Only report Serena as unavailable if the direct `serena-get_symbols_overview` call itself returns an error
    - Also call the `serena-find_symbol` tool to search for symbols and verify that at least 3 symbols are found in the results
-4. **Make Build Testing**: Use the `safeinputs-make` tool to build the project (use args: "build") and verify it succeeds
-5. **Playwright Testing**: Use the playwright tools to navigate to https://github.com and verify the page title contains "GitHub" (do NOT try to install playwright - use the provided MCP tools)
-6. **File Writing Testing**: Create a test file `/tmp/gh-aw/agent/smoke-test-copilot-${{ github.run_id }}.txt` with content "Smoke test passed for Copilot at $(date)" (create the directory if it doesn't exist)
-7. **Bash Tool Testing**: Execute bash commands to verify file creation was successful (use `cat` to read the file back)
-8. **Discussion Interaction Testing**: 
-   - Use the `github-discussion-query` safe-input tool with params: `limit=1, jq=".[0]"` to get the latest discussion from ${{ github.repository }}
-   - Extract the discussion number from the result (e.g., if the result is `{"number": 123, "title": "...", ...}`, extract 123)
-   - Use the `add_comment` tool with `discussion_number: <extracted_number>` to add a fun, news-reporter style comment stating that the smoke test agent was here
-9. **Agentic Workflows MCP Testing**: 
-   - Use the `agentic-workflows` MCP tool with the `status` method to query the status of the "smoke-copilot" workflow in ${{ github.repository }}
-   - Extract key information: total runs, recent success/failure status, last run time
-   - Write a summary of the smoke-copilot workflow status to `/tmp/gh-aw/agent/smoke-copilot-status-${{ github.run_id }}.txt`
-   - Use bash to display the file contents
 
 ## Output
 
@@ -113,7 +99,5 @@ timeout-minutes: 15
    - PR titles only (no descriptions)
    - ✅ or ❌ for each test result
    - Overall status: PASS or FAIL
-
-3. Use the `add_comment` tool with `item_number` set to the discussion number you extracted in step 9 to add a **fun news-reporter style comment** to that discussion - be playful and use reporter language like "📰 BREAKING NEWS!"
 
 If all tests pass, use the `add_labels` tool to add the label `smoke-copilot` to the pull request (omit the `item_number` parameter to auto-target the triggering PR if this workflow was triggered by a pull_request event).
