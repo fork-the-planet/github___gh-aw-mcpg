@@ -4,6 +4,103 @@ This document provides the complete field-by-field reference for MCP Gateway con
 
 For the upstream specification, see the **[MCP Gateway Configuration Reference](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md)**.
 
+## Configuration Formats
+
+MCP Gateway supports two configuration formats:
+1. **JSON stdin** — Use with `--config-stdin` flag (primary format for containerized deployments)
+2. **TOML file** — Use with `--config` flag for file-based configuration
+
+### TOML Format (`config.toml`)
+
+TOML configuration requires `command = "docker"` for stdio-based MCP servers to ensure containerization:
+
+```toml
+[gateway]
+port = 3000
+api_key = "your-api-key"
+
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-i", "ghcr.io/github/github-mcp-server:latest"]
+
+[servers.github.guard_policies.allow-only]
+repos = ["github/gh-aw-mcpg", "github/gh-aw"]
+min-integrity = "unapproved"
+
+[servers.safeoutputs]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/safe-outputs:latest"]
+
+[servers.safeoutputs.guard_policies.write-sink]
+Accept = ["private:github/gh-aw-mcpg", "private:github/gh-aw"]
+```
+
+**Important**: Per [MCP Gateway Specification Section 3.2.1](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md#321-containerization-requirement), all stdio-based MCP servers MUST be containerized. The gateway rejects configurations where `command` is not `"docker"`.
+
+For HTTP-based MCP servers, use the `url` field instead of `command`:
+
+```toml
+[servers.myhttp]
+type = "http"
+url = "https://example.com/mcp"
+```
+
+> **Format note**: JSON format uses `"guard-policies"` (with hyphen), TOML uses `guard_policies` (with underscore).
+
+### JSON Stdin Format
+
+JSON configuration is the primary format for containerized deployments. Pass via stdin:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "stdio",
+      "container": "ghcr.io/github/github-mcp-server:latest",
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      },
+      "guard-policies": {
+        "allow-only": {
+          "repos": ["github/gh-aw-mcpg", "github/gh-aw"],
+          "min-integrity": "unapproved"
+        }
+      }
+    },
+    "safeoutputs": {
+      "type": "stdio",
+      "container": "ghcr.io/github/safe-outputs:latest",
+      "guard-policies": {
+        "write-sink": {
+          "accept": ["private:github/gh-aw-mcpg", "private:github/gh-aw"]
+        }
+      }
+    }
+  },
+  "gateway": {
+    "port": 8080,
+    "apiKey": "${MCP_GATEWAY_API_KEY}",
+    "domain": "localhost"
+  }
+}
+```
+
+### Configuration Validation
+
+The gateway provides fail-fast validation with precise error locations (line/column for TOML parse errors), unknown key detection (catches typos like `prot` instead of `port`), and environment variable expansion validation. Check log files for warnings after startup.
+
+### Usage
+
+Run `./awmg --help` for full CLI options. Key flags:
+
+```bash
+./awmg --config config.toml                    # TOML config file
+./awmg --config-stdin < config.json            # JSON stdin
+./awmg --config config.toml --routed           # Routed mode (default)
+./awmg --config config.toml --unified          # Unified mode
+./awmg --config config.toml --log-dir /path    # Custom log directory
+```
+
 ## Server Configuration Fields
 
 - **`type`** (optional): Server transport type
