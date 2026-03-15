@@ -79,6 +79,7 @@ func (a *AgentLabels) DropIntegrityTag(tag Tag) {
 
 // DropIntegrityTags removes multiple integrity tags from the agent
 func (a *AgentLabels) DropIntegrityTags(tags []Tag) {
+	logAgent.Printf("Agent %s dropping %d integrity tags", a.AgentID, len(tags))
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Integrity.Label.RemoveAll(tags)
@@ -89,6 +90,7 @@ func (a *AgentLabels) DropIntegrityTags(tags []Tag) {
 
 // AddSecrecyTags adds multiple secrecy tags to the agent
 func (a *AgentLabels) AddSecrecyTags(tags []Tag) {
+	logAgent.Printf("Agent %s adding %d secrecy tags", a.AgentID, len(tags))
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Secrecy.Label.AddAll(tags)
@@ -99,6 +101,7 @@ func (a *AgentLabels) AddSecrecyTags(tags []Tag) {
 
 // AddIntegrityTags adds multiple integrity tags to the agent
 func (a *AgentLabels) AddIntegrityTags(tags []Tag) {
+	logAgent.Printf("Agent %s adding %d integrity tags", a.AgentID, len(tags))
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Integrity.Label.AddAll(tags)
@@ -169,6 +172,7 @@ func (a *AgentLabels) AccumulateFromRead(resource *LabeledResource) {
 
 // Clone creates a copy of the agent labels
 func (a *AgentLabels) Clone() *AgentLabels {
+	logAgent.Printf("Cloning agent labels: agentID=%s", a.AgentID)
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 
@@ -215,6 +219,7 @@ func NewAgentRegistry() *AgentRegistry {
 
 // NewAgentRegistryWithDefaults creates a registry with default labels for new agents
 func NewAgentRegistryWithDefaults(defaultSecrecy []Tag, defaultIntegrity []Tag) *AgentRegistry {
+	logAgent.Printf("Creating agent registry with defaults: secrecyTags=%d, integrityTags=%d", len(defaultSecrecy), len(defaultIntegrity))
 	return &AgentRegistry{
 		agents:           make(map[string]*AgentLabels),
 		defaultSecrecy:   defaultSecrecy,
@@ -309,6 +314,7 @@ func (r *AgentRegistry) GetAllAgentIDs() []string {
 
 // SetDefaultLabels sets the default labels for new agents
 func (r *AgentRegistry) SetDefaultLabels(secrecy []Tag, integrity []Tag) {
+	logAgent.Printf("Setting default labels: secrecyTags=%v, integrityTags=%v", secrecy, integrity)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.defaultSecrecy = secrecy
