@@ -26,6 +26,5 @@ args = ["run", "--rm", "-i",
         "-e", "NO_COLOR=1", "-e", "TERM=dumb",
         "ghcr.io/github/serena-mcp-server:latest"]
 
-# Note: DOCKER_API_VERSION is automatically set based on architecture
-# - ARM64 (M1/M2/M3 Macs): 1.43
-# - x86_64 (Intel, GitHub Actions): 1.44
+# Note: DOCKER_API_VERSION is automatically set by querying the Docker daemon's
+# current API version; falls back to 1.44 for all architectures if detection fails.

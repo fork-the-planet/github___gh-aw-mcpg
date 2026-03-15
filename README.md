@@ -40,6 +40,9 @@ For detailed setup instructions, building from source, and local development, se
 2. **Create a configuration file** (`config.json`):
    ```json
    {
+     "gateway": {
+       "apiKey": "${MCP_GATEWAY_API_KEY}"
+     },
      "mcpServers": {
        "github": {
          "type": "stdio",
@@ -213,7 +216,7 @@ For the complete JSON configuration specification with all validation rules, see
   - Enables per-server DIFC guard assignment independent of `guard-policies`
   - Example: `guard = "github"` (uses the guard named `github` from `[guards.github]`)
 
-- **`working_directory`** (optional): Working directory for the server process
+- **`working_directory`** (optional, TOML format only): Working directory for the server process
   - **Note**: This field is parsed and stored but not yet implemented in the launcher; it has no runtime effect currently
 
 - **`guard-policies`** (optional): Guard policies for access control at the MCP gateway level
@@ -538,7 +541,7 @@ When running in a container (`run_containerized.sh`), these variables **must** b
 |----------|-------------|---------|
 | `MCP_GATEWAY_PORT` | The port the gateway listens on (used for `--listen` address) | `8080` |
 | `MCP_GATEWAY_DOMAIN` | The domain name for the gateway | `localhost` |
-| `MCP_GATEWAY_API_KEY` | API key for authentication | `your-secret-key` |
+| `MCP_GATEWAY_API_KEY` | API key checked by `run_containerized.sh` as a deployment gate; must be referenced in your JSON config via `"${MCP_GATEWAY_API_KEY}"` to enable authentication | `your-secret-key` |
 
 ### Optional (Non-Containerized Mode)
 
@@ -548,7 +551,7 @@ When running locally (`run.sh`), these variables are optional (warnings shown if
 |----------|-------------|---------|
 | `MCP_GATEWAY_PORT` | Gateway listening port | `8000` |
 | `MCP_GATEWAY_DOMAIN` | Gateway domain | `localhost` |
-| `MCP_GATEWAY_API_KEY` | API authentication key | (disabled) |
+| `MCP_GATEWAY_API_KEY` | Informational only — not read directly by the binary; must be referenced in your config via `"${MCP_GATEWAY_API_KEY}"` to enable authentication | (disabled) |
 | `MCP_GATEWAY_LOG_DIR` | Log file directory (sets default for `--log-dir` flag) | `/tmp/gh-aw/mcp-logs` |
 | `MCP_GATEWAY_PAYLOAD_DIR` | Large payload storage directory (sets default for `--payload-dir` flag) | `/tmp/jq-payloads` |
 | `MCP_GATEWAY_PAYLOAD_PATH_PREFIX` | Path prefix for remapping payloadPath returned to clients (sets default for `--payload-path-prefix` flag) | (empty - use actual filesystem path) |
@@ -604,6 +607,9 @@ For production deployments in Docker containers, use `run_containerized.sh` whic
 
 ```bash
 # Correct way to run the gateway in a container:
+# Note: MCP_GATEWAY_API_KEY is checked by run_containerized.sh as a deployment gate.
+# For authentication to be active, your config.json must reference it via variable expansion:
+#   "gateway": { "apiKey": "${MCP_GATEWAY_API_KEY}" }
 docker run -i \
   -e MCP_GATEWAY_PORT=8080 \
   -e MCP_GATEWAY_DOMAIN=localhost \
@@ -788,7 +794,15 @@ MCPG implements MCP specification 7.1 for API key authentication.
 - Example: `Authorization: my-secret-api-key-123`
 
 **Configuration:**
-- Set via `MCP_GATEWAY_API_KEY` environment variable
+- The binary reads the API key from the config (`[gateway] api_key` in TOML, or `"gateway": {"apiKey": "..."}` in JSON stdin)
+- To configure via environment variable, reference it in your JSON config using variable expansion:
+  ```json
+  {
+    "gateway": {
+      "apiKey": "${MCP_GATEWAY_API_KEY}"
+    }
+  }
+  ```
 - When configured, all endpoints except `/health` require authentication
 - When not configured, authentication is disabled
 

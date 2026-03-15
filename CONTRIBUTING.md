@@ -223,7 +223,7 @@ awmg/
     ├── config/                # Configuration loading (TOML/JSON)
     ├── difc/                  # Data Information Flow Control
     ├── envutil/               # Environment variable utilities
-    ├── guard/                 # Security guards (NoopGuard active)
+    ├── guard/                 # Security guards (NoopGuard, WasmGuard, WriteSink)
     ├── launcher/              # Backend server management
     ├── logger/                # Debug logging framework
     ├── mcp/                   # MCP protocol types & connection
@@ -479,7 +479,7 @@ docker run --rm -i \
 
 The container uses `run_containerized.sh` as the entrypoint, which:
 - Requires the `-i` flag for JSON configuration via stdin
-- Requires `MCP_GATEWAY_PORT`, `MCP_GATEWAY_DOMAIN`, `MCP_GATEWAY_API_KEY` env vars
+- Requires `MCP_GATEWAY_PORT`, `MCP_GATEWAY_DOMAIN`, `MCP_GATEWAY_API_KEY` env vars (the API key is a deployment gate; reference it in your JSON config via `"gateway": {"apiKey": "${MCP_GATEWAY_API_KEY}"}` to enable authentication)
 - Queries the Docker daemon API version (falls back to 1.44)
 - Validates Docker socket, port mapping, and environment before starting
 
@@ -502,7 +502,7 @@ docker run --rm -i \
 Required environment variables:
 - `MCP_GATEWAY_PORT` - Server port (must match port mapping)
 - `MCP_GATEWAY_DOMAIN` - Domain name for the gateway
-- `MCP_GATEWAY_API_KEY` - API key for authentication
+- `MCP_GATEWAY_API_KEY` - Checked by `run_containerized.sh` as a deployment gate; must be referenced in your JSON config via `"gateway": {"apiKey": "${MCP_GATEWAY_API_KEY}"}` to enable authentication
 
 **Note:** The `DOCKER_API_VERSION` is set automatically by `run_containerized.sh` using the Docker daemon's current API version (falls back to `1.44` for all architectures if detection fails).
 
