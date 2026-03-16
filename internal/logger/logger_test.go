@@ -430,7 +430,7 @@ func TestDebugLoggerDisabledNoFileWrite(t *testing.T) {
 	log := New("test:disabled")
 
 	// Verify logger is disabled
-	assert.False(t, log.Enabled(), "Logger should be disabled when DEBUG is empty")
+	require.False(t, log.Enabled(), "Logger should be disabled when DEBUG is empty")
 
 	// Try to log (should not write anywhere)
 	log.Printf("This should not appear")
