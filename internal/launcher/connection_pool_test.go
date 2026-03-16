@@ -392,7 +392,7 @@ func TestConnectionStateActive(t *testing.T) {
 func TestCleanupIdleConnections_AlreadyClosedState(t *testing.T) {
 	ctx := context.Background()
 	config := PoolConfig{
-		IdleTimeout: 1 * time.Hour,         // long — won't trigger idle cleanup
+		IdleTimeout: 1 * time.Hour, // long — won't trigger idle cleanup
 		// Use a very long cleanup interval so the background ticker does not
 		// interfere with this deterministic test; we'll invoke cleanup manually.
 		CleanupInterval: 24 * time.Hour,
