@@ -167,18 +167,19 @@ func NewSecrecyLabelWithTags(tags []Tag) *SecrecyLabel {
 	return &SecrecyLabel{Label: newLabelWithTags(tags)}
 }
 
+// getLabel returns the underlying Label, or nil if the receiver is nil.
+func (l *SecrecyLabel) getLabel() *Label {
+	if l == nil {
+		return nil
+	}
+	return l.Label
+}
+
 // CanFlowTo checks if this secrecy label can flow to target
 // Secrecy semantics: l ⊆ target (this has no tags that target doesn't have)
 // Data can only flow to contexts with equal or more secrecy tags
 func (l *SecrecyLabel) CanFlowTo(target *SecrecyLabel) bool {
-	var srcLabel, targetLabel *Label
-	if l != nil {
-		srcLabel = l.Label
-	}
-	if target != nil {
-		targetLabel = target.Label
-	}
-	ok, _ := checkFlowHelper(srcLabel, targetLabel, true, "Secrecy")
+	ok, _ := checkFlowHelper(l.getLabel(), target.getLabel(), true, "Secrecy")
 	return ok
 }
 
@@ -273,19 +274,12 @@ func checkFlowHelper(srcLabel *Label, targetLabel *Label, checkSubset bool, labe
 
 // CheckFlow checks if this secrecy label can flow to target and returns violation details if not
 func (l *SecrecyLabel) CheckFlow(target *SecrecyLabel) (bool, []Tag) {
-	var srcLabel, targetLabel *Label
-	if l != nil {
-		srcLabel = l.Label
-	}
-	if target != nil {
-		targetLabel = target.Label
-	}
-	return checkFlowHelper(srcLabel, targetLabel, true, "Secrecy")
+	return checkFlowHelper(l.getLabel(), target.getLabel(), true, "Secrecy")
 }
 
 // Clone creates a copy of the secrecy label
 func (l *SecrecyLabel) Clone() *SecrecyLabel {
-	if l == nil || l.Label == nil {
+	if l.getLabel() == nil {
 		return NewSecrecyLabel()
 	}
 	return &SecrecyLabel{Label: l.Label.Clone()}
@@ -308,37 +302,31 @@ func NewIntegrityLabelWithTags(tags []Tag) *IntegrityLabel {
 	return &IntegrityLabel{Label: newLabelWithTags(tags)}
 }
 
+// getLabel returns the underlying Label, or nil if the receiver is nil.
+func (l *IntegrityLabel) getLabel() *Label {
+	if l == nil {
+		return nil
+	}
+	return l.Label
+}
+
 // CanFlowTo checks if this integrity label can flow to target
 // Integrity semantics: l ⊇ target (this has all tags that target has)
 // For writes: agent must have >= integrity than endpoint
 // For reads: endpoint must have >= integrity than agent
 func (l *IntegrityLabel) CanFlowTo(target *IntegrityLabel) bool {
-	var srcLabel, targetLabel *Label
-	if l != nil {
-		srcLabel = l.Label
-	}
-	if target != nil {
-		targetLabel = target.Label
-	}
-	ok, _ := checkFlowHelper(srcLabel, targetLabel, false, "Integrity")
+	ok, _ := checkFlowHelper(l.getLabel(), target.getLabel(), false, "Integrity")
 	return ok
 }
 
 // CheckFlow checks if this integrity label can flow to target and returns violation details if not
 func (l *IntegrityLabel) CheckFlow(target *IntegrityLabel) (bool, []Tag) {
-	var srcLabel, targetLabel *Label
-	if l != nil {
-		srcLabel = l.Label
-	}
-	if target != nil {
-		targetLabel = target.Label
-	}
-	return checkFlowHelper(srcLabel, targetLabel, false, "Integrity")
+	return checkFlowHelper(l.getLabel(), target.getLabel(), false, "Integrity")
 }
 
 // Clone creates a copy of the integrity label
 func (l *IntegrityLabel) Clone() *IntegrityLabel {
-	if l == nil || l.Label == nil {
+	if l.getLabel() == nil {
 		return NewIntegrityLabel()
 	}
 	return &IntegrityLabel{Label: l.Label.Clone()}

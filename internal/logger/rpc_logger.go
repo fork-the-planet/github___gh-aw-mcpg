@@ -59,41 +59,32 @@ type RPCMessageInfo struct {
 	Error       string              // Error message if any (for responses)
 }
 
+// newRPCMessageInfo constructs an RPCMessageInfo with the given parameters, truncating
+// the payload preview to maxPayload characters.
+func newRPCMessageInfo(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error, maxPayload int) *RPCMessageInfo {
+	info := &RPCMessageInfo{
+		Direction:   direction,
+		MessageType: messageType,
+		ServerID:    serverID,
+		Method:      method,
+		PayloadSize: len(payload),
+		Payload:     truncateAndSanitize(string(payload), maxPayload),
+	}
+	if err != nil {
+		info.Error = err.Error()
+	}
+	return info
+}
+
 // logRPCMessageToAll is a helper that logs RPC messages to text, markdown, and JSONL logs.
 // It uses the withGlobalLogger helper from global_helpers.go to handle mutex locking and nil-checking.
 func logRPCMessageToAll(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error, agentSecrecy, agentIntegrity []string) {
-	// Create info for text log (with larger payload preview)
-	infoText := &RPCMessageInfo{
-		Direction:   direction,
-		MessageType: messageType,
-		ServerID:    serverID,
-		Method:      method,
-		PayloadSize: len(payload),
-		Payload:     truncateAndSanitize(string(payload), MaxPayloadPreviewLengthText),
-	}
-
-	if err != nil {
-		infoText.Error = err.Error()
-	}
-
-	// Log to text file
+	// Log to text file (with larger payload preview)
+	infoText := newRPCMessageInfo(direction, messageType, serverID, method, payload, err, MaxPayloadPreviewLengthText)
 	LogDebug("rpc", "%s", formatRPCMessage(infoText))
 
-	// Create info for markdown log (with shorter payload preview)
-	infoMarkdown := &RPCMessageInfo{
-		Direction:   direction,
-		MessageType: messageType,
-		ServerID:    serverID,
-		Method:      method,
-		PayloadSize: len(payload),
-		Payload:     truncateAndSanitize(string(payload), MaxPayloadPreviewLengthMarkdown),
-	}
-
-	if err != nil {
-		infoMarkdown.Error = err.Error()
-	}
-
-	// Log to markdown file using withGlobalLogger helper
+	// Log to markdown file (with shorter payload preview)
+	infoMarkdown := newRPCMessageInfo(direction, messageType, serverID, method, payload, err, MaxPayloadPreviewLengthMarkdown)
 	withGlobalLogger(&globalMarkdownMu, &globalMarkdownLogger, func(logger *MarkdownLogger) {
 		logger.Log(LogLevelDebug, "rpc", "%s", formatRPCMessageMarkdown(infoMarkdown))
 	})
