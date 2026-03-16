@@ -21,7 +21,6 @@ func SetSinkServerIDs(serverIDs []string) {
 	logSink.Printf("Setting sink server IDs: input_count=%d", len(serverIDs))
 
 	var (
-		cleared       bool
 		normalizedOut []string
 		duplicateIDs  []string
 	)
@@ -30,7 +29,6 @@ func SetSinkServerIDs(serverIDs []string) {
 
 	if len(serverIDs) == 0 {
 		sinkServerIDs = nil
-		cleared = true
 		sinkServerIDsMu.Unlock()
 
 		logSink.Print("No sink server IDs provided, clearing configuration")
