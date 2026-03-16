@@ -258,6 +258,56 @@ pub fn policy_private_scope_label(
 }
 
 // ============================================================================
+// Repository Visibility Helpers
+// ============================================================================
+
+/// Returns private secrecy labels for a repo if it is private, or an empty vec if public.
+/// On unknown visibility (None), fails secure (returns private labels) except in tests.
+pub(crate) fn repo_visibility_secrecy(
+    owner: &str,
+    repo: &str,
+    repo_id: &str,
+    ctx: &PolicyContext,
+) -> Vec<String> {
+    // If any identifier is missing, treat visibility as unknown and fail secure
+    if owner.is_empty() || repo.is_empty() || repo_id.is_empty() {
+        return policy_private_scope_label(owner, repo, repo_id, ctx);
+    }
+    match super::backend::is_repo_private(owner, repo) {
+        Some(true) => policy_private_scope_label(owner, repo, repo_id, ctx),
+        Some(false) => vec![],
+        None => {
+            if cfg!(test) {
+                vec![]
+            } else {
+                policy_private_scope_label(owner, repo, repo_id, ctx)
+            }
+        }
+    }
+}
+
+/// Convenience wrapper: splits `repo_id` as "owner/repo" and delegates to
+/// [`repo_visibility_secrecy`].
+pub(crate) fn repo_visibility_secrecy_for_repo_id(
+    repo_id: &str,
+    ctx: &PolicyContext,
+) -> Vec<String> {
+    if let Some((owner, repo)) = repo_id.split_once('/') {
+        repo_visibility_secrecy(owner, repo, repo_id, ctx)
+    } else {
+        // Malformed repo_id: treat as unknown visibility and fail secure
+        policy_private_scope_label("", "", repo_id, ctx)
+    }
+}
+
+/// Returns `Some(true)` if the repo identified by `repo_id` ("owner/repo") is private,
+/// `Some(false)` if public, or `None` if the visibility is unknown.
+pub(crate) fn repo_visibility_private_for_repo_id(repo_id: &str) -> Option<bool> {
+    let (owner, repo) = repo_id.split_once('/')?;
+    super::backend::is_repo_private(owner, repo)
+}
+
+// ============================================================================
 // JSON Field Extraction Helpers
 // ============================================================================
 

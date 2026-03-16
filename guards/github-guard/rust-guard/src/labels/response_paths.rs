@@ -11,42 +11,6 @@ use super::extract_mcp_response;
 use super::helpers::*;
 use serde_json::Value;
 
-fn repo_visibility_secrecy(
-    owner: &str,
-    repo: &str,
-    repo_id: &str,
-    ctx: &PolicyContext,
-) -> Vec<String> {
-    if owner.is_empty() || repo.is_empty() || repo_id.is_empty() {
-        return vec![];
-    }
-
-    match super::backend::is_repo_private(owner, repo) {
-        Some(true) => policy_private_scope_label(owner, repo, repo_id, ctx),
-        Some(false) => vec![],
-        None => {
-            if cfg!(test) {
-                vec![]
-            } else {
-                policy_private_scope_label(owner, repo, repo_id, ctx)
-            }
-        }
-    }
-}
-
-fn repo_visibility_secrecy_for_repo_id(repo_id: &str, ctx: &PolicyContext) -> Vec<String> {
-    if let Some((owner, repo)) = repo_id.split_once('/') {
-        repo_visibility_secrecy(owner, repo, repo_id, ctx)
-    } else {
-        vec![]
-    }
-}
-
-fn repo_visibility_private_for_repo_id(repo_id: &str) -> Option<bool> {
-    let (owner, repo) = repo_id.split_once('/')?;
-    super::backend::is_repo_private(owner, repo)
-}
-
 /// Path-based label for response items (RFC 6901 JSON Pointer)
 #[derive(Debug, Clone)]
 pub struct PathLabelEntry {
