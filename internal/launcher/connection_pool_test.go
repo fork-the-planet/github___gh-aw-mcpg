@@ -392,8 +392,10 @@ func TestConnectionStateActive(t *testing.T) {
 func TestCleanupIdleConnections_AlreadyClosedState(t *testing.T) {
 	ctx := context.Background()
 	config := PoolConfig{
-		IdleTimeout:     1 * time.Hour,  // long — won't trigger idle cleanup
-		CleanupInterval: 20 * time.Millisecond,
+		IdleTimeout: 1 * time.Hour,         // long — won't trigger idle cleanup
+		// Use a very long cleanup interval so the background ticker does not
+		// interfere with this deterministic test; we'll invoke cleanup manually.
+		CleanupInterval: 24 * time.Hour,
 		MaxErrorCount:   100, // high — won't trigger error cleanup
 	}
 	pool := NewSessionConnectionPoolWithConfig(ctx, config)
@@ -415,8 +417,8 @@ func TestCleanupIdleConnections_AlreadyClosedState(t *testing.T) {
 
 	require.Equal(t, 1, pool.Size(), "connection should exist before cleanup")
 
-	// Wait for cleanup goroutine to run at least once.
-	time.Sleep(60 * time.Millisecond)
+	// Manually invoke cleanup instead of relying on the background ticker.
+	pool.cleanupIdleConnections()
 
 	assert.Equal(t, 0, pool.Size(),
 		"ConnectionStateClosed connection should be removed by cleanup even if recently used")
@@ -429,8 +431,10 @@ func TestCleanupIdleConnections_AlreadyClosedState(t *testing.T) {
 func TestCleanupIdleConnections_ClosedConnectionSkipsDoubleClose(t *testing.T) {
 	ctx := context.Background()
 	config := PoolConfig{
-		IdleTimeout:     10 * time.Millisecond,
-		CleanupInterval: 20 * time.Millisecond,
+		IdleTimeout: 10 * time.Millisecond,
+		// Use a very long cleanup interval so the background ticker does not
+		// interfere with this deterministic test; we'll invoke cleanup manually.
+		CleanupInterval: 24 * time.Hour,
 		MaxErrorCount:   100,
 	}
 	pool := NewSessionConnectionPoolWithConfig(ctx, config)
@@ -452,8 +456,8 @@ func TestCleanupIdleConnections_ClosedConnectionSkipsDoubleClose(t *testing.T) {
 
 	require.Equal(t, 1, pool.Size())
 
-	// Wait for cleanup.
-	time.Sleep(60 * time.Millisecond)
+	// Manually invoke cleanup instead of relying on the background ticker.
+	pool.cleanupIdleConnections()
 
 	assert.Equal(t, 0, pool.Size(),
 		"idle+closed connection should be cleaned up exactly once")
