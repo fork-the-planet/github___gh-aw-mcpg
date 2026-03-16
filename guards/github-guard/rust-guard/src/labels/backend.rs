@@ -335,7 +335,7 @@ pub fn is_forked_pull_request_with_callback(
 
     let response_str = std::str::from_utf8(&result_buffer[..len]).ok()?;
     let response = serde_json::from_str::<Value>(response_str).ok()?;
-    let pr = extract_mcp_payload_json(&response);
+    let pr = super::extract_mcp_response(&response);
 
     let base_full_name = pr
         .get("base")
@@ -384,7 +384,7 @@ pub fn get_pull_request_facts_with_callback(
 
     let response_str = std::str::from_utf8(&result_buffer[..len]).ok()?;
     let response = serde_json::from_str::<Value>(response_str).ok()?;
-    let pr = extract_mcp_payload_json(&response);
+    let pr = super::extract_mcp_response(&response);
 
     let base_full_name = pr
         .get("base")
@@ -451,7 +451,7 @@ pub fn get_issue_author_association_with_callback(
 
     let response_str = std::str::from_utf8(&result_buffer[..len]).ok()?;
     let response = serde_json::from_str::<Value>(response_str).ok()?;
-    let issue = extract_mcp_payload_json(&response);
+    let issue = super::extract_mcp_response(&response);
 
     issue
         .get("author_association")
@@ -494,22 +494,6 @@ fn extract_repo_private_flag(response: &Value, repo_id: &str) -> Option<bool> {
 
     let parsed = serde_json::from_str::<Value>(text_payload).ok()?;
     repo_visibility_from_items(&parsed, repo_id)
-}
-
-fn extract_mcp_payload_json(response: &Value) -> Value {
-    if let Some(content) = response.get("content").and_then(|v| v.as_array()) {
-        if let Some(text) = content
-            .first()
-            .and_then(|item| item.get("text"))
-            .and_then(|v| v.as_str())
-        {
-            if let Ok(parsed) = serde_json::from_str::<Value>(text) {
-                return parsed;
-            }
-        }
-    }
-
-    response.clone()
 }
 
 fn extract_backend_error_text(response: &Value) -> Option<&str> {

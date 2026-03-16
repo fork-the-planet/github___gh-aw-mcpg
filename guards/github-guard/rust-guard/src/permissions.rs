@@ -4,9 +4,7 @@
 //! using the backend MCP server. This enables dynamic integrity
 //! labeling based on actual GitHub permissions.
 
-#![allow(dead_code)]
-
-use crate::labels::{constants::label_constants, is_bot, MEDIUM_BUFFER_SIZE};
+use crate::labels::{constants::label_constants, MEDIUM_BUFFER_SIZE};
 use serde_json::Value;
 
 /// Repository permission level from GitHub
@@ -301,15 +299,6 @@ pub fn get_author_integrity_tags(author: &str, owner: &str, repo: &str) -> Vec<S
     vec![format!("{}{}", label_constants::READER_PREFIX, repo_id)]
 }
 
-/// Check if a user is likely a bot account
-///
-/// This is a re-export of `labels::is_bot` for backwards compatibility.
-/// Use `labels::is_bot` directly in new code.
-#[deprecated(since = "0.2.0", note = "Use `labels::is_bot` instead")]
-pub fn is_bot_account(username: &str) -> bool {
-    is_bot(username)
-}
-
 /// Get integrity tags for a bot account
 ///
 /// Bots typically have approved-level integrity for their automated actions.
@@ -344,6 +333,7 @@ pub fn get_bot_integrity_tags(bot_name: &str, owner: &str, repo: &str) -> Vec<St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::labels::is_bot;
 
     #[test]
     fn test_permission_level_parsing() {
@@ -373,15 +363,6 @@ mod tests {
 
     #[test]
     fn test_bot_detection() {
-        // Test the re-exported function
-        #[allow(deprecated)]
-        {
-            assert!(is_bot_account("dependabot[bot]"));
-            assert!(is_bot_account("renovate-bot"));
-            assert!(is_bot_account("github-actions"));
-            assert!(!is_bot_account("octocat"));
-        }
-
         // Test the canonical function from labels module
         assert!(is_bot("dependabot[bot]"));
         assert!(is_bot("renovate-bot"));
