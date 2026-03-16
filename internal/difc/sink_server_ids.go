@@ -19,12 +19,21 @@ var (
 // enrichment in RPC JSONL logs.
 func SetSinkServerIDs(serverIDs []string) {
 	logSink.Printf("Setting sink server IDs: input_count=%d", len(serverIDs))
+
+	var (
+		cleared       bool
+		normalizedOut []string
+		duplicateIDs  []string
+	)
+
 	sinkServerIDsMu.Lock()
-	defer sinkServerIDsMu.Unlock()
 
 	if len(serverIDs) == 0 {
-		logSink.Print("No sink server IDs provided, clearing configuration")
 		sinkServerIDs = nil
+		cleared = true
+		sinkServerIDsMu.Unlock()
+
+		logSink.Print("No sink server IDs provided, clearing configuration")
 		return
 	}
 
@@ -36,7 +45,7 @@ func SetSinkServerIDs(serverIDs []string) {
 			continue
 		}
 		if _, exists := unique[trimmed]; exists {
-			logSink.Printf("Skipping duplicate sink server ID: %s", trimmed)
+			duplicateIDs = append(duplicateIDs, trimmed)
 			continue
 		}
 		unique[trimmed] = struct{}{}
@@ -45,19 +54,32 @@ func SetSinkServerIDs(serverIDs []string) {
 
 	sort.Strings(normalized)
 	sinkServerIDs = normalized
-	logSink.Printf("Sink server IDs configured: count=%d, ids=%v", len(normalized), normalized)
+	normalizedOut = normalized
+
+	sinkServerIDsMu.Unlock()
+
+	for _, id := range duplicateIDs {
+		logSink.Printf("Skipping duplicate sink server ID: %s", id)
+	}
+
+	logSink.Printf("Sink server IDs configured: count=%d, ids=%v", len(normalizedOut), normalizedOut)
 }
 
 // IsSinkServerID reports whether serverID is in the configured set of DIFC sink server IDs.
 func IsSinkServerID(serverID string) bool {
 	sinkServerIDsMu.RLock()
-	defer sinkServerIDsMu.RUnlock()
-
+	matched := false
 	for _, sinkServerID := range sinkServerIDs {
 		if serverID == sinkServerID {
-			logSink.Printf("Sink server ID match: serverID=%s", serverID)
-			return true
+			matched = true
+			break
 		}
+	}
+	sinkServerIDsMu.RUnlock()
+
+	if matched {
+		logSink.Printf("Sink server ID match: serverID=%s", serverID)
+		return true
 	}
 	return false
 }
