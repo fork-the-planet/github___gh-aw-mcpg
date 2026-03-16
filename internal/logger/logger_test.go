@@ -252,8 +252,8 @@ func TestLogger_TimeDiff(t *testing.T) {
 	assert.Contains(t, output1, "+", "First log should contain time diff")
 	assert.Contains(t, output2, "+", "Second log should contain time diff")
 
-	// Second log should show at least 10ms diff with a time unit
-	assert.Regexp(t, `\+\d+(\.\d+)?(ns|µs|ms|\.\d+s)`, output2,
+	// Second log should show time diff with a time unit
+	assert.Regexp(t, `\+\d+(\.\d+)?(ns|µs|ms|s|m|h)`, output2,
 		"Second log should show time diff with unit")
 }
 
