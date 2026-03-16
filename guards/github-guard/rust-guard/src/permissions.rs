@@ -3,6 +3,10 @@
 //! This module provides functions to query repository permissions
 //! using the backend MCP server. This enables dynamic integrity
 //! labeling based on actual GitHub permissions.
+//!
+//! Note: This module is scaffolding for future permission-based
+//! integrity labeling. Not yet wired into production code paths.
+#![allow(dead_code)]
 
 use crate::labels::{constants::label_constants, MEDIUM_BUFFER_SIZE};
 use serde_json::Value;
