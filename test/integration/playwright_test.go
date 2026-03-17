@@ -206,8 +206,8 @@ func TestPlaywrightMCPServer(t *testing.T) {
 		stderrStr := stderr.String()
 
 		// Check that tools were registered
-		if !strings.Contains(stderrStr, "Registered 22 tools from playwright") &&
-			!strings.Contains(stderrStr, "Registered tool: playwright___browser_close") {
+		if !strings.Contains(stderrStr, "Registered 21 tools from playwright") &&
+			!strings.Contains(stderrStr, "Registered tool: playwright-browser_close") {
 			t.Fatal("Expected playwright tools to be registered in server logs")
 		}
 
