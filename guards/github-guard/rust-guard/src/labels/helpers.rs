@@ -856,6 +856,7 @@ pub fn commit_integrity(
 }
 
 /// Check if a user appears to be a bot
+#[allow(dead_code)]
 pub fn is_bot(username: &str) -> bool {
     let lower = username.to_lowercase();
     lower.ends_with("[bot]")
