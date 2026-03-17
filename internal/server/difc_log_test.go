@@ -80,7 +80,7 @@ func TestLogFilteredItems_EmitsValidJSONWithExpectedFields(t *testing.T) {
 
 	item := newTestFilteredItem(
 		map[string]interface{}{
-			"html_url":           "https://github.com/org/repo/issues/42",
+			"html_url": "https://github.com/org/repo/issues/42",
 			// JSON unmarshaling from interface{} represents numbers as float64.
 			"number":             float64(42),
 			"author_association": "CONTRIBUTOR",
