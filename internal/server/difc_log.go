@@ -26,7 +26,7 @@ type FilteredItemLogEntry struct {
 }
 
 // logFilteredItems logs structured details for every item removed by DIFC filtering.
-// Each item is logged individually to the file logger (always written) so that
+// Each item is logged individually to the configured logger outputs so that
 // post-processing tools can reconstruct exactly what was filtered and why.
 func logFilteredItems(serverID, toolName string, filtered *difc.FilteredCollectionLabeledData) {
 	for _, detail := range filtered.Filtered {
