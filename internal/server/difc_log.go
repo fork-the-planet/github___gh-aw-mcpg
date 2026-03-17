@@ -117,7 +117,7 @@ func extractNumberField(m map[string]interface{}) string {
 	if n, ok := m["number"]; ok {
 		switch v := n.(type) {
 		case float64:
-			return fmt.Sprintf("%d", int(v))
+			return fmt.Sprintf("%d", int64(v))
 		case json.Number:
 			return v.String()
 		}
