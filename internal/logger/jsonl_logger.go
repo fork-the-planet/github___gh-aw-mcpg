@@ -139,12 +139,10 @@ func LogRPCMessageJSONLWithTags(direction RPCMessageDirection, messageType RPCMe
 	})
 }
 
-// JSONLFilteredItem represents a DIFC-filtered item logged to the JSONL stream.
-// These entries appear alongside RPC messages so filter events are visible
-// in context with the request/response that triggered them.
-type JSONLFilteredItem struct {
-	Timestamp         string   `json:"timestamp"`
-	Type              string   `json:"type"` // Always "DIFC_FILTERED"
+// FilteredItemLogEntry holds the data fields for a DIFC-filtered item.
+// It is used for both text log output ([DIFC-FILTERED] JSON lines) and as
+// the embedded payload in JSONLFilteredItem for JSONL log output.
+type FilteredItemLogEntry struct {
 	ServerID          string   `json:"server_id"`
 	ToolName          string   `json:"tool_name"`
 	Description       string   `json:"description"`
@@ -156,6 +154,17 @@ type JSONLFilteredItem struct {
 	HTMLURL           string   `json:"html_url,omitempty"`
 	Number            string   `json:"number,omitempty"`
 	SHA               string   `json:"sha,omitempty"`
+}
+
+// JSONLFilteredItem represents a DIFC-filtered item logged to the JSONL stream.
+// These entries appear alongside RPC messages so filter events are visible
+// in context with the request/response that triggered them.
+// It embeds FilteredItemLogEntry so that adding a data field requires only a
+// single edit rather than parallel edits in two structs.
+type JSONLFilteredItem struct {
+	Timestamp string `json:"timestamp"`
+	Type      string `json:"type"` // Always "DIFC_FILTERED"
+	FilteredItemLogEntry
 }
 
 // LogDifcFilteredItem writes a DIFC filter event to the JSONL log.
