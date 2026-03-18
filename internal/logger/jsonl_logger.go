@@ -160,6 +160,11 @@ type JSONLFilteredItem struct {
 
 // LogDifcFilteredItem writes a DIFC filter event to the JSONL log.
 func LogDifcFilteredItem(entry *JSONLFilteredItem) {
+	if entry == nil {
+		// Best-effort logging: avoid panicking on nil input.
+		return
+	}
+
 	entry.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	entry.Type = "DIFC_FILTERED"
 	withGlobalLogger(&globalJSONLMu, &globalJSONLLogger, func(logger *JSONLLogger) {
