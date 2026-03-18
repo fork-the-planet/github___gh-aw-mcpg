@@ -171,6 +171,6 @@ func LogDifcFilteredItem(entry *JSONLFilteredItem) {
 		if logger == nil {
 			return
 		}
-		_ = logger.LogMessage(entry)
+		_ = logger.logEntry(entry)
 	})
 }
