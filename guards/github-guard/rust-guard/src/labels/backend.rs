@@ -211,6 +211,7 @@ pub fn is_repo_private_with_callback(
 /// - `Some(true)` if the PR is from a fork (head repo differs from base repo)
 /// - `Some(false)` if the PR is direct (same repository)
 /// - `None` if the result cannot be determined
+#[allow(dead_code)]
 pub fn is_forked_pull_request_with_callback(
     callback: GithubMcpCallback,
     owner: &str,
