@@ -20,7 +20,7 @@
 //!
 //! Labels:
 //! - `merged:<repo>` - Reachable from default branch / merged to project history
-//! - `approved:<repo>` - Trusted repository contributor/writer level
+//! - `approved:<repo>` - Trusted repository contributor level
 //! - `unapproved:<repo>` - Lower trust external contribution level
 //! - (none) - Untrusted/external content
 
@@ -1059,7 +1059,7 @@ mod tests {
         assert_eq!(result.labeled_paths.len(), 1);
         let entry = &result.labeled_paths[0];
         assert_eq!(entry.labels.description, "project-item:issue");
-        // MEMBER maps to writer integrity (approved)
+        // MEMBER maps to approved integrity
         assert!(
             entry.labels.integrity.iter().any(|l| l.starts_with("approved:")),
             "Expected approved level for MEMBER, got: {:?}",
@@ -1089,7 +1089,7 @@ mod tests {
         assert_eq!(result.labeled_paths.len(), 1);
         let entry = &result.labeled_paths[0];
         assert_eq!(entry.labels.description, "project-item:pull_request");
-        // CONTRIBUTOR maps to reader (unapproved) integrity
+        // CONTRIBUTOR maps to unapproved integrity
         assert!(
             entry.labels.integrity.iter().any(|l| l.starts_with("unapproved:")),
             "Expected unapproved level for CONTRIBUTOR, got: {:?}",

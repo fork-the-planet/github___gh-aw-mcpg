@@ -539,7 +539,7 @@ pub fn label_response_paths(
                                 // Fail secure: if we cannot determine the repo for this
                                 // item, treat it as private within the owner scope rather
                                 // than defaulting to public.
-                                policy_private_scope_label(&arg_owner, ctx)
+                                policy_private_scope_label(&arg_owner, "", "", ctx)
                             } else {
                                 repo_visibility_secrecy_for_repo_id(&item_repo, ctx)
                             };

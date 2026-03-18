@@ -544,15 +544,15 @@ pub fn extract_number_as_string(tool_args: &Value, field: &str) -> Option<String
 // Integrity Scope Helpers
 // ============================================================================
 
-/// Generate baseline (unapproved) integrity labels for a scope.
+/// Generate unapproved-level integrity tags for a scope.
 ///
 /// This helper normalizes the provided `scope` using the `PolicyContext`
 /// and returns integrity labels for:
 /// - a "none" integrity level for the scope
-/// - a "reader" integrity level for the scope
+/// - an "unapproved" integrity level for the scope
 ///
 /// These labels represent the lowest integrity levels; higher levels
-/// (such as writer) build on top of them.
+/// (such as approved) build on top of them.
 pub fn reader_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
     let normalized_scope = normalize_scope(scope, ctx);
     vec![
@@ -569,8 +569,8 @@ pub fn reader_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
     ]
 }
 
-/// Generate approved-level integrity tags for a scope
-/// Includes unapproved level (hierarchical: writer > reader)
+/// Generate approved-level integrity tags for a scope.
+/// Includes unapproved level (hierarchical: approved > unapproved)
 pub fn writer_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
     let normalized_scope = normalize_scope(scope, ctx);
     vec![
@@ -592,8 +592,8 @@ pub fn writer_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
     ]
 }
 
-/// Generate merged-level integrity tags for a scope
-/// Includes approved and unapproved (hierarchical: merged > writer > reader)
+/// Generate merged-level integrity tags for a scope.
+/// Includes approved and unapproved (hierarchical: merged > approved > unapproved)
 pub fn merged_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
     let normalized_scope = normalize_scope(scope, ctx);
     vec![

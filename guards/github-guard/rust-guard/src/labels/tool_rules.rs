@@ -244,7 +244,7 @@ pub fn apply_tool_labels(
         // === GitHub Actions ===
         "actions_get" | "actions_list" => {
             // S(workflow/artifact) = inherits from repo secrecy
-            // I(workflow/artifact) = writer - maintained by repo team
+            // I(workflow/artifact) = approved - maintained by repo team
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             integrity = writer_integrity(repo_id, ctx);
 
