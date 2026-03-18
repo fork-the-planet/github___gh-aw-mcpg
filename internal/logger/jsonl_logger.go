@@ -168,6 +168,9 @@ func LogDifcFilteredItem(entry *JSONLFilteredItem) {
 	entry.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	entry.Type = "DIFC_FILTERED"
 	withGlobalLogger(&globalJSONLMu, &globalJSONLLogger, func(logger *JSONLLogger) {
-		_ = logger.logEntry(entry)
+		if logger == nil {
+			return
+		}
+		_ = logger.LogMessage(entry)
 	})
 }
