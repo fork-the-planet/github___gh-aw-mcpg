@@ -77,6 +77,11 @@ func (jl *JSONLLogger) Close() error {
 
 // LogMessage logs an RPC message to the JSONL file
 func (jl *JSONLLogger) LogMessage(entry *JSONLRPCMessage) error {
+	return jl.logEntry(entry)
+}
+
+// logEntry writes any JSON-serializable value as a single JSONL line.
+func (jl *JSONLLogger) logEntry(entry interface{}) error {
 	jl.mu.Lock()
 	defer jl.mu.Unlock()
 
@@ -84,12 +89,10 @@ func (jl *JSONLLogger) LogMessage(entry *JSONLRPCMessage) error {
 		return fmt.Errorf("JSONL logger not initialized")
 	}
 
-	// Encode and write the JSON object followed by a newline
 	if err := jl.encoder.Encode(entry); err != nil {
 		return fmt.Errorf("failed to encode JSON: %w", err)
 	}
 
-	// Flush to disk immediately
 	if err := jl.logFile.Sync(); err != nil {
 		return fmt.Errorf("failed to sync log file: %w", err)
 	}
@@ -133,5 +136,41 @@ func LogRPCMessageJSONLWithTags(direction RPCMessageDirection, messageType RPCMe
 
 		// Best effort logging - don't fail if JSONL logging fails
 		_ = logger.LogMessage(entry)
+	})
+}
+
+// JSONLFilteredItem represents a DIFC-filtered item logged to the JSONL stream.
+// These entries appear alongside RPC messages so filter events are visible
+// in context with the request/response that triggered them.
+type JSONLFilteredItem struct {
+	Timestamp         string   `json:"timestamp"`
+	Type              string   `json:"type"` // Always "DIFC_FILTERED"
+	ServerID          string   `json:"server_id"`
+	ToolName          string   `json:"tool_name"`
+	Description       string   `json:"description"`
+	Reason            string   `json:"reason"`
+	SecrecyTags       []string `json:"secrecy_tags"`
+	IntegrityTags     []string `json:"integrity_tags"`
+	AuthorAssociation string   `json:"author_association,omitempty"`
+	AuthorLogin       string   `json:"author_login,omitempty"`
+	HTMLURL           string   `json:"html_url,omitempty"`
+	Number            string   `json:"number,omitempty"`
+	SHA               string   `json:"sha,omitempty"`
+}
+
+// LogDifcFilteredItem writes a DIFC filter event to the JSONL log.
+func LogDifcFilteredItem(entry *JSONLFilteredItem) {
+	if entry == nil {
+		// Best-effort logging: avoid panicking on nil input.
+		return
+	}
+
+	entry.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
+	entry.Type = "DIFC_FILTERED"
+	withGlobalLogger(&globalJSONLMu, &globalJSONLLogger, func(logger *JSONLLogger) {
+		if logger == nil {
+			return
+		}
+		_ = logger.logEntry(entry)
 	})
 }

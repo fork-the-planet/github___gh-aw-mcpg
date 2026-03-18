@@ -8,9 +8,10 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-// FilteredItemLogEntry is a structured log entry for a DIFC-filtered item.
-// It captures enough context to identify the object, understand why it was
-// filtered, and link back to it in a post-processing report.
+// FilteredItemLogEntry is the structured log record emitted for each item
+// removed by DIFC filtering. It is written as JSON to the unified and
+// per-server text log files under the [DIFC-FILTERED] marker so that filter
+// events can be correlated with the MCP request/response that triggered them.
 type FilteredItemLogEntry struct {
 	ServerID          string   `json:"server_id"`
 	ToolName          string   `json:"tool_name"`
@@ -26,26 +27,24 @@ type FilteredItemLogEntry struct {
 }
 
 // logFilteredItems logs structured details for every item removed by DIFC filtering.
-// Each item is logged individually to the configured logger outputs so that
-// post-processing tools can reconstruct exactly what was filtered and why.
+// Each item is written as a [DIFC-FILTERED] JSON entry to both the unified and
+// per-server text log files (via LogInfoWithServer), and as a DIFC_FILTERED entry
+// in the JSONL log.
 func logFilteredItems(serverID, toolName string, filtered *difc.FilteredCollectionLabeledData) {
 	for _, detail := range filtered.Filtered {
 		entry := buildFilteredItemLogEntry(serverID, toolName, detail)
-
-		entryJSON, err := json.Marshal(entry)
+		b, err := json.Marshal(entry)
 		if err != nil {
-			logger.LogWarnWithServer(serverID, "difc",
-				"[DIFC-FILTERED] %s | %s | description=%s | reason=%s (json marshal failed: %v)",
-				serverID, toolName, entry.Description, entry.Reason, err)
+			logger.LogInfoWithServer(serverID, "difc", "Failed to marshal filtered item log entry: %v", err)
 			continue
 		}
-
-		logger.LogInfoWithServer(serverID, "difc",
-			"[DIFC-FILTERED] %s", string(entryJSON))
+		jsonStr := string(b)
+		logger.LogInfoWithServer(serverID, "difc", "[DIFC-FILTERED] %s", jsonStr)
+		logger.LogDifcFilteredItem(entry.toJSONLFilteredItem())
 	}
 }
 
-// buildFilteredItemLogEntry constructs a structured log entry from a filtered item.
+// buildFilteredItemLogEntry constructs a FilteredItemLogEntry from a filtered item.
 func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredItemDetail) FilteredItemLogEntry {
 	entry := FilteredItemLogEntry{
 		ServerID: serverID,
@@ -72,6 +71,24 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 	return entry
 }
 
+// toJSONLFilteredItem converts a FilteredItemLogEntry to a logger.JSONLFilteredItem
+// for writing to the JSONL log.
+func (e FilteredItemLogEntry) toJSONLFilteredItem() *logger.JSONLFilteredItem {
+	return &logger.JSONLFilteredItem{
+		ServerID:          e.ServerID,
+		ToolName:          e.ToolName,
+		Description:       e.Description,
+		Reason:            e.Reason,
+		SecrecyTags:       e.SecrecyTags,
+		IntegrityTags:     e.IntegrityTags,
+		AuthorAssociation: e.AuthorAssociation,
+		AuthorLogin:       e.AuthorLogin,
+		HTMLURL:           e.HTMLURL,
+		Number:            e.Number,
+		SHA:               e.SHA,
+	}
+}
+
 // tagsToStrings converts DIFC tags to string slice.
 func tagsToStrings(tags []difc.Tag) []string {
 	s := make([]string, len(tags))
@@ -96,13 +113,11 @@ func getStringField(m map[string]interface{}, fields ...string) string {
 
 // extractAuthorLogin extracts the author login from nested user/author objects.
 func extractAuthorLogin(m map[string]interface{}) string {
-	// Try user.login (issues, PRs)
 	if user, ok := m["user"].(map[string]interface{}); ok {
 		if login, ok := user["login"].(string); ok {
 			return login
 		}
 	}
-	// Try author.login (commits)
 	if author, ok := m["author"].(map[string]interface{}); ok {
 		if login, ok := author["login"].(string); ok {
 			return login
@@ -112,7 +127,6 @@ func extractAuthorLogin(m map[string]interface{}) string {
 }
 
 // extractNumberField extracts the item number as a string.
-// GitHub API returns numbers as float64 from JSON parsing.
 func extractNumberField(m map[string]interface{}) string {
 	if n, ok := m["number"]; ok {
 		switch v := n.(type) {
