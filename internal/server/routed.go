@@ -7,8 +7,10 @@ import (
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -111,7 +113,9 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 				return createFilteredServer(unifiedServer, backendID)
 			})
 		}, &sdk.StreamableHTTPOptions{
-			Stateless: false,
+			Stateless:      false,
+			Logger:         logger.NewSlogLoggerWithHandler(logRouted),
+			SessionTimeout: 30 * time.Minute,
 		})
 
 		// Apply standard middleware stack (SDK logging → shutdown check → auth)
@@ -137,7 +141,7 @@ func createFilteredServer(unifiedServer *UnifiedServer, backendID string) *sdk.S
 	// Create a new SDK server for this route with logger
 	server := sdk.NewServer(&sdk.Implementation{
 		Name:    fmt.Sprintf("awmg-%s", backendID),
-		Version: "1.0.0",
+		Version: version.Get(),
 	}, &sdk.ServerOptions{
 		Logger: logger.NewSlogLoggerWithHandler(logRouted),
 	})
