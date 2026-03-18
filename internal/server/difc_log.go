@@ -8,24 +8,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-// FilteredItemLogEntry is the structured log record emitted for each item
-// removed by DIFC filtering. It is written as JSON to the unified and
-// per-server text log files under the [DIFC-FILTERED] marker so that filter
-// events can be correlated with the MCP request/response that triggered them.
-type FilteredItemLogEntry struct {
-	ServerID          string   `json:"server_id"`
-	ToolName          string   `json:"tool_name"`
-	Description       string   `json:"description"`
-	Reason            string   `json:"reason"`
-	SecrecyTags       []string `json:"secrecy_tags"`
-	IntegrityTags     []string `json:"integrity_tags"`
-	AuthorAssociation string   `json:"author_association,omitempty"`
-	AuthorLogin       string   `json:"author_login,omitempty"`
-	HTMLURL           string   `json:"html_url,omitempty"`
-	Number            string   `json:"number,omitempty"`
-	SHA               string   `json:"sha,omitempty"`
-}
-
 // logFilteredItems logs structured details for every item removed by DIFC filtering.
 // Each item is written as a [DIFC-FILTERED] JSON entry to both the unified and
 // per-server text log files (via LogInfoWithServer), and as a DIFC_FILTERED entry
@@ -40,13 +22,13 @@ func logFilteredItems(serverID, toolName string, filtered *difc.FilteredCollecti
 		}
 		jsonStr := string(b)
 		logger.LogInfoWithServer(serverID, "difc", "[DIFC-FILTERED] %s", jsonStr)
-		logger.LogDifcFilteredItem(entry.toJSONLFilteredItem())
+		logger.LogDifcFilteredItem(&logger.JSONLFilteredItem{FilteredItemLogEntry: entry})
 	}
 }
 
-// buildFilteredItemLogEntry constructs a FilteredItemLogEntry from a filtered item.
-func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredItemDetail) FilteredItemLogEntry {
-	entry := FilteredItemLogEntry{
+// buildFilteredItemLogEntry constructs a logger.FilteredItemLogEntry from a filtered item.
+func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredItemDetail) logger.FilteredItemLogEntry {
+	entry := logger.FilteredItemLogEntry{
 		ServerID: serverID,
 		ToolName: toolName,
 		Reason:   detail.Reason,
@@ -54,8 +36,8 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 
 	if detail.Item.Labels != nil {
 		entry.Description = detail.Item.Labels.Description
-		entry.SecrecyTags = tagsToStrings(detail.Item.Labels.Secrecy.Label.GetTags())
-		entry.IntegrityTags = tagsToStrings(detail.Item.Labels.Integrity.Label.GetTags())
+		entry.SecrecyTags = difc.TagsToStrings(detail.Item.Labels.Secrecy.Label.GetTags())
+		entry.IntegrityTags = difc.TagsToStrings(detail.Item.Labels.Integrity.Label.GetTags())
 	}
 
 	// Extract identifying metadata from the raw item data.
@@ -69,33 +51,6 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 	}
 
 	return entry
-}
-
-// toJSONLFilteredItem converts a FilteredItemLogEntry to a logger.JSONLFilteredItem
-// for writing to the JSONL log.
-func (e FilteredItemLogEntry) toJSONLFilteredItem() *logger.JSONLFilteredItem {
-	return &logger.JSONLFilteredItem{
-		ServerID:          e.ServerID,
-		ToolName:          e.ToolName,
-		Description:       e.Description,
-		Reason:            e.Reason,
-		SecrecyTags:       e.SecrecyTags,
-		IntegrityTags:     e.IntegrityTags,
-		AuthorAssociation: e.AuthorAssociation,
-		AuthorLogin:       e.AuthorLogin,
-		HTMLURL:           e.HTMLURL,
-		Number:            e.Number,
-		SHA:               e.SHA,
-	}
-}
-
-// tagsToStrings converts DIFC tags to string slice.
-func tagsToStrings(tags []difc.Tag) []string {
-	s := make([]string, len(tags))
-	for i, t := range tags {
-		s[i] = string(t)
-	}
-	return s
 }
 
 // getStringField returns the first non-empty string value from the map

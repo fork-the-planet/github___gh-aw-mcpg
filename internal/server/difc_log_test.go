@@ -106,7 +106,7 @@ func TestLogFilteredItems_EmitsValidJSONWithExpectedFields(t *testing.T) {
 	require.Len(t, unifiedLines, 1, "unified log should have exactly one DIFC-FILTERED entry")
 
 	jsonStr := extractJSONFromDIFCLine(t, unifiedLines[0])
-	var entry FilteredItemLogEntry
+	var entry logger.FilteredItemLogEntry
 	require.NoError(t, json.Unmarshal([]byte(jsonStr), &entry), "log entry must be valid JSON")
 
 	assert.Equal(t, "github", entry.ServerID)
@@ -125,7 +125,7 @@ func TestLogFilteredItems_EmitsValidJSONWithExpectedFields(t *testing.T) {
 	require.Len(t, serverLines, 1, "server log should have exactly one DIFC-FILTERED entry")
 
 	serverJSONStr := extractJSONFromDIFCLine(t, serverLines[0])
-	var serverEntry FilteredItemLogEntry
+	var serverEntry logger.FilteredItemLogEntry
 	require.NoError(t, json.Unmarshal([]byte(serverJSONStr), &serverEntry), "server log entry must be valid JSON")
 	assert.Equal(t, entry, serverEntry, "server log entry should match unified log entry")
 }
@@ -162,7 +162,7 @@ func TestLogFilteredItems_MultipleItems(t *testing.T) {
 	numbers := map[string]bool{}
 	for _, line := range lines {
 		jsonStr := extractJSONFromDIFCLine(t, line)
-		var entry FilteredItemLogEntry
+		var entry logger.FilteredItemLogEntry
 		require.NoError(t, json.Unmarshal([]byte(jsonStr), &entry))
 		numbers[entry.Number] = true
 	}
