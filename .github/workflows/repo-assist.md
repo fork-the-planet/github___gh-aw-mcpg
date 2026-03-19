@@ -69,6 +69,8 @@ tools:
   web-fetch:
   github:
     toolsets: [all]
+    repos: ["github/*"]
+    min-integrity: merged
   bash: true
   repo-memory: true
 
