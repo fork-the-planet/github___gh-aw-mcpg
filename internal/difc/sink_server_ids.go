@@ -1,11 +1,10 @@
 package difc
 
 import (
-	"sort"
-	"strings"
 	"sync"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logSink = logger.New("difc:sink_server_ids")
@@ -20,11 +19,6 @@ var (
 func SetSinkServerIDs(serverIDs []string) {
 	logSink.Printf("Setting sink server IDs: input_count=%d", len(serverIDs))
 
-	var (
-		normalizedOut []string
-		duplicateIDs  []string
-	)
-
 	sinkServerIDsMu.Lock()
 
 	if len(serverIDs) == 0 {
@@ -35,32 +29,15 @@ func SetSinkServerIDs(serverIDs []string) {
 		return
 	}
 
-	unique := make(map[string]struct{}, len(serverIDs))
-	normalized := make([]string, 0, len(serverIDs))
-	for _, serverID := range serverIDs {
-		trimmed := strings.TrimSpace(serverID)
-		if trimmed == "" {
-			continue
-		}
-		if _, exists := unique[trimmed]; exists {
-			duplicateIDs = append(duplicateIDs, trimmed)
-			continue
-		}
-		unique[trimmed] = struct{}{}
-		normalized = append(normalized, trimmed)
+	normalized := strutil.DeduplicateStrings(serverIDs, true)
+	if len(normalized) < len(serverIDs) {
+		logSink.Printf("Removed %d duplicate or empty sink server IDs", len(serverIDs)-len(normalized))
 	}
-
-	sort.Strings(normalized)
 	sinkServerIDs = normalized
-	normalizedOut = normalized
 
 	sinkServerIDsMu.Unlock()
 
-	for _, id := range duplicateIDs {
-		logSink.Printf("Skipping duplicate sink server ID: %s", id)
-	}
-
-	logSink.Printf("Sink server IDs configured: count=%d, ids=%v", len(normalizedOut), normalizedOut)
+	logSink.Printf("Sink server IDs configured: count=%d, ids=%v", len(normalized), normalized)
 }
 
 // IsSinkServerID reports whether serverID is in the configured set of DIFC sink server IDs.

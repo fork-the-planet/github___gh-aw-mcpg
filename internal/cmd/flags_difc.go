@@ -9,6 +9,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/spf13/cobra"
 )
 
@@ -99,9 +100,7 @@ func parseDIFCSinkServerIDs(input string) ([]string, error) {
 	debugLog.Printf("Parsing DIFC sink server IDs: input=%q", input)
 
 	parts := strings.Split(input, ",")
-	result := make([]string, 0, len(parts))
-	seen := make(map[string]struct{}, len(parts))
-
+	validated := make([]string, 0, len(parts))
 	for _, part := range parts {
 		value := strings.TrimSpace(part)
 		if value == "" {
@@ -110,14 +109,10 @@ func parseDIFCSinkServerIDs(input string) ([]string, error) {
 		if strings.ContainsAny(value, " \t\n\r") {
 			return nil, fmt.Errorf("invalid guards sink server ID %q: whitespace is not allowed", value)
 		}
-		if _, exists := seen[value]; exists {
-			debugLog.Printf("Skipping duplicate sink server ID: %q", value)
-			continue
-		}
-		seen[value] = struct{}{}
-		result = append(result, value)
+		validated = append(validated, value)
 	}
 
+	result := strutil.DeduplicateStrings(validated, false)
 	debugLog.Printf("Parsed %d unique DIFC sink server IDs: %v", len(result), result)
 	return result, nil
 }
