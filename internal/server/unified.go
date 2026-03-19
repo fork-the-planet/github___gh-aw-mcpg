@@ -340,34 +340,6 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 		return fmt.Errorf("failed to parse tools: %w", err)
 	}
 
-	// Build an allow-set from the server's Tools filter, if configured.
-	// An empty/nil Tools list means all tools are exposed.
-	var allowedTools map[string]struct{}
-	if serverCfg, ok := us.cfg.Servers[serverID]; ok && len(serverCfg.Tools) > 0 {
-		allowedTools = make(map[string]struct{}, len(serverCfg.Tools))
-		for _, name := range serverCfg.Tools {
-			allowedTools[name] = struct{}{}
-		}
-		log.Printf("Tool filter active for %s: %v", serverID, serverCfg.Tools)
-	}
-
-	// Filter tools according to the allow-set (when configured).
-	filteredTools := make([]struct {
-		Name        string                 `json:"name"`
-		Description string                 `json:"description"`
-		InputSchema map[string]interface{} `json:"inputSchema"`
-	}, 0, len(listResult.Tools))
-	for _, tool := range listResult.Tools {
-		if allowedTools != nil {
-			if _, allowed := allowedTools[tool.Name]; !allowed {
-				log.Printf("Skipping tool %s (not in tools filter for %s)", tool.Name, serverID)
-				continue
-			}
-		}
-		filteredTools = append(filteredTools, tool)
-	}
-	listResult.Tools = filteredTools
-
 	// Collect tools for logging
 	toolsForLogging := make([]logger.ToolInfo, 0, len(listResult.Tools))
 	for _, tool := range listResult.Tools {

@@ -142,8 +142,8 @@ Run `./awmg --help` for full CLI options. Key flags:
 - **`headers`** (optional): HTTP headers to include in requests (for `type: "http"` servers)
   - Map of header name to value (e.g., `{"Authorization": "Bearer token"}`)
 
-- **`tools`** (optional): List of tool names to expose from this server
-  - If omitted or empty, all tools are exposed
+- **`tools`** (optional): List of tool names intended to be exposed from this server
+  - **Note**: This field is stored but not currently enforced at runtime; all tools from the backend are always exposed regardless of this value
   - Example: `["get_file_contents", "search_code"]`
 
 - **`registry`** (optional): Informational URI to the server's entry in an MCP registry
