@@ -175,6 +175,9 @@ func randomSerial() (*big.Int, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate serial number: %w", err)
 	}
+	if serial.Sign() == 0 {
+		serial = new(big.Int).Add(serial, big.NewInt(1))
+	}
 	return serial, nil
 }
 
