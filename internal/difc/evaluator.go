@@ -364,9 +364,9 @@ func (e *Evaluator) evaluateWrite(
 		logEvaluator.Printf("Write denied: secrecy check failed, extraTags=%v", extraTags)
 		result.Decision = AccessDeny
 		result.SecrecyToAdd = extraTags
-		result.Reason = fmt.Sprintf("Agent has secrecy tags %v that cannot flow to '%s'. "+
-			"The agent carries sensitive data that the target resource is not authorized to receive.",
-			extraTags, resource.Description)
+		result.Reason = fmt.Sprintf("Agent carries %s-scoped data that cannot be written to '%s' due to secrecy constraints. "+
+			"The target resource is not authorized to receive this sensitive data.",
+			formatSecrecyLevel(extraTags), resource.Description)
 		return result
 	}
 
