@@ -191,7 +191,7 @@ When `--tls` is enabled, the proxy writes to `--tls-dir` (default: `<log-dir>/pr
 | File | Purpose |
 |------|---------|
 | `ca.crt` | CA certificate — add to client trust store |
-| `server.crt` | Server certificate (localhost + 127.0.0.1) |
+| `server.crt` | Server certificate (localhost, 127.0.0.1, ::1) |
 | `server.key` | Server private key (0600 permissions) |
 
 ### Trusting the CA
