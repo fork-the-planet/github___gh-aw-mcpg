@@ -267,6 +267,8 @@ fn infer_scope_for_baseline(tool_name: &str, tool_args: &Value, repo_id: &str) -
 struct LabelAgentInput {
     #[serde(rename = "allow-only")]
     allow_only: AllowOnlyPolicy,
+    #[serde(rename = "trusted-bots", default)]
+    trusted_bots: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -483,6 +485,7 @@ pub extern "C" fn label_agent(
     };
 
     let policy = input.allow_only;
+    let trusted_bots = input.trusted_bots;
 
     let scopes = match parse_scope(policy.scope) {
         Ok(v) => v,
@@ -502,6 +505,7 @@ pub extern "C" fn label_agent(
 
     let ctx = PolicyContext {
         scopes: scopes.clone(),
+        trusted_bots,
     };
     set_runtime_policy_context(ctx.clone());
 
@@ -1050,6 +1054,7 @@ mod tests {
                 scope_repo: Some("git".to_string()),
                 scope_label: "lpcox/git*".to_string(),
             }],
+            ..Default::default()
         };
 
         let tool_args = json!({"query": "repo:lpcox/github-guard README"});

@@ -32,12 +32,13 @@ type StdinConfig struct {
 // StdinGatewayConfig represents gateway configuration in stdin JSON format.
 // Uses pointers for optional fields to distinguish between unset and zero values.
 type StdinGatewayConfig struct {
-	Port           *int   `json:"port,omitempty"`
-	APIKey         string `json:"apiKey,omitempty"`
-	Domain         string `json:"domain,omitempty"`
-	StartupTimeout *int   `json:"startupTimeout,omitempty"`
-	ToolTimeout    *int   `json:"toolTimeout,omitempty"`
-	PayloadDir     string `json:"payloadDir,omitempty"`
+	Port           *int     `json:"port,omitempty"`
+	APIKey         string   `json:"apiKey,omitempty"`
+	Domain         string   `json:"domain,omitempty"`
+	StartupTimeout *int     `json:"startupTimeout,omitempty"`
+	ToolTimeout    *int     `json:"toolTimeout,omitempty"`
+	PayloadDir     string   `json:"payloadDir,omitempty"`
+	TrustedBots    []string `json:"trustedBots,omitempty"`
 }
 
 // StdinGuardConfig represents a guard configuration in stdin JSON format.
@@ -279,6 +280,9 @@ func convertStdinConfig(stdinCfg *StdinConfig) (*Config, error) {
 		}
 		if stdinCfg.Gateway.PayloadDir != "" {
 			cfg.Gateway.PayloadDir = stdinCfg.Gateway.PayloadDir
+		}
+		if len(stdinCfg.Gateway.TrustedBots) > 0 {
+			cfg.Gateway.TrustedBots = stdinCfg.Gateway.TrustedBots
 		}
 	} else {
 		logStdin.Print("No gateway config in stdin, applying defaults")

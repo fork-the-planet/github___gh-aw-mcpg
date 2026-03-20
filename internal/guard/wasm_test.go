@@ -401,6 +401,138 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 			assert.NoError(t, err, "integrity=%q should be valid", integrity)
 		}
 	})
+
+	t.Run("valid trusted-bots alongside allow-only succeeds", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":         "public",
+				"min-integrity": "none",
+			},
+			"trusted-bots": []interface{}{"copilot-swe-agent[bot]", "my-org-bot"},
+		}
+
+		result, err := buildStrictLabelAgentPayload(policy)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Contains(t, result, "allow-only")
+		assert.Contains(t, result, "trusted-bots")
+	})
+
+	t.Run("unexpected extra key returns error", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":         "public",
+				"min-integrity": "none",
+			},
+			"unknown-key": "value",
+		}
+
+		_, err := buildStrictLabelAgentPayload(policy)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unexpected key")
+	})
+
+	t.Run("trusted-bots with non-string entry returns error", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":         "public",
+				"min-integrity": "none",
+			},
+			"trusted-bots": []interface{}{"valid-bot", 42},
+		}
+
+		_, err := buildStrictLabelAgentPayload(policy)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "non-empty string")
+	})
+
+	t.Run("trusted-bots with empty string entry returns error", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":         "public",
+				"min-integrity": "none",
+			},
+			"trusted-bots": []interface{}{"valid-bot", ""},
+		}
+
+		_, err := buildStrictLabelAgentPayload(policy)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "non-empty string")
+	})
+
+	t.Run("trusted-bots with wrong type returns error", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":         "public",
+				"min-integrity": "none",
+			},
+			"trusted-bots": "not-an-array",
+		}
+
+		_, err := buildStrictLabelAgentPayload(policy)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "expected array")
+	})
+}
+
+func TestBuildLabelAgentPayload(t *testing.T) {
+	t.Run("nil trusted bots returns policy unchanged", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":         "public",
+				"min-integrity": "none",
+			},
+		}
+		result := BuildLabelAgentPayload(policy, nil)
+		assert.Equal(t, policy, result)
+	})
+
+	t.Run("empty trusted bots returns policy unchanged", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":         "public",
+				"min-integrity": "none",
+			},
+		}
+		result := BuildLabelAgentPayload(policy, []string{})
+		assert.Equal(t, policy, result)
+	})
+
+	t.Run("non-empty trusted bots injects trusted-bots key", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":         "public",
+				"min-integrity": "none",
+			},
+		}
+		bots := []string{"copilot-swe-agent[bot]", "my-org-bot[bot]"}
+		result := BuildLabelAgentPayload(policy, bots)
+
+		resultMap, ok := result.(map[string]interface{})
+		require.True(t, ok)
+		assert.Contains(t, resultMap, "allow-only")
+		assert.Contains(t, resultMap, "trusted-bots")
+
+		trustedBots, ok := resultMap["trusted-bots"].([]interface{})
+		require.True(t, ok)
+		assert.Len(t, trustedBots, 2)
+		assert.Equal(t, "copilot-swe-agent[bot]", trustedBots[0])
+		assert.Equal(t, "my-org-bot[bot]", trustedBots[1])
+	})
+
+	t.Run("resulting payload is accepted by buildStrictLabelAgentPayload", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":         "public",
+				"min-integrity": "unapproved",
+			},
+		}
+		bots := []string{"copilot-swe-agent[bot]"}
+		payload := BuildLabelAgentPayload(policy, bots)
+
+		_, err := buildStrictLabelAgentPayload(payload)
+		assert.NoError(t, err)
+	})
 }
 
 func TestWasmGuardClose(t *testing.T) {

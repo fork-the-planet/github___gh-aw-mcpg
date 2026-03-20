@@ -249,6 +249,7 @@ mod tests {
                 scope_repo: Some("github-".to_string()),
                 scope_label: "lpcox/github-*".to_string(),
             }],
+            ..Default::default()
         };
 
         let in_scope = writer_integrity("lpcox/github-guard", &ctx);
@@ -281,6 +282,7 @@ mod tests {
                 scope_repo: Some("github-".to_string()),
                 scope_label: "lpcox/github-*".to_string(),
             }],
+            ..Default::default()
         };
 
         assert_eq!(
@@ -316,6 +318,7 @@ mod tests {
                     scope_label: "lpcox/git*".to_string(),
                 },
             ],
+            ..Default::default()
         };
 
         assert_eq!(
@@ -344,6 +347,7 @@ mod tests {
                 scope_repo: None,
                 scope_label: "public".to_string(),
             }],
+            ..Default::default()
         };
 
         assert_eq!(
@@ -970,6 +974,70 @@ mod tests {
     }
 
     #[test]
+    fn test_configured_trusted_bot_detection() {
+        use super::helpers::is_configured_trusted_bot;
+
+        let ctx_with_bots = PolicyContext {
+            trusted_bots: vec!["copilot-swe-agent[bot]".to_string(), "my-org-bot".to_string()],
+            ..Default::default()
+        };
+
+        // Configured bots are detected
+        assert!(is_configured_trusted_bot("copilot-swe-agent[bot]", &ctx_with_bots));
+        assert!(is_configured_trusted_bot("my-org-bot", &ctx_with_bots));
+
+        // Case-insensitive
+        assert!(is_configured_trusted_bot("Copilot-SWE-Agent[bot]", &ctx_with_bots));
+        assert!(is_configured_trusted_bot("MY-ORG-BOT", &ctx_with_bots));
+
+        // Bots not in the list are not detected
+        assert!(!is_configured_trusted_bot("other-bot[bot]", &ctx_with_bots));
+        assert!(!is_configured_trusted_bot("dependabot[bot]", &ctx_with_bots));
+
+        // Empty context has no configured trusted bots
+        let empty_ctx = default_ctx();
+        assert!(!is_configured_trusted_bot("copilot-swe-agent[bot]", &empty_ctx));
+        assert!(!is_configured_trusted_bot("", &empty_ctx));
+    }
+
+    #[test]
+    fn test_configured_trusted_bot_issue_integrity() {
+        let repo = "github/copilot";
+
+        let ctx_with_bots = PolicyContext {
+            trusted_bots: vec!["copilot-swe-agent[bot]".to_string()],
+            ..Default::default()
+        };
+
+        // A configured trusted bot issue gets approved (writer) integrity even with NONE association
+        let configured_bot_issue = json!({
+            "user": {"login": "copilot-swe-agent[bot]"},
+            "author_association": "NONE"
+        });
+        assert_eq!(
+            issue_integrity(&configured_bot_issue, repo, false, &ctx_with_bots),
+            writer_integrity(repo, &ctx_with_bots)
+        );
+
+        // Case-insensitive match
+        let upper_bot_issue = json!({
+            "user": {"login": "COPILOT-SWE-AGENT[BOT]"},
+            "author_association": "NONE"
+        });
+        assert_eq!(
+            issue_integrity(&upper_bot_issue, repo, false, &ctx_with_bots),
+            writer_integrity(repo, &ctx_with_bots)
+        );
+
+        // Without trusted_bots in context, the same bot gets none integrity
+        let ctx_without_bots = default_ctx();
+        assert_eq!(
+            issue_integrity(&configured_bot_issue, repo, false, &ctx_without_bots),
+            none_integrity(repo, &ctx_without_bots)
+        );
+    }
+
+    #[test]
     fn test_get_str_or() {
         let value = json!({"name": "Alice", "count": 42});
         assert_eq!(get_str_or(&value, "name", "default"), "Alice");
@@ -1059,6 +1127,7 @@ mod tests {
                 scope_repo: None,
                 scope_label: owner.to_string(),
             }],
+            ..Default::default()
         }
     }
 

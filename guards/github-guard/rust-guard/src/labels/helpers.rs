@@ -35,6 +35,11 @@ pub enum MinIntegrity {
 #[derive(Debug, Clone, Default)]
 pub struct PolicyContext {
     pub scopes: Vec<PolicyScopeEntry>,
+    /// Additional trusted bot usernames configured at the gateway level.
+    /// Objects authored by these bots receive approved (writer) integrity regardless
+    /// of their author_association, just like the built-in trusted first-party bots.
+    /// This list is additive and cannot override the built-in trusted bot list.
+    pub trusted_bots: Vec<String>,
 }
 
 fn normalize_scope(scope: &str, ctx: &PolicyContext) -> String {
@@ -706,11 +711,14 @@ fn extract_author_login(item: &Value) -> &str {
 }
 
 /// Extract author_association from an item and return initial integrity floor.
-/// Trusted first-party GitHub bots are elevated to approved (writer) integrity
-/// regardless of their author_association value.
+/// Trusted first-party GitHub bots and any gateway-configured trusted bots are
+/// elevated to approved (writer) integrity regardless of their author_association value.
 pub fn author_association_floor(item: &Value, scope: &str, ctx: &PolicyContext) -> Vec<String> {
     let author_login = extract_author_login(item);
-    if !author_login.is_empty() && is_trusted_first_party_bot(author_login) {
+    if !author_login.is_empty()
+        && (is_trusted_first_party_bot(author_login)
+            || is_configured_trusted_bot(author_login, ctx))
+    {
         return writer_integrity(scope, ctx);
     }
 
@@ -880,6 +888,19 @@ pub fn is_trusted_first_party_bot(username: &str) -> bool {
         || lower == "github-actions[bot]"
         || lower == "github-merge-queue[bot]"
         || lower == "copilot"
+}
+
+/// Check if a user is in the gateway-configured trusted bot list.
+///
+/// This checks the `trusted_bots` list in `PolicyContext`, which is populated from
+/// the gateway configuration's `trustedBots` field. Comparison is case-insensitive.
+/// This list is additive and cannot remove entries from the built-in trusted bot list.
+pub fn is_configured_trusted_bot(username: &str, ctx: &PolicyContext) -> bool {
+    if ctx.trusted_bots.is_empty() {
+        return false;
+    }
+    let lower = username.to_lowercase();
+    ctx.trusted_bots.iter().any(|b| b.to_lowercase() == lower)
 }
 
 /// Check if a user appears to be a bot (broad detection).

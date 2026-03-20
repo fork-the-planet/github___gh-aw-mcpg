@@ -356,8 +356,15 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		return nil, fmt.Errorf("label_agent policy must use top-level allow-only object (received policy.allow-only)")
 	}
 
-	if len(payload) != 1 {
-		return nil, fmt.Errorf("invalid guard policy transport shape: expected {\"allow-only\":{\"repos\":...,\"min-integrity\":...}}")
+	// Validate that the only allowed top-level keys are "allow-only" (or legacy "allowonly")
+	// and the optional "trusted-bots" key.
+	for k := range payload {
+		switch k {
+		case "allow-only", "allowonly", "trusted-bots":
+			// valid top-level keys
+		default:
+			return nil, fmt.Errorf("invalid guard policy transport shape: unexpected key %q", k)
+		}
 	}
 
 	allowOnly, ok := allowOnlyRaw.(map[string]interface{})
@@ -389,7 +396,52 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		return nil, fmt.Errorf("invalid integrity value: expected one of none|unapproved|approved|merged")
 	}
 
+	// Validate trusted-bots if present
+	if trustedBotsRaw, hasTrustedBots := payload["trusted-bots"]; hasTrustedBots {
+		trustedBots, ok := trustedBotsRaw.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid trusted-bots value: expected array of strings")
+		}
+		for _, entry := range trustedBots {
+			if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
+				return nil, fmt.Errorf("invalid trusted-bots value: each entry must be a non-empty string")
+			}
+		}
+	}
+
 	return payload, nil
+}
+
+// BuildLabelAgentPayload constructs the label_agent input payload from the given guard policy
+// and an optional list of additional trusted bot usernames. The trusted bots are merged with
+// the guard's built-in list and cannot remove any built-in entries. If trustedBots is nil or
+// empty, the returned payload contains only the allow-only policy.
+func BuildLabelAgentPayload(policy interface{}, trustedBots []string) interface{} {
+	if len(trustedBots) == 0 {
+		return policy
+	}
+
+	// Marshal the policy to a generic map so we can inject the trusted-bots key
+	// alongside the allow-only policy without altering the policy itself.
+	policyJSON, err := json.Marshal(policy)
+	if err != nil {
+		// If we can't marshal the policy, return it as-is; buildStrictLabelAgentPayload
+		// will surface the error later.
+		return policy
+	}
+
+	var payload map[string]interface{}
+	if err := json.Unmarshal(policyJSON, &payload); err != nil {
+		return policy
+	}
+
+	// Convert []string to []interface{} for JSON compatibility
+	bots := make([]interface{}, len(trustedBots))
+	for i, b := range trustedBots {
+		bots[i] = b
+	}
+	payload["trusted-bots"] = bots
+	return payload
 }
 
 func isValidAllowOnlyRepos(repos interface{}) bool {

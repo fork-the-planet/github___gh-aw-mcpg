@@ -1160,7 +1160,17 @@ func (us *UnifiedServer) ensureGuardInitialized(
 	if err != nil {
 		return defaultMode, fmt.Errorf("failed to serialize guard policy: %w", err)
 	}
-	policyHash := string(policyJSON)
+
+	// Build the label_agent payload, merging in any configured trusted bots.
+	// The policyHash covers both the policy and trusted bots so that any change
+	// to either field invalidates the cached guard session state.
+	trustedBots := us.getTrustedBots()
+	labelAgentPayload := guard.BuildLabelAgentPayload(policy, trustedBots)
+	payloadJSON, err := json.Marshal(labelAgentPayload)
+	if err != nil {
+		return defaultMode, fmt.Errorf("failed to serialize label_agent payload: %w", err)
+	}
+	policyHash := string(payloadJSON)
 
 	us.sessionMu.RLock()
 	session := us.sessions[sessionID]
@@ -1175,7 +1185,7 @@ func (us *UnifiedServer) ensureGuardInitialized(
 
 	log.Printf("[DIFC] Initializing guard session state: server=%s, session=%s, policy_source=%s", serverID, sessionID, source)
 	log.Printf("[DIFC] Calling label_agent: server=%s, session=%s, guard=%s, policy=%s", serverID, sessionID, g.Name(), string(policyJSON))
-	labelAgentResult, err := g.LabelAgent(ctx, policy, backendCaller, us.capabilities)
+	labelAgentResult, err := g.LabelAgent(ctx, labelAgentPayload, backendCaller, us.capabilities)
 	if err != nil {
 		log.Printf("[DIFC] label_agent failed: server=%s, session=%s, guard=%s, error=%v", serverID, sessionID, g.Name(), err)
 		return defaultMode, fmt.Errorf("label_agent failed: %w", err)
@@ -1242,6 +1252,15 @@ func (us *UnifiedServer) ensureGuardInitialized(
 // This getter allows other modules to access the threshold configuration.
 func (us *UnifiedServer) GetPayloadSizeThreshold() int {
 	return us.payloadSizeThreshold
+}
+
+// getTrustedBots returns the configured list of additional trusted bot usernames,
+// or nil if none are configured.
+func (us *UnifiedServer) getTrustedBots() []string {
+	if us.cfg == nil || us.cfg.Gateway == nil {
+		return nil
+	}
+	return us.cfg.Gateway.TrustedBots
 }
 
 // ensureSessionDirectory creates the session subdirectory in the payload directory if it doesn't exist
