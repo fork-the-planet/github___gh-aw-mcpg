@@ -192,18 +192,29 @@ func formatSecrecyLevel(tags []Tag) string {
 	if len(tags) == 0 {
 		return "public"
 	}
+
+	bestScope := ""
+	hasPrivate := false
+
 	for _, tag := range tags {
 		s := string(tag)
 		if strings.HasPrefix(s, "private:") {
 			scope := strings.TrimPrefix(s, "private:")
-			if scope != "" {
-				return fmt.Sprintf("private (%s)", scope)
+			if scope != "" && len(scope) > len(bestScope) {
+				bestScope = scope
 			}
-			return "private"
+			continue
 		}
 		if s == "private" {
-			return "private"
+			hasPrivate = true
 		}
+	}
+
+	if bestScope != "" {
+		return fmt.Sprintf("private (%s)", bestScope)
+	}
+	if hasPrivate {
+		return "private"
 	}
 	return fmt.Sprintf("%v", tags)
 }
