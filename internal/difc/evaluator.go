@@ -155,6 +155,70 @@ func (e *Evaluator) GetMode() EnforcementMode {
 	return e.mode
 }
 
+// formatIntegrityLevel converts a list of integrity tags into a human-readable
+// integrity level description (e.g., "approved" instead of "[unapproved:all approved:all]").
+func formatIntegrityLevel(tags []Tag) string {
+	if len(tags) == 0 {
+		return "none"
+	}
+	// Find the highest integrity level mentioned in the tags
+	highest := ""
+	for _, tag := range tags {
+		s := string(tag)
+		// Strip scope suffix (e.g., "approved:all" → "approved")
+		if idx := strings.Index(s, ":"); idx > 0 {
+			s = s[:idx]
+		}
+		switch s {
+		case "merged":
+			return "\"merged\""
+		case "approved":
+			highest = "\"approved\""
+		case "unapproved":
+			if highest == "" {
+				highest = "\"unapproved\""
+			}
+		}
+	}
+	if highest != "" {
+		return highest
+	}
+	return fmt.Sprintf("%v", tags)
+}
+
+// formatSecrecyLevel converts a list of secrecy tags into a human-readable
+// secrecy scope description (e.g., "private (org/repo)" instead of "[private:org/repo]").
+func formatSecrecyLevel(tags []Tag) string {
+	if len(tags) == 0 {
+		return "public"
+	}
+
+	bestScope := ""
+	hasPrivate := false
+
+	for _, tag := range tags {
+		s := string(tag)
+		if strings.HasPrefix(s, "private:") {
+			scope := strings.TrimPrefix(s, "private:")
+			if scope != "" && len(scope) > len(bestScope) {
+				bestScope = scope
+			}
+			continue
+		}
+		if s == "private" {
+			hasPrivate = true
+		}
+	}
+
+	if bestScope != "" {
+		return fmt.Sprintf("private (%s)", bestScope)
+	}
+	if hasPrivate {
+		return "private"
+	}
+	return fmt.Sprintf("%v", tags)
+}
+
 // newEmptyEvaluationResult creates a new EvaluationResult with default initialization.
 // This helper centralizes the common pattern of creating an empty result with AccessAllow decision
 // and empty tag slices, reducing duplication across evaluation functions.
@@ -249,8 +313,8 @@ func (e *Evaluator) evaluateRead(
 		result.Decision = AccessDeny
 		result.IntegrityToDrop = integrityMissingTags
 		result.Reason = fmt.Sprintf("Resource '%s' has lower integrity than agent requires. "+
-			"Agent would need to drop integrity tags %v to trust this resource.",
-			resource.Description, integrityMissingTags)
+			"The agent cannot read data with integrity below %s.",
+			resource.Description, formatIntegrityLevel(integrityMissingTags))
 		return result
 	}
 
@@ -259,8 +323,8 @@ func (e *Evaluator) evaluateRead(
 		result.Decision = AccessDeny
 		result.SecrecyToAdd = secrecyExtraTags
 		result.Reason = fmt.Sprintf("Resource '%s' has secrecy requirements that agent doesn't meet. "+
-			"Agent would need to add secrecy tags %v to read this resource.",
-			resource.Description, secrecyExtraTags)
+			"The agent is not authorized to access %s-scoped data.",
+			resource.Description, formatSecrecyLevel(secrecyExtraTags))
 		return result
 	}
 
@@ -287,8 +351,8 @@ func (e *Evaluator) evaluateWrite(
 		result.Decision = AccessDeny
 		result.IntegrityToDrop = missingTags
 		result.Reason = fmt.Sprintf("Agent lacks required integrity to write to '%s'. "+
-			"Resource requires integrity tags %v that agent doesn't have.",
-			resource.Description, missingTags)
+			"The agent's integrity level is insufficient; it needs %s integrity.",
+			resource.Description, formatIntegrityLevel(missingTags))
 		return result
 	}
 
@@ -300,9 +364,9 @@ func (e *Evaluator) evaluateWrite(
 		logEvaluator.Printf("Write denied: secrecy check failed, extraTags=%v", extraTags)
 		result.Decision = AccessDeny
 		result.SecrecyToAdd = extraTags
-		result.Reason = fmt.Sprintf("Agent has secrecy tags %v that cannot flow to '%s'. "+
-			"Resource would need these secrecy requirements to accept the write.",
-			extraTags, resource.Description)
+		result.Reason = fmt.Sprintf("Agent carries %s-scoped data that cannot be written to '%s' due to secrecy constraints. "+
+			"The target resource is not authorized to receive this sensitive data.",
+			formatSecrecyLevel(extraTags), resource.Description)
 		return result
 	}
 

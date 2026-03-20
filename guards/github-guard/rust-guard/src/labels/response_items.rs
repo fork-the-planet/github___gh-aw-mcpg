@@ -113,7 +113,7 @@ pub fn label_response_items(
                 };
 
                 for item in items_to_process.iter() {
-                    let number = item.get("number").and_then(|v| v.as_i64()).unwrap_or(0);
+                    let number = extract_resource_number(item, "pr", &arg_repo_full);
 
                     // Get repo info from the PR's base or head
                     let repo_full_name = item
@@ -205,7 +205,7 @@ pub fn label_response_items(
 
                 let repo_private = repo_visibility_private_for_repo_id(&repo_full_name)
                     .unwrap_or(default_repo_private);
-                let number = item.get("number").and_then(|v| v.as_i64()).unwrap_or(0);
+                let number = extract_resource_number(item, "issue", &repo_full_name);
                 let integrity = issue_integrity(
                     item,
                     &repo_full_name,

@@ -373,21 +373,18 @@ func (e *ViolationError) Error() string {
 	if e.Type == SecrecyViolation {
 		msg = fmt.Sprintf("Secrecy violation for resource '%s': ", e.Resource)
 		if len(e.ExtraTags) > 0 {
-			msg += fmt.Sprintf("agent has secrecy tags %v that cannot flow to resource. ", e.ExtraTags)
-			msg += "Remediation: remove these tags from agent's secrecy label or add them to the resource's secrecy requirements."
+			msg += fmt.Sprintf("the agent is not authorized to access data with secrecy level %s.", formatSecrecyLevel(e.ExtraTags))
 		}
 	} else {
 		if e.IsWrite {
 			msg = fmt.Sprintf("Integrity violation for write to resource '%s': ", e.Resource)
 			if len(e.MissingTags) > 0 {
-				msg += fmt.Sprintf("agent is missing required integrity tags %v. ", e.MissingTags)
-				msg += fmt.Sprintf("Remediation: agent must gain integrity tags %v to write to this resource.", e.MissingTags)
+				msg += fmt.Sprintf("the agent's integrity level is insufficient; it needs %s integrity.", formatIntegrityLevel(e.MissingTags))
 			}
 		} else {
 			msg = fmt.Sprintf("Integrity violation for read from resource '%s': ", e.Resource)
 			if len(e.MissingTags) > 0 {
-				msg += fmt.Sprintf("resource is missing integrity tags %v that agent requires. ", e.MissingTags)
-				msg += fmt.Sprintf("Remediation: agent should drop integrity tags %v to trust this resource, or verify resource has higher integrity.", e.MissingTags)
+				msg += fmt.Sprintf("the agent cannot read data with integrity below %s.", formatIntegrityLevel(e.MissingTags))
 			}
 		}
 	}

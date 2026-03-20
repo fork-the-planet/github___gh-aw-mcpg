@@ -7,6 +7,21 @@ use serde_json::Value;
 
 use super::constants::{field_names, label_constants};
 
+/// Extract a resource number from a JSON item, returning the number as a string.
+/// Returns "unknown" (with a log warning) if the number field is missing or invalid.
+pub(crate) fn extract_resource_number(item: &Value, resource_type: &str, repo: &str) -> String {
+    match item.get("number").and_then(|v| v.as_u64()) {
+        Some(n) => n.to_string(),
+        None => {
+            crate::log_warn(&format!(
+                "{}:{} — missing or invalid 'number' field, using 'unknown'",
+                resource_type, repo
+            ));
+            "unknown".to_string()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScopeKind {
     All,

@@ -145,7 +145,7 @@ pub fn label_response_paths(
                     let item_repo_private = repo_visibility_private_for_repo_id(repo_for_labels)
                         .unwrap_or(default_repo_private);
 
-                    let pr_number = item.get("number").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let pr_number = extract_resource_number(item, "pr", repo_for_labels);
                     let integrity =
                         pr_integrity(item, repo_for_labels, item_repo_private, is_forked, ctx);
                     let path = make_item_path(items_path, i);
@@ -224,7 +224,7 @@ pub fn label_response_paths(
                     let item_repo_private = repo_visibility_private_for_repo_id(repo_for_labels)
                         .unwrap_or(default_repo_private);
 
-                    let issue_number = item.get("number").and_then(|v| v.as_u64()).unwrap_or(0);
+                    let issue_number = extract_resource_number(item, "issue", repo_for_labels);
                     let integrity = issue_integrity(
                         item,
                         repo_for_labels,

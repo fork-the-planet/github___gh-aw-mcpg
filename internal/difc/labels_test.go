@@ -507,9 +507,7 @@ func TestViolationError_Error(t *testing.T) {
 			wantContains: []string{
 				"Secrecy violation",
 				"classified-doc",
-				"[secret top-secret]",
-				"cannot flow to resource",
-				"Remediation:",
+				"not authorized to access",
 			},
 		},
 		{
@@ -523,8 +521,8 @@ func TestViolationError_Error(t *testing.T) {
 				"Secrecy violation",
 				"public-endpoint",
 			},
-			// No tag list or remediation when ExtraTags is empty
-			wantAbsent: []string{"cannot flow to resource"},
+			// No tag list when ExtraTags is empty
+			wantAbsent: []string{"not authorized"},
 		},
 		{
 			name: "integrity write violation with missing tags",
@@ -537,8 +535,7 @@ func TestViolationError_Error(t *testing.T) {
 			wantContains: []string{
 				"Integrity violation for write",
 				"prod-db",
-				"missing required integrity tags",
-				"Remediation:",
+				"integrity level is insufficient",
 				"production",
 				"verified",
 			},
@@ -555,7 +552,7 @@ func TestViolationError_Error(t *testing.T) {
 				"Integrity violation for write",
 				"prod-db",
 			},
-			wantAbsent: []string{"missing required integrity tags"},
+			wantAbsent: []string{"integrity level is insufficient"},
 		},
 		{
 			name: "integrity read violation with missing tags",
@@ -568,8 +565,7 @@ func TestViolationError_Error(t *testing.T) {
 			wantContains: []string{
 				"Integrity violation for read",
 				"trusted-source",
-				"missing integrity tags",
-				"Remediation:",
+				"cannot read data with integrity below",
 				"certified",
 			},
 		},
@@ -585,7 +581,7 @@ func TestViolationError_Error(t *testing.T) {
 				"Integrity violation for read",
 				"trusted-source",
 			},
-			wantAbsent: []string{"missing integrity tags"},
+			wantAbsent: []string{"cannot read data"},
 		},
 	}
 
