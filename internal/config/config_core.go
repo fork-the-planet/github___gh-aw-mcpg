@@ -263,6 +263,11 @@ func LoadFromFile(path string) (*Config, error) {
 		cfg.Gateway = &GatewayConfig{}
 	}
 
+	// Validate trusted_bots per spec §4.1.3.4: must be non-empty array when present
+	if err := validateTrustedBots(cfg.Gateway.TrustedBots); err != nil {
+		return nil, err
+	}
+
 	// Apply core gateway defaults
 	applyGatewayDefaults(cfg.Gateway)
 

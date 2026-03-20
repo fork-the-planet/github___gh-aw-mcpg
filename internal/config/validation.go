@@ -365,7 +365,29 @@ func validateGatewayConfig(gateway *StdinGatewayConfig) error {
 		}
 	}
 
+	// Validate trustedBots per spec §4.1.3.4: must be non-empty array when present
+	if err := validateTrustedBots(gateway.TrustedBots); err != nil {
+		return err
+	}
+
 	logValidation.Print("Gateway config validation passed")
+	return nil
+}
+
+// validateTrustedBots checks that the trusted_bots/trustedBots list conforms to spec §4.1.3.4:
+// when present, it must be a non-empty array of non-empty strings.
+func validateTrustedBots(bots []string) error {
+	if bots == nil {
+		return nil
+	}
+	if len(bots) == 0 {
+		return fmt.Errorf("trusted_bots must be a non-empty array when present (spec §4.1.3.4)")
+	}
+	for i, bot := range bots {
+		if strings.TrimSpace(bot) == "" {
+			return fmt.Errorf("trusted_bots[%d] must be a non-empty string", i)
+		}
+	}
 	return nil
 }
 

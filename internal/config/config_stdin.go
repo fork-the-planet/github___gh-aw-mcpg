@@ -281,7 +281,10 @@ func convertStdinConfig(stdinCfg *StdinConfig) (*Config, error) {
 		if stdinCfg.Gateway.PayloadDir != "" {
 			cfg.Gateway.PayloadDir = stdinCfg.Gateway.PayloadDir
 		}
-		if len(stdinCfg.Gateway.TrustedBots) > 0 {
+		if stdinCfg.Gateway.TrustedBots != nil {
+			if err := validateTrustedBots(stdinCfg.Gateway.TrustedBots); err != nil {
+				return nil, err
+			}
 			cfg.Gateway.TrustedBots = stdinCfg.Gateway.TrustedBots
 		}
 	} else {

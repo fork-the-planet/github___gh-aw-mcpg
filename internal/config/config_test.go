@@ -1701,6 +1701,7 @@ args = ["run", "--rm", "-i", "test/container:latest"]
 	_, err = LoadFromFile(tmpFile)
 	require.Error(t, err)
 }
+
 // TestLoadFromStdin_WithTrustedBots verifies JSON stdin parsing of trustedBots.
 // Covers spec §4.1.3.4 (Trusted Bot Identity Configuration).
 func TestLoadFromStdin_WithTrustedBots(t *testing.T) {
@@ -1736,4 +1737,39 @@ func TestLoadFromStdin_WithTrustedBots(t *testing.T) {
 	require.NotNil(t, cfg.Gateway)
 
 	assert.Equal(t, []string{"github-actions[bot]", "copilot-swe-agent[bot]"}, cfg.Gateway.TrustedBots)
+}
+
+// TestLoadFromStdin_WithEmptyTrustedBots verifies JSON stdin parsing rejects trustedBots: [].
+// Covers spec §4.1.3.4 (trustedBots MUST be a non-empty array when present).
+func TestLoadFromStdin_WithEmptyTrustedBots(t *testing.T) {
+	stdinJSON := `{
+		"mcpServers": {
+			"test": {
+				"container": "test/container:latest",
+				"type": "stdio"
+			}
+		},
+		"gateway": {
+			"port": 8080,
+			"domain": "localhost",
+			"apiKey": "test-key",
+			"trustedBots": []
+		}
+	}`
+
+	oldStdin := os.Stdin
+	defer func() { os.Stdin = oldStdin }()
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdin = r
+
+	go func() {
+		defer w.Close()
+		_, _ = w.Write([]byte(stdinJSON))
+	}()
+
+	_, err = LoadFromStdin()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "trustedBots")
 }

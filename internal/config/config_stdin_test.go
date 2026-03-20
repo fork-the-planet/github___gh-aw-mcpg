@@ -988,7 +988,7 @@ func TestConvertStdinConfig_TrustedBots(t *testing.T) {
 		assert.Equal(t, []string{"copilot-swe-agent[bot]", "my-org-bot"}, cfg.Gateway.TrustedBots)
 	})
 
-	t.Run("empty trustedBots not propagated", func(t *testing.T) {
+	t.Run("empty trustedBots rejected per spec §4.1.3.4", func(t *testing.T) {
 		stdinCfg := &StdinConfig{
 			MCPServers: map[string]*StdinServerConfig{},
 			Gateway: &StdinGatewayConfig{
@@ -996,10 +996,9 @@ func TestConvertStdinConfig_TrustedBots(t *testing.T) {
 			},
 		}
 
-		cfg, err := convertStdinConfig(stdinCfg)
-		require.NoError(t, err)
-		require.NotNil(t, cfg.Gateway)
-		assert.Nil(t, cfg.Gateway.TrustedBots)
+		_, err := convertStdinConfig(stdinCfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "trusted_bots must be a non-empty array when present")
 	})
 
 	t.Run("nil trustedBots not propagated", func(t *testing.T) {
