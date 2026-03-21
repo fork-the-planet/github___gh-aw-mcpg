@@ -10,8 +10,8 @@ use super::helpers::{
     author_association_floor_from_str, ensure_integrity_baseline, extract_number_as_string,
     extract_repo_info, extract_repo_info_from_search_query, is_default_branch_commit_context,
     is_default_branch_ref, is_trusted_first_party_bot, max_integrity, merged_integrity,
-    policy_private_scope_label, project_github_label, reader_integrity, secret_label,
-    writer_integrity, PolicyContext,
+    policy_private_scope_label, private_user_label, project_github_label, reader_integrity,
+    secret_label, writer_integrity, PolicyContext,
 };
 
 fn apply_repo_visibility_secrecy(
@@ -396,7 +396,9 @@ pub fn apply_tool_labels(
         }
 
         // === GitHub Projects (org-scoped) ===
-        "list_projects" | "get_project" | "list_project_fields" | "list_project_items" => {
+        // Canonical names (projects_list, projects_get) plus deprecated aliases
+        "list_projects" | "get_project" | "list_project_fields" | "list_project_items"
+        | "projects_list" | "projects_get" => {
             // Projects are org-scoped; creating/managing projects requires org membership.
             // I = approved:<owner> — equivalent to MEMBER author_association
             // S = empty by default (public project); per-item secrecy for items is refined in
@@ -405,6 +407,131 @@ pub fn apply_tool_labels(
                 baseline_scope = owner.clone();
                 integrity = writer_integrity(&baseline_scope, ctx);
             }
+        }
+
+        // === Job Logs (Actions) ===
+        "get_job_logs" => {
+            // Job logs may contain secrets (environment variables, tokens leaked in output).
+            // S = secret (conservative — logs can leak any secret)
+            // I = approved — CI output is system-generated, not user-controlled
+            secrecy = secret_label();
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Discussions (repo-scoped, user content) ===
+        "list_discussions" | "get_discussion" => {
+            // Discussions are user-submitted content, similar to issues.
+            // S = inherits from repo visibility
+            // I = private repos get approved; public repos deferred to response labeling
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = private_writer_integrity(repo_id, repo_private, ctx);
+        }
+
+        "get_discussion_comments" => {
+            // Discussion comments are user-submitted, lowest-trust user content.
+            // S = inherits from repo visibility
+            // I = private repos get approved; public repos deferred to response labeling
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = private_writer_integrity(repo_id, repo_private, ctx);
+        }
+
+        "list_discussion_categories" => {
+            // Discussion categories are maintainer-managed metadata.
+            // S = inherits from repo visibility
+            // I = approved — managed by maintainers
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Gists (user-scoped) ===
+        "list_gists" | "get_gist" => {
+            // Gists are user content; secrecy depends on public/secret flag.
+            // Resource-level: conservative labeling; response labeling refines per-item.
+            // S = private:user (conservative — some gists may be secret)
+            // I = reader (user content, no repo-level trust signal)
+            secrecy = private_user_label();
+            integrity = reader_integrity("user", ctx);
+        }
+
+        // === Notifications (user-scoped, private) ===
+        "list_notifications" | "get_notification_details" => {
+            // Notifications are private to the authenticated user.
+            // S = private:user
+            // I = none (notifications reference external content of unknown trust)
+            secrecy = private_user_label();
+            integrity = vec![];
+        }
+
+        // === Context: User & Org Identity ===
+        "get_me" => {
+            // Current user profile — private to the authenticated user.
+            // May contain private email, name, and other PII.
+            // S = private:user
+            // I = project:github (GitHub-controlled metadata)
+            secrecy = private_user_label();
+            integrity = project_github_label(ctx);
+        }
+
+        "get_teams" | "get_team_members" => {
+            // Org team membership — may reveal internal org structure.
+            // S = private:user (org membership is sensitive)
+            // I = project:github (GitHub-controlled metadata)
+            secrecy = private_user_label();
+            integrity = project_github_label(ctx);
+        }
+
+        // === Repository Tree ===
+        "get_repository_tree" => {
+            // Tree listing shows file structure; inherits from repo + branch.
+            // S = inherits from repo visibility
+            // I = approved (repo metadata, maintained by repo team)
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Labels (list) ===
+        "list_label" => {
+            // Label listing — maintainer-managed metadata.
+            // S = inherits from repo visibility
+            // I = approved (managed by maintainers)
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Starred Repositories ===
+        "list_starred_repositories" => {
+            // User's starred repos — reveals user preferences/interests.
+            // S = private:user (personal data)
+            // I = project:github (GitHub-controlled metadata)
+            secrecy = private_user_label();
+            integrity = project_github_label(ctx);
+        }
+
+        // === Organization Search ===
+        "search_orgs" => {
+            // Public organization profiles.
+            // S = public (empty)
+            // I = project:github (GitHub-controlled metadata)
+            secrecy = vec![];
+            integrity = project_github_label(ctx);
+        }
+
+        // === Security Advisories ===
+        "list_global_security_advisories" | "get_global_security_advisory" => {
+            // Global security advisories are public CVE data from GHSA.
+            // S = public (empty) — these are published advisories
+            // I = project:github — curated by GitHub security team
+            secrecy = vec![];
+            integrity = project_github_label(ctx);
+        }
+
+        "list_repository_security_advisories" | "list_org_repository_security_advisories" => {
+            // Repository/org security advisories may include draft advisories
+            // with non-public vulnerability details.
+            // S = private:repo — may contain embargoed vulnerability info
+            // I = approved — maintained by repo security contacts
+            secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
+            integrity = writer_integrity(repo_id, ctx);
         }
 
         _ => {

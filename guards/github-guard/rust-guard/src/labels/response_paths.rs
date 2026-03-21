@@ -513,7 +513,8 @@ pub fn label_response_paths(
         }
 
         // === GitHub Project Items - heterogeneous ISSUE / PULL_REQUEST / DRAFT_ISSUE ===
-        "list_project_items" => {
+        // projects_list is the new canonical name (replaces list_project_items)
+        "list_project_items" | "projects_list" => {
             let (arg_owner, _, _) = extract_repo_info(tool_args);
             let (items, items_path) = extract_items_array(&actual_response);
 
