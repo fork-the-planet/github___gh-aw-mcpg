@@ -250,20 +250,23 @@ func TestRegisterGuard_WriteSinkPolicy_MultipleAcceptPatterns(t *testing.T) {
 
 // TestRegisterGuard_InvalidPolicy_ReturnsError verifies that when resolveGuardPolicy
 // returns an error (invalid AllowOnly policy), registerGuard propagates the error.
+// NOTE: The guard must be non-noop because requireGuardPolicyIfGuardEnabled
+// short-circuits for noop guards without validating the policy (by design).
 func TestRegisterGuard_InvalidPolicy_ReturnsError(t *testing.T) {
 	t.Setenv(wasmGuardsDirEnvVar, "")
+
+	// Register a non-noop guard type so the policy validation path is reached.
+	const guardType = "test-non-noop-for-invalid-policy"
+	guard.RegisterGuardType(guardType, func() (guard.Guard, error) {
+		return guard.NewWriteSinkGuard([]string{"*"}), nil
+	})
 
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{
 			"github": {Type: "http", Guard: "my-guard"},
 		},
 		Guards: map[string]*config.GuardConfig{
-			"my-guard": {
-				Type: "noop",
-				// This is a valid guard config – but we'll use the *global* policy
-				// override to inject an invalid policy so that requireGuardPolicyIfGuardEnabled
-				// receives the guard and then resolveGuardPolicy validates and errors.
-			},
+			"my-guard": {Type: guardType},
 		},
 		// Invalid global policy: min-integrity value is not recognised
 		GuardPolicy: &config.GuardPolicy{

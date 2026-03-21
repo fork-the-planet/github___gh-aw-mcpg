@@ -476,7 +476,7 @@ func TestCopyResponseHeaders(t *testing.T) {
 	t.Run("copies pagination and request ID headers", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		resp := &http.Response{Header: http.Header{
-			"Link":                 []string{`<https://api.github.com/repos/o/r/issues?page=2>; rel="next"`},
+			"Link":                []string{`<https://api.github.com/repos/o/r/issues?page=2>; rel="next"`},
 			"X-Github-Request-Id": []string{"abc-123"},
 		}}
 		copyResponseHeaders(w, resp)
