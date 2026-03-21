@@ -77,11 +77,29 @@ Restricts which repositories a guard allows and at what integrity level:
 - `["owner/*"]` — All repos under owner
 - `["owner/prefix*"]` — Repos matching prefix
 
-**`min-integrity`** — Minimum integrity level based on `author_association`:
-- `"none"` — All objects (FIRST_TIMER, NONE)
-- `"unapproved"` — Contributors (CONTRIBUTOR, FIRST_TIME_CONTRIBUTOR)
-- `"approved"` — Members (OWNER, MEMBER, COLLABORATOR)
+**`min-integrity`** — Minimum integrity level required for content items. Levels from highest to lowest:
 - `"merged"` — Objects reachable from main branch
+- `"approved"` — Members (OWNER, MEMBER, COLLABORATOR); private repo items; trusted bots
+- `"unapproved"` — Contributors (CONTRIBUTOR, FIRST_TIME_CONTRIBUTOR)
+- `"none"` — All objects (FIRST_TIMER, NONE)
+- `blocked` — Items from `blocked-users` (always denied; not a configurable value)
+
+**`blocked-users`** *(optional)* — Array of GitHub usernames whose content is unconditionally blocked. Items from these users receive `blocked` integrity (below `none`) and are always denied, even when `min-integrity` is `"none"`. Cannot be overridden by `approval-labels`.
+
+**`approval-labels`** *(optional)* — Array of GitHub label names that promote a content item's effective integrity to `approved` when present. Enables human-review gates where a maintainer labels an item to allow it through. Uses `max(base, approved)` so it never lowers integrity. Does not override `blocked-users`.
+
+```json
+"guard-policies": {
+  "allow-only": {
+    "repos": ["myorg/*"],
+    "min-integrity": "approved",
+    "blocked-users": ["spam-bot", "compromised-user"],
+    "approval-labels": ["human-reviewed", "safe-for-agent"]
+  }
+}
+```
+
+For comprehensive documentation on integrity filtering, see the [Integrity Filtering Reference](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/integrity.md).
 
 ### write-sink (output servers)
 
@@ -166,6 +184,7 @@ This maps ~25 REST URL patterns and GraphQL queries to guard tool names, then ru
 | Topic | Link |
 |-------|------|
 | **Proxy Mode** | [docs/PROXY_MODE.md](docs/PROXY_MODE.md) — HTTP forward proxy for DIFC filtering of `gh` CLI and REST/GraphQL requests |
+| **Integrity Filtering** | [Integrity Filtering Reference](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/integrity.md) — Integrity levels, blocked-users, approval-labels, and filtering configuration |
 | **Configuration Reference** | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) — Server fields, TOML/JSON formats, guard-policy details, custom schemas, gateway fields, validation rules |
 | **Environment Variables** | [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) — All env vars for production, development, Docker, and guard configuration |
 | **Full Specification** | [MCP Gateway Configuration Reference](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md) — Upstream spec with complete validation rules |
