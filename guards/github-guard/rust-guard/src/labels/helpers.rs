@@ -212,6 +212,7 @@ fn extract_github_label_names<'a>(item: &'a Value) -> Vec<&'a str> {
 
 /// Check whether a content item carries at least one label from the configured
 /// `approval-labels` list (case-insensitive comparison).
+#[cfg(test)]
 pub fn has_approval_label(item: &Value, ctx: &PolicyContext) -> bool {
     first_matching_approval_label(item, ctx).is_some()
 }

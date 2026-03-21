@@ -44,12 +44,14 @@ pub use constants::MEDIUM_BUFFER_SIZE;
 pub use helpers::{
     blocked_integrity, commit_integrity, ensure_integrity_baseline, extract_items_array,
     extract_number_as_string, extract_repo_from_item, extract_repo_info,
-    extract_repo_info_from_search_query, get_bool_or, get_nested_str, get_str_or, has_approval_label,
+    extract_repo_info_from_search_query, get_bool_or, get_nested_str, get_str_or,
     is_blocked_user, is_bot, issue_integrity, limit_items_with_log, make_item_path, merged_integrity,
     none_integrity, pr_integrity, private_scope_label, private_user_label, project_github_label,
     reader_integrity, secret_label, writer_integrity, MinIntegrity, PolicyContext, PolicyScopeEntry,
     ScopeKind,
 };
+#[cfg(test)]
+pub use helpers::has_approval_label;
 
 // Re-export response labeling functions (wrappers that pass PolicyContext)
 pub fn apply_tool_labels(
