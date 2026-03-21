@@ -9,11 +9,14 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
+var logDifcLog = logger.New("server:difc_log")
+
 // logFilteredItems logs structured details for every item removed by DIFC filtering.
 // Each item is written as a [DIFC-FILTERED] JSON entry to both the unified and
 // per-server text log files (via LogInfoWithServer), and as a DIFC_FILTERED entry
 // in the JSONL log.
 func logFilteredItems(serverID, toolName string, filtered *difc.FilteredCollectionLabeledData) {
+	logDifcLog.Printf("Logging filtered items: serverID=%s, toolName=%s, count=%d", serverID, toolName, len(filtered.Filtered))
 	for _, detail := range filtered.Filtered {
 		entry := buildFilteredItemLogEntry(serverID, toolName, detail)
 		b, err := json.Marshal(entry)
@@ -39,6 +42,7 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 		entry.Description = detail.Item.Labels.Description
 		entry.SecrecyTags = difc.TagsToStrings(detail.Item.Labels.Secrecy.Label.GetTags())
 		entry.IntegrityTags = difc.TagsToStrings(detail.Item.Labels.Integrity.Label.GetTags())
+		logDifcLog.Printf("Filtered item labels: description=%s, secrecy=%v, integrity=%v", entry.Description, entry.SecrecyTags, entry.IntegrityTags)
 	}
 
 	// Extract identifying metadata from the raw item data.
@@ -49,6 +53,7 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 		entry.HTMLURL = getStringField(m, "html_url", "htmlUrl")
 		entry.Number = extractNumberField(m)
 		entry.SHA = getStringField(m, "sha")
+		logDifcLog.Printf("Filtered item metadata: author=%s, number=%s, url=%s", entry.AuthorLogin, entry.Number, entry.HTMLURL)
 	}
 
 	return entry
@@ -117,8 +122,11 @@ func buildDIFCFilteredNotice(filtered *difc.FilteredCollectionLabeledData) strin
 		return ""
 	}
 
+	logDifcLog.Printf("Building DIFC filtered notice: filteredCount=%d, maxInline=%d", n, maxFilteredItemsInNotice)
+
 	// For a small number of filtered items, include per-item descriptions and reasons.
 	if n <= maxFilteredItemsInNotice {
+		logDifcLog.Printf("Using per-item notice format for %d item(s)", n)
 		parts := make([]string, 0, n)
 		for _, detail := range filtered.Filtered {
 			desc := ""
