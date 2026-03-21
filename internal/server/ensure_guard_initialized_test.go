@@ -93,77 +93,8 @@ func validAllowOnlyPolicy() *config.GuardPolicy {
 	}
 }
 
-// ─── normalizeScopeKind ───────────────────────────────────────────────────────
-
-func TestNormalizeScopeKind_Nil(t *testing.T) {
-	result := normalizeScopeKind(nil)
-	assert.Nil(t, result)
-}
-
-func TestNormalizeScopeKind_EmptyMap(t *testing.T) {
-	result := normalizeScopeKind(map[string]interface{}{})
-	require.NotNil(t, result)
-	assert.Empty(t, result)
-}
-
-func TestNormalizeScopeKind_NoScopeKindField(t *testing.T) {
-	input := map[string]interface{}{
-		"min-integrity": "none",
-		"repos":         "public",
-	}
-	result := normalizeScopeKind(input)
-	require.NotNil(t, result)
-	assert.Equal(t, "none", result["min-integrity"])
-	assert.Equal(t, "public", result["repos"])
-	assert.NotContains(t, result, "scope_kind")
-}
-
-func TestNormalizeScopeKind_ScopeKindAlreadyLowercase(t *testing.T) {
-	input := map[string]interface{}{
-		"scope_kind": "composite",
-	}
-	result := normalizeScopeKind(input)
-	assert.Equal(t, "composite", result["scope_kind"])
-}
-
-func TestNormalizeScopeKind_ScopeKindUppercase(t *testing.T) {
-	input := map[string]interface{}{
-		"scope_kind": "COMPOSITE",
-	}
-	result := normalizeScopeKind(input)
-	assert.Equal(t, "composite", result["scope_kind"])
-}
-
-func TestNormalizeScopeKind_ScopeKindMixedCaseWithWhitespace(t *testing.T) {
-	input := map[string]interface{}{
-		"scope_kind": "  Scoped  ",
-	}
-	result := normalizeScopeKind(input)
-	assert.Equal(t, "scoped", result["scope_kind"])
-}
-
-func TestNormalizeScopeKind_NonStringScopeKind(t *testing.T) {
-	// Non-string values must be preserved as-is (the type assertion fails silently).
-	input := map[string]interface{}{
-		"scope_kind": 42,
-		"other":      "value",
-	}
-	result := normalizeScopeKind(input)
-	assert.Equal(t, 42, result["scope_kind"])
-	assert.Equal(t, "value", result["other"])
-}
-
-func TestNormalizeScopeKind_DoesNotMutateInput(t *testing.T) {
-	input := map[string]interface{}{
-		"scope_kind": "Composite",
-	}
-	original := input["scope_kind"]
-	normalizeScopeKind(input)
-	// The original map must not be modified — normalizeScopeKind returns a copy.
-	assert.Equal(t, original, input["scope_kind"])
-}
-
 // ─── ensureGuardInitialized ───────────────────────────────────────────────────
+// normalizeScopeKind tests live in resolve_guard_policy_test.go
 
 // TestEnsureGuardInitialized_PolicyNil checks that when resolveGuardPolicy returns nil
 // (no guard policy configured for the server) the evaluator default mode is returned.

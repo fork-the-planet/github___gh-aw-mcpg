@@ -108,9 +108,9 @@ func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 // ParseToolArguments extracts and unmarshals tool arguments from a CallToolRequest.
 // Returns the parsed arguments as a map, or an error if parsing fails.
 func ParseToolArguments(req *sdk.CallToolRequest) (map[string]interface{}, error) {
-	logToolResult.Printf("Parsing arguments for tool: %s", req.Params.Name)
 	var toolArgs map[string]interface{}
 	if req.Params != nil && req.Params.Arguments != nil {
+		logToolResult.Printf("Parsing arguments for tool: %s", req.Params.Name)
 		if err := json.Unmarshal(req.Params.Arguments, &toolArgs); err != nil {
 			return nil, fmt.Errorf("failed to parse arguments: %w", err)
 		}
@@ -118,6 +118,6 @@ func ParseToolArguments(req *sdk.CallToolRequest) (map[string]interface{}, error
 		// No arguments provided, use empty map
 		toolArgs = make(map[string]interface{})
 	}
-	logToolResult.Printf("Parsed %d arguments for tool: %s", len(toolArgs), req.Params.Name)
+	logToolResult.Printf("Parsed %d arguments", len(toolArgs))
 	return toolArgs, nil
 }

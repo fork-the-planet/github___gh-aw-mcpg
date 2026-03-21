@@ -1,4 +1,4 @@
-.PHONY: build lint test test-unit test-integration test-all test-serena test-serena-gateway coverage test-ci format clean install release help agent-finished
+.PHONY: build lint test test-unit test-integration test-container-proxy test-all test-serena test-serena-gateway coverage test-ci format clean install release help agent-finished
 
 # Default target
 .DEFAULT_GOAL := help
@@ -59,6 +59,14 @@ test-integration:
 		$(MAKE) build; \
 	fi
 	@go test -v ./test/integration/...
+
+# Run container proxy integration tests (requires Docker and gh CLI)
+test-container-proxy:
+	@echo "Running container proxy integration tests..."
+	@echo "This will build a Docker image and test proxy mode with TLS."
+	@echo "Requires: Docker daemon, GitHub token (GITHUB_TOKEN, GH_TOKEN, or gh auth login)"
+	@echo ""
+	@go test -v -tags=container -run TestContainerProxy -timeout 10m ./test/integration/...
 
 # Run format, build, lint, and all tests (for agents before completion)
 # Optimized: single go mod tidy, no redundant clean/vet/gofmt-check

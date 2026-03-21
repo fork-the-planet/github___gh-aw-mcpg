@@ -8,17 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// validAllowOnlyPolicy returns a valid AllowOnly guard policy for use in tests.
-// Uses repos="all" which is one of the two accepted string values ("all" or "public").
-func validAllowOnlyPolicy() *config.GuardPolicy {
-	return &config.GuardPolicy{
-		AllowOnly: &config.AllowOnlyPolicy{
-			Repos:        "all",
-			MinIntegrity: "approved",
-		},
-	}
-}
-
 // validWriteSinkPolicy returns a valid WriteSink guard policy for use in tests.
 func validWriteSinkPolicy() *config.GuardPolicy {
 	return &config.GuardPolicy{
@@ -234,7 +223,7 @@ func TestResolveGuardPolicy_ServerWithValidGuardPolicies(t *testing.T) {
 				GuardPolicies: map[string]interface{}{
 					"allow-only": map[string]interface{}{
 						"min-integrity": "approved",
-						"repos":         "github/gh-aw*",
+						"repos":         []interface{}{"github/gh-aw*"},
 					},
 				},
 			},
@@ -387,7 +376,7 @@ func TestResolveGuardPolicy_GuardFieldSet_ValidGuardPolicy(t *testing.T) {
 	require.NotNil(t, policy)
 	assert.Equal(t, "config", source)
 	require.NotNil(t, policy.AllowOnly)
-	assert.Equal(t, "approved", policy.AllowOnly.MinIntegrity)
+	assert.Equal(t, config.IntegrityNone, policy.AllowOnly.MinIntegrity)
 }
 
 func TestResolveGuardPolicy_GuardFieldSet_WriteSinkGuardPolicy(t *testing.T) {
