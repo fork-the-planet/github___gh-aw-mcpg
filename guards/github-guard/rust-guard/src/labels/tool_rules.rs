@@ -448,7 +448,7 @@ pub fn apply_tool_labels(
             // Gists are user content; secrecy depends on public/secret flag.
             // Resource-level: conservative labeling; response labeling refines per-item.
             // S = private:user (conservative — some gists may be secret)
-            // I = reader (user content, no repo-level trust signal)
+            // I = unapproved (user content, no repo-level trust signal)
             secrecy = private_user_label();
             baseline_scope = "user".to_string();
             integrity = reader_integrity("user", ctx);
