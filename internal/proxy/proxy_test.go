@@ -188,6 +188,108 @@ func TestMatchRoute(t *testing.T) {
 			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "list_workflow_runs"},
 		},
 
+		// Actions — individual resources
+		{
+			name:     "get workflow",
+			path:     "/repos/org/repo/actions/workflows/42",
+			wantTool: "actions_get",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "get_workflow", "resource_id": "42"},
+		},
+		{
+			name:     "get workflow run",
+			path:     "/repos/org/repo/actions/runs/12345",
+			wantTool: "actions_get",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "get_workflow_run", "resource_id": "12345"},
+		},
+		{
+			name:     "get workflow job",
+			path:     "/repos/org/repo/actions/jobs/99",
+			wantTool: "actions_get",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "get_workflow_job", "resource_id": "99"},
+		},
+		{
+			name:     "list workflow-specific runs",
+			path:     "/repos/org/repo/actions/workflows/42/runs",
+			wantTool: "actions_list",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "list_workflow_runs", "resource_id": "42"},
+		},
+		{
+			name:     "list run attempt jobs",
+			path:     "/repos/org/repo/actions/runs/100/attempts/1/jobs",
+			wantTool: "actions_list",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "list_workflow_jobs", "resource_id": "100"},
+		},
+		{
+			name:     "get run logs",
+			path:     "/repos/org/repo/actions/runs/100/logs",
+			wantTool: "get_job_logs",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "run_id": "100"},
+		},
+		{
+			name:     "get run attempt logs",
+			path:     "/repos/org/repo/actions/runs/100/attempts/2/logs",
+			wantTool: "get_job_logs",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "run_id": "100"},
+		},
+		{
+			name:     "list run artifacts",
+			path:     "/repos/org/repo/actions/runs/100/artifacts",
+			wantTool: "actions_list",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "list_workflow_run_artifacts", "resource_id": "100"},
+		},
+		{
+			name:     "list repo artifacts",
+			path:     "/repos/org/repo/actions/artifacts",
+			wantTool: "actions_list",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "list_workflow_run_artifacts"},
+		},
+		{
+			name:     "list caches",
+			path:     "/repos/org/repo/actions/caches",
+			wantTool: "actions_list",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "list_caches"},
+		},
+		{
+			name:     "list secrets",
+			path:     "/repos/org/repo/actions/secrets",
+			wantTool: "actions_list",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "list_secrets"},
+		},
+		{
+			name:     "list variables",
+			path:     "/repos/org/repo/actions/variables",
+			wantTool: "actions_list",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "method": "list_variables"},
+		},
+		// Check runs/suites
+		{
+			name:     "check runs for commit",
+			path:     "/repos/org/repo/commits/abc123/check-runs",
+			wantTool: "pull_request_read",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "sha": "abc123", "method": "get_check_runs"},
+		},
+		// Notifications
+		{
+			name:     "list notifications",
+			path:     "/notifications",
+			wantTool: "list_notifications",
+			wantArgs: map[string]interface{}{},
+		},
+		// Discussions
+		{
+			name:     "list discussions",
+			path:     "/repos/org/repo/discussions",
+			wantTool: "list_discussions",
+			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo"},
+		},
+		// User keys
+		{
+			name:     "user SSH keys",
+			path:     "/user/keys",
+			wantTool: "get_me",
+			wantArgs: map[string]interface{}{},
+		},
+
 		// Search
 		{
 			name:     "search code",
@@ -216,11 +318,12 @@ func TestMatchRoute(t *testing.T) {
 			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo"},
 		},
 
-		// User — not mapped; unknown paths are blocked (fail closed)
+		// User API
 		{
-			name:    "get me",
-			path:    "/user",
-			wantNil: true,
+			name:     "get me",
+			path:     "/user",
+			wantTool: "get_me",
+			wantArgs: map[string]interface{}{},
 		},
 
 		// Query string stripping
@@ -308,9 +411,19 @@ func TestMatchGraphQL(t *testing.T) {
 			wantTool: "get_file_contents",
 		},
 		{
-			name:    "viewer query",
-			body:    `{"query":"query { viewer { login name email } }"}`,
-			wantNil: true,
+			name:     "discussions query",
+			body:     `{"query":"query { repository(owner: \"org\", name: \"repo\") { discussions(first: 10) { nodes { title } } } }"}`,
+			wantTool: "list_discussions",
+		},
+		{
+			name:     "single discussion query",
+			body:     `{"query":"query { repository(owner: \"org\", name: \"repo\") { discussion(number: 1) { title body } } }"}`,
+			wantTool: "list_discussions",
+		},
+		{
+			name:     "viewer query",
+			body:     `{"query":"query { viewer { login name email } }"}`,
+			wantTool: "get_me",
 		},
 		{
 			name:    "empty query",

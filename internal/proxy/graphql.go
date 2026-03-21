@@ -43,17 +43,26 @@ var graphqlPatterns = []graphqlPattern{
 	{queryPattern: regexp.MustCompile(`(?i)repository\s*\([^)]*\)\s*\{[^}]*\bpullRequest\s*\(`), toolName: "pull_request_read"},
 	{queryPattern: regexp.MustCompile(`(?i)repository\s*\([^)]*\)\s*\{[^}]*\bpullRequests\s*[\({]`), toolName: "list_pull_requests"},
 
+	// Discussion operations
+	{queryPattern: regexp.MustCompile(`(?i)repository\s*\([^)]*\)\s*\{[^}]*\bdiscussion\s*\(`), toolName: "list_discussions"},
+	{queryPattern: regexp.MustCompile(`(?i)repository\s*\([^)]*\)\s*\{[^}]*\bdiscussions\s*[\({]`), toolName: "list_discussions"},
+	{queryPattern: regexp.MustCompile(`(?i)repository\s*\([^)]*\)\s*\{[^}]*\bdiscussionCategories\s*[\({]`), toolName: "list_discussion_categories"},
+
 	// Search operations
 	{queryPattern: regexp.MustCompile(`(?i)\bsearch\s*\(`), toolName: "search_issues"},
 
 	// Project operations
 	{queryPattern: regexp.MustCompile(`(?i)projectV2`), toolName: "list_projects"},
 
-	// Repository info
+	// Viewer / user profile
+	{queryPattern: regexp.MustCompile(`(?i)\bviewer\s*\{`), toolName: "get_me"},
+
+	// Organization queries
+	{queryPattern: regexp.MustCompile(`(?i)\borganization\s*\(`), toolName: "search_orgs"},
+
+	// Repository info (catch-all for repo-scoped queries)
 	{queryPattern: regexp.MustCompile(`(?i)\brepository\s*\(`), toolName: "get_file_contents"},
 
-	// viewer { ... } is intentionally not mapped — the guard does not recognize a tool name
-	// with equivalent semantics for user/account data, and it may include private fields.
 	// Unknown GraphQL queries are blocked by the handler.
 }
 

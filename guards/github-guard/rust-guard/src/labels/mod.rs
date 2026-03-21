@@ -1692,4 +1692,926 @@ mod tests {
             writer_integrity(repo, &ctx)
         );
     }
+
+    // =========================================================================
+    // Tests for 22 new tools added in feat/guard-tool-coverage
+    //
+    // Each tool is tested for:
+    //   - apply_tool_labels (label_resource): correct secrecy and integrity
+    //   - label_response_items / label_response_paths where applicable
+    //
+    // Note on repo_id selection: ensure_integrity_baseline inside apply_tool_labels
+    // uses baseline_scope = repo_id. For tools that set integrity scoped to a
+    // different scope (e.g., "user", "github"), the repo_id must match that scope
+    // to avoid the baseline downgrading labels to none.
+    // =========================================================================
+
+    // -------------------------------------------------------------------------
+    // Actions: get_job_logs
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_job_logs() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "job_id": 12345
+        });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_job_logs",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, secret_label(), "get_job_logs must carry secret secrecy (logs may leak tokens)");
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "get_job_logs must have approved integrity (system-generated output)");
+    }
+
+    // -------------------------------------------------------------------------
+    // Context: get_me
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_me() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_me",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "get_me must carry private:user secrecy (PII)");
+        assert_eq!(integrity, project_github_label(&ctx), "get_me must have project:github integrity (GitHub-controlled)");
+    }
+
+    // -------------------------------------------------------------------------
+    // Context: get_teams
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_teams() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_teams",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "get_teams must carry private:user secrecy (org structure is sensitive)");
+        assert_eq!(integrity, project_github_label(&ctx), "get_teams must have project:github integrity");
+    }
+
+    // -------------------------------------------------------------------------
+    // Context: get_team_members
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_team_members() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github", "team_slug": "engineering" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_team_members",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "get_team_members must carry private:user secrecy");
+        assert_eq!(integrity, project_github_label(&ctx), "get_team_members must have project:github integrity");
+    }
+
+    // -------------------------------------------------------------------------
+    // Discussions: list_discussions
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_list_discussions_secrecy_inherits_repo_visibility() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github", "repo": "copilot" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "list_discussions",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        // In test mode backend returns None → secrecy stays [] (public assumption)
+        assert_eq!(secrecy, vec![] as Vec<String>, "list_discussions secrecy inherits repo visibility");
+        // writer_integrity is used regardless of repo visibility — approved at resource level
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "list_discussions integrity is approved at resource level");
+    }
+
+    // -------------------------------------------------------------------------
+    // Discussions: get_discussion
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_discussion_secrecy_inherits_repo_visibility() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "discussion_number": 42
+        });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_discussion",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, vec![] as Vec<String>);
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx));
+    }
+
+    // -------------------------------------------------------------------------
+    // Discussions: get_discussion_comments
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_discussion_comments_secrecy_inherits_repo_visibility() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "discussion_number": 42
+        });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_discussion_comments",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, vec![] as Vec<String>);
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx));
+    }
+
+    // -------------------------------------------------------------------------
+    // Discussions: list_discussion_categories
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_list_discussion_categories_approved_integrity() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github", "repo": "copilot" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "list_discussion_categories",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, vec![] as Vec<String>, "list_discussion_categories secrecy inherits repo visibility");
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "list_discussion_categories must have approved integrity (maintainer-managed)");
+    }
+
+    // -------------------------------------------------------------------------
+    // Gists: list_gists
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_list_gists() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "username": "octocat" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "list_gists",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "list_gists must carry private:user secrecy (mix of public/secret gists)");
+        assert_eq!(integrity, reader_integrity("user", &ctx), "list_gists must have reader (unapproved) integrity (user content)");
+    }
+
+    // -------------------------------------------------------------------------
+    // Gists: get_gist
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_gist() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "gist_id": "abc123def456" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_gist",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "get_gist must carry private:user secrecy");
+        assert_eq!(integrity, reader_integrity("user", &ctx), "get_gist must have reader integrity");
+    }
+
+    // -------------------------------------------------------------------------
+    // Git: get_repository_tree
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_repository_tree_approved_integrity() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "tree_sha": "main"
+        });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_repository_tree",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, vec![] as Vec<String>, "get_repository_tree secrecy inherits repo visibility");
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "get_repository_tree must have approved integrity (repo metadata)");
+    }
+
+    // -------------------------------------------------------------------------
+    // Labels: list_label
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_list_label_approved_integrity() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github", "repo": "copilot" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "list_label",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, vec![] as Vec<String>, "list_label secrecy inherits repo visibility");
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "list_label must have approved integrity (maintainer-managed metadata)");
+    }
+
+    // -------------------------------------------------------------------------
+    // Notifications: list_notifications
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_list_notifications() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "list_notifications",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "list_notifications must carry private:user secrecy");
+        // integrity = vec![] in rule → ensure_integrity_baseline("", [], ctx) = none_integrity("", ctx) = ["none"]
+        assert_eq!(integrity, none_integrity("", &ctx), "list_notifications must have none-level integrity (references external content of unknown trust)");
+    }
+
+    // -------------------------------------------------------------------------
+    // Notifications: get_notification_details
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_notification_details() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "thread_id": "12345" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_notification_details",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "get_notification_details must carry private:user secrecy");
+        assert_eq!(integrity, none_integrity("", &ctx), "get_notification_details must have none-level integrity");
+    }
+
+    // -------------------------------------------------------------------------
+    // Projects: projects_list (new canonical name for list_project_items)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_projects_list_owner_scoped_integrity() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github" });
+
+        // projects_list sets baseline_scope = owner = "github"
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "projects_list",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity("github", &ctx), "projects_list must have approved:owner integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_projects_list_with_owner_scoped_ctx() {
+        let ctx = owner_scoped_ctx("github");
+        let tool_args = json!({ "owner": "github" });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "projects_list",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert!(
+            integrity.contains(&"approved:github".to_string()),
+            "projects_list with scoped ctx must have 'approved:github', got: {:?}",
+            integrity
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Projects: projects_get (new canonical name for get_project)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_projects_get_owner_scoped_integrity() {
+        let ctx = owner_scoped_ctx("myorg");
+        let tool_args = json!({ "owner": "myorg", "project_number": 5 });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "projects_get",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert!(
+            integrity.contains(&"approved:myorg".to_string()),
+            "projects_get must have 'approved:myorg' integrity, got: {:?}",
+            integrity
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Repos: list_starred_repositories
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_list_starred_repositories() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "username": "octocat" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "list_starred_repositories",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "list_starred_repositories must carry private:user secrecy (personal preferences)");
+        assert_eq!(integrity, project_github_label(&ctx), "list_starred_repositories must have project:github integrity (GitHub-controlled metadata)");
+    }
+
+    // -------------------------------------------------------------------------
+    // Search: search_orgs
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_search_orgs() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "query": "github" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "search_orgs",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, vec![] as Vec<String>, "search_orgs must have public (empty) secrecy");
+        assert_eq!(integrity, project_github_label(&ctx), "search_orgs must have project:github integrity");
+    }
+
+    // -------------------------------------------------------------------------
+    // Security Advisories: list_global_security_advisories
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_list_global_security_advisories() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "severity": "critical" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "list_global_security_advisories",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, vec![] as Vec<String>, "global advisories are public CVE data — empty secrecy");
+        assert_eq!(integrity, project_github_label(&ctx), "global advisories curated by GitHub security team — project:github integrity");
+    }
+
+    // -------------------------------------------------------------------------
+    // Security Advisories: get_global_security_advisory
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_global_security_advisory() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "ghsa_id": "GHSA-xxxx-yyyy-zzzz" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_global_security_advisory",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, vec![] as Vec<String>);
+        assert_eq!(integrity, project_github_label(&ctx));
+    }
+
+    // -------------------------------------------------------------------------
+    // Security Advisories: list_repository_security_advisories
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_list_repository_security_advisories() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github", "repo": "copilot" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "list_repository_security_advisories",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(
+            secrecy,
+            vec!["private:github/copilot".to_string()],
+            "repo security advisories may contain embargoed vulnerability info — private:repo secrecy"
+        );
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "repo security advisories maintained by repo security contacts — approved integrity");
+    }
+
+    // -------------------------------------------------------------------------
+    // Security Advisories: list_org_repository_security_advisories
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_list_org_repo_security_advisories() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github", "repo": "copilot" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "list_org_repository_security_advisories",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(
+            secrecy,
+            vec!["private:github/copilot".to_string()],
+            "org repo security advisories must carry private:repo secrecy"
+        );
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx));
+    }
+
+    // =========================================================================
+    // label_response_items tests for new tools
+    // =========================================================================
+
+    // -------------------------------------------------------------------------
+    // list_gists — public gist
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_items_list_gists_public_gist_empty_secrecy() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "username": "octocat" });
+        let response = json!([
+            { "id": "abc123def456", "public": true, "description": "A public gist" }
+        ]);
+
+        let items = label_response_items("list_gists", &tool_args, &response, &ctx);
+
+        assert_eq!(items.len(), 1, "should label one gist item");
+        let item = &items[0];
+        assert_eq!(item.labels.secrecy, vec![] as Vec<String>, "public gist must have empty secrecy");
+        assert_eq!(item.labels.integrity, reader_integrity("user", &ctx), "gist must have reader integrity");
+        assert_eq!(item.labels.description, "gist:abc123def456");
+    }
+
+    // -------------------------------------------------------------------------
+    // list_gists — private gist
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_items_list_gists_private_gist_private_user_secrecy() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "username": "octocat" });
+        let response = json!([
+            { "id": "secret789xyz", "public": false, "description": "A secret gist" }
+        ]);
+
+        let items = label_response_items("list_gists", &tool_args, &response, &ctx);
+
+        assert_eq!(items.len(), 1);
+        let item = &items[0];
+        assert_eq!(item.labels.secrecy, private_user_label(), "secret gist must carry private:user secrecy");
+        assert_eq!(item.labels.integrity, reader_integrity("user", &ctx), "secret gist still has reader integrity");
+        assert_eq!(item.labels.description, "gist:secret789xyz");
+    }
+
+    // -------------------------------------------------------------------------
+    // list_gists — mixed public and private
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_items_list_gists_mixed_public_and_private() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        let response = json!([
+            { "id": "pub1", "public": true },
+            { "id": "sec2", "public": false },
+            { "id": "pub3", "public": true }
+        ]);
+
+        let items = label_response_items("list_gists", &tool_args, &response, &ctx);
+
+        assert_eq!(items.len(), 3);
+        assert_eq!(items[0].labels.secrecy, vec![] as Vec<String>, "first item is public → empty secrecy");
+        assert_eq!(items[1].labels.secrecy, private_user_label(), "second item is private → private:user");
+        assert_eq!(items[2].labels.secrecy, vec![] as Vec<String>, "third item is public → empty secrecy");
+        // All gists share the same reader integrity level
+        for item in &items {
+            assert_eq!(item.labels.integrity, reader_integrity("user", &ctx));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // get_gist — public gist
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_items_get_gist_public_secrecy_reader_integrity() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "gist_id": "abc123def456" });
+        let response = json!({ "id": "abc123def456", "public": true });
+
+        let items = label_response_items("get_gist", &tool_args, &response, &ctx);
+
+        assert_eq!(items.len(), 1, "single-object response must produce one labeled item");
+        assert_eq!(items[0].labels.secrecy, vec![] as Vec<String>);
+        assert_eq!(items[0].labels.integrity, reader_integrity("user", &ctx));
+    }
+
+    // -------------------------------------------------------------------------
+    // get_gist — private (secret) gist
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_items_get_gist_private() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "gist_id": "secret789xyz" });
+        let response = json!({ "id": "secret789xyz", "public": false });
+
+        let items = label_response_items("get_gist", &tool_args, &response, &ctx);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].labels.secrecy, private_user_label());
+        assert_eq!(items[0].labels.integrity, reader_integrity("user", &ctx));
+    }
+
+    // -------------------------------------------------------------------------
+    // list_notifications — response items
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_items_list_notifications_private_user_secrecy() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        let response = json!([
+            {
+                "id": "n1",
+                "subject": { "title": "Fix login bug", "type": "Issue" },
+                "reason": "mention"
+            },
+            {
+                "id": "n2",
+                "subject": { "title": "Add feature X", "type": "PullRequest" },
+                "reason": "review_requested"
+            }
+        ]);
+
+        let items = label_response_items("list_notifications", &tool_args, &response, &ctx);
+
+        assert_eq!(items.len(), 2, "should label both notification items");
+        for item in &items {
+            assert_eq!(item.labels.secrecy, private_user_label(), "notifications are always private:user");
+            // none_integrity("", ctx) = ["none"]
+            assert_eq!(item.labels.integrity, none_integrity("", &ctx), "notifications carry no trust — none integrity");
+        }
+        assert_eq!(items[0].labels.description, "notification:n1");
+        assert_eq!(items[1].labels.description, "notification:n2");
+    }
+
+    // -------------------------------------------------------------------------
+    // get_notification_details — response items (MCP-wrapped single object)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_items_get_notification_details_mcp_wrapped() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "thread_id": "12345" });
+        // get_notification_details returns an array response in the items handler
+        let inner = json!([{"id": "12345", "subject": {"title": "Security alert", "type": "RepositoryVulnerabilityAlert"}}]).to_string();
+        let response = json!({
+            "content": [{ "type": "text", "text": inner }]
+        });
+
+        let items = label_response_items("get_notification_details", &tool_args, &response, &ctx);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].labels.secrecy, private_user_label());
+        assert_eq!(items[0].labels.integrity, none_integrity("", &ctx));
+        assert_eq!(items[0].labels.description, "notification:12345");
+    }
+
+    // =========================================================================
+    // label_response_paths tests for new tools
+    // =========================================================================
+
+    // -------------------------------------------------------------------------
+    // list_gists — path labels with public gist
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_paths_list_gists_public_gist_empty_secrecy() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        let response = json!([
+            { "id": "pub1", "public": true }
+        ]);
+
+        let result = label_response_paths("list_gists", &tool_args, &response, &ctx)
+            .expect("list_gists should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 1);
+        assert_eq!(result.labeled_paths[0].path, "/0");
+        assert_eq!(result.labeled_paths[0].labels.secrecy, vec![] as Vec<String>, "public gist path must have empty secrecy");
+        assert_eq!(result.labeled_paths[0].labels.integrity, reader_integrity("user", &ctx));
+        assert_eq!(result.labeled_paths[0].labels.description, "gist:pub1");
+    }
+
+    // -------------------------------------------------------------------------
+    // list_gists — path labels with private gist
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_paths_list_gists_private_gist_private_user_secrecy() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        let response = json!([
+            { "id": "sec1", "public": false }
+        ]);
+
+        let result = label_response_paths("list_gists", &tool_args, &response, &ctx)
+            .expect("list_gists should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 1);
+        assert_eq!(result.labeled_paths[0].labels.secrecy, private_user_label(), "private gist path must carry private:user secrecy");
+        assert_eq!(result.labeled_paths[0].labels.integrity, reader_integrity("user", &ctx));
+    }
+
+    // -------------------------------------------------------------------------
+    // list_gists — path labels mixed public/private
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_paths_list_gists_mixed_visibility() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        let response = json!([
+            { "id": "pub1", "public": true },
+            { "id": "sec2", "public": false }
+        ]);
+
+        let result = label_response_paths("list_gists", &tool_args, &response, &ctx)
+            .expect("list_gists should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 2);
+        assert_eq!(result.labeled_paths[0].labels.secrecy, vec![] as Vec<String>);
+        assert_eq!(result.labeled_paths[1].labels.secrecy, private_user_label());
+        // Default labels for the collection use conservative reader integrity
+        let default_labels = result.default_labels.as_ref().expect("should have default labels");
+        assert_eq!(default_labels.secrecy, vec![] as Vec<String>);
+        assert_eq!(default_labels.integrity, reader_integrity("user", &ctx));
+    }
+
+    // -------------------------------------------------------------------------
+    // list_notifications — path labels
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_paths_list_notifications_private_empty_integrity() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        let response = json!([
+            { "id": "n1", "reason": "mention" },
+            { "id": "n2", "reason": "review_requested" }
+        ]);
+
+        let result = label_response_paths("list_notifications", &tool_args, &response, &ctx)
+            .expect("list_notifications should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 2);
+        for entry in &result.labeled_paths {
+            assert_eq!(entry.labels.secrecy, private_user_label(), "all notification paths must be private:user");
+            // response_paths.rs uses vec![] directly (not none_integrity)
+            assert_eq!(entry.labels.integrity, vec![] as Vec<String>, "notification paths carry no integrity tags");
+        }
+        assert_eq!(result.labeled_paths[0].path, "/0");
+        assert_eq!(result.labeled_paths[1].path, "/1");
+
+        let default_labels = result.default_labels.as_ref().expect("should have default labels");
+        assert_eq!(default_labels.secrecy, private_user_label());
+        assert_eq!(default_labels.integrity, vec![] as Vec<String>);
+    }
+
+    // -------------------------------------------------------------------------
+    // projects_list — path labels (new canonical name for list_project_items)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_label_response_paths_projects_list_issue_item() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github", "project_number": 1 });
+        let response = json!({
+            "items": [
+                {
+                    "type": "ISSUE",
+                    "content": {
+                        "repository_url": "https://api.github.com/repos/github/copilot",
+                        "author_association": "MEMBER"
+                    }
+                }
+            ]
+        });
+
+        let result = label_response_paths("projects_list", &tool_args, &response, &ctx)
+            .expect("projects_list should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 1);
+        let entry = &result.labeled_paths[0];
+        assert_eq!(entry.labels.description, "project-item:issue");
+        assert!(
+            entry.labels.integrity.iter().any(|l| l.starts_with("approved:")),
+            "MEMBER association must yield approved-level integrity, got: {:?}",
+            entry.labels.integrity
+        );
+    }
+
+    #[test]
+    fn test_label_response_paths_projects_list_draft_issue_item() {
+        let ctx = owner_scoped_ctx("github");
+        let tool_args = json!({ "owner": "github", "project_number": 1 });
+        let response = json!({
+            "items": [
+                {
+                    "type": "DRAFT_ISSUE",
+                    "creator": { "login": "some-admin" }
+                }
+            ]
+        });
+
+        let result = label_response_paths("projects_list", &tool_args, &response, &ctx)
+            .expect("projects_list should produce path labels for DRAFT_ISSUE");
+
+        assert_eq!(result.labeled_paths.len(), 1);
+        let entry = &result.labeled_paths[0];
+        assert_eq!(entry.labels.description, "project-item:draft_issue");
+        assert_eq!(entry.labels.secrecy, vec![] as Vec<String>, "draft issues have no repo — empty secrecy");
+        assert!(
+            entry.labels.integrity.contains(&"approved:github".to_string()),
+            "DRAFT_ISSUE must have approved:github integrity, got: {:?}",
+            entry.labels.integrity
+        );
+    }
+
+    #[test]
+    fn test_label_response_paths_projects_list_pull_request_item() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github", "project_number": 2 });
+        let response = json!({
+            "items": [
+                {
+                    "type": "PULL_REQUEST",
+                    "content": {
+                        "repository_url": "https://api.github.com/repos/github/copilot",
+                        "author_association": "CONTRIBUTOR"
+                    }
+                }
+            ]
+        });
+
+        let result = label_response_paths("projects_list", &tool_args, &response, &ctx)
+            .expect("projects_list should produce path labels for PULL_REQUEST");
+
+        assert_eq!(result.labeled_paths.len(), 1);
+        let entry = &result.labeled_paths[0];
+        assert_eq!(entry.labels.description, "project-item:pull_request");
+        assert!(
+            entry.labels.integrity.iter().any(|l| l.starts_with("unapproved:")),
+            "CONTRIBUTOR association must yield unapproved-level integrity, got: {:?}",
+            entry.labels.integrity
+        );
+    }
 }

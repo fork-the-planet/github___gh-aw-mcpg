@@ -106,9 +106,16 @@ Resource labels are coarse pre-check labels by tool call.
 | `get_commit` | start at max(author_association floor, approved); if default-branch reachable => merged | start at author_association floor; if default-branch reachable => merged; otherwise remain floor unless other endorsement applies |
 | `list_commits` | if ref is default/no-ref: merged; else max(author_association floor, approved) | if ref is default/no-ref: merged; else author_association floor (response items refine per commit) |
 | `get_file_contents` | default/no-ref: merged; otherwise approved (author floor does not usually apply to blob metadata) | default/no-ref: merged; otherwise approved |
-| `list_branches`, `list_tags`, `get_tag`, `list_releases`, `get_latest_release`, `get_release_by_tag`, `get_label`, `actions_get`, `actions_list`, `search_code`, `get_repository`, `search_repositories` | approved | approved |
+| `list_branches`, `list_tags`, `get_tag`, `list_releases`, `get_latest_release`, `get_release_by_tag`, `get_label`, `list_label`, `actions_get`, `actions_list`, `search_code`, `get_repository`, `search_repositories`, `get_repository_tree`, `list_discussion_categories` | approved | approved |
+| `get_job_logs` | approved | approved |
+| `list_discussions`, `get_discussion`, `get_discussion_comments` | max(author_association floor, approved) | author_association floor (user content) |
+| `list_gists`, `get_gist` | unapproved:user | unapproved:user |
+| `list_notifications`, `get_notification_details` | none | none |
 | `list_secret_scanning_alerts`, `get_secret_scanning_alert`, `list_code_scanning_alerts`, `get_code_scanning_alert`, `list_dependabot_alerts`, `get_dependabot_alert` | approved | approved |
-| `list_issue_types`, `search_users` (GitHub-global metadata) | approved:github | approved:github |
+| `list_issue_types`, `search_users`, `search_orgs`, `get_me`, `get_teams`, `get_team_members`, `list_starred_repositories` (GitHub-global/user metadata) | approved:github | approved:github |
+| `list_global_security_advisories`, `get_global_security_advisory` (public CVE data) | approved:github | approved:github |
+| `list_repository_security_advisories`, `list_org_repository_security_advisories` | approved | approved |
+| `projects_list`, `projects_get`, `list_projects`, `get_project`, `list_project_fields`, `list_project_items` | approved:<owner> | approved:<owner> |
 
 Notes:
 - Resource labels are intentionally coarse for collection/list/search tools; response labeling performs per-item refinement.
@@ -129,11 +136,19 @@ Response labels are fine-grained per item and are authoritative when available.
 | Commit item (`list_commits`, `get_commit`) | max(author_association floor, approved); if default-branch reachable => merged | author_association floor; if default-branch reachable => merged; otherwise stay at floor unless other endorsement evidence applies |
 | File content item (`get_file_contents`) | default/no-ref: merged; otherwise approved | default/no-ref: merged; otherwise approved |
 | Branch/tag/release metadata item (`list_branches`, `list_tags`, `get_tag`, `list_releases`, `get_latest_release`, `get_release_by_tag`) | merged if tied to default branch, otherwise approved | merged if tied to default branch, otherwise approved |
-| Label metadata (`get_label`) | approved | approved |
+| Label metadata (`get_label`, `list_label`) | approved | approved |
 | GitHub Actions workflow/artifact metadata (`actions_get`, `actions_list`) | approved | approved |
+| Job logs (`get_job_logs`) | approved | approved |
 | Security alert item | approved | approved |
+| Global security advisory (`list_global_security_advisories`, `get_global_security_advisory`) | approved:github | approved:github |
+| Repo/org security advisory (`list_repository_security_advisories`, `list_org_repository_security_advisories`) | approved | approved |
+| Discussion item (`list_discussions`, `get_discussion`, `get_discussion_comments`) | max(author_association floor, approved) | author_association floor (user content) |
+| Discussion category metadata (`list_discussion_categories`) | approved | approved |
 | Gist item | unapproved:user | unapproved:user |
 | Notification item | currently empty integrity in path-label mode | currently empty integrity in path-label mode |
+| Project item (`projects_list`, `projects_get`, `list_project_items`) | approved:<owner> | approved:<owner> |
+| User/org metadata (`get_me`, `get_teams`, `get_team_members`, `search_orgs`, `list_starred_repositories`) | approved:github | approved:github |
+| Repository tree (`get_repository_tree`) | approved | approved |
 
 Notes:
 
