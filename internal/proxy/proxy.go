@@ -71,6 +71,9 @@ type Config struct {
 
 // New creates a new proxy Server from the given Config.
 func New(ctx context.Context, cfg Config) (*Server, error) {
+	logProxy.Printf("Creating proxy server: wasmPath=%s, apiURL=%s, difcMode=%s, hasToken=%v, hasPolicy=%v",
+		cfg.WasmPath, cfg.GitHubAPIURL, cfg.DIFCMode, cfg.GitHubToken != "", cfg.Policy != "")
+
 	if cfg.WasmPath == "" {
 		return nil, fmt.Errorf("guard WASM path is required")
 	}
@@ -80,6 +83,7 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 		apiURL = DefaultGitHubAPIBase
 	}
 	apiURL = strings.TrimRight(apiURL, "/")
+	logProxy.Printf("Using upstream GitHub API URL: %s", apiURL)
 
 	// Parse enforcement mode
 	difcMode, err := difc.ParseEnforcementMode(cfg.DIFCMode)
@@ -89,12 +93,15 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 		}
 		difcMode = difc.EnforcementFilter // default to filter for proxy
 	}
+	logProxy.Printf("Enforcement mode resolved: %s", difcMode)
 
 	// Load the WASM guard
+	logProxy.Printf("Loading WASM guard from: %s", cfg.WasmPath)
 	g, err := guard.NewWasmGuard(ctx, "github", cfg.WasmPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load WASM guard from %s: %w", cfg.WasmPath, err)
 	}
+	logProxy.Printf("WASM guard loaded successfully")
 
 	s := &Server{
 		guard:           g,
@@ -114,16 +121,22 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 
 	// Initialize guard policy (LabelAgent)
 	if cfg.Policy != "" {
+		logProxy.Printf("Initializing guard policy from config")
 		if err := s.initGuardPolicy(ctx, cfg.Policy); err != nil {
 			return nil, fmt.Errorf("failed to initialize guard policy: %w", err)
 		}
+	} else {
+		logProxy.Printf("No guard policy configured, running without policy enforcement")
 	}
 
+	logProxy.Printf("Proxy server created successfully: mode=%s", difcMode)
 	return s, nil
 }
 
 // initGuardPolicy calls LabelAgent with the provided policy JSON.
 func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string) error {
+	logProxy.Printf("Initializing guard policy: policyJSON_len=%d", len(policyJSON))
+
 	var policy interface{}
 	if err := json.Unmarshal([]byte(policyJSON), &policy); err != nil {
 		return fmt.Errorf("invalid policy JSON: %w", err)
@@ -136,6 +149,7 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string) error {
 	}
 	guardPolicy := &config.GuardPolicy{}
 	if ao, hasAO := policyMap["allow-only"]; hasAO {
+		logProxy.Printf("Parsing allow-only policy from guard configuration")
 		aoBytes, _ := json.Marshal(ao)
 		var allowOnly config.AllowOnlyPolicy
 		if err := json.Unmarshal(aoBytes, &allowOnly); err != nil {
@@ -147,6 +161,7 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string) error {
 		return fmt.Errorf("policy validation failed: %w", err)
 	}
 
+	logProxy.Printf("Calling LabelAgent to initialize agent labels from guard")
 	backend := &stubBackendCaller{}
 	result, err := s.guard.LabelAgent(ctx, policy, backend, s.capabilities)
 	if err != nil {
@@ -161,11 +176,13 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string) error {
 	for _, tag := range result.Agent.Integrity {
 		agentLabels.AddIntegrityTag(difc.Tag(tag))
 	}
+	logProxy.Printf("Agent labels applied: secrecy=%v, integrity=%v", result.Agent.Secrecy, result.Agent.Integrity)
 
 	// Parse enforcement mode from guard response
 	if result.DIFCMode != "" {
 		mode, err := difc.ParseEnforcementMode(result.DIFCMode)
 		if err == nil {
+			logProxy.Printf("Enforcement mode overridden by guard response: %s → %s", s.enforcementMode, mode)
 			s.enforcementMode = mode
 			s.evaluator.SetMode(mode)
 		}
