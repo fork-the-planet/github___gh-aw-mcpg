@@ -13,6 +13,7 @@ var logToolResult = logger.New("mcp:tool_result")
 // ConvertToCallToolResult converts backend result data to SDK CallToolResult format.
 // The backend returns a JSON object with a "content" field containing an array of content items.
 func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
+	logToolResult.Print("Converting backend result to CallToolResult")
 	// Try to marshal and unmarshal to get the structure
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
@@ -97,6 +98,7 @@ func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 		}
 	}
 
+	logToolResult.Printf("Converted result: content_items=%d, is_error=%v", len(content), backendResult.IsError)
 	return &sdk.CallToolResult{
 		Content: content,
 		IsError: backendResult.IsError,
@@ -106,6 +108,7 @@ func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 // ParseToolArguments extracts and unmarshals tool arguments from a CallToolRequest.
 // Returns the parsed arguments as a map, or an error if parsing fails.
 func ParseToolArguments(req *sdk.CallToolRequest) (map[string]interface{}, error) {
+	logToolResult.Printf("Parsing arguments for tool: %s", req.Params.Name)
 	var toolArgs map[string]interface{}
 	if req.Params != nil && req.Params.Arguments != nil {
 		if err := json.Unmarshal(req.Params.Arguments, &toolArgs); err != nil {
@@ -115,5 +118,6 @@ func ParseToolArguments(req *sdk.CallToolRequest) (map[string]interface{}, error
 		// No arguments provided, use empty map
 		toolArgs = make(map[string]interface{})
 	}
+	logToolResult.Printf("Parsed %d arguments for tool: %s", len(toolArgs), req.Params.Name)
 	return toolArgs, nil
 }
