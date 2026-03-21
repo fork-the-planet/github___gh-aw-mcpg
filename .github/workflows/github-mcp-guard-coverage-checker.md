@@ -1,6 +1,6 @@
 ---
 name: GitHub MCP Guard Coverage Checker
-description: Daily check that compares tools exposed by the official GitHub MCP server against the guard implementation and creates issues for any coverage gaps.
+description: Daily check that compares tools exposed by the official GitHub MCP server and GitHub CLI operations against the guard implementation and creates issues for any coverage gaps.
 on:
   schedule: daily
   workflow_dispatch:
@@ -32,7 +32,7 @@ tools:
   cache-memory: true
   github:
     toolsets: [default]
-    repos: ["github/gh-aw-mcpg", "github/github-mcp-server"]
+    repos: ["github/gh-aw-mcpg", "github/github-mcp-server", "cli/cli"]
     min-integrity: unapproved
   bash:
     - "*"
@@ -43,21 +43,22 @@ strict: true
 
 # 🔍 GitHub MCP Guard Coverage Checker
 
-You are an AI security auditor that verifies the GitHub guard implementation covers all tools exposed by the official [GitHub MCP server](https://github.com/github/github-mcp-server). Your job is to find tools that are missing from the guard's classification logic and report them with actionable remediation steps.
+You are an AI security auditor that verifies the GitHub guard implementation covers all tools exposed by the official [GitHub MCP server](https://github.com/github/github-mcp-server) **and** all write/mutating operations reachable via the [GitHub CLI](https://github.com/cli/cli). Your job is to find operations that are missing from the guard's classification logic and report them with actionable remediation steps.
 
 ## Context
 
 - **Repository**: ${{ github.repository }}
 - **Run ID**: ${{ github.run_id }}
 - **Guard implementation**: `guards/github-guard/rust-guard/src/tools.rs` and `guards/github-guard/rust-guard/src/labels/tool_rules.rs`
-- **Upstream source**: `github/github-mcp-server`
+- **Upstream sources**: `github/github-mcp-server` (MCP tools), `cli/cli` (GitHub CLI commands)
 
 ## Step 1: Load Previous State from Cache
 
 Use cache-memory to check:
 - `last_run_date`: ISO date of the last coverage check
-- `known_gaps`: Array of tool names already reported as gaps (to avoid duplicate issues)
-- `last_upstream_tools_hash`: A short hash or count of the tool list from the last run (to detect when new tools are added)
+- `known_gaps`: Array of tool/command names already reported as gaps (to avoid duplicate issues)
+- `last_upstream_tools_hash`: A short hash or count of the MCP tool list from the last run (to detect when new tools are added)
+- `last_cli_commands_hash`: A short hash or count of the CLI write-command list from the last run (to detect when new CLI commands are added)
 
 If cache is empty, start fresh.
 
@@ -97,13 +98,67 @@ Then read the relevant source files to extract tool function names. In Go MCP se
 
 ### 2.3 Build the canonical tool list
 
-Produce a complete, deduplicated list of tool names from the upstream GitHub MCP server. This is your **reference set**. Record the total count for cache comparison.
+Produce a complete, deduplicated list of tool names from the upstream GitHub MCP server. This is your **MCP reference set**. Record the total count for cache comparison.
 
-## Step 3: Read the Guard Implementation
+## Step 3: Fetch Write Operations from the GitHub CLI
+
+The GitHub CLI (`cli/cli`) exposes a rich set of GitHub API operations through its commands. Any write or mutating operation reachable via the CLI that could also be invoked through the MCP gateway should be represented in the guard's classification.
+
+### 3.1 Discover CLI command categories
+
+Read the CLI source structure to understand what command groups exist:
+
+```
+Use github get_file_contents with owner=cli, repo=cli, path=pkg/cmd, ref=trunk
+```
+
+This lists the top-level command directories (e.g., `pr/`, `issue/`, `repo/`, `gist/`, `release/`, `workflow/`, `label/`, `project/`, `org/`, `secret/`, etc.).
+
+### 3.2 Read write-command implementations
+
+For each command group that has write/mutating sub-commands, read the corresponding Go source files to extract the HTTP method (POST, PATCH, PUT, DELETE) used. Focus on these high-value categories:
+
+- **`pkg/cmd/pr/`**: `create`, `merge`, `close`, `reopen`, `edit`, `review`, `comment`, `ready`, `convert`, `lock`, `unlock`
+- **`pkg/cmd/issue/`**: `create`, `close`, `reopen`, `edit`, `comment`, `lock`, `unlock`, `pin`, `unpin`, `transfer`, `delete`
+- **`pkg/cmd/repo/`**: `create`, `fork`, `delete`, `edit`, `archive`, `rename`, `transfer`, `set-default`
+- **`pkg/cmd/release/`**: `create`, `edit`, `delete`, `upload`
+- **`pkg/cmd/gist/`**: `create`, `edit`, `delete`
+- **`pkg/cmd/workflow/`**: `run`, `enable`, `disable`
+- **`pkg/cmd/label/`**: `create`, `edit`, `delete`, `clone`
+- **`pkg/cmd/project/`**: `create`, `edit`, `delete`, `link`, `unlink`, `item-add`, `item-edit`, `item-delete`, `item-archive`
+- **`pkg/cmd/secret/`**: `set`, `delete`
+- **`pkg/cmd/variable/`**: `set`, `delete`
+- **`pkg/cmd/org/`**: any write sub-commands
+
+Use `get_file_contents` to read individual command files if needed. For example:
+
+```
+Use github get_file_contents with owner=cli, repo=cli, path=pkg/cmd/pr/merge/merge.go, ref=trunk
+```
+
+### 3.3 Extract GitHub API endpoints used by CLI write commands
+
+For each write command file you read, note:
+- The REST API endpoint (e.g., `POST /repos/{owner}/{repo}/issues`)
+- The corresponding MCP tool name that covers the same operation (if any)
+- Whether the operation has a counterpart in the GitHub MCP server's tool set
+
+The goal is to build a **CLI write-operations list**: a mapping of `{cli_command} → {rest_endpoint} → {mcp_tool_or_none}`.
+
+### 3.4 Identify CLI operations without MCP/guard coverage
+
+A CLI write operation has a **guard coverage gap** if:
+1. It uses a mutating HTTP method (POST, PATCH, PUT, DELETE) against the GitHub API, AND
+2. There is no equivalent MCP tool name in the guard's `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS`, AND
+3. The operation is not covered by a prefix pattern (`merge_*`, `delete_*`, `update_*`, `create_*`)
+
+**Important**: You are looking for *semantic equivalences*, not exact name matches. For example, `gh issue comment --edit` maps to editing an issue comment, which might map to an `edit_issue_comment` MCP tool. Check whether the guard covers the underlying GitHub API operation, not just the CLI command name.
+
+## Step 4: Read the Guard Implementation
 
 Read the local guard files to understand what's currently covered:
 
-### 3.1 Read tools.rs (explicit classifications)
+### 4.1 Read tools.rs (explicit classifications)
 
 ```bash
 cat guards/github-guard/rust-guard/src/tools.rs
@@ -114,7 +169,7 @@ This file contains:
 - `READ_WRITE_OPERATIONS`: explicit list of read-write tools
 - Pattern functions: `is_merge_operation`, `is_delete_operation`, `is_update_operation`, `is_create_operation`
 
-### 3.2 Read tool_rules.rs (per-tool DIFC labeling)
+### 4.2 Read tool_rules.rs (per-tool DIFC labeling)
 
 ```bash
 cat guards/github-guard/rust-guard/src/labels/tool_rules.rs
@@ -122,7 +177,7 @@ cat guards/github-guard/rust-guard/src/labels/tool_rules.rs
 
 This file contains the `apply_tool_labels` function with a `match tool_name { ... }` block. Tools with explicit match arms have **specific DIFC labeling rules** (secrecy tags, integrity levels). Tools without explicit match arms fall through to default handling.
 
-### 3.3 Build the guard coverage sets
+### 4.3 Build the guard coverage sets
 
 From reading the code, produce:
 
@@ -131,11 +186,11 @@ From reading the code, produce:
 3. **pattern_covered**: tools from the upstream list that match any pattern (`merge_*`, `delete_*`, `update_*`, `create_*`)
 4. **label_ruled**: set of tool names with explicit match arms in `apply_tool_labels`
 
-## Step 4: Identify Coverage Gaps
+## Step 5: Identify Coverage Gaps
 
-### 4.1 Classification gaps (tools.rs)
+### 5.1 MCP tool classification gaps (tools.rs)
 
-A tool has a **classification gap** if it is in the upstream tool list AND:
+A tool has a **classification gap** if it is in the upstream MCP tool list AND:
 - It is NOT in `WRITE_OPERATIONS`
 - It is NOT in `READ_WRITE_OPERATIONS`
 - It does NOT match any prefix pattern (`merge_*`, `delete_*`, `update_*`, `create_*`)
@@ -143,56 +198,68 @@ A tool has a **classification gap** if it is in the upstream tool list AND:
 
 For read-only tools (get, list, search, read), missing classification is expected and not a gap.
 
-### 4.2 Labeling gaps (tool_rules.rs)
+### 5.2 MCP tool labeling gaps (tool_rules.rs)
 
-A tool has a **labeling gap** if it is in the upstream tool list AND has no explicit match arm in `apply_tool_labels`. This is lower severity than a classification gap, but still important for DIFC correctness — read tools that return repo-scoped data (issues, PRs, code, files) should have explicit secrecy/integrity rules.
+A tool has a **labeling gap** if it is in the upstream MCP tool list AND has no explicit match arm in `apply_tool_labels`. This is lower severity than a classification gap, but still important for DIFC correctness — read tools that return repo-scoped data (issues, PRs, code, files) should have explicit secrecy/integrity rules.
 
-### 4.3 Stale entries (bonus check)
+### 5.3 GitHub CLI gaps
 
-Check if any entries in `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS` are **no longer in the upstream tool list**. These are stale guard entries that should be removed to keep the implementation clean.
+For each write operation discovered in Step 3.4, determine if the underlying GitHub API operation has guard coverage:
 
-### 4.4 Filter known gaps
+- If there is an equivalent MCP tool and it is already in `WRITE_OPERATIONS` / `READ_WRITE_OPERATIONS` (or covered by a pattern) → **covered, skip**.
+- If there is an equivalent MCP tool but it is NOT in the guard lists and not covered by any pattern → **MCP classification gap** (already captured in 5.1).
+- If there is **no equivalent MCP tool** for a CLI write command → flag as a **CLI-only gap**: the guard does not model this operation at all. Note the CLI command, the REST endpoint, and the GitHub API action it performs.
+
+For CLI-only gaps, the fix is to add a new entry to `WRITE_OPERATIONS` (or `READ_WRITE_OPERATIONS`) using a descriptive MCP-style tool name (snake_case) that maps to the CLI operation — or to file an issue requesting that the GitHub MCP server add a corresponding tool.
+
+### 5.4 Stale entries (bonus check)
+
+Check if any entries in `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS` are **no longer in the upstream MCP tool list** and also have no equivalent in the CLI write-operations list. These are stale guard entries that should be removed.
+
+### 5.5 Filter known gaps
 
 Remove any gaps that are already in `known_gaps` from the cache (previously reported). Only report **new** gaps discovered since the last run.
 
-## Step 5: Determine Output
+## Step 6: Determine Output
 
 ### If no new gaps found
 
 Call the `noop` safe output with a message like:
-> "GitHub MCP Guard coverage check complete — no new gaps found. Guard covers [N] tools from github-mcp-server. Last upstream count: [M] tools."
+> "GitHub guard coverage check complete — no new gaps found. MCP tools: [M] scanned. CLI write commands: [C] scanned. Guard write ops: [N]."
 
 Then update cache:
 - `last_run_date`: today's ISO date
-- `last_upstream_tools_hash`: total count of upstream tools (as string)
+- `last_upstream_tools_hash`: total count of upstream MCP tools (as string)
+- `last_cli_commands_hash`: total count of CLI write commands scanned (as string)
 
 ### If new gaps are found
 
-Proceed to Step 6 to create an issue.
+Proceed to Step 7 to create an issue.
 
-## Step 6: Create a Gap Report Issue
+## Step 7: Create a Gap Report Issue
 
 Create a GitHub issue using the `create-issue` safe output.
 
-**Title**: `Guard coverage gap: [N] tools from github-mcp-server not fully covered`
+**Title**: `Guard coverage gap: [N] operations from github-mcp-server / GitHub CLI not fully covered`
 
 **Body**:
 
 ```markdown
 ## Summary
 
-The GitHub guard does not fully cover **[N]** tool(s) from the [github-mcp-server](https://github.com/github/github-mcp-server). This may allow write operations to bypass DIFC classification or leave read operations without proper secrecy/integrity labeling.
+The GitHub guard does not fully cover **[N]** operation(s) from the [github-mcp-server](https://github.com/github/github-mcp-server) and/or [GitHub CLI](https://github.com/cli/cli). This may allow write operations to bypass DIFC classification or leave read operations without proper secrecy/integrity labeling.
 
-- **Upstream tools scanned**: [total count from github-mcp-server]
+- **MCP tools scanned**: [total count from github-mcp-server]
+- **CLI write commands scanned**: [total count from cli/cli]
 - **Guard-covered write tools (tools.rs)**: [count in WRITE_OPERATIONS + READ_WRITE_OPERATIONS]
 - **Tools with explicit DIFC rules (tool_rules.rs)**: [count of match arms]
 - **New gaps found this run**: [N]
 
 ---
 
-## Classification Gaps (tools.rs)
+## MCP Tool Classification Gaps (tools.rs)
 
-These tools perform write or mutating operations but are missing from `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS` in `guards/github-guard/rust-guard/src/tools.rs`:
+These MCP tools perform write or mutating operations but are missing from `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS` in `guards/github-guard/rust-guard/src/tools.rs`:
 
 | Tool Name | Operation Type | Suggested Classification | Notes |
 |-----------|---------------|--------------------------|-------|
@@ -210,9 +277,9 @@ pub const WRITE_OPERATIONS: &[&str] = &[
 
 ---
 
-## DIFC Labeling Gaps (tool_rules.rs)
+## MCP Tool DIFC Labeling Gaps (tool_rules.rs)
 
-These tools exist in the upstream server but have no explicit match arm in `apply_tool_labels` in `guards/github-guard/rust-guard/src/labels/tool_rules.rs`. They fall through to default label handling, which may not correctly apply repo-scoped secrecy tags or appropriate integrity levels:
+These MCP tools exist in the upstream server but have no explicit match arm in `apply_tool_labels` in `guards/github-guard/rust-guard/src/labels/tool_rules.rs`. They fall through to default label handling, which may not correctly apply repo-scoped secrecy tags or appropriate integrity levels:
 
 | Tool Name | Data Scope | Suggested Labels | Risk |
 |-----------|-----------|-----------------|------|
@@ -224,9 +291,25 @@ Add a match arm to `apply_tool_labels` for each missing tool, following the patt
 
 ---
 
+## GitHub CLI-Only Gaps
+
+These write operations are reachable via the GitHub CLI but have no corresponding MCP tool and no guard entry. The guard has no visibility into these operations if an agent invokes them via `gh` or direct API calls:
+
+| CLI Command | REST Endpoint | GitHub API Action | Risk |
+|-------------|--------------|------------------|------|
+| `gh issue transfer` | `POST /repos/{owner}/{repo}/issues/{issue_number}/transfer` | Transfers issue to another repo | High |
+
+### Suggested remediation
+
+For each CLI-only gap, either:
+1. Add a new entry to `WRITE_OPERATIONS` using a descriptive MCP-style name (e.g., `transfer_issue`) — this pre-emptively guards the operation when/if a matching MCP tool is added, OR
+2. File a request to add the equivalent tool to the GitHub MCP server so it can be properly guarded
+
+---
+
 ## Stale Guard Entries (bonus)
 
-These tools are in `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS` but no longer appear in the upstream github-mcp-server. Consider removing them to keep the guard clean:
+These tools are in `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS` but no longer appear in the upstream github-mcp-server or CLI write-operations list. Consider removing them to keep the guard clean:
 
 - `stale_tool_name` — not found in upstream
 
@@ -235,17 +318,19 @@ These tools are in `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS` but no longer a
 ## References
 
 - [github-mcp-server tools](https://github.com/github/github-mcp-server/blob/main/README.md)
+- [GitHub CLI commands](https://github.com/cli/cli/tree/trunk/pkg/cmd)
 - [guard tools.rs](https://github.com/github/gh-aw-mcpg/blob/main/guards/github-guard/rust-guard/src/tools.rs)
 - [guard tool_rules.rs](https://github.com/github/gh-aw-mcpg/blob/main/guards/github-guard/rust-guard/src/labels/tool_rules.rs)
 - Run: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 ```
 
-## Step 7: Update Cache
+## Step 8: Update Cache
 
 After creating the issue (or calling noop), update cache-memory:
 - `last_run_date`: today's ISO date
-- `known_gaps`: add the newly-reported tool names to the existing list
-- `last_upstream_tools_hash`: total count of upstream tools (as string)
+- `known_gaps`: add the newly-reported tool/command names to the existing list
+- `last_upstream_tools_hash`: total count of upstream MCP tools (as string)
+- `last_cli_commands_hash`: total count of CLI write commands scanned (as string)
 
 Keep `known_gaps` bounded to the last 200 entries — remove the oldest if it exceeds this limit.
 
