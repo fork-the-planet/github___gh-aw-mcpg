@@ -2646,7 +2646,7 @@ mod tests {
         let items = label_response_items("issue_read", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1);
         assert!(
-            items[0].labels.integrity.iter().any(|t| t.contains("approved")),
+            items[0].labels.integrity.iter().any(|t| t.starts_with("approved:")),
             "issue_read for trusted bot should get approved integrity, got: {:?}",
             items[0].labels.integrity
         );
@@ -2668,7 +2668,7 @@ mod tests {
         let items = label_response_items("pull_request_read", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1);
         assert!(
-            items[0].labels.integrity.iter().any(|t| t.contains("approved")),
+            items[0].labels.integrity.iter().any(|t| t.starts_with("approved:")),
             "pull_request_read for MEMBER should get approved integrity, got: {:?}",
             items[0].labels.integrity
         );
@@ -2688,8 +2688,8 @@ mod tests {
         // Single-object responses are not collections; label_response_paths returns None
         // and the DIFC pipeline falls back to label_response_items
         let result = label_response_paths("issue_read", &tool_args, &response, &ctx);
-        assert!(result.is_none() || !result.as_ref().unwrap().labeled_paths.is_empty(),
-            "issue_read single-item should either return None or have labeled paths");
+        assert!(result.is_none(),
+            "issue_read single-object response should return None for path labeling");
     }
 
     #[test]
@@ -2706,7 +2706,7 @@ mod tests {
             "head": {"repo": {"full_name": "github/gh-aw-mcpg"}}
         });
         let result = label_response_paths("pull_request_read", &tool_args, &response, &ctx);
-        assert!(result.is_none() || !result.as_ref().unwrap().labeled_paths.is_empty(),
-            "pull_request_read single-item should either return None or have labeled paths");
+        assert!(result.is_none(),
+            "pull_request_read single-object response should return None for path labeling");
     }
 }

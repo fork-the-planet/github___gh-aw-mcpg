@@ -92,23 +92,22 @@ pub fn label_response_items(
 
         // === Pull Requests - label by merged state ===
         "list_pull_requests" | "search_pull_requests" | "pull_request_read" | "get_pull_request" => {
-            // Handle array, {items: [...]}, or single object response
-            let all_items: Vec<&Value> = if actual_response.is_array() {
-                actual_response
-                    .as_array()
-                    .map(|arr| arr.iter().collect())
-                    .unwrap_or_default()
+            // Handle array, {items: [...]}, or single object response.
+            // Work directly with &[Value] slices to avoid allocating a Vec<&Value>.
+            let single_item_buf;
+            let items: &[Value] = if let Some(arr) = actual_response.as_array() {
+                arr.as_slice()
             } else if let Some(items_arr) = actual_response.get("items").and_then(|v| v.as_array()) {
-                items_arr.iter().collect()
+                items_arr.as_slice()
             } else if actual_response.is_object() {
-                vec![&actual_response]
+                single_item_buf = [actual_response.clone()];
+                &single_item_buf
             } else {
-                Vec::new()
+                &[]
             };
 
-            if !all_items.is_empty() {
-                // Limit items to prevent WASM memory exhaustion
-                let items_to_process = limit_items_with_log(all_items.as_slice(), "list_pull_requests");
+            if !items.is_empty() {
+                let items_to_process = limit_items_with_log(items, "list_pull_requests");
                 let (arg_owner, arg_repo, arg_repo_full) = extract_repo_info(tool_args);
                 let default_repo_private = if !arg_owner.is_empty() && !arg_repo.is_empty() {
                     super::backend::is_repo_private(&arg_owner, &arg_repo).unwrap_or(false)
@@ -121,7 +120,7 @@ pub fn label_response_items(
                     vec![]
                 };
 
-                for item in items_to_process.iter().copied() {
+                for item in items_to_process.iter() {
                     let number = extract_resource_number(item, "pr", &arg_repo_full);
 
                     // Get repo info from the PR's base or head
