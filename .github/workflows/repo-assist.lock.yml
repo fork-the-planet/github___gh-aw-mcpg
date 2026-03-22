@@ -411,7 +411,7 @@ jobs:
           PROXY_LOG_DIR=/tmp/gh-aw/proxy-logs
           mkdir -p "$PROXY_LOG_DIR"
 
-          POLICY='{"allow-only":{"repos":["github/*"],"min-integrity":"merged"}}'
+          POLICY='{"allow-only":{"repos":["github/*"],"min-integrity":"approved"}}'
 
           docker run -d --name awmg-proxy --network host \
             -e GH_TOKEN \
@@ -879,7 +879,7 @@ jobs:
                 },
                 "guard-policies": {
                   "allow-only": {
-                    "min-integrity": "merged",
+                    "min-integrity": "approved",
                     "repos": [
                       "github/*"
                     ]
