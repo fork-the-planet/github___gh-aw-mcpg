@@ -415,6 +415,7 @@ jobs:
 
           docker run -d --name awmg-proxy --network host \
             -e GH_TOKEN \
+            -e DEBUG='*' \
             -v "$PROXY_LOG_DIR:$PROXY_LOG_DIR" \
             ghcr.io/github/gh-aw-mcpg:local proxy \
               --policy "$POLICY" \
@@ -466,9 +467,9 @@ jobs:
         if: always()
         run: |
           echo "=== Proxy container logs ==="
-          docker logs awmg-proxy 2>&1 | tail -50 || true
-          echo "=== Proxy log files ==="
-          cat /tmp/gh-aw/proxy-logs/mcp-gateway.log 2>/dev/null | tail -30 || true
+          docker logs awmg-proxy 2>&1 | tail -80 || true
+          echo "=== Proxy log file ==="
+          cat /tmp/gh-aw/proxy-logs/proxy.log 2>/dev/null | tail -50 || true
 
       # Repo memory git-based storage configuration from frontmatter processed below
       - name: Clone repo-memory branch (default)
