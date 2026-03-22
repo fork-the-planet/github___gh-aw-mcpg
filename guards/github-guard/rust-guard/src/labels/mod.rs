@@ -848,6 +848,7 @@ mod tests {
         assert!(!is_trusted_first_party_bot("octocat"));
         assert!(!is_trusted_first_party_bot("dependabot"));
         assert!(is_trusted_first_party_bot("github-actions"));
+        assert!(is_trusted_first_party_bot("app/github-actions"));
         assert!(!is_trusted_first_party_bot(""));
     }
 
