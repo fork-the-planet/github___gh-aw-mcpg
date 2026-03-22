@@ -88,7 +88,7 @@ pub fn label_response_paths(
         }
 
         // === Pull Requests - label by merged state ===
-        "list_pull_requests" | "search_pull_requests" => {
+        "list_pull_requests" | "search_pull_requests" | "pull_request_read" | "get_pull_request" => {
             let (items, items_path) = extract_items_array(&actual_response);
 
             if let Some(items) = items {
@@ -106,7 +106,7 @@ pub fn label_response_paths(
                 } else {
                     String::new()
                 };
-                let default_secrecy = if tool_name == "list_pull_requests" {
+                let default_secrecy = if tool_name == "list_pull_requests" || tool_name == "pull_request_read" || tool_name == "get_pull_request" {
                     repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx)
                 } else {
                     vec![]
@@ -185,7 +185,7 @@ pub fn label_response_paths(
         }
 
         // === Issues - label by author contributor status ===
-        "list_issues" | "search_issues" => {
+        "list_issues" | "search_issues" | "issue_read" | "get_issue" => {
             let (items, items_path) = extract_items_array(&actual_response);
 
             if let Some(items) = items {
@@ -203,7 +203,7 @@ pub fn label_response_paths(
                 } else {
                     String::new()
                 };
-                let default_secrecy = if tool_name == "list_issues" {
+                let default_secrecy = if tool_name == "list_issues" || tool_name == "issue_read" || tool_name == "get_issue" {
                     repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx)
                 } else {
                     vec![]

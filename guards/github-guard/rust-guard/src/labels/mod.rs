@@ -2627,4 +2627,86 @@ mod tests {
             entry.labels.integrity
         );
     }
+
+    // ========================================================================
+    // issue_read / pull_request_read response labeling
+    // ========================================================================
+
+    #[test]
+    fn test_label_response_items_issue_read_trusted_bot() {
+        // issue_read should label responses the same as get_issue
+        let ctx = default_ctx();
+        let tool_args = json!({"owner": "github", "repo": "gh-aw-mcpg", "issue_number": 2278});
+        let response = json!({
+            "number": 2278,
+            "title": "Monthly Activity",
+            "user": {"login": "github-actions[bot]"},
+            "author_association": "NONE"
+        });
+        let items = label_response_items("issue_read", &tool_args, &response, &ctx);
+        assert_eq!(items.len(), 1);
+        assert!(
+            items[0].labels.integrity.iter().any(|t| t.starts_with("approved:")),
+            "issue_read for trusted bot should get approved integrity, got: {:?}",
+            items[0].labels.integrity
+        );
+    }
+
+    #[test]
+    fn test_label_response_items_pull_request_read_member() {
+        // pull_request_read should label responses the same as get_pull_request
+        let ctx = default_ctx();
+        let tool_args = json!({"owner": "github", "repo": "gh-aw-mcpg", "pullNumber": 100});
+        let response = json!({
+            "number": 100,
+            "title": "Fix something",
+            "user": {"login": "lpcox"},
+            "author_association": "MEMBER",
+            "base": {"repo": {"full_name": "github/gh-aw-mcpg"}},
+            "head": {"repo": {"full_name": "github/gh-aw-mcpg"}}
+        });
+        let items = label_response_items("pull_request_read", &tool_args, &response, &ctx);
+        assert_eq!(items.len(), 1);
+        assert!(
+            items[0].labels.integrity.iter().any(|t| t.starts_with("approved:")),
+            "pull_request_read for MEMBER should get approved integrity, got: {:?}",
+            items[0].labels.integrity
+        );
+    }
+
+    #[test]
+    fn test_label_response_paths_issue_read_returns_none_for_single_item() {
+        // issue_read returns a single object, not a collection — paths should return None
+        let ctx = default_ctx();
+        let tool_args = json!({"owner": "github", "repo": "gh-aw-mcpg", "issue_number": 2278});
+        let response = json!({
+            "number": 2278,
+            "title": "Monthly Activity",
+            "user": {"login": "github-actions[bot]"},
+            "author_association": "NONE"
+        });
+        // Single-object responses are not collections; label_response_paths returns None
+        // and the DIFC pipeline falls back to label_response_items
+        let result = label_response_paths("issue_read", &tool_args, &response, &ctx);
+        assert!(result.is_none(),
+            "issue_read single-object response should return None for path labeling");
+    }
+
+    #[test]
+    fn test_label_response_paths_pull_request_read_returns_none_for_single_item() {
+        // pull_request_read returns a single object, not a collection
+        let ctx = default_ctx();
+        let tool_args = json!({"owner": "github", "repo": "gh-aw-mcpg", "pullNumber": 100});
+        let response = json!({
+            "number": 100,
+            "title": "Fix something",
+            "user": {"login": "lpcox"},
+            "author_association": "MEMBER",
+            "base": {"repo": {"full_name": "github/gh-aw-mcpg"}},
+            "head": {"repo": {"full_name": "github/gh-aw-mcpg"}}
+        });
+        let result = label_response_paths("pull_request_read", &tool_args, &response, &ctx);
+        assert!(result.is_none(),
+            "pull_request_read single-object response should return None for path labeling");
+    }
 }
