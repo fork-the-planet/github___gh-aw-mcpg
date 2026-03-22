@@ -65,7 +65,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		match := MatchGraphQL(graphQLBody)
 		if match == nil {
 			// Unknown GraphQL query — fail closed: deny rather than risk leaking unfiltered data
-			logHandler.Printf("unknown GraphQL query, blocking request")
+			logHandler.Printf("unknown GraphQL query, blocking request: %s", truncateForLog(string(graphQLBody), 500))
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -338,4 +338,11 @@ func copyResponseHeaders(w http.ResponseWriter, resp *http.Response) {
 			w.Header().Set(h, v)
 		}
 	}
+}
+
+func truncateForLog(s string, maxLen int) string {
+if len(s) <= maxLen {
+return s
+}
+return s[:maxLen] + "..."
 }
