@@ -92,6 +92,18 @@ pub fn label_response_items(
 
         // === Pull Requests - label by merged state ===
         "list_pull_requests" | "search_pull_requests" | "pull_request_read" | "get_pull_request" => {
+            // For pull_request_read sub-methods that return non-PR objects (e.g.
+            // get_check_runs, get_files, get_review_comments, get_reviews,
+            // get_comments, get_diff, get_status), skip per-item response labeling.
+            // The resource-level labels from tool_rules (which call
+            // get_pull_request_facts) provide correct PR-scoped integrity.
+            let method = tool_args
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if tool_name == "pull_request_read" && !method.is_empty() && method != "get" {
+                // Fall through — use resource-level labels from tool_rules
+            } else {
             // Handle array, {items: [...]}, GraphQL nested, GraphQL single, or REST single object.
             // Work directly with &[Value] slices to avoid allocating a Vec<&Value>.
             let single_item_buf;
@@ -175,10 +187,21 @@ pub fn label_response_items(
                     });
                 }
             }
+            } // end else (non-sub-method)
         }
 
         // === Issues - label by author status ===
         "list_issues" | "search_issues" | "get_issue" | "issue_read" => {
+            // For issue_read sub-methods that return non-issue objects (e.g.
+            // get_comments, get_sub_issues, get_labels), skip per-item labeling.
+            // Resource-level labels from tool_rules provide correct issue-scoped integrity.
+            let method = tool_args
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if tool_name == "issue_read" && !method.is_empty() && method != "get" {
+                // Fall through — use resource-level labels from tool_rules
+            } else {
             // Handle single issue, array of issues, GraphQL nested, or GraphQL single object
             let all_items: Vec<&Value> = if actual_response.is_array() {
                 actual_response
@@ -244,6 +267,7 @@ pub fn label_response_items(
                     },
                 });
             }
+            } // end else (non-sub-method)
         }
 
         // === File Contents - repo-scoped secrecy ===

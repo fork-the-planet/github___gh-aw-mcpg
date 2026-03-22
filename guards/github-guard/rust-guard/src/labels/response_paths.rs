@@ -89,6 +89,16 @@ pub fn label_response_paths(
 
         // === Pull Requests - label by merged state ===
         "list_pull_requests" | "search_pull_requests" | "pull_request_read" | "get_pull_request" => {
+            // Skip per-item labeling for pull_request_read sub-methods that return
+            // non-PR objects (e.g. get_check_runs, get_files, get_reviews).
+            // Resource-level labels from tool_rules provide correct PR integrity.
+            let method = tool_args
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if tool_name == "pull_request_read" && !method.is_empty() && method != "get" {
+                // Fall through — use resource-level labels
+            } else {
             let (items, items_path) = extract_items_array(&actual_response);
 
             if let Some(items) = items {
@@ -182,10 +192,20 @@ pub fn label_response_paths(
                     },
                 });
             }
+            } // end else (non-sub-method)
         }
 
         // === Issues - label by author contributor status ===
         "list_issues" | "search_issues" | "issue_read" | "get_issue" => {
+            // Skip per-item labeling for issue_read sub-methods (get_comments,
+            // get_sub_issues, get_labels). Resource-level labels from tool_rules apply.
+            let method = tool_args
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if tool_name == "issue_read" && !method.is_empty() && method != "get" {
+                // Fall through — use resource-level labels
+            } else {
             let (items, items_path) = extract_items_array(&actual_response);
 
             if let Some(items) = items {
@@ -265,6 +285,7 @@ pub fn label_response_paths(
                     },
                 });
             }
+            } // end else (non-sub-method)
         }
 
         // === Commits - label by branch ===
