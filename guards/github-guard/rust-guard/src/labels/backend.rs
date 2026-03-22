@@ -214,7 +214,7 @@ pub fn is_repo_private_with_callback(
 
 /// Determine whether a pull request is from a fork.
 ///
-/// This helper calls `get_pull_request` through the provided backend callback,
+/// This helper calls `pull_request_read` through the provided backend callback,
 /// extracts `base.repo.full_name` and `head.repo.full_name`, and returns:
 /// - `Some(true)` if the PR is from a fork (head repo differs from base repo)
 /// - `Some(false)` if the PR is direct (same repository)
@@ -233,7 +233,8 @@ pub fn is_forked_pull_request_with_callback(
     let args = serde_json::json!({
         "owner": owner,
         "repo": repo,
-        "pull_number": pull_number,
+        "pullNumber": pull_number,
+        "method": "get",
     });
 
     let args_str = args.to_string();
@@ -244,7 +245,7 @@ pub fn is_forked_pull_request_with_callback(
         owner, repo, pull_number
     ));
 
-    let len = match callback("get_pull_request", &args_str, &mut result_buffer) {
+    let len = match callback("pull_request_read", &args_str, &mut result_buffer) {
         Ok(len) if len > 0 => len,
         Ok(_) => return None,
         Err(code) => {
@@ -294,13 +295,14 @@ pub fn get_pull_request_facts_with_callback(
     let args = serde_json::json!({
         "owner": owner,
         "repo": repo,
-        "pull_number": pull_number,
+        "pullNumber": pull_number,
+        "method": "get",
     });
 
     let args_str = args.to_string();
     let mut result_buffer = vec![0u8; SMALL_BUFFER_SIZE];
 
-    let len = match callback("get_pull_request", &args_str, &mut result_buffer) {
+    let len = match callback("pull_request_read", &args_str, &mut result_buffer) {
         Ok(len) if len > 0 => len,
         _ => return None,
     };
@@ -370,6 +372,7 @@ pub fn get_issue_author_association_with_callback(
         "owner": owner,
         "repo": repo,
         "issue_number": issue_number,
+        "method": "get",
     });
 
     let args_str = args.to_string();
@@ -419,6 +422,7 @@ pub fn get_issue_author_info_with_callback(
         "owner": owner,
         "repo": repo,
         "issue_number": issue_number,
+        "method": "get",
     });
 
     let args_str = args.to_string();
