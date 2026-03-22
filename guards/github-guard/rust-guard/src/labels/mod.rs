@@ -42,10 +42,11 @@ pub use constants::MEDIUM_BUFFER_SIZE;
 // re-exported for external modules and tests, not used within mod.rs itself
 #[allow(unused_imports)]
 pub use helpers::{
-    blocked_integrity, commit_integrity, ensure_integrity_baseline, extract_items_array,
+    blocked_integrity, commit_integrity, ensure_integrity_baseline, extract_graphql_nodes,
+    extract_graphql_single_object, extract_items_array,
     extract_number_as_string, extract_repo_from_item, extract_repo_info,
     extract_repo_info_from_search_query, get_bool_or, get_nested_str, get_str_or,
-    is_blocked_user, is_bot, issue_integrity, limit_items_with_log, make_item_path, merged_integrity,
+    is_blocked_user, is_bot, is_graphql_wrapper, issue_integrity, limit_items_with_log, make_item_path, merged_integrity,
     none_integrity, pr_integrity, private_scope_label, private_user_label, project_github_label,
     reader_integrity, secret_label, writer_integrity, MinIntegrity, PolicyContext, PolicyScopeEntry,
     ScopeKind,
@@ -2708,5 +2709,211 @@ mod tests {
         let result = label_response_paths("pull_request_read", &tool_args, &response, &ctx);
         assert!(result.is_none(),
             "pull_request_read single-object response should return None for path labeling");
+    }
+
+    // =========================================================================
+    // GraphQL response format tests
+    // =========================================================================
+
+    #[test]
+    fn test_extract_items_array_graphql_pull_requests() {
+        let response = json!({
+            "data": {
+                "repository": {
+                    "pullRequests": {
+                        "nodes": [
+                            {"number": 1, "title": "PR 1"},
+                            {"number": 2, "title": "PR 2"}
+                        ]
+                    }
+                }
+            }
+        });
+        let (items, path) = extract_items_array(&response);
+        assert!(items.is_some(), "Should extract pullRequests.nodes from GraphQL");
+        assert_eq!(items.unwrap().len(), 2);
+        assert_eq!(path, "/data/repository/pullRequests/nodes");
+    }
+
+    #[test]
+    fn test_extract_items_array_graphql_issues() {
+        let response = json!({
+            "data": {
+                "repository": {
+                    "issues": {
+                        "nodes": [
+                            {"number": 10, "title": "Issue 10"}
+                        ]
+                    }
+                }
+            }
+        });
+        let (items, path) = extract_items_array(&response);
+        assert!(items.is_some(), "Should extract issues.nodes from GraphQL");
+        assert_eq!(items.unwrap().len(), 1);
+        assert_eq!(path, "/data/repository/issues/nodes");
+    }
+
+    #[test]
+    fn test_extract_items_array_graphql_search() {
+        let response = json!({
+            "data": {
+                "search": {
+                    "nodes": [
+                        {"number": 5, "__typename": "PullRequest"}
+                    ]
+                }
+            }
+        });
+        let (items, path) = extract_items_array(&response);
+        assert!(items.is_some(), "Should extract search.nodes from GraphQL");
+        assert_eq!(items.unwrap().len(), 1);
+        assert_eq!(path, "/data/search/nodes");
+    }
+
+    #[test]
+    fn test_extract_graphql_single_object_issue() {
+        let response = json!({
+            "data": {
+                "repository": {
+                    "issue": {
+                        "number": 42,
+                        "title": "Bug report",
+                        "author": {"login": "testuser"},
+                        "authorAssociation": "MEMBER"
+                    }
+                }
+            }
+        });
+        let obj = extract_graphql_single_object(&response);
+        assert!(obj.is_some(), "Should extract single issue from GraphQL");
+        assert_eq!(obj.unwrap()["number"], 42);
+    }
+
+    #[test]
+    fn test_extract_graphql_single_object_pull_request() {
+        let response = json!({
+            "data": {
+                "repository": {
+                    "pullRequest": {
+                        "number": 99,
+                        "title": "Feature PR",
+                        "merged": true,
+                        "author": {"login": "dev"},
+                        "authorAssociation": "MEMBER"
+                    }
+                }
+            }
+        });
+        let obj = extract_graphql_single_object(&response);
+        assert!(obj.is_some(), "Should extract single pullRequest from GraphQL");
+        assert_eq!(obj.unwrap()["number"], 99);
+    }
+
+    #[test]
+    fn test_is_graphql_wrapper() {
+        assert!(is_graphql_wrapper(&json!({"data": {"repository": {}}})));
+        assert!(!is_graphql_wrapper(&json!({"number": 1, "title": "PR"})));
+        assert!(!is_graphql_wrapper(&json!([{"number": 1}])));
+    }
+
+    #[test]
+    fn test_graphql_list_pull_requests_response_labeling() {
+        let ctx = default_ctx();
+        let tool_args = json!({"owner": "testorg", "repo": "testrepo"});
+        // GraphQL response format for list_pull_requests
+        let response = json!({
+            "data": {
+                "repository": {
+                    "pullRequests": {
+                        "nodes": [
+                            {
+                                "number": 1,
+                                "title": "Merged PR",
+                                "merged": true,
+                                "author": {"login": "dev"},
+                                "authorAssociation": "MEMBER"
+                            }
+                        ]
+                    }
+                }
+            }
+        });
+
+        // response_items should label the PR from GraphQL format
+        let items = label_response_items("list_pull_requests", &tool_args, &response, &ctx);
+        assert_eq!(items.len(), 1, "Should find 1 PR in GraphQL response");
+        assert!(
+            items[0].labels.integrity.iter().any(|t| t == "approved" || t.starts_with("approved:")),
+            "Merged MEMBER PR should get approved integrity, got: {:?}",
+            items[0].labels.integrity
+        );
+
+        // response_paths should also work with GraphQL format
+        let paths = label_response_paths("list_pull_requests", &tool_args, &response, &ctx);
+        assert!(paths.is_some(), "Should generate path labels for GraphQL PR response");
+        let paths = paths.unwrap();
+        assert_eq!(paths.labeled_paths.len(), 1);
+        assert!(
+            paths.labeled_paths[0].path.contains("pullRequests/nodes/0"),
+            "Path should reference GraphQL nodes, got: {}",
+            paths.labeled_paths[0].path
+        );
+    }
+
+    #[test]
+    fn test_graphql_list_issues_response_labeling() {
+        let ctx = default_ctx();
+        let tool_args = json!({"owner": "testorg", "repo": "testrepo"});
+        let response = json!({
+            "data": {
+                "repository": {
+                    "issues": {
+                        "nodes": [
+                            {
+                                "number": 10,
+                                "title": "Bug",
+                                "author": {"login": "contributor"},
+                                "authorAssociation": "CONTRIBUTOR"
+                            }
+                        ]
+                    }
+                }
+            }
+        });
+
+        let items = label_response_items("list_issues", &tool_args, &response, &ctx);
+        assert_eq!(items.len(), 1, "Should find 1 issue in GraphQL response");
+
+        let paths = label_response_paths("list_issues", &tool_args, &response, &ctx);
+        assert!(paths.is_some(), "Should generate path labels for GraphQL issue response");
+        let paths = paths.unwrap();
+        assert_eq!(paths.labeled_paths.len(), 1);
+        assert!(
+            paths.labeled_paths[0].path.contains("issues/nodes/0"),
+            "Path should reference GraphQL nodes, got: {}",
+            paths.labeled_paths[0].path
+        );
+    }
+
+    #[test]
+    fn test_graphql_wrapper_not_treated_as_single_item() {
+        let ctx = default_ctx();
+        let tool_args = json!({"owner": "testorg", "repo": "testrepo"});
+        // A GraphQL response with no recognized collection field should NOT be
+        // treated as a single PR/issue item.
+        let response = json!({
+            "data": {
+                "viewer": {
+                    "login": "testuser"
+                }
+            }
+        });
+
+        let items = label_response_items("list_pull_requests", &tool_args, &response, &ctx);
+        assert_eq!(items.len(), 0, "GraphQL wrapper should not be treated as a single PR");
+
+        let items = label_response_items("list_issues", &tool_args, &response, &ctx);
+        assert_eq!(items.len(), 0, "GraphQL wrapper should not be treated as a single issue");
     }
 }

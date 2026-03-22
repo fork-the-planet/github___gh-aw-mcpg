@@ -92,14 +92,20 @@ pub fn label_response_items(
 
         // === Pull Requests - label by merged state ===
         "list_pull_requests" | "search_pull_requests" | "pull_request_read" | "get_pull_request" => {
-            // Handle array, {items: [...]}, or single object response.
+            // Handle array, {items: [...]}, GraphQL nested, GraphQL single, or REST single object.
             // Work directly with &[Value] slices to avoid allocating a Vec<&Value>.
             let single_item_buf;
+            let graphql_single_buf;
             let items: &[Value] = if let Some(arr) = actual_response.as_array() {
                 arr.as_slice()
             } else if let Some(items_arr) = actual_response.get("items").and_then(|v| v.as_array()) {
                 items_arr.as_slice()
-            } else if actual_response.is_object() {
+            } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
+                nodes.as_slice()
+            } else if let Some(obj) = extract_graphql_single_object(&actual_response) {
+                graphql_single_buf = [obj.clone()];
+                &graphql_single_buf
+            } else if actual_response.is_object() && !is_graphql_wrapper(&actual_response) {
                 single_item_buf = [actual_response.clone()];
                 &single_item_buf
             } else {
@@ -173,7 +179,7 @@ pub fn label_response_items(
 
         // === Issues - label by author status ===
         "list_issues" | "search_issues" | "get_issue" | "issue_read" => {
-            // Handle single issue or array of issues
+            // Handle single issue, array of issues, GraphQL nested, or GraphQL single object
             let all_items: Vec<&Value> = if actual_response.is_array() {
                 actual_response
                     .as_array()
@@ -181,7 +187,11 @@ pub fn label_response_items(
                     .unwrap_or_default()
             } else if let Some(items_arr) = actual_response.get("items").and_then(|v| v.as_array()) {
                 items_arr.iter().collect()
-            } else if actual_response.is_object() {
+            } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
+                nodes.iter().collect()
+            } else if let Some(obj) = extract_graphql_single_object(&actual_response) {
+                vec![obj]
+            } else if actual_response.is_object() && !is_graphql_wrapper(&actual_response) {
                 vec![&actual_response]
             } else {
                 Vec::new()

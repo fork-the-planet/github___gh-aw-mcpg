@@ -148,7 +148,7 @@ pub fn label_response_paths(
                     let pr_number = extract_resource_number(item, "pr", repo_for_labels);
                     let integrity =
                         pr_integrity(item, repo_for_labels, item_repo_private, is_forked, ctx);
-                    let path = make_item_path(items_path, i);
+                    let path = make_item_path(&items_path, i);
 
                     labeled_paths.push(PathLabelEntry {
                         path,
@@ -231,7 +231,7 @@ pub fn label_response_paths(
                         item_repo_private,
                         ctx,
                     );
-                    let path = make_item_path(items_path, i);
+                    let path = make_item_path(&items_path, i);
 
                     labeled_paths.push(PathLabelEntry {
                         path,
@@ -559,7 +559,7 @@ pub fn label_response_paths(
                         };
 
                     labeled_paths.push(PathLabelEntry {
-                        path: make_item_path(items_path, i),
+                        path: make_item_path(&items_path, i),
                         labels: crate::ResourceLabels {
                             description: format!("project-item:{}", item_type.to_lowercase()),
                             secrecy,

@@ -568,21 +568,105 @@ pub fn extract_repo_from_item(item: &Value) -> String {
     String::new()
 }
 
-/// Extract items array from response, handling both root array and items field
-/// Returns (Option<items_array>, items_path) where items_path is "" for root array, "/items" for items field
-pub fn extract_items_array(response: &Value) -> (Option<&Vec<Value>>, &'static str) {
+/// Extract items array from response, handling REST, items field, and GraphQL formats.
+/// Returns (Option<items_array>, items_path) where items_path is a JSON Pointer prefix:
+///   - "" for root array
+///   - "/items" for {items: [...]}
+///   - "/data/repository/pullRequests/nodes" for GraphQL nested format
+///   - etc.
+pub fn extract_items_array(response: &Value) -> (Option<&Vec<Value>>, String) {
+    // REST formats
     if let Some(arr) = response.as_array() {
-        (Some(arr), "")
-    } else if let Some(arr) = response.get("items").and_then(|v| v.as_array()) {
-        (Some(arr), "/items")
-    } else if let Some(arr) = response.get("issues").and_then(|v| v.as_array()) {
-        (Some(arr), "/issues")
-    } else if let Some(arr) = response.get("pull_requests").and_then(|v| v.as_array()) {
-        (Some(arr), "/pull_requests")
-    } else {
-        (None, "")
+        return (Some(arr), String::new());
     }
+    if let Some(arr) = response.get("items").and_then(|v| v.as_array()) {
+        return (Some(arr), "/items".to_string());
+    }
+    if let Some(arr) = response.get("issues").and_then(|v| v.as_array()) {
+        return (Some(arr), "/issues".to_string());
+    }
+    if let Some(arr) = response.get("pull_requests").and_then(|v| v.as_array()) {
+        return (Some(arr), "/pull_requests".to_string());
+    }
+
+    // GraphQL format: data.repository.<resource>.nodes or data.search.nodes
+    if let Some(data) = response.get("data") {
+        // data.repository.<field>.nodes (issues, pullRequests, discussions, etc.)
+        if let Some(repo) = data.get("repository") {
+            for (field, pointer) in GRAPHQL_COLLECTION_FIELDS {
+                if let Some(arr) = repo.get(*field).and_then(|v| v.get("nodes")).and_then(|v| v.as_array()) {
+                    return (Some(arr), pointer.to_string());
+                }
+            }
+        }
+        // data.search.nodes
+        if let Some(arr) = data.get("search").and_then(|v| v.get("nodes")).and_then(|v| v.as_array()) {
+            return (Some(arr), "/data/search/nodes".to_string());
+        }
+        // data.search.edges[].node — flatten into nodes
+        // (not supported as direct reference; caller should use search.nodes form)
+    }
+
+    (None, String::new())
 }
+
+/// GraphQL collection fields under data.repository and their JSON Pointer paths.
+const GRAPHQL_COLLECTION_FIELDS: &[(&str, &str)] = &[
+    ("issues", "/data/repository/issues/nodes"),
+    ("pullRequests", "/data/repository/pullRequests/nodes"),
+    ("discussions", "/data/repository/discussions/nodes"),
+    ("discussionCategories", "/data/repository/discussionCategories/nodes"),
+];
+
+/// Extract the items array from a GraphQL response.
+/// Traverses data.repository.<field>.nodes and data.search.nodes paths.
+pub fn extract_graphql_nodes(response: &Value) -> Option<&Vec<Value>> {
+    let data = response.get("data")?;
+
+    // data.repository.<field>.nodes
+    if let Some(repo) = data.get("repository") {
+        for (field, _) in GRAPHQL_COLLECTION_FIELDS {
+            if let Some(arr) = repo.get(*field).and_then(|v| v.get("nodes")).and_then(|v| v.as_array()) {
+                return Some(arr);
+            }
+        }
+    }
+    // data.search.nodes
+    if let Some(arr) = data.get("search").and_then(|v| v.get("nodes")).and_then(|v| v.as_array()) {
+        return Some(arr);
+    }
+
+    None
+}
+
+/// Returns true if the response is a GraphQL wrapper (has a "data" key).
+/// Used to prevent treating the entire GraphQL object as a single item.
+pub fn is_graphql_wrapper(response: &Value) -> bool {
+    response.get("data").is_some()
+}
+
+/// Extract a single object from a GraphQL response for singular queries.
+/// Traverses data.repository.<field> for fields like "issue", "pullRequest".
+pub fn extract_graphql_single_object(response: &Value) -> Option<&Value> {
+    let data = response.get("data")?;
+    let repo = data.get("repository")?;
+
+    for field in GRAPHQL_SINGLE_OBJECT_FIELDS {
+        if let Some(obj) = repo.get(*field) {
+            if obj.is_object() {
+                return Some(obj);
+            }
+        }
+    }
+    None
+}
+
+/// GraphQL singular object fields under data.repository.
+const GRAPHQL_SINGLE_OBJECT_FIELDS: &[&str] = &[
+    "issue",
+    "pullRequest",
+    "discussion",
+];
 
 /// Generate JSON Pointer path for an item index in a collection
 /// Returns a path like "/items/0" or "/0" depending on the items_path
