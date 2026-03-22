@@ -398,6 +398,11 @@ jobs:
           persist-credentials: false
       - name: Create gh-aw temp directory
         run: bash ${RUNNER_TEMP}/gh-aw/actions/create_gh_aw_tmp_dir.sh
+      - name: Build local MCPG container for proxy
+        run: |
+          echo "Building local awmg container from branch source..."
+          docker build -t ghcr.io/github/gh-aw-mcpg:local -f Dockerfile .
+          echo "Local container built successfully"
       - name: Start DIFC proxy for pre-agent gh calls
         env:
           GH_TOKEN: ${{ github.token }}
@@ -410,7 +415,7 @@ jobs:
           docker run -d --name awmg-proxy --network host \
             -e GH_TOKEN \
             -v "$PROXY_LOG_DIR:$PROXY_LOG_DIR" \
-            ghcr.io/github/gh-aw-mcpg:v0.1.22 proxy \
+            ghcr.io/github/gh-aw-mcpg:local proxy \
               --policy "$POLICY" \
               --listen 0.0.0.0:18443 \
               --log-dir "$PROXY_LOG_DIR" \
