@@ -119,9 +119,21 @@ pub fn apply_tool_labels(
             }
         }
 
-        // Search is cross-repo / unknown scope until response labeling
+        // Search issues: extract repo scope from query when available
         "search_issues" => {
-            integrity = vec![];
+            let query = tool_args
+                .get("query")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let (q_owner, q_repo, q_repo_id) = extract_repo_info_from_search_query(query);
+            if !q_repo_id.is_empty() {
+                desc = format!("search_issues:{}", q_repo_id);
+                secrecy =
+                    apply_repo_visibility_secrecy(&q_owner, &q_repo, &q_repo_id, secrecy, ctx);
+                integrity = private_writer_integrity(&q_repo_id, repo_private, ctx);
+            } else {
+                integrity = vec![];
+            }
         }
 
         // === Pull Requests ===
@@ -210,9 +222,21 @@ pub fn apply_tool_labels(
             }
         }
 
-        // Search is cross-repo / unknown scope until response labeling
+        // Search pull requests: extract repo scope from query when available
         "search_pull_requests" => {
-            integrity = vec![];
+            let query = tool_args
+                .get("query")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let (q_owner, q_repo, q_repo_id) = extract_repo_info_from_search_query(query);
+            if !q_repo_id.is_empty() {
+                desc = format!("search_pull_requests:{}", q_repo_id);
+                secrecy =
+                    apply_repo_visibility_secrecy(&q_owner, &q_repo, &q_repo_id, secrecy, ctx);
+                integrity = private_writer_integrity(&q_repo_id, repo_private, ctx);
+            } else {
+                integrity = vec![];
+            }
         }
 
         // === Commits ===

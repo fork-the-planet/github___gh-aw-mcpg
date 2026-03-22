@@ -35,6 +35,13 @@ pub fn label_response_paths(
     response: &Value,
     ctx: &PolicyContext,
 ) -> Option<PathLabelResult> {
+    // Skip labeling for error responses (e.g. 404 Not Found).
+    // Resource-level labels from tool_rules handle these cases.
+    if response.get("isError").and_then(|v| v.as_bool()) == Some(true) {
+        crate::log_info("label_response_paths: skipping error response (isError=true)");
+        return None;
+    }
+
     // MCP responses are wrapped in {"content":[{"type":"text","text":"..."}]}
     let actual_response = extract_mcp_response(response);
 
@@ -89,6 +96,16 @@ pub fn label_response_paths(
 
         // === Pull Requests - label by merged state ===
         "list_pull_requests" | "search_pull_requests" | "pull_request_read" | "get_pull_request" => {
+            // Skip per-item labeling for pull_request_read sub-methods that return
+            // non-PR objects (e.g. get_check_runs, get_files, get_reviews).
+            // Resource-level labels from tool_rules provide correct PR integrity.
+            let method = tool_args
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if tool_name == "pull_request_read" && !method.is_empty() && method != "get" {
+                // Fall through — use resource-level labels
+            } else {
             let (items, items_path) = extract_items_array(&actual_response);
 
             if let Some(items) = items {
@@ -148,7 +165,7 @@ pub fn label_response_paths(
                     let pr_number = extract_resource_number(item, "pr", repo_for_labels);
                     let integrity =
                         pr_integrity(item, repo_for_labels, item_repo_private, is_forked, ctx);
-                    let path = make_item_path(items_path, i);
+                    let path = make_item_path(&items_path, i);
 
                     labeled_paths.push(PathLabelEntry {
                         path,
@@ -182,10 +199,20 @@ pub fn label_response_paths(
                     },
                 });
             }
+            } // end else (non-sub-method)
         }
 
         // === Issues - label by author contributor status ===
         "list_issues" | "search_issues" | "issue_read" | "get_issue" => {
+            // Skip per-item labeling for issue_read sub-methods (get_comments,
+            // get_sub_issues, get_labels). Resource-level labels from tool_rules apply.
+            let method = tool_args
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if tool_name == "issue_read" && !method.is_empty() && method != "get" {
+                // Fall through — use resource-level labels
+            } else {
             let (items, items_path) = extract_items_array(&actual_response);
 
             if let Some(items) = items {
@@ -231,7 +258,7 @@ pub fn label_response_paths(
                         item_repo_private,
                         ctx,
                     );
-                    let path = make_item_path(items_path, i);
+                    let path = make_item_path(&items_path, i);
 
                     labeled_paths.push(PathLabelEntry {
                         path,
@@ -265,6 +292,7 @@ pub fn label_response_paths(
                     },
                 });
             }
+            } // end else (non-sub-method)
         }
 
         // === Commits - label by branch ===
@@ -559,7 +587,7 @@ pub fn label_response_paths(
                         };
 
                     labeled_paths.push(PathLabelEntry {
-                        path: make_item_path(items_path, i),
+                        path: make_item_path(&items_path, i),
                         labels: crate::ResourceLabels {
                             description: format!("project-item:{}", item_type.to_lowercase()),
                             secrecy,

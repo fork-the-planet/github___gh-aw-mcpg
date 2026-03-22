@@ -568,21 +568,105 @@ pub fn extract_repo_from_item(item: &Value) -> String {
     String::new()
 }
 
-/// Extract items array from response, handling both root array and items field
-/// Returns (Option<items_array>, items_path) where items_path is "" for root array, "/items" for items field
-pub fn extract_items_array(response: &Value) -> (Option<&Vec<Value>>, &'static str) {
+/// Extract items array from response, handling REST, items field, and GraphQL formats.
+/// Returns (Option<items_array>, items_path) where items_path is a JSON Pointer prefix:
+///   - "" for root array
+///   - "/items" for {items: [...]}
+///   - "/data/repository/pullRequests/nodes" for GraphQL nested format
+///   - etc.
+pub fn extract_items_array(response: &Value) -> (Option<&Vec<Value>>, String) {
+    // REST formats
     if let Some(arr) = response.as_array() {
-        (Some(arr), "")
-    } else if let Some(arr) = response.get("items").and_then(|v| v.as_array()) {
-        (Some(arr), "/items")
-    } else if let Some(arr) = response.get("issues").and_then(|v| v.as_array()) {
-        (Some(arr), "/issues")
-    } else if let Some(arr) = response.get("pull_requests").and_then(|v| v.as_array()) {
-        (Some(arr), "/pull_requests")
-    } else {
-        (None, "")
+        return (Some(arr), String::new());
     }
+    if let Some(arr) = response.get("items").and_then(|v| v.as_array()) {
+        return (Some(arr), "/items".to_string());
+    }
+    if let Some(arr) = response.get("issues").and_then(|v| v.as_array()) {
+        return (Some(arr), "/issues".to_string());
+    }
+    if let Some(arr) = response.get("pull_requests").and_then(|v| v.as_array()) {
+        return (Some(arr), "/pull_requests".to_string());
+    }
+
+    // GraphQL format: data.repository.<resource>.nodes or data.search.nodes
+    if let Some(data) = response.get("data") {
+        // data.repository.<field>.nodes (issues, pullRequests, discussions, etc.)
+        if let Some(repo) = data.get("repository") {
+            for (field, pointer) in GRAPHQL_COLLECTION_FIELDS {
+                if let Some(arr) = repo.get(*field).and_then(|v| v.get("nodes")).and_then(|v| v.as_array()) {
+                    return (Some(arr), pointer.to_string());
+                }
+            }
+        }
+        // data.search.nodes
+        if let Some(arr) = data.get("search").and_then(|v| v.get("nodes")).and_then(|v| v.as_array()) {
+            return (Some(arr), "/data/search/nodes".to_string());
+        }
+        // data.search.edges[].node — flatten into nodes
+        // (not supported as direct reference; caller should use search.nodes form)
+    }
+
+    (None, String::new())
 }
+
+/// GraphQL collection fields under data.repository and their JSON Pointer paths.
+const GRAPHQL_COLLECTION_FIELDS: &[(&str, &str)] = &[
+    ("issues", "/data/repository/issues/nodes"),
+    ("pullRequests", "/data/repository/pullRequests/nodes"),
+    ("discussions", "/data/repository/discussions/nodes"),
+    ("discussionCategories", "/data/repository/discussionCategories/nodes"),
+];
+
+/// Extract the items array from a GraphQL response.
+/// Traverses data.repository.<field>.nodes and data.search.nodes paths.
+pub fn extract_graphql_nodes(response: &Value) -> Option<&Vec<Value>> {
+    let data = response.get("data")?;
+
+    // data.repository.<field>.nodes
+    if let Some(repo) = data.get("repository") {
+        for (field, _) in GRAPHQL_COLLECTION_FIELDS {
+            if let Some(arr) = repo.get(*field).and_then(|v| v.get("nodes")).and_then(|v| v.as_array()) {
+                return Some(arr);
+            }
+        }
+    }
+    // data.search.nodes
+    if let Some(arr) = data.get("search").and_then(|v| v.get("nodes")).and_then(|v| v.as_array()) {
+        return Some(arr);
+    }
+
+    None
+}
+
+/// Returns true if the response is a GraphQL wrapper (has a "data" key).
+/// Used to prevent treating the entire GraphQL object as a single item.
+pub fn is_graphql_wrapper(response: &Value) -> bool {
+    response.get("data").is_some()
+}
+
+/// Extract a single object from a GraphQL response for singular queries.
+/// Traverses data.repository.<field> for fields like "issue", "pullRequest".
+pub fn extract_graphql_single_object(response: &Value) -> Option<&Value> {
+    let data = response.get("data")?;
+    let repo = data.get("repository")?;
+
+    for field in GRAPHQL_SINGLE_OBJECT_FIELDS {
+        if let Some(obj) = repo.get(*field) {
+            if obj.is_object() {
+                return Some(obj);
+            }
+        }
+    }
+    None
+}
+
+/// GraphQL singular object fields under data.repository.
+const GRAPHQL_SINGLE_OBJECT_FIELDS: &[&str] = &[
+    "issue",
+    "pullRequest",
+    "discussion",
+];
 
 /// Generate JSON Pointer path for an item index in a collection
 /// Returns a path like "/items/0" or "/0" depending on the items_path
@@ -788,6 +872,17 @@ fn extract_author_login(item: &Value) -> &str {
     get_nested_str(item, "author", "login")
 }
 
+/// Check whether an item contains an `author_association` (or `authorAssociation`) field.
+pub fn has_author_association(item: &Value) -> bool {
+    item.get("author_association")
+        .and_then(|v| v.as_str())
+        .is_some()
+        || item
+            .get("authorAssociation")
+            .and_then(|v| v.as_str())
+            .is_some()
+}
+
 /// Extract author_association from an item and return initial integrity floor.
 /// Trusted first-party GitHub bots and any gateway-configured trusted bots are
 /// elevated to approved (writer) integrity regardless of their author_association value.
@@ -840,6 +935,8 @@ pub fn is_default_branch_commit_context(tool_name: &str, sha_or_ref: &str) -> bo
 /// - public forked PR => unapproved
 /// - public direct PR => approved
 /// - PR with an approval label => at least approved
+/// - Backend enrichment: when `author_association` is missing from the item,
+///   fetch the individual PR via REST to get the correct association and fork status.
 pub fn pr_integrity(
     item: &Value,
     repo_full_name: &str,
@@ -861,11 +958,71 @@ pub fn pr_integrity(
     let mut integrity = author_association_floor(item, repo_full_name, ctx);
 
     // Check if PR is merged (either merged_at field exists or merged boolean is true)
-    let is_merged = item
+    let mut is_merged = item
         .get(field_names::MERGED_AT)
         .map(|v| !v.is_null())
         .or_else(|| item.get(field_names::MERGED).and_then(|v| v.as_bool()))
         .unwrap_or(false);
+
+    // Track whether fork status was enriched from the backend
+    let mut effective_is_forked = is_forked;
+
+    // Backend enrichment: when author_association is absent from the response
+    // (e.g. GitHub MCP Server omits it from MinimalPullRequest), fetch the
+    // individual PR via REST to obtain the correct association, fork status,
+    // and merge status.
+    if integrity.is_empty() && !has_author_association(item) && !repo_private {
+        if let Some(number) = item.get("number").and_then(|v| v.as_u64()) {
+            let (owner, repo) = repo_full_name.split_once('/').unwrap_or(("", ""));
+            if !owner.is_empty() && !repo.is_empty() {
+                let number_str = number.to_string();
+                if let Some(facts) =
+                    super::backend::get_pull_request_facts(owner, repo, &number_str)
+                {
+                    crate::log_debug(&format!(
+                        "[integrity] pr:{}#{} enriched: author_association={:?}, is_forked={:?}, is_merged={}",
+                        repo_full_name, number, facts.author_association, facts.is_forked, facts.is_merged
+                    ));
+                    let enriched_floor = author_association_floor_from_str(
+                        repo_full_name,
+                        facts.author_association.as_deref(),
+                        ctx,
+                    );
+                    // Elevate trusted bots
+                    let enriched_floor = if let Some(ref login) = facts.author_login {
+                        if is_trusted_first_party_bot(login)
+                            || is_configured_trusted_bot(login, ctx)
+                        {
+                            max_integrity(
+                                repo_full_name,
+                                enriched_floor,
+                                writer_integrity(repo_full_name, ctx),
+                                ctx,
+                            )
+                        } else {
+                            enriched_floor
+                        }
+                    } else {
+                        enriched_floor
+                    };
+                    integrity =
+                        max_integrity(repo_full_name, integrity, enriched_floor, ctx);
+                    // Use enriched fork/merge status if missing from item
+                    if effective_is_forked.is_none() {
+                        effective_is_forked = facts.is_forked;
+                    }
+                    if !is_merged && facts.is_merged {
+                        is_merged = true;
+                    }
+                } else {
+                    crate::log_debug(&format!(
+                        "[integrity] pr:{}#{} enrichment failed (backend returned None)",
+                        repo_full_name, number
+                    ));
+                }
+            }
+        }
+    }
 
     if repo_private {
         integrity = max_integrity(
@@ -875,7 +1032,7 @@ pub fn pr_integrity(
             ctx,
         );
     } else {
-        integrity = match is_forked {
+        integrity = match effective_is_forked {
             Some(true) => max_integrity(
                 repo_full_name,
                 integrity,
@@ -927,6 +1084,9 @@ pub fn pr_integrity(
 /// - private repo issues => approved
 /// - public repo issues => no integrity
 /// - Issue with an approval label => at least approved
+/// - Backend enrichment: when `author_association` is missing from the item
+///   (e.g. GitHub MCP Server GraphQL path omits it), fetch the individual issue
+///   via REST to get the correct association value.
 pub fn issue_integrity(
     item: &Value,
     repo_full_name: &str,
@@ -945,6 +1105,38 @@ pub fn issue_integrity(
     }
 
     let mut integrity = author_association_floor(item, repo_full_name, ctx);
+
+    // Backend enrichment: when author_association is absent from the response
+    // (e.g. GitHub MCP Server's list_issues GraphQL path omits it), fetch the
+    // individual issue via REST to obtain the correct value. This avoids
+    // incorrectly assigning "none" integrity to members/collaborators.
+    if integrity.is_empty() && !has_author_association(item) && !repo_private {
+        if let Some(number) = item.get("number").and_then(|v| v.as_u64()) {
+            let (owner, repo) = repo_full_name.split_once('/').unwrap_or(("", ""));
+            if !owner.is_empty() && !repo.is_empty() {
+                let number_str = number.to_string();
+                if let Some(association) =
+                    super::backend::get_issue_author_association(owner, repo, &number_str)
+                {
+                    crate::log_debug(&format!(
+                        "[integrity] issue:{}#{} enriched author_association='{}'",
+                        repo_full_name, number, association
+                    ));
+                    // Re-check trusted bot status with enriched login
+                    let enriched_floor =
+                        author_association_floor_from_str(repo_full_name, Some(&association), ctx);
+                    integrity =
+                        max_integrity(repo_full_name, integrity, enriched_floor, ctx);
+                } else {
+                    crate::log_debug(&format!(
+                        "[integrity] issue:{}#{} enrichment failed (backend returned None)",
+                        repo_full_name, number
+                    ));
+                }
+            }
+        }
+    }
+
     if repo_private {
         integrity = max_integrity(
             repo_full_name,
