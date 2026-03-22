@@ -400,8 +400,9 @@ jobs:
         run: bash ${RUNNER_TEMP}/gh-aw/actions/create_gh_aw_tmp_dir.sh
       - name: Build local MCPG container for proxy
         run: |
-          # Extract WASM guard from published image (gitignored, not in checkout)
-          docker run --rm ghcr.io/github/gh-aw-mcpg:v0.1.22 cat /guards/github/00-github-guard.wasm > guards/github-guard/github-guard-rust.wasm
+          # Build WASM guard from source (gitignored, needs Rust toolchain)
+          rustup target add wasm32-wasip1
+          cd guards/github-guard/rust-guard && ./build.sh && cd ../../..
           docker build . -t ghcr.io/github/gh-aw-mcpg:local
       - name: Start DIFC proxy for pre-agent gh calls
         env:
