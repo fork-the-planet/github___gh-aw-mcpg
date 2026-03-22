@@ -492,6 +492,8 @@ func TestIsGraphQLPath(t *testing.T) {
 	assert.True(t, IsGraphQLPath("/graphql/"))
 	assert.True(t, IsGraphQLPath("/api/v3/graphql"))
 	assert.True(t, IsGraphQLPath("/api/v3/graphql/"))
+	assert.True(t, IsGraphQLPath("/api/graphql"))
+	assert.True(t, IsGraphQLPath("/api/graphql/"))
 	assert.False(t, IsGraphQLPath("/repos/org/repo"))
 	assert.False(t, IsGraphQLPath("/user"))
 }

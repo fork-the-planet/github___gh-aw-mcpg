@@ -170,7 +170,9 @@ func extractOwnerRepo(variables map[string]interface{}, query string) (string, s
 }
 
 // IsGraphQLPath returns true if the request path is the GraphQL endpoint.
+// Accepts /graphql (after prefix strip), /api/v3/graphql (before strip),
+// and /api/graphql (GHES-style path used by gh CLI with GH_HOST).
 func IsGraphQLPath(path string) bool {
 	cleaned := strings.TrimSuffix(path, "/")
-	return cleaned == "/graphql" || cleaned == "/api/v3/graphql"
+	return cleaned == "/graphql" || cleaned == "/api/v3/graphql" || cleaned == "/api/graphql"
 }
