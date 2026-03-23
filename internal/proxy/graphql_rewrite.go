@@ -123,18 +123,14 @@ func injectIntoFragment(query, fragName, field string) string {
 	depth := 0
 	braceEnd := -1
 	for i := braceStart; i < len(query); i++ {
-		switch query[i] {
-		case '{':
+		if query[i] == '{' {
 			depth++
-		case '}':
+		} else if query[i] == '}' {
 			depth--
 			if depth == 0 {
 				braceEnd = i
 				break
 			}
-		}
-		if braceEnd != -1 {
-			break
 		}
 	}
 
