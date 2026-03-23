@@ -148,8 +148,9 @@ pub fn label_response_items(
                 for item in items_to_process.iter() {
                     let number = extract_resource_number(item, "pr", &arg_repo_full);
 
-                    // Get repo info from the PR's base or head
-                    let repo_full_name = item
+                    // Get repo info from the PR's base or head, with fallback to
+                    // extract_repo_from_item (parses repository_url, html_url, etc.)
+                    let base_head_repo = item
                         .get("base")
                         .and_then(|b| b.get("repo"))
                         .and_then(|r| r.get("full_name"))
@@ -161,6 +162,18 @@ pub fn label_response_items(
                                 .and_then(|v| v.as_str())
                         })
                         .unwrap_or("");
+                    let item_repo_fallback = if base_head_repo.is_empty() {
+                        extract_repo_from_item(item)
+                    } else {
+                        String::new()
+                    };
+                    let repo_full_name = if !base_head_repo.is_empty() {
+                        base_head_repo
+                    } else if !item_repo_fallback.is_empty() {
+                        &item_repo_fallback
+                    } else {
+                        &arg_repo_full
+                    };
                     let repo_private = repo_visibility_private_for_repo_id(repo_full_name)
                         .unwrap_or(default_repo_private);
 

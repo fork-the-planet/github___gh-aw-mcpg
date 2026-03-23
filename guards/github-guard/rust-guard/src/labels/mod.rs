@@ -2974,4 +2974,152 @@ mod tests {
         let items = label_response_items("list_issues", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 0, "GraphQL wrapper should not be treated as a single issue");
     }
+
+    // -------------------------------------------------------------------------
+    // URL-based number extraction fallback
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_extract_resource_number_direct() {
+        use super::helpers::extract_resource_number;
+        let item = json!({"number": 42});
+        assert_eq!(extract_resource_number(&item, "issue", "org/repo"), "42");
+    }
+
+    #[test]
+    fn test_extract_resource_number_from_html_url() {
+        use super::helpers::extract_resource_number;
+        let item = json!({
+            "html_url": "https://github.com/github/gh-aw-mcpg/issues/2093"
+        });
+        assert_eq!(
+            extract_resource_number(&item, "issue", "github/gh-aw-mcpg"),
+            "2093"
+        );
+    }
+
+    #[test]
+    fn test_extract_resource_number_from_api_url() {
+        use super::helpers::extract_resource_number;
+        let item = json!({
+            "url": "https://api.github.com/repos/github/gh-aw-mcpg/pulls/456"
+        });
+        assert_eq!(
+            extract_resource_number(&item, "pr", "github/gh-aw-mcpg"),
+            "456"
+        );
+    }
+
+    #[test]
+    fn test_extract_resource_number_prefers_number_field() {
+        use super::helpers::extract_resource_number;
+        let item = json!({
+            "number": 100,
+            "html_url": "https://github.com/org/repo/issues/999"
+        });
+        assert_eq!(extract_resource_number(&item, "issue", "org/repo"), "100");
+    }
+
+    #[test]
+    fn test_extract_resource_number_unknown_when_no_data() {
+        use super::helpers::extract_resource_number;
+        let item = json!({"title": "No number or URL"});
+        assert_eq!(
+            extract_resource_number(&item, "issue", "org/repo"),
+            "unknown"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // PR search result with repository_url fallback (response_items)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_search_pull_requests_items_repository_url_fallback() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        // Simulates a search PR result without base/head but with repository_url and html_url
+        let response = json!([{
+            "html_url": "https://github.com/github/gh-aw-mcpg/pull/2388",
+            "repository_url": "https://api.github.com/repos/github/gh-aw-mcpg",
+            "user": {"login": "lpcox"},
+            "author_association": "MEMBER"
+        }]);
+
+        let items =
+            label_response_items("search_pull_requests", &tool_args, &response, &ctx);
+        assert_eq!(items.len(), 1, "Should find 1 PR in search results");
+        assert_eq!(
+            items[0].labels.description,
+            "pr:github/gh-aw-mcpg#2388",
+            "Should extract repo from repository_url and number from html_url"
+        );
+        assert!(
+            items[0]
+                .labels
+                .integrity
+                .iter()
+                .any(|t| t.starts_with("approved")),
+            "MEMBER should get approved integrity, got: {:?}",
+            items[0].labels.integrity
+        );
+    }
+
+    #[test]
+    fn test_search_pull_requests_paths_repository_url_fallback() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        let response = json!({
+            "items": [{
+                "html_url": "https://github.com/github/gh-aw-mcpg/pull/2388",
+                "repository_url": "https://api.github.com/repos/github/gh-aw-mcpg",
+                "user": {"login": "lpcox"},
+                "author_association": "MEMBER"
+            }]
+        });
+
+        let labeled = label_response_paths("search_pull_requests", &tool_args, &response, &ctx)
+            .expect("search_pull_requests should produce path labels");
+
+        assert_eq!(labeled.labeled_paths.len(), 1);
+        assert_eq!(
+            labeled.labeled_paths[0].labels.description,
+            "pr:github/gh-aw-mcpg#2388",
+            "Should extract repo from repository_url and number from html_url"
+        );
+    }
+
+    #[test]
+    fn test_search_issues_url_number_fallback() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        // Issue without 'number' field but with html_url containing the number
+        let response = json!({
+            "items": [{
+                "html_url": "https://github.com/github/gh-aw-mcpg/issues/2093",
+                "repository_url": "https://api.github.com/repos/github/gh-aw-mcpg",
+                "user": {"login": "testuser"},
+                "author_association": "COLLABORATOR"
+            }]
+        });
+
+        let labeled = label_response_paths("search_issues", &tool_args, &response, &ctx)
+            .expect("search_issues should produce path labels");
+
+        assert_eq!(labeled.labeled_paths.len(), 1);
+        assert_eq!(
+            labeled.labeled_paths[0].labels.description,
+            "issue:github/gh-aw-mcpg#2093",
+            "Should extract number from html_url when number field is missing"
+        );
+        assert!(
+            labeled.labeled_paths[0]
+                .labels
+                .integrity
+                .iter()
+                .any(|t| t.starts_with("approved")),
+            "COLLABORATOR should get approved integrity, got: {:?}",
+            labeled.labeled_paths[0].labels.integrity
+        );
+    }
 }

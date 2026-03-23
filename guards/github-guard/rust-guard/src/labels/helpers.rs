@@ -8,18 +8,41 @@ use serde_json::Value;
 use super::constants::{field_names, label_constants};
 
 /// Extract a resource number from a JSON item, returning the number as a string.
-/// Returns "unknown" (with a log warning) if the number field is missing or invalid.
+/// Checks the `number` field first, then falls back to extracting the trailing
+/// number segment from `html_url` or `url` (e.g. `.../issues/123` → `123`).
+/// Returns "unknown" (with a log warning) if no number can be determined.
 pub(crate) fn extract_resource_number(item: &Value, resource_type: &str, repo: &str) -> String {
-    match item.get("number").and_then(|v| v.as_u64()) {
-        Some(n) => n.to_string(),
-        None => {
-            crate::log_warn(&format!(
-                "{}:{} — missing or invalid 'number' field, using 'unknown'",
-                resource_type, repo
-            ));
-            "unknown".to_string()
+    if let Some(n) = item.get("number").and_then(|v| v.as_u64()) {
+        return n.to_string();
+    }
+    // Fallback: extract trailing number from html_url or url
+    if let Some(n) = extract_number_from_url(item) {
+        crate::log_debug(&format!(
+            "{}:{} — extracted number {} from URL fallback",
+            resource_type, repo, n
+        ));
+        return n;
+    }
+    crate::log_warn(&format!(
+        "{}:{} — missing or invalid 'number' field, using 'unknown'",
+        resource_type, repo
+    ));
+    "unknown".to_string()
+}
+
+/// Extract a resource number from URL fields (html_url, url).
+/// Parses trailing number from paths like `.../issues/123` or `.../pull/456`.
+fn extract_number_from_url(item: &Value) -> Option<String> {
+    for field in &["html_url", "url"] {
+        if let Some(url) = item.get(field).and_then(|v| v.as_str()) {
+            if let Some(last) = url.rsplit('/').next() {
+                if let Ok(n) = last.parse::<u64>() {
+                    return Some(n.to_string());
+                }
+            }
         }
     }
+    None
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -972,16 +995,20 @@ pub fn pr_integrity(
     // individual PR via REST to obtain the correct association, fork status,
     // and merge status.
     if integrity.is_empty() && !has_author_association(item) && !repo_private {
-        if let Some(number) = item.get("number").and_then(|v| v.as_u64()) {
+        let number_opt = item
+            .get("number")
+            .and_then(|v| v.as_u64())
+            .map(|n| n.to_string())
+            .or_else(|| extract_number_from_url(item));
+        if let Some(number_str) = number_opt {
             let (owner, repo) = repo_full_name.split_once('/').unwrap_or(("", ""));
             if !owner.is_empty() && !repo.is_empty() {
-                let number_str = number.to_string();
                 if let Some(facts) =
                     super::backend::get_pull_request_facts(owner, repo, &number_str)
                 {
                     crate::log_debug(&format!(
                         "[integrity] pr:{}#{} enriched: author_association={:?}, is_forked={:?}, is_merged={}",
-                        repo_full_name, number, facts.author_association, facts.is_forked, facts.is_merged
+                        repo_full_name, number_str, facts.author_association, facts.is_forked, facts.is_merged
                     ));
                     let enriched_floor = author_association_floor_from_str(
                         repo_full_name,
@@ -1017,7 +1044,7 @@ pub fn pr_integrity(
                 } else {
                     crate::log_debug(&format!(
                         "[integrity] pr:{}#{} enrichment failed (backend returned None)",
-                        repo_full_name, number
+                        repo_full_name, number_str
                     ));
                 }
             }
@@ -1111,16 +1138,20 @@ pub fn issue_integrity(
     // individual issue via REST to obtain the correct value. This avoids
     // incorrectly assigning "none" integrity to members/collaborators.
     if integrity.is_empty() && !has_author_association(item) && !repo_private {
-        if let Some(number) = item.get("number").and_then(|v| v.as_u64()) {
+        let number_opt = item
+            .get("number")
+            .and_then(|v| v.as_u64())
+            .map(|n| n.to_string())
+            .or_else(|| extract_number_from_url(item));
+        if let Some(number_str) = number_opt {
             let (owner, repo) = repo_full_name.split_once('/').unwrap_or(("", ""));
             if !owner.is_empty() && !repo.is_empty() {
-                let number_str = number.to_string();
                 if let Some(association) =
                     super::backend::get_issue_author_association(owner, repo, &number_str)
                 {
                     crate::log_debug(&format!(
                         "[integrity] issue:{}#{} enriched author_association='{}'",
-                        repo_full_name, number, association
+                        repo_full_name, number_str, association
                     ));
                     // Re-check trusted bot status with enriched login
                     let enriched_floor =
@@ -1130,7 +1161,7 @@ pub fn issue_integrity(
                 } else {
                     crate::log_debug(&format!(
                         "[integrity] issue:{}#{} enrichment failed (backend returned None)",
-                        repo_full_name, number
+                        repo_full_name, number_str
                     ));
                 }
             }

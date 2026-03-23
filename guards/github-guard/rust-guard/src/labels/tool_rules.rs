@@ -8,10 +8,10 @@ use serde_json::Value;
 use super::constants::{field_names, SENSITIVE_FILE_KEYWORDS, SENSITIVE_FILE_PATTERNS};
 use super::helpers::{
     author_association_floor_from_str, ensure_integrity_baseline, extract_number_as_string,
-    extract_repo_info, extract_repo_info_from_search_query, is_default_branch_commit_context,
-    is_default_branch_ref, is_trusted_first_party_bot, max_integrity, merged_integrity,
-    policy_private_scope_label, private_user_label, project_github_label, reader_integrity,
-    secret_label, writer_integrity, PolicyContext,
+    extract_repo_info, extract_repo_info_from_search_query, format_repo_id,
+    is_default_branch_commit_context, is_default_branch_ref, is_trusted_first_party_bot,
+    max_integrity, merged_integrity, policy_private_scope_label, private_user_label,
+    project_github_label, reader_integrity, secret_label, writer_integrity, PolicyContext,
 };
 
 fn apply_repo_visibility_secrecy(
@@ -119,18 +119,26 @@ pub fn apply_tool_labels(
             }
         }
 
-        // Search issues: extract repo scope from query when available
+        // Search issues: extract repo scope from query or tool_args when available
         "search_issues" => {
             let query = tool_args
                 .get("query")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             let (q_owner, q_repo, q_repo_id) = extract_repo_info_from_search_query(query);
-            if !q_repo_id.is_empty() {
-                desc = format!("search_issues:{}", q_repo_id);
+            // Fall back to owner/repo from tool_args if query extraction fails
+            let (s_owner, s_repo, s_repo_id) = if !q_repo_id.is_empty() {
+                (q_owner, q_repo, q_repo_id)
+            } else if !owner.is_empty() && !repo.is_empty() {
+                (owner.clone(), repo.clone(), format_repo_id(&owner, &repo))
+            } else {
+                (String::new(), String::new(), String::new())
+            };
+            if !s_repo_id.is_empty() {
+                desc = format!("search_issues:{}", s_repo_id);
                 secrecy =
-                    apply_repo_visibility_secrecy(&q_owner, &q_repo, &q_repo_id, secrecy, ctx);
-                integrity = private_writer_integrity(&q_repo_id, repo_private, ctx);
+                    apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
+                integrity = private_writer_integrity(&s_repo_id, repo_private, ctx);
             } else {
                 integrity = vec![];
             }
@@ -222,18 +230,26 @@ pub fn apply_tool_labels(
             }
         }
 
-        // Search pull requests: extract repo scope from query when available
+        // Search pull requests: extract repo scope from query or tool_args when available
         "search_pull_requests" => {
             let query = tool_args
                 .get("query")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             let (q_owner, q_repo, q_repo_id) = extract_repo_info_from_search_query(query);
-            if !q_repo_id.is_empty() {
-                desc = format!("search_pull_requests:{}", q_repo_id);
+            // Fall back to owner/repo from tool_args if query extraction fails
+            let (s_owner, s_repo, s_repo_id) = if !q_repo_id.is_empty() {
+                (q_owner, q_repo, q_repo_id)
+            } else if !owner.is_empty() && !repo.is_empty() {
+                (owner.clone(), repo.clone(), format_repo_id(&owner, &repo))
+            } else {
+                (String::new(), String::new(), String::new())
+            };
+            if !s_repo_id.is_empty() {
+                desc = format!("search_pull_requests:{}", s_repo_id);
                 secrecy =
-                    apply_repo_visibility_secrecy(&q_owner, &q_repo, &q_repo_id, secrecy, ctx);
-                integrity = private_writer_integrity(&q_repo_id, repo_private, ctx);
+                    apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
+                integrity = private_writer_integrity(&s_repo_id, repo_private, ctx);
             } else {
                 integrity = vec![];
             }
