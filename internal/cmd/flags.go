@@ -90,6 +90,12 @@ func registerFlagCompletions(cmd *cobra.Command) {
 		return []string{"env"}, cobra.ShellCompDirectiveFilterFileExt
 	})
 
+	// Enum completions for DIFC flags
+	cmd.RegisterFlagCompletionFunc("guards-mode", cobra.FixedCompletions(
+		[]string{"strict", "filter", "propagate"}, cobra.ShellCompDirectiveNoFileComp))
+	cmd.RegisterFlagCompletionFunc("allowonly-min-integrity", cobra.FixedCompletions(
+		[]string{"none", "unapproved", "approved", "merged"}, cobra.ShellCompDirectiveNoFileComp))
+
 	// Add ActiveHelp for --config and --config-stdin flags
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		// Provide helpful tips when completing the command
