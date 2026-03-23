@@ -138,7 +138,10 @@ pub fn apply_tool_labels(
                 desc = format!("search_issues:{}", s_repo_id);
                 secrecy =
                     apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
-                integrity = private_writer_integrity(&s_repo_id, repo_private, ctx);
+                // Use the search query's repo for privacy check when tool_args lacks owner/repo
+                let search_repo_private = repo_private
+                    .or_else(|| super::backend::is_repo_private(&s_owner, &s_repo));
+                integrity = private_writer_integrity(&s_repo_id, search_repo_private, ctx);
             } else {
                 integrity = vec![];
             }
@@ -249,7 +252,10 @@ pub fn apply_tool_labels(
                 desc = format!("search_pull_requests:{}", s_repo_id);
                 secrecy =
                     apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
-                integrity = private_writer_integrity(&s_repo_id, repo_private, ctx);
+                // Use the search query's repo for privacy check when tool_args lacks owner/repo
+                let search_repo_private = repo_private
+                    .or_else(|| super::backend::is_repo_private(&s_owner, &s_repo));
+                integrity = private_writer_integrity(&s_repo_id, search_repo_private, ctx);
             } else {
                 integrity = vec![];
             }
