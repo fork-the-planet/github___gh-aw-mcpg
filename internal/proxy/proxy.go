@@ -12,6 +12,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -30,6 +32,53 @@ const (
 	// ghHostPathPrefix is the /api/v3/ prefix that gh adds when using GH_HOST.
 	ghHostPathPrefix = "/api/v3"
 )
+
+// DeriveGitHubAPIURL resolves the upstream GitHub API URL from environment
+// variables. Priority order:
+//  1. GITHUB_API_URL — explicit API endpoint (e.g. https://api.mycompany.ghe.com)
+//  2. GITHUB_SERVER_URL — auto-derive API endpoint from server URL:
+//     - https://mycompany.ghe.com  → https://api.mycompany.ghe.com
+//     - https://github.mycompany.com → https://github.mycompany.com/api/v3
+//     - https://github.com → https://api.github.com
+//  3. Returns empty string if no env vars are set (caller uses DefaultGitHubAPIBase)
+func DeriveGitHubAPIURL() string {
+	if apiURL := os.Getenv("GITHUB_API_URL"); apiURL != "" {
+		logProxy.Printf("GitHub API URL from GITHUB_API_URL: %s", apiURL)
+		return apiURL
+	}
+	if serverURL := os.Getenv("GITHUB_SERVER_URL"); serverURL != "" {
+		derived := deriveAPIFromServerURL(serverURL)
+		if derived != "" {
+			logProxy.Printf("GitHub API URL derived from GITHUB_SERVER_URL=%s: %s", serverURL, derived)
+			return derived
+		}
+	}
+	return ""
+}
+
+// deriveAPIFromServerURL converts a GITHUB_SERVER_URL to the corresponding API endpoint.
+// GHEC tenants (*.ghe.com): https://tenant.ghe.com → https://api.tenant.ghe.com
+// GitHub.com: https://github.com → https://api.github.com
+// GHES (all others): https://github.example.com → https://github.example.com/api/v3
+func deriveAPIFromServerURL(serverURL string) string {
+	parsed, err := url.Parse(strings.TrimRight(serverURL, "/"))
+	if err != nil || parsed.Host == "" {
+		return ""
+	}
+
+	host := strings.ToLower(parsed.Host)
+
+	switch {
+	case host == "github.com" || host == "www.github.com":
+		return DefaultGitHubAPIBase
+	case strings.HasSuffix(host, ".ghe.com"):
+		// GHEC tenant: api.<subdomain>.ghe.com
+		return fmt.Sprintf("%s://api.%s", parsed.Scheme, parsed.Host)
+	default:
+		// GHES: <host>/api/v3
+		return fmt.Sprintf("%s://%s/api/v3", parsed.Scheme, parsed.Host)
+	}
+}
 
 // Server is a filtering HTTP forward proxy for the GitHub REST/GraphQL API.
 // It loads the same WASM guard used by the MCP gateway and runs the 6-phase

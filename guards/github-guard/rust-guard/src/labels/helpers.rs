@@ -513,7 +513,7 @@ pub fn extract_repo_info_from_search_query(query: &str) -> (String, String, Stri
     (String::new(), String::new(), String::new())
 }
 
-fn extract_repo_from_github_url(url: &str) -> Option<String> {
+pub(crate) fn extract_repo_from_github_url(url: &str) -> Option<String> {
     let parse_owner_repo = |path: &str| {
         let mut parts = path.split('/').filter(|segment| !segment.is_empty());
         let owner = parts.next()?;
@@ -521,6 +521,7 @@ fn extract_repo_from_github_url(url: &str) -> Option<String> {
         Some(format!("{}/{}", owner, repo))
     };
 
+    // Fast path for well-known github.com URLs
     if let Some(path) = url
         .strip_prefix("https://api.github.com/repos/")
         .or_else(|| url.strip_prefix("http://api.github.com/repos/"))
@@ -528,6 +529,12 @@ fn extract_repo_from_github_url(url: &str) -> Option<String> {
         .or_else(|| url.strip_prefix("http://github.com/"))
     {
         return parse_owner_repo(path);
+    }
+
+    // Generic path: handle GHEC (api.*.ghe.com) and GHES (*/api/v3/repos/*)
+    // by looking for /repos/<owner>/<repo> in the URL path.
+    if let Some(pos) = url.find("/repos/") {
+        return parse_owner_repo(&url[pos + 7..]);
     }
 
     None

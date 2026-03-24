@@ -92,7 +92,7 @@ Local usage:
 	cmd.Flags().StringVarP(&proxyListen, "listen", "l", "127.0.0.1:8080", "Proxy listen address")
 	cmd.Flags().StringVar(&proxyLogDir, "log-dir", getDefaultLogDir(), "Log file directory")
 	cmd.Flags().StringVar(&proxyDIFCMode, "guards-mode", "filter", "DIFC enforcement mode: strict, filter, propagate")
-	cmd.Flags().StringVar(&proxyAPIURL, "github-api-url", proxy.DefaultGitHubAPIBase, "Upstream GitHub API URL")
+	cmd.Flags().StringVar(&proxyAPIURL, "github-api-url", "", "Upstream GitHub API URL (default: auto-derived from GITHUB_API_URL or GITHUB_SERVER_URL, falls back to https://api.github.com)")
 	cmd.Flags().BoolVar(&proxyTLS, "tls", false, "Enable HTTPS with auto-generated self-signed certificates")
 	cmd.Flags().StringVar(&proxyTLSDir, "tls-dir", "", "Directory for TLS certificates (default: <log-dir>/proxy-tls)")
 	cmd.Flags().StringSliceVar(&proxyTrustedBots, "trusted-bots", nil, "Additional trusted bot usernames (comma-separated, extends built-in list)")
@@ -144,12 +144,22 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		logger.LogInfo("startup", "No fallback token — proxy will forward client Authorization headers")
 	}
 
+	// Resolve GitHub API URL: flag → env vars → default
+	apiURL := proxyAPIURL
+	if apiURL == "" {
+		apiURL = proxy.DeriveGitHubAPIURL()
+	}
+	if apiURL == "" {
+		apiURL = proxy.DefaultGitHubAPIBase
+	}
+	logger.LogInfo("startup", "Upstream GitHub API URL: %s", apiURL)
+
 	// Create the proxy server
 	proxySrv, err := proxy.New(ctx, proxy.Config{
 		WasmPath:     proxyGuardWasm,
 		Policy:       proxyPolicy,
 		GitHubToken:  token,
-		GitHubAPIURL: proxyAPIURL,
+		GitHubAPIURL: apiURL,
 		DIFCMode:     proxyDIFCMode,
 		TrustedBots:  proxyTrustedBots,
 	})

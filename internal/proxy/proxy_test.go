@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
@@ -840,6 +841,112 @@ func TestUnwrapSingleObject(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := unwrapSingleObject(tt.original, tt.filtered)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestDeriveAPIFromServerURL(t *testing.T) {
+	tests := []struct {
+		name      string
+		serverURL string
+		expected  string
+	}{
+		{
+			name:      "github.com returns default",
+			serverURL: "https://github.com",
+			expected:  DefaultGitHubAPIBase,
+		},
+		{
+			name:      "github.com with trailing slash",
+			serverURL: "https://github.com/",
+			expected:  DefaultGitHubAPIBase,
+		},
+		{
+			name:      "GHEC tenant derives api subdomain",
+			serverURL: "https://mycompany.ghe.com",
+			expected:  "https://api.mycompany.ghe.com",
+		},
+		{
+			name:      "GHEC tenant with trailing slash",
+			serverURL: "https://mycompany.ghe.com/",
+			expected:  "https://api.mycompany.ghe.com",
+		},
+		{
+			name:      "GHES uses /api/v3 path",
+			serverURL: "https://github.mycompany.com",
+			expected:  "https://github.mycompany.com/api/v3",
+		},
+		{
+			name:      "GHES with port",
+			serverURL: "https://github.example.com:8443",
+			expected:  "https://github.example.com:8443/api/v3",
+		},
+		{
+			name:      "empty string",
+			serverURL: "",
+			expected:  "",
+		},
+		{
+			name:      "invalid URL",
+			serverURL: "not-a-url",
+			expected:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := deriveAPIFromServerURL(tt.serverURL)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestDeriveGitHubAPIURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		envVars  map[string]string
+		expected string
+	}{
+		{
+			name:     "no env vars returns empty",
+			envVars:  map[string]string{},
+			expected: "",
+		},
+		{
+			name:     "GITHUB_API_URL takes priority",
+			envVars:  map[string]string{"GITHUB_API_URL": "https://api.custom.ghe.com", "GITHUB_SERVER_URL": "https://other.ghe.com"},
+			expected: "https://api.custom.ghe.com",
+		},
+		{
+			name:     "GITHUB_SERVER_URL auto-derives GHEC",
+			envVars:  map[string]string{"GITHUB_SERVER_URL": "https://mycompany.ghe.com"},
+			expected: "https://api.mycompany.ghe.com",
+		},
+		{
+			name:     "GITHUB_SERVER_URL auto-derives GHES",
+			envVars:  map[string]string{"GITHUB_SERVER_URL": "https://github.example.com"},
+			expected: "https://github.example.com/api/v3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Save and clear relevant env vars
+			savedAPI := os.Getenv("GITHUB_API_URL")
+			savedServer := os.Getenv("GITHUB_SERVER_URL")
+			os.Unsetenv("GITHUB_API_URL")
+			os.Unsetenv("GITHUB_SERVER_URL")
+			defer func() {
+				os.Setenv("GITHUB_API_URL", savedAPI)
+				os.Setenv("GITHUB_SERVER_URL", savedServer)
+			}()
+
+			for k, v := range tt.envVars {
+				os.Setenv(k, v)
+			}
+
+			result := DeriveGitHubAPIURL()
 			assert.Equal(t, tt.expected, result)
 		})
 	}

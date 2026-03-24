@@ -3848,4 +3848,45 @@ mod tests {
             "item path must use /items/ prefix for REST format"
         );
     }
+
+    #[test]
+    fn test_extract_repo_from_github_url_ghec() {
+        // GHEC tenant URLs (api.<tenant>.ghe.com)
+        assert_eq!(
+            helpers::extract_repo_from_github_url("https://api.mycompany.ghe.com/repos/owner/repo/issues"),
+            Some("owner/repo".to_string())
+        );
+        assert_eq!(
+            helpers::extract_repo_from_github_url("https://api.mycompany.ghe.com/repos/owner/repo"),
+            Some("owner/repo".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_repo_from_github_url_ghes() {
+        // GHES URLs (host/api/v3/repos/...)
+        assert_eq!(
+            helpers::extract_repo_from_github_url("https://github.example.com/api/v3/repos/owner/repo/pulls"),
+            Some("owner/repo".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_repo_from_github_url_standard() {
+        // Standard github.com API URLs
+        assert_eq!(
+            helpers::extract_repo_from_github_url("https://api.github.com/repos/octocat/Hello-World/issues"),
+            Some("octocat/Hello-World".to_string())
+        );
+        // Standard github.com HTML URLs
+        assert_eq!(
+            helpers::extract_repo_from_github_url("https://github.com/octocat/Hello-World"),
+            Some("octocat/Hello-World".to_string())
+        );
+        // No match
+        assert_eq!(
+            helpers::extract_repo_from_github_url("https://example.com/no-repos-path"),
+            None
+        );
+    }
 }

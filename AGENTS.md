@@ -367,6 +367,8 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 ## Environment Variables
 
 - `GITHUB_PERSONAL_ACCESS_TOKEN` - GitHub auth
+- `GITHUB_API_URL` - Explicit GitHub API endpoint (e.g., `https://api.mycompany.ghe.com`); used by proxy to set upstream target
+- `GITHUB_SERVER_URL` - GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com`
 - `DOCKER_API_VERSION` - Set by querying Docker daemon's current API version; falls back to `1.44` for all architectures if detection fails
 - `DEBUG` - Enable debug logging (e.g., `DEBUG=*`, `DEBUG=server:*,launcher:*`)
 - `DEBUG_COLORS` - Control colored output (0 to disable, auto-disabled when piping)
