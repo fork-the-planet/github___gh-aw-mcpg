@@ -62,3 +62,15 @@ type AgentLabelsPayload struct {
 // RequestState represents any state that the guard needs to pass from request to response
 // This is useful when the guard needs to carry information from LabelResource to LabelResponse
 type RequestState interface{}
+
+// emptyAgentLabelsResult returns a LabelAgentResult with empty agent labels for the given DIFC mode.
+// Used by guards that do not contribute agent labels (e.g. NoopGuard, WriteSinkGuard).
+func emptyAgentLabelsResult(mode string) *LabelAgentResult {
+	return &LabelAgentResult{
+		Agent: AgentLabelsPayload{
+			Secrecy:   []string{},
+			Integrity: []string{},
+		},
+		DIFCMode: mode,
+	}
+}

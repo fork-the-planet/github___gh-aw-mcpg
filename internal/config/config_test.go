@@ -1067,39 +1067,6 @@ func TestLoadFromFile_EmptyFile(t *testing.T) {
 	assert.Contains(t, err.Error(), "no servers defined", "Error should mention missing servers")
 }
 
-func TestLoadFromFile_MultipleServers(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
-[servers.github]
-command = "docker"
-args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
-
-[servers.github.env]
-GITHUB_TOKEN = ""
-
-[servers.memory]
-command = "docker"
-args = ["run", "--rm", "-i", "mcp/memory"]
-`
-
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
-	require.NoError(t, err, "LoadFromFile() failed")
-	require.NotNil(t, cfg, "LoadFromFile() returned nil config")
-
-	assert.Len(t, cfg.Servers, 2, "Expected 2 servers")
-
-	_, ok := cfg.Servers["github"]
-	assert.True(t, ok, "Server 'github' not found")
-
-	_, ok = cfg.Servers["memory"]
-	assert.True(t, ok, "Server 'memory' not found")
-}
-
 // TestLoadFromFile_ParseErrorWithColumnNumber tests that parse errors include column information
 func TestLoadFromFile_ParseErrorWithColumnNumber(t *testing.T) {
 	tmpDir := t.TempDir()

@@ -70,13 +70,7 @@ func (g *WriteSinkGuard) Name() string {
 // labels — those are set by the primary guard (e.g., the GitHub WASM guard).
 func (g *WriteSinkGuard) LabelAgent(_ context.Context, _ interface{}, _ BackendCaller, _ *difc.Capabilities) (*LabelAgentResult, error) {
 	logWriteSink.Print("LabelAgent: returning empty labels (write-sink does not label agents)")
-	return &LabelAgentResult{
-		Agent: AgentLabelsPayload{
-			Secrecy:   []string{},
-			Integrity: []string{},
-		},
-		DIFCMode: difc.ModeFilter,
-	}, nil
+	return emptyAgentLabelsResult(difc.ModeFilter), nil
 }
 
 // LabelResource sets the resource's secrecy to the configured accept patterns
