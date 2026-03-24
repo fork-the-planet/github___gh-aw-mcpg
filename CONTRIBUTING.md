@@ -99,6 +99,14 @@ make test-serena          # Direct connection tests
 make test-serena-gateway  # Tests routed via the MCP Gateway
 ```
 
+#### Container Proxy Tests (Optional)
+Run container proxy integration tests (requires Docker and `gh` CLI or a `GITHUB_TOKEN`/`GH_TOKEN` environment variable):
+```bash
+make test-container-proxy
+```
+
+This target builds a Docker image and tests proxy mode with TLS. It requires a GitHub token available via the `gh` CLI (`gh auth login`) or the `GITHUB_TOKEN`/`GH_TOKEN` environment variable.
+
 ### Linting
 
 Run all linters (go vet, gofmt check, and golangci-lint):
@@ -162,6 +170,8 @@ cp ~/.codex/config.toml.bak ~/.codex/config.toml
 ### Testing with curl
 
 You can test the MCP server directly using curl commands:
+
+> **Note:** The examples below use port **3000**, which is the default when running the binary directly (`./awmg --config config.toml`). If you started the server with `./run.sh`, the default port is **8000** — update `MCP_URL` accordingly (e.g., `http://127.0.0.1:8000/mcp/github`).
 
 #### Without API Key (session tracking only)
 
@@ -385,6 +395,7 @@ The project uses:
 - `github.com/itchyny/gojq` - JQ schema processing
 - `github.com/santhosh-tekuri/jsonschema/v5` - JSON schema validation
 - `github.com/stretchr/testify` - Test assertions
+- `github.com/tetratelabs/wazero` - WASM runtime for executing WASM-based security guards
 - `golang.org/x/term` - Terminal detection
 - Standard library for JSON, HTTP, exec
 
