@@ -102,12 +102,20 @@ Local usage:
 		cmd.MarkFlagRequired("guard-wasm")
 	}
 
+	// Enum completions for proxy DIFC flag
+	cmd.RegisterFlagCompletionFunc("guards-mode", cobra.FixedCompletions(
+		[]string{"strict", "filter", "propagate"}, cobra.ShellCompDirectiveNoFileComp))
+
 	return cmd
 }
 
 func runProxy(cmd *cobra.Command, args []string) error {
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+
+	if err := ValidateDIFCMode(proxyDIFCMode); err != nil {
+		return fmt.Errorf("invalid --guards-mode flag: %w", err)
+	}
 
 	// Initialize loggers
 	if err := logger.InitFileLogger(proxyLogDir, "proxy.log"); err != nil {

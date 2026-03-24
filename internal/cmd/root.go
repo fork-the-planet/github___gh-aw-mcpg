@@ -47,7 +47,8 @@ var rootCmd = &cobra.Command{
 	Version: cliVersion,
 	Long: `MCPG is a proxy server for Model Context Protocol (MCP) servers.
 It provides routing, aggregation, and management of multiple MCP backend servers.`,
-	SilenceUsage:      true, // Don't show help on runtime errors
+	SilenceUsage:      true,  // Don't show help on runtime errors
+	SilenceErrors:     true,  // Prevent cobra from printing errors — Execute() caller handles display
 	PersistentPreRunE: preRun,
 	RunE:              run,
 	PersistentPostRun: postRun,
@@ -505,8 +506,6 @@ func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, w io.Writer
 	if err := encoder.Encode(outputConfig); err != nil {
 		return fmt.Errorf("failed to encode configuration: %w", err)
 	}
-	debugLog.Printf("Gateway config written successfully: serverCount=%d", len(servers))
-
 	debugLog.Printf("Gateway config written successfully: serverCount=%d", len(servers))
 
 	// Flush stdout buffer if it's a regular file
