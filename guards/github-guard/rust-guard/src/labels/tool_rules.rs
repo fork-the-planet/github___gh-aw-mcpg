@@ -574,6 +574,26 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
+        // === Copilot Spaces (org/user-scoped) ===
+        "get_copilot_space" | "list_copilot_spaces" => {
+            // Copilot Spaces are org-scoped; may contain private configuration or policies.
+            // S = private:user (conservative — spaces may reference private data)
+            // I = project:github (GitHub-controlled metadata)
+            secrecy = private_user_label();
+            baseline_scope = "github".to_string();
+            integrity = project_github_label(ctx);
+        }
+
+        // === GitHub Support Docs Search (public) ===
+        "github_support_docs_search" => {
+            // Public GitHub documentation search — no private data.
+            // S = public (empty)
+            // I = project:github (GitHub-curated content)
+            secrecy = vec![];
+            baseline_scope = "github".to_string();
+            integrity = project_github_label(ctx);
+        }
+
         _ => {
             // Default: inherit provided labels
         }

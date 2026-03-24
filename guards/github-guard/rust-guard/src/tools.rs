@@ -35,6 +35,14 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "unstar_repository",
     "label_write",
     "create_issue",
+    // Dynamically enables additional toolsets, expanding the agent's capability set
+    "enable_toolset",
+    // Pre-emptive entries for anticipated future MCP tools (no equivalent tool today)
+    "archive_repository", // gh repo archive
+    "transfer_issue",     // gh issue transfer
+    "enable_workflow",    // gh workflow enable
+    "disable_workflow",   // gh workflow disable
+    "set_secret",         // gh secret set
 ];
 
 /// Read-write operations that both read and modify data
@@ -54,6 +62,8 @@ pub const READ_WRITE_OPERATIONS: &[&str] = &[
 /// Check if a tool is a write operation
 pub fn is_write_operation(tool_name: &str) -> bool {
     WRITE_OPERATIONS.contains(&tool_name)
+        || is_lock_operation(tool_name)
+        || is_unlock_operation(tool_name)
 }
 
 /// Check if a tool is a read-write operation
@@ -79,4 +89,14 @@ pub fn is_update_operation(tool_name: &str) -> bool {
 /// Check if a tool is a create operation
 pub fn is_create_operation(tool_name: &str) -> bool {
     tool_name.starts_with("create_")
+}
+
+/// Check if a tool is a lock operation
+pub fn is_lock_operation(tool_name: &str) -> bool {
+    tool_name.starts_with("lock_")
+}
+
+/// Check if a tool is an unlock operation
+pub fn is_unlock_operation(tool_name: &str) -> bool {
+    tool_name.starts_with("unlock_")
 }

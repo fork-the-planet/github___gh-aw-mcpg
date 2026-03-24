@@ -2337,6 +2337,75 @@ mod tests {
         assert_eq!(integrity, writer_integrity("github/copilot", &ctx));
     }
 
+    // -------------------------------------------------------------------------
+    // Copilot Spaces: get_copilot_space
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_get_copilot_space() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github", "space_id": "space-abc123" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_copilot_space",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "get_copilot_space must carry private:user secrecy (org-scoped, may contain private config)");
+        assert_eq!(integrity, project_github_label(&ctx), "get_copilot_space must have project:github integrity — GitHub-controlled metadata");
+    }
+
+    // -------------------------------------------------------------------------
+    // Copilot Spaces: list_copilot_spaces
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_list_copilot_spaces() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": "github" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "list_copilot_spaces",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "list_copilot_spaces must carry private:user secrecy (lists spaces visible to authenticated user)");
+        assert_eq!(integrity, project_github_label(&ctx), "list_copilot_spaces must have project:github integrity — GitHub-controlled metadata");
+    }
+
+    // -------------------------------------------------------------------------
+    // Support Docs: github_support_docs_search
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_github_support_docs_search() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "query": "how to create a pull request" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "github_support_docs_search",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, vec![] as Vec<String>, "github_support_docs_search is public documentation — empty secrecy");
+        assert_eq!(integrity, project_github_label(&ctx), "github_support_docs_search must have project:github integrity — GitHub-curated content");
+    }
+
     // =========================================================================
     // label_response_items tests for new tools
     // =========================================================================
