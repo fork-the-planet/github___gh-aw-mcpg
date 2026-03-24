@@ -53,7 +53,6 @@ pub struct IssueAuthorInfo {
 /// - `Some(true)` if repository is private
 /// - `Some(false)` if repository is public
 /// - `None` if visibility could not be determined
-#[allow(dead_code)]
 pub fn is_repo_private(owner: &str, repo: &str) -> Option<bool> {
     is_repo_private_with_callback(crate::invoke_backend, owner, repo)
 }
@@ -357,7 +356,6 @@ pub fn get_pull_request_facts_with_callback(
 }
 
 /// Fetch issue author_association value for resource-level initialization.
-#[allow(dead_code)]
 pub fn get_issue_author_association_with_callback(
     callback: GithubMcpCallback,
     owner: &str,
@@ -402,7 +400,6 @@ pub fn get_pull_request_facts(
     get_pull_request_facts_with_callback(crate::invoke_backend, owner, repo, pull_number)
 }
 
-#[allow(dead_code)]
 pub fn get_issue_author_association(owner: &str, repo: &str, issue_number: &str) -> Option<String> {
     get_issue_author_association_with_callback(crate::invoke_backend, owner, repo, issue_number)
 }
