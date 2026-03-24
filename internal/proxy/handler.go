@@ -463,8 +463,13 @@ func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCol
 	if !ok {
 		return map[string]interface{}{"data": nil}
 	}
-	data, ok := original["data"]
-	if !ok {
+	if _, ok := original["data"]; !ok {
+		return map[string]interface{}{"data": nil}
+	}
+
+	// If all items were filtered out, return {"data": null} to avoid leaking
+	// the original response through non-collection fields (e.g., viewer).
+	if filtered.GetAccessibleCount() == 0 {
 		return map[string]interface{}{"data": nil}
 	}
 
@@ -477,14 +482,17 @@ func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCol
 		accessibleItems = append(accessibleItems, item.Data)
 	}
 
-	// Walk the cloned structure and replace nodes/edges arrays
+	// Walk the cloned structure and replace nodes/edges arrays.
+	// If no nodes/edges found, return {"data": null} to prevent leaking
+	// non-collection data (e.g., viewer { login }).
 	if clonedMap, ok := cloned.(map[string]interface{}); ok {
 		if clonedData, ok := clonedMap["data"]; ok {
-			replaceNodesArray(clonedData, accessibleItems)
+			if !replaceNodesArray(clonedData, accessibleItems) {
+				return map[string]interface{}{"data": nil}
+			}
 		}
 	}
 
-	_ = data // suppress unused warning
 	return cloned
 }
 

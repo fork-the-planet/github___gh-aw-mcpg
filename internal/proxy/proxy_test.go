@@ -697,6 +697,39 @@ func TestRebuildGraphQLResponse(t *testing.T) {
 		m := result.(map[string]interface{})
 		assert.Nil(t, m["data"])
 	})
+
+	t.Run("returns data null when all items filtered", func(t *testing.T) {
+		original := map[string]interface{}{
+			"data": map[string]interface{}{
+				"viewer": map[string]interface{}{
+					"login": "octocat",
+				},
+			},
+		}
+		filtered := &difc.FilteredCollectionLabeledData{
+			Accessible: nil,
+			Filtered:   []difc.FilteredItemDetail{{Item: difc.LabeledItem{Data: map[string]interface{}{"login": "octocat"}}}},
+		}
+		result := rebuildGraphQLResponse(original, filtered)
+		m := result.(map[string]interface{})
+		assert.Nil(t, m["data"])
+	})
+
+	t.Run("returns data null when no nodes or edges found", func(t *testing.T) {
+		original := map[string]interface{}{
+			"data": map[string]interface{}{
+				"viewer": map[string]interface{}{
+					"login": "octocat",
+				},
+			},
+		}
+		filtered := &difc.FilteredCollectionLabeledData{
+			Accessible: []difc.LabeledItem{{Data: map[string]interface{}{"login": "octocat"}}},
+		}
+		result := rebuildGraphQLResponse(original, filtered)
+		m := result.(map[string]interface{})
+		assert.Nil(t, m["data"])
+	})
 }
 
 func TestDeepCloneJSON(t *testing.T) {

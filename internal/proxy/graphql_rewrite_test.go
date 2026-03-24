@@ -85,6 +85,23 @@ func TestInjectGuardFields_HandlesIssues(t *testing.T) {
 	assert.Contains(t, gql.Query, "authorAssociation")
 }
 
+func TestInjectGuardFields_InjectsIntoInlineFragment(t *testing.T) {
+	// Search queries use union types with inline fragments; fields must go
+	// inside the inline fragment, not directly on the nodes level.
+	query := `query { search(query:"repo:o/r is:issue", type:ISSUE, first:3) { issueCount nodes { ... on Issue { number title } } } }`
+	body, _ := json.Marshal(GraphQLRequest{Query: query})
+
+	result := InjectGuardFields(body, "search_issues")
+
+	var gql GraphQLRequest
+	require.NoError(t, json.Unmarshal(result, &gql))
+	assert.Contains(t, gql.Query, "author{login}")
+	assert.Contains(t, gql.Query, "authorAssociation")
+	// Fields must be inside the inline fragment, not before it
+	assert.Contains(t, gql.Query, "... on Issue {author{login},authorAssociation,")
+	assert.Contains(t, gql.Query, "number")
+}
+
 func TestInjectGuardFields_PreservesVariables(t *testing.T) {
 	query := `query($owner:String!,$repo:String!) { repository(owner:$owner, name:$repo) { pullRequests(first:10) { nodes { number } } } }`
 	vars := map[string]interface{}{"owner": "github", "repo": "gh-aw-mcpg"}

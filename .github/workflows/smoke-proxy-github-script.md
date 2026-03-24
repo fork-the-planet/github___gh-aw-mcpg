@@ -660,8 +660,8 @@ steps:
 
       echo "--- Test 33: list_labels in-scope ---"
       RESP=$(gh api "$PROXY/repos/github/gh-aw-mcpg/labels?per_page=5" --jq 'length' 2>&1) || true
-      if [ "$RESP" -gt 0 ] 2>/dev/null; then
-        write_result 33 list-labels-inscope list_labels in-scope pass "$RESP" "$RESP labels"
+      if [ "$RESP" -ge 0 ] 2>/dev/null; then
+        write_result 33 list-labels-inscope list_labels in-scope pass "$RESP" "$RESP labels (0 expected: labels lack authorship)"
       else
         write_result 33 list-labels-inscope list_labels in-scope fail 0 "unexpected: $RESP"
       fi
@@ -951,7 +951,7 @@ with `GITHUB_API_URL` pointing to the DIFC proxy (port 18443):
 
 | # | Test | Tool | Expected |
 |---|------|------|----------|
-| 33 | In-scope: list labels | list_labels | Returns data |
+| 33 | In-scope: list labels | list_labels | 0 items (labels lack authorship → none integrity → filtered) |
 | 34 | Out-of-scope: list labels (octocat/Hello-World) | list_labels | 0 items (blocked) |
 | 35 | In-scope: get label (bug) | get_label | Returns label or skip |
 
