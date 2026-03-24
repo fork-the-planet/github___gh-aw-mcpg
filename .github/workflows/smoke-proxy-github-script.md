@@ -23,6 +23,7 @@ network:
     - defaults
     - github
     - github.com
+    - rust
 tools:
   agentic-workflows:
   cache-memory: true
@@ -44,9 +45,23 @@ sandbox:
   mcp:
     container: "ghcr.io/github/gh-aw-mcpg"
 steps:
-  # ── Pull the gateway container image ───────────────────────────────
-  - name: Pull MCP Gateway image
-    run: docker pull ghcr.io/github/gh-aw-mcpg:v0.2.2
+  # ── Build the gateway container image from source ──────────────────
+  - name: Build MCP Gateway image
+    run: |
+      # Install Rust and WASM target if not present
+      if ! command -v rustup &>/dev/null; then
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+        source "$HOME/.cargo/env"
+      fi
+      rustup target add wasm32-wasip1
+
+      # Build the Rust WASM guard (required by Dockerfile)
+      cd guards/github-guard/rust-guard
+      bash build.sh
+      cd ../../..
+
+      # Build Docker image
+      docker build -t awmg-local:latest .
 
   # ── Start the DIFC proxy ──────────────────────────────────────────
   - name: Start DIFC proxy
@@ -66,7 +81,7 @@ steps:
         -e DEBUG='*' \
         -v "$PROXY_LOG_DIR:$PROXY_LOG_DIR" \
         -v "$MCP_LOG_DIR:$MCP_LOG_DIR" \
-        ghcr.io/github/gh-aw-mcpg:v0.2.2 proxy \
+        awmg-local:latest proxy \
           --policy "$POLICY" \
           --listen 0.0.0.0:18443 \
           --log-dir "$MCP_LOG_DIR" \
@@ -393,7 +408,7 @@ Pre-agent steps ran 6 tests through `actions/github-script@v8` with
 ## Proxy + github-script Smoke Test Results
 
 **Policy**: repos=["github/gh-aw-mcpg"], min-integrity=approved
-**Proxy**: ghcr.io/github/gh-aw-mcpg:v0.2.2, port 18443, HTTP, filter mode
+**Proxy**: awmg-local:latest (built from source), port 18443, HTTP, filter mode
 **Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 ### REST API Tests

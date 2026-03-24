@@ -105,6 +105,11 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		toolName = match.ToolName
 		args = match.Args
+
+		// Pass search query parameter so the guard can scope integrity labels
+		if q := r.URL.Query().Get("q"); q != "" {
+			args["query"] = q
+		}
 	}
 
 	// Run the DIFC pipeline
@@ -249,12 +254,10 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			if graphQLBody != nil && filtered.GetFilteredCount() == 0 {
 				useOriginalBody = true
 			} else if graphQLBody != nil {
-				// GraphQL with filtered items: return valid empty GraphQL response
-				// (ToResult returns an array which breaks gh CLI's GraphQL parser)
-				logHandler.Printf("[DIFC] GraphQL response: %d/%d items filtered, returning empty GraphQL response",
+				// GraphQL with filtered items: reconstruct the response with only accessible items
+				logHandler.Printf("[DIFC] GraphQL response: %d/%d items filtered, reconstructing response",
 					filtered.GetFilteredCount(), filtered.TotalCount)
-				h.writeEmptyResponse(w, resp, responseData)
-				return
+				finalData = rebuildGraphQLResponse(responseData, filtered)
 			} else {
 				finalData, err = filtered.ToResult()
 				if err != nil {
@@ -262,6 +265,8 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 					h.writeEmptyResponse(w, resp, responseData)
 					return
 				}
+				// Re-wrap search responses to preserve the envelope
+				finalData = rewrapSearchResponse(responseData, finalData)
 			}
 		} else {
 			// Simple labeled data — already passed coarse check
@@ -372,8 +377,8 @@ func (h *proxyHandler) writeEmptyResponse(w http.ResponseWriter, resp *http.Resp
 
 // copyResponseHeaders copies relevant headers from upstream to the client response.
 func copyResponseHeaders(w http.ResponseWriter, resp *http.Response) {
-	// Copy rate limit headers
 	for _, h := range []string{
+		"Content-Type",
 		"X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset",
 		"X-RateLimit-Resource", "X-RateLimit-Used",
 		"Link", // pagination
@@ -390,4 +395,114 @@ func truncateForLog(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+// rewrapSearchResponse re-wraps filtered items into the original search response
+// envelope. GitHub search endpoints return {"total_count": N, "items": [...]};
+// ToResult() returns a bare array, so we rebuild the wrapper.
+func rewrapSearchResponse(originalData interface{}, filteredItems interface{}) interface{} {
+	original, ok := originalData.(map[string]interface{})
+	if !ok {
+		return filteredItems
+	}
+	// Detect search response wrapper (has total_count + items/repositories)
+	if _, hasTotalCount := original["total_count"]; !hasTotalCount {
+		return filteredItems
+	}
+	items, ok := filteredItems.([]interface{})
+	if !ok {
+		return filteredItems
+	}
+	// Rebuild the search wrapper with filtered items
+	result := make(map[string]interface{})
+	for k, v := range original {
+		result[k] = v
+	}
+	// Replace items key — search can use "items", "repositories", etc.
+	for _, key := range []string{"items", "repositories"} {
+		if _, ok := original[key]; ok {
+			result[key] = items
+			break
+		}
+	}
+	result["total_count"] = float64(len(items))
+	result["incomplete_results"] = false
+	return result
+}
+
+// rebuildGraphQLResponse reconstructs a GraphQL response with only accessible
+// items, preserving the {"data": {...}} envelope that clients expect.
+func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCollectionLabeledData) interface{} {
+	original, ok := originalData.(map[string]interface{})
+	if !ok {
+		return map[string]interface{}{"data": nil}
+	}
+	data, ok := original["data"]
+	if !ok {
+		return map[string]interface{}{"data": nil}
+	}
+
+	// Deep-clone the original data structure
+	cloned := deepCloneJSON(original)
+
+	// Build accessible items set
+	accessibleItems := make([]interface{}, 0, len(filtered.Accessible))
+	for _, item := range filtered.Accessible {
+		accessibleItems = append(accessibleItems, item.Data)
+	}
+
+	// Walk the cloned structure and replace nodes/edges arrays
+	if clonedMap, ok := cloned.(map[string]interface{}); ok {
+		if clonedData, ok := clonedMap["data"]; ok {
+			replaceNodesArray(clonedData, accessibleItems)
+		}
+	}
+
+	_ = data // suppress unused warning
+	return cloned
+}
+
+// replaceNodesArray walks a JSON tree and replaces the first "nodes" or "edges"
+// array with the given items, and updates any adjacent "totalCount".
+func replaceNodesArray(v interface{}, items []interface{}) bool {
+	obj, ok := v.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	for _, key := range []string{"nodes", "edges"} {
+		if _, ok := obj[key]; ok {
+			obj[key] = items
+			if _, ok := obj["totalCount"]; ok {
+				obj["totalCount"] = float64(len(items))
+			}
+			return true
+		}
+	}
+	// Recurse into child objects
+	for _, child := range obj {
+		if replaceNodesArray(child, items) {
+			return true
+		}
+	}
+	return false
+}
+
+// deepCloneJSON creates a deep copy of a JSON-compatible value.
+func deepCloneJSON(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		clone := make(map[string]interface{}, len(val))
+		for k, v := range val {
+			clone[k] = deepCloneJSON(v)
+		}
+		return clone
+	case []interface{}:
+		clone := make([]interface{}, len(val))
+		for i, v := range val {
+			clone[i] = deepCloneJSON(v)
+		}
+		return clone
+	default:
+		return v
+	}
 }

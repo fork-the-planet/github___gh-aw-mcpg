@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -626,8 +627,88 @@ func TestCopyResponseHeaders(t *testing.T) {
 			"Authorization":   []string{"token abc"},
 		}}
 		copyResponseHeaders(w, resp)
-		assert.Empty(t, w.Header().Get("Content-Type"))
+		assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 		assert.Empty(t, w.Header().Get("X-Custom-Header"))
 		assert.Empty(t, w.Header().Get("Authorization"))
 	})
+}
+
+func TestRewrapSearchResponse(t *testing.T) {
+	t.Run("rewraps search items", func(t *testing.T) {
+		original := map[string]interface{}{
+			"total_count":        float64(10),
+			"incomplete_results": true,
+			"items":              []interface{}{"a", "b", "c"},
+		}
+		filtered := []interface{}{"a", "b"}
+		result := rewrapSearchResponse(original, filtered)
+		m := result.(map[string]interface{})
+		assert.Equal(t, float64(2), m["total_count"])
+		assert.Equal(t, false, m["incomplete_results"])
+		assert.Len(t, m["items"].([]interface{}), 2)
+	})
+
+	t.Run("passes through non-search responses", func(t *testing.T) {
+		original := []interface{}{"a", "b"}
+		filtered := []interface{}{"a"}
+		result := rewrapSearchResponse(original, filtered)
+		assert.Equal(t, filtered, result)
+	})
+
+	t.Run("passes through non-wrapper objects", func(t *testing.T) {
+		original := map[string]interface{}{"name": "test"}
+		filtered := []interface{}{"a"}
+		result := rewrapSearchResponse(original, filtered)
+		assert.Equal(t, filtered, result)
+	})
+}
+
+func TestRebuildGraphQLResponse(t *testing.T) {
+	t.Run("replaces nodes array", func(t *testing.T) {
+		original := map[string]interface{}{
+			"data": map[string]interface{}{
+				"repository": map[string]interface{}{
+					"issues": map[string]interface{}{
+						"totalCount": float64(5),
+						"nodes":      []interface{}{"a", "b", "c", "d", "e"},
+					},
+				},
+			},
+		}
+
+		filtered := &difc.FilteredCollectionLabeledData{
+			Accessible: []difc.LabeledItem{
+				{Data: "a"},
+				{Data: "b"},
+			},
+		}
+
+		result := rebuildGraphQLResponse(original, filtered)
+		m := result.(map[string]interface{})
+		data := m["data"].(map[string]interface{})
+		repo := data["repository"].(map[string]interface{})
+		issues := repo["issues"].(map[string]interface{})
+		assert.Equal(t, float64(2), issues["totalCount"])
+		assert.Len(t, issues["nodes"].([]interface{}), 2)
+	})
+
+	t.Run("returns data null for non-map", func(t *testing.T) {
+		result := rebuildGraphQLResponse("not a map", nil)
+		m := result.(map[string]interface{})
+		assert.Nil(t, m["data"])
+	})
+}
+
+func TestDeepCloneJSON(t *testing.T) {
+	original := map[string]interface{}{
+		"a": []interface{}{float64(1), float64(2)},
+		"b": map[string]interface{}{"c": "d"},
+	}
+	cloned := deepCloneJSON(original)
+	// Mutate original
+	original["a"].([]interface{})[0] = float64(99)
+	original["b"].(map[string]interface{})["c"] = "mutated"
+	// Clone should be unaffected
+	assert.Equal(t, float64(1), cloned.(map[string]interface{})["a"].([]interface{})[0])
+	assert.Equal(t, "d", cloned.(map[string]interface{})["b"].(map[string]interface{})["c"])
 }
