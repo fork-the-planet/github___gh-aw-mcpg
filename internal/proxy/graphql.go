@@ -123,6 +123,14 @@ func MatchGraphQL(body []byte) *GraphQLRouteMatch {
 		args["repo"] = repo
 	}
 
+	// For search queries, extract the "query" argument (contains repo:owner/name)
+	// so the guard can determine the repo scope.
+	if toolName == "search_issues" || toolName == "search_code" {
+		if q := extractSearchQuery(gql.Query, gql.Variables); q != "" {
+			args["query"] = q
+		}
+	}
+
 	logGraphQL.Printf("matched GraphQL → tool=%s owner=%s repo=%s", toolName, owner, repo)
 	return &GraphQLRouteMatch{
 		ToolName: toolName,
@@ -174,6 +182,25 @@ func extractOwnerRepo(variables map[string]interface{}, query string) (string, s
 	}
 
 	return owner, repo
+}
+
+// searchQueryArgPattern extracts the literal query string from search(query:"...", ...)
+var searchQueryArgPattern = regexp.MustCompile(`(?i)\bsearch\s*\(\s*query\s*:\s*"([^"]+)"`)
+
+// extractSearchQuery returns the search query argument from a GraphQL search
+// query. It checks variables ($query) first, then inline query text.
+func extractSearchQuery(query string, variables map[string]interface{}) string {
+	// Check variables for $query
+	if variables != nil {
+		if v, ok := variables["query"].(string); ok && v != "" {
+			return v
+		}
+	}
+	// Parse inline: search(query:"repo:owner/name is:issue", ...)
+	if m := searchQueryArgPattern.FindStringSubmatch(query); m != nil {
+		return m[1]
+	}
+	return ""
 }
 
 // IsGraphQLPath returns true if the request path is the GraphQL endpoint.

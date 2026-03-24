@@ -869,13 +869,15 @@ safe-outputs:
 timeout-minutes: 15
 ---
 
-# Smoke Test: DIFC Proxy with actions/github-script
+# Smoke Test: DIFC Proxy and MCP Gateway
 
-**Goal**: Validate that the MCP Gateway proxy applies DIFC integrity filtering
-to `actions/github-script` (octokit) API calls and `gh` CLI calls, covering
-all 25 unique proxy tool name mappings across REST and GraphQL routes.
+**Goal**: Validate that the MCP Gateway applies DIFC integrity filtering in
+both **proxy mode** (intercepting `actions/github-script` and `gh` CLI calls)
+and **gateway mode** (processing MCP tool calls). This covers all 25 unique
+proxy tool name mappings across REST and GraphQL routes, plus the equivalent
+MCP tool calls through the gateway.
 
-## What Was Tested
+## Part A: Proxy Mode Tests (Pre-Run)
 
 Pre-agent steps ran 47 tests through `actions/github-script@v8` and `gh` CLI
 with `GITHUB_API_URL` pointing to the DIFC proxy (port 18443):
@@ -1102,6 +1104,91 @@ with `GITHUB_API_URL` pointing to the DIFC proxy (port 18443):
 
 3. **Check DIFC summary**: Note how many items were filtered and total RPC messages
 
+## Part B: MCP Gateway Tool Call Tests (Agent-Executed)
+
+You have access to GitHub MCP tools through the gateway. Execute the following
+MCP tool calls to verify DIFC filtering works in gateway mode. The gateway is
+configured with the same policy: `repos=["github/gh-aw-mcpg"], min-integrity=approved`.
+
+### B1: In-scope repository tests (github/gh-aw-mcpg)
+
+Execute each call and record: tool name, result count or data summary, pass/fail.
+
+1. **list_issues** — owner=github, repo=gh-aw-mcpg, perPage=5
+   PASS: returns issues with valid data
+
+2. **get_file_contents** — owner=github, repo=gh-aw-mcpg, path=README.md
+   PASS: returns file content
+
+3. **list_pull_requests** — owner=github, repo=gh-aw-mcpg, perPage=5
+   PASS: returns PR data
+
+4. **list_commits** — owner=github, repo=gh-aw-mcpg, perPage=5
+   PASS: returns commits
+
+5. **search_code** — query="repo:github/gh-aw-mcpg filename:README", perPage=3
+   PASS: returns search results
+
+6. **list_branches** — owner=github, repo=gh-aw-mcpg, perPage=5
+   PASS: returns branches
+
+7. **search_issues** — query="repo:github/gh-aw-mcpg is:open", perPage=3
+   PASS: returns search results
+
+8. **list_tags** — owner=github, repo=gh-aw-mcpg, perPage=5
+   PASS or empty (tags may not exist)
+
+9. **list_releases** — owner=github, repo=gh-aw-mcpg, perPage=3
+   PASS or empty (releases may not exist)
+
+10. **get_me** — no arguments
+    Expected: blocked or empty (repo-only mode rejects user queries)
+
+### B2: Out-of-scope repository tests (octocat/Hello-World)
+
+Execute each call and verify the gateway blocks access to out-of-scope repos:
+
+11. **list_issues** — owner=octocat, repo=Hello-World, perPage=5
+    PASS: 0 items returned or blocked
+
+12. **get_file_contents** — owner=octocat, repo=Hello-World, path=README
+    PASS: blocked or error (out-of-scope)
+
+13. **list_pull_requests** — owner=octocat, repo=Hello-World, perPage=5
+    PASS: 0 items returned or blocked
+
+14. **list_commits** — owner=octocat, repo=Hello-World, perPage=5
+    PASS: 0 items returned or blocked
+
+15. **search_code** — query="repo:octocat/Hello-World README", perPage=3
+    PASS: 0 results or blocked
+
+### B3: Cross-validation with proxy results
+
+After executing MCP calls, compare with proxy test results:
+- Do in-scope calls return the same or similar data in both modes?
+- Are out-of-scope calls consistently blocked in both modes?
+- Note any discrepancies (they indicate bugs in either proxy or gateway mode)
+
+### B4: Additional MCP tool calls (if issue/PR data discovered)
+
+If in-scope tests returned issue or PR numbers, also test:
+
+16. **issue_read** — read a specific issue from github/gh-aw-mcpg (use number from list_issues)
+    PASS: returns issue details
+
+17. **pull_request_read** — read a specific PR from github/gh-aw-mcpg (use number from list_pull_requests)
+    PASS: returns PR details
+
+18. **issue_read** — read an issue from octocat/Hello-World (use issue #1)
+    PASS: blocked (out-of-scope)
+
+19. **search_repositories** — query="github-guard", perPage=3
+    Expected: blocked or empty (global search blocked in repo-only mode)
+
+20. **search_users** — query="octocat", perPage=3
+    Expected: blocked or empty (user search blocked in repo-only mode)
+
 4. **Create an issue** with the results using this format:
 
 ```
@@ -1215,16 +1302,57 @@ with `GITHUB_API_URL` pointing to the DIFC proxy (port 18443):
 - **REST routes tested**: [N]
 - **GraphQL patterns tested**: [N]
 
+### MCP Gateway Tool Call Results
+
+#### B1: In-scope (github/gh-aw-mcpg)
+| # | Tool | Result | Status |
+|---|------|--------|--------|
+| B1 | list_issues | [count] | ✅/❌ |
+| B2 | get_file_contents | [result] | ✅/❌ |
+| B3 | list_pull_requests | [count] | ✅/❌ |
+| B4 | list_commits | [count] | ✅/❌ |
+| B5 | search_code | [count] | ✅/❌ |
+| B6 | list_branches | [count] | ✅/❌ |
+| B7 | search_issues | [count] | ✅/❌ |
+| B8 | list_tags | [count] | ✅/❌/⏭️ |
+| B9 | list_releases | [count] | ✅/❌/⏭️ |
+| B10 | get_me | [result] | ✅/❌ |
+
+#### B2: Out-of-scope (octocat/Hello-World)
+| # | Tool | Result | Status |
+|---|------|--------|--------|
+| B11 | list_issues | [result] | ✅/❌ |
+| B12 | get_file_contents | [result] | ✅/❌ |
+| B13 | list_pull_requests | [result] | ✅/❌ |
+| B14 | list_commits | [result] | ✅/❌ |
+| B15 | search_code | [result] | ✅/❌ |
+
+#### B4: Additional (if data discovered)
+| # | Tool | Result | Status |
+|---|------|--------|--------|
+| B16 | issue_read (in-scope) | [result] | ✅/❌/⏭️ |
+| B17 | pull_request_read (in-scope) | [result] | ✅/❌/⏭️ |
+| B18 | issue_read (out-of-scope) | [result] | ✅/❌ |
+| B19 | search_repositories | [result] | ✅/❌ |
+| B20 | search_users | [result] | ✅/❌ |
+
+### Cross-Validation: Proxy vs Gateway
+[Note any discrepancies between proxy mode (tests 1-47) and MCP gateway mode (B1-B20)]
+
 ### Conclusion
-- **In-scope access works**: ✅/❌ (tests 1, 3, 5, 7, 9, 11-13, 15-17, 19-23, 25-26, 28, 30, 33, 35-37, 39, 41-43, 45)
-- **Out-of-scope blocked**: ✅/❌ (tests 2, 4, 8, 10, 14, 18, 24, 27, 29, 31, 34, 46, 47)
-- **Global endpoints blocked**: ✅/❌ (tests 38, 44)
+- **Proxy in-scope access**: ✅/❌ (tests 1, 3, 5, 7, 9, 11-13, 15-17, 19-23, 25-26, 28, 30, 33, 35-37, 39, 41-43, 45)
+- **Proxy out-of-scope blocked**: ✅/❌ (tests 2, 4, 8, 10, 14, 18, 24, 27, 29, 31, 34, 46, 47)
+- **Proxy global blocked**: ✅/❌ (tests 38, 44)
 - **Bot integrity preserved**: ✅/❌ (test 6)
 - **github-script routing**: ✅/❌ (tests 1-6 via base-url)
 - **gh CLI routing**: ✅/❌ (tests 7-47 via GH_HOST)
+- **MCP gateway in-scope**: ✅/❌ (B1-B9)
+- **MCP gateway out-of-scope**: ✅/❌ (B11-B15, B18)
+- **MCP gateway global blocked**: ✅/❌ (B10, B19, B20)
+- **Proxy/Gateway consistency**: ✅/❌ (cross-validation)
 - **Overall**: ✅ PASS / ❌ FAIL
 
-[Brief explanation of what this proves about proxy route coverage and DIFC filtering]
+[Brief explanation of what this proves about DIFC filtering across proxy and gateway modes]
 ```
 
 **Only if triggered by pull_request**: Also add a brief comment to the PR.

@@ -498,6 +498,43 @@ func TestMatchGraphQL_ExtractsOwnerRepo(t *testing.T) {
 	}
 }
 
+func TestMatchGraphQL_ExtractsSearchQuery(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantQuery string
+	}{
+		{
+			name:      "inline search query",
+			body:      `{"query":"query { search(query:\"repo:github/gh-aw-mcpg is:issue\", type:ISSUE, first:3) { issueCount nodes { ... on Issue { number } } } }"}`,
+			wantQuery: "repo:github/gh-aw-mcpg is:issue",
+		},
+		{
+			name:      "variable search query",
+			body:      `{"query":"query($q: String!) { search(query: $q, type:ISSUE, first:3) { issueCount } }","variables":{"query":"repo:org/repo is:pr"}}`,
+			wantQuery: "repo:org/repo is:pr",
+		},
+		{
+			name:      "no search query for non-search tool",
+			body:      `{"query":"query { repository(owner:\"github\", name:\"copilot\") { issues { nodes { title } } } }"}`,
+			wantQuery: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			match := MatchGraphQL([]byte(tt.body))
+			require.NotNil(t, match)
+			if tt.wantQuery != "" {
+				assert.Equal(t, tt.wantQuery, match.Args["query"])
+			} else {
+				_, hasQuery := match.Args["query"]
+				assert.False(t, hasQuery)
+			}
+		})
+	}
+}
+
 func TestIsGraphQLPath(t *testing.T) {
 	assert.True(t, IsGraphQLPath("/graphql"))
 	assert.True(t, IsGraphQLPath("/graphql/"))
