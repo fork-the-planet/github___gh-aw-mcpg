@@ -241,9 +241,9 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 	assert.Equal(t, []string{"my-bot[bot]", "another-bot[bot]"}, cfg.Gateway.TrustedBots)
 }
 
-// TestLoadFromFile_MultipleServers verifies that multiple servers of different types
+// TestLoadFromFile_MixedStdioAndHTTPServers verifies that multiple servers of different types
 // are parsed correctly.
-func TestLoadFromFile_MultipleServers(t *testing.T) {
+func TestLoadFromFile_MixedStdioAndHTTPServers(t *testing.T) {
 	path := writeTempTOML(t, `
 [servers.github]
 command = "docker"

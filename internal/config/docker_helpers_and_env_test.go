@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestValidateContainerID verifies the security-critical container ID validation.
+// TestValidateContainerID_SecurityCritical verifies the security-critical container ID validation.
 // Container IDs must be 12–64 lowercase hex characters (a-f, 0-9).
-func TestValidateContainerID(t *testing.T) {
+func TestValidateContainerID_SecurityCritical(t *testing.T) {
 	tests := []struct {
 		name    string
 		id      string
@@ -120,7 +120,7 @@ func TestValidateContainerID(t *testing.T) {
 }
 
 // TestGetGatewayPortFromEnv tests the env-based gateway port parsing.
-func TestGetGatewayPortFromEnv(t *testing.T) {
+func TestGetGatewayPortFromEnv_Comprehensive(t *testing.T) {
 	tests := []struct {
 		name     string
 		envValue string

@@ -47,8 +47,8 @@ var rootCmd = &cobra.Command{
 	Version: cliVersion,
 	Long: `MCPG is a proxy server for Model Context Protocol (MCP) servers.
 It provides routing, aggregation, and management of multiple MCP backend servers.`,
-	SilenceUsage:      true,  // Don't show help on runtime errors
-	SilenceErrors:     true,  // Prevent cobra from printing errors — Execute() caller handles display
+	SilenceUsage:      true, // Don't show help on runtime errors
+	SilenceErrors:     true, // Prevent cobra from printing errors — Execute() caller handles display
 	PersistentPreRunE: preRun,
 	RunE:              run,
 	PersistentPostRun: postRun,
@@ -403,9 +403,9 @@ func resolveGuardPolicyOverride(cmd *cobra.Command) (*config.GuardPolicy, string
 	if hasScopePublic || hasScopeOwner || hasScopeRepo || hasMinIntegrity {
 		policy, err := config.BuildAllowOnlyPolicy(
 			getDefaultAllowOnlyScopePublic(),
-			getDefaultAllowOnlyScopeOwner(),
-			getDefaultAllowOnlyScopeRepo(),
-			getDefaultAllowOnlyMinIntegrity(),
+			os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER"),
+			os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO"),
+			os.Getenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY"),
 		)
 		if err != nil {
 			return nil, "", err

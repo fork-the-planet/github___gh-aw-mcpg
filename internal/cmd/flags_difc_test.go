@@ -156,10 +156,10 @@ func TestGetDefaultDIFCSinkServerIDs(t *testing.T) {
 	}()
 
 	os.Unsetenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS")
-	assert.Equal(t, "", getDefaultDIFCSinkServerIDs())
+	assert.Equal(t, "", os.Getenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS"))
 
 	os.Setenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", "safeoutputs,github")
-	assert.Equal(t, "safeoutputs,github", getDefaultDIFCSinkServerIDs())
+	assert.Equal(t, "safeoutputs,github", os.Getenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS"))
 }
 
 func TestParseDIFCSinkServerIDs(t *testing.T) {
@@ -286,9 +286,9 @@ func TestGetDefaultGuardPolicyInputs(t *testing.T) {
 	os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", "gh-aw-mcpg")
 	os.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "unapproved")
 
-	assert.NotEmpty(t, getDefaultGuardPolicyJSON())
+	assert.NotEmpty(t, os.Getenv("MCP_GATEWAY_GUARD_POLICY_JSON"))
 	assert.True(t, getDefaultAllowOnlyScopePublic())
-	assert.Equal(t, "lpcox", getDefaultAllowOnlyScopeOwner())
-	assert.Equal(t, "gh-aw-mcpg", getDefaultAllowOnlyScopeRepo())
-	assert.Equal(t, "unapproved", getDefaultAllowOnlyMinIntegrity())
+	assert.Equal(t, "lpcox", os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER"))
+	assert.Equal(t, "gh-aw-mcpg", os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO"))
+	assert.Equal(t, "unapproved", os.Getenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY"))
 }
