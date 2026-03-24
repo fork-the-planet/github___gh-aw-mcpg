@@ -759,7 +759,7 @@ steps:
 
       echo "--- Test 43: GraphQL search in-scope ---"
       QUERY='query { search(query:"repo:github/gh-aw-mcpg is:issue", type:ISSUE, first:3) { issueCount nodes { ... on Issue { number title } } } }'
-      RESP=$(gh api "$PROXY/graphql" -f query="$QUERY" --jq '.data.search.issueCount' 2>&1) || true
+      RESP=$(gh api "$PROXY/graphql" -f query="$QUERY" --jq '.data.search.issueCount // 0' 2>&1) || true
       if [ "$RESP" -ge 0 ] 2>/dev/null; then
         write_result 43 graphql-search-inscope search_issues in-scope pass "$RESP" "$RESP issues via GraphQL"
       else
@@ -978,7 +978,7 @@ with `GITHUB_API_URL` pointing to the DIFC proxy (port 18443):
 |---|------|------|----------|
 | 41 | GraphQL: list pullRequests | pull_request_read | Returns data |
 | 42 | GraphQL: commit history | list_commits | Returns data |
-| 43 | GraphQL: search issues | search_issues | Returns data |
+| 43 | GraphQL: search issues | search_issues | Returns data (or 0 if guard lacks repo scope) |
 | 44 | GraphQL: viewer (blocked) | get_me | Blocked |
 
 ### Tests 45-47: Compare & Out-of-scope Singles

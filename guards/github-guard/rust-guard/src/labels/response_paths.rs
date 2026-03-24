@@ -127,7 +127,7 @@ pub fn label_response_paths(
                     return None;
                 }
                 // Try tool_args first, fall back to extracting from first item
-                let (mut arg_owner, mut arg_repo, arg_repo_full) = extract_repo_info(tool_args);
+                let (mut arg_owner, mut arg_repo, mut arg_repo_full) = extract_repo_info(tool_args);
                 // For search operations, extract repo from query when tool_args lacks owner/repo
                 if arg_owner.is_empty() || arg_repo.is_empty() {
                     let query = tool_args.get("query").and_then(|v| v.as_str()).unwrap_or("");
@@ -135,6 +135,7 @@ pub fn label_response_paths(
                     if !q_repo_id.is_empty() {
                         arg_owner = q_owner;
                         arg_repo = q_repo;
+                        arg_repo_full = q_repo_id;
                     }
                 }
                 let default_repo_private = if !arg_owner.is_empty() && !arg_repo.is_empty() {
@@ -248,7 +249,7 @@ pub fn label_response_paths(
                     return None;
                 }
                 // Try tool_args first, fall back to extracting from first item
-                let (mut arg_owner, mut arg_repo, arg_repo_full) = extract_repo_info(tool_args);
+                let (mut arg_owner, mut arg_repo, mut arg_repo_full) = extract_repo_info(tool_args);
                 // For search operations, extract repo from query when tool_args lacks owner/repo
                 if arg_owner.is_empty() || arg_repo.is_empty() {
                     let query = tool_args.get("query").and_then(|v| v.as_str()).unwrap_or("");
@@ -256,6 +257,7 @@ pub fn label_response_paths(
                     if !q_repo_id.is_empty() {
                         arg_owner = q_owner;
                         arg_repo = q_repo;
+                        arg_repo_full = q_repo_id;
                     }
                 }
                 let default_repo_private = if !arg_owner.is_empty() && !arg_repo.is_empty() {
