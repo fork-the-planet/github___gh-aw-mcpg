@@ -855,10 +855,7 @@ pub extern "C" fn label_response(
         let actual_response = labels::extract_mcp_response(&input.tool_result);
         let is_server_metadata = labels::is_mcp_text_wrapper(&actual_response)
             || (labels::is_search_result_wrapper(&actual_response)
-                && actual_response
-                    .get("total_count")
-                    .and_then(|v| v.as_u64())
-                    == Some(0));
+                && labels::search_result_total_count(&actual_response) == Some(0));
 
         if is_server_metadata {
             let scope = if baseline_scope.is_empty() {

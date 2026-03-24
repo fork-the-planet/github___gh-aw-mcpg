@@ -49,8 +49,8 @@ pub use helpers::{
     has_author_association, is_blocked_user, is_bot, is_graphql_wrapper, is_mcp_text_wrapper,
     is_search_result_wrapper, issue_integrity, limit_items_with_log, make_item_path,
     merged_integrity, none_integrity, pr_integrity, private_scope_label, private_user_label,
-    project_github_label, reader_integrity, secret_label, writer_integrity, MinIntegrity,
-    PolicyContext, PolicyScopeEntry, ScopeKind,
+    project_github_label, reader_integrity, search_result_total_count, secret_label,
+    writer_integrity, MinIntegrity, PolicyContext, PolicyScopeEntry, ScopeKind,
 };
 #[cfg(test)]
 pub use helpers::has_approval_label;
@@ -3234,10 +3234,104 @@ mod tests {
     fn test_helpers_is_search_result_wrapper() {
         use helpers::is_search_result_wrapper;
 
+        // REST format
         assert!(is_search_result_wrapper(&serde_json::json!({"total_count": 0, "incomplete_results": false})));
         assert!(is_search_result_wrapper(&serde_json::json!({"total_count": 5, "items": []})));
+        // GraphQL format (MCP server v0.32.0+)
+        assert!(is_search_result_wrapper(&serde_json::json!({"totalCount": 0, "issues": [], "pageInfo": {}})));
+        assert!(is_search_result_wrapper(&serde_json::json!({"totalCount": 3, "issues": [{}]})));
+        // Non-search
         assert!(!is_search_result_wrapper(&serde_json::json!({"number": 42, "title": "issue"})));
         assert!(!is_search_result_wrapper(&serde_json::json!({})));
+    }
+
+    #[test]
+    fn test_helpers_search_result_total_count() {
+        use helpers::search_result_total_count;
+
+        // REST format
+        assert_eq!(search_result_total_count(&json!({"total_count": 0})), Some(0));
+        assert_eq!(search_result_total_count(&json!({"total_count": 42})), Some(42));
+        // GraphQL format
+        assert_eq!(search_result_total_count(&json!({"totalCount": 0})), Some(0));
+        assert_eq!(search_result_total_count(&json!({"totalCount": 7})), Some(7));
+        // REST takes precedence when both present
+        assert_eq!(search_result_total_count(&json!({"total_count": 1, "totalCount": 2})), Some(1));
+        // Neither present
+        assert_eq!(search_result_total_count(&json!({"number": 42})), None);
+    }
+
+    #[test]
+    fn test_bot_authored_issue_gets_writer_integrity() {
+        // Verify that github-actions[bot] authored issues get writer integrity
+        // regardless of author_association value. This is the core test for
+        // issue github/gh-aw#22533.
+        let ctx = default_ctx();
+        let repo = "github/gh-aw-mcpg";
+
+        // REST format: user.login present
+        let rest_item = json!({
+            "number": 2320,
+            "title": "[Repo Assist] Monthly Activity",
+            "user": {"login": "github-actions[bot]", "id": 41898282},
+            "author_association": "CONTRIBUTOR",
+            "repository_url": "https://api.github.com/repos/github/gh-aw-mcpg"
+        });
+        let integrity = issue_integrity(&rest_item, repo, false, &ctx);
+        assert!(
+            integrity.iter().any(|t| t.contains("approved")),
+            "Bot-authored issue (REST) should have at least approved integrity, got: {:?}",
+            integrity
+        );
+
+        // GraphQL format: author.login present, no user field
+        let graphql_item = json!({
+            "number": 2320,
+            "title": "[Repo Assist] Monthly Activity",
+            "author": {"login": "github-actions[bot]"},
+            "authorAssociation": "CONTRIBUTOR"
+        });
+        let integrity = issue_integrity(&graphql_item, repo, false, &ctx);
+        assert!(
+            integrity.iter().any(|t| t.contains("approved")),
+            "Bot-authored issue (GraphQL) should have at least approved integrity, got: {:?}",
+            integrity
+        );
+    }
+
+    #[test]
+    fn test_bot_authored_pr_gets_writer_integrity() {
+        let ctx = default_ctx();
+        let repo = "github/gh-aw-mcpg";
+
+        // REST format: user.login present
+        let rest_item = json!({
+            "number": 2320,
+            "title": "Auto-merge PR",
+            "user": {"login": "dependabot[bot]", "id": 49699333},
+            "author_association": "CONTRIBUTOR",
+            "repository_url": "https://api.github.com/repos/github/gh-aw-mcpg"
+        });
+        let integrity = pr_integrity(&rest_item, repo, false, None, &ctx);
+        assert!(
+            integrity.iter().any(|t| t.contains("approved")),
+            "Bot-authored PR (REST) should have at least approved integrity, got: {:?}",
+            integrity
+        );
+
+        // GraphQL format: author.login present
+        let graphql_item = json!({
+            "number": 2320,
+            "title": "Auto-merge PR",
+            "author": {"login": "dependabot[bot]"},
+            "authorAssociation": "CONTRIBUTOR"
+        });
+        let integrity = pr_integrity(&graphql_item, repo, false, None, &ctx);
+        assert!(
+            integrity.iter().any(|t| t.contains("approved")),
+            "Bot-authored PR (GraphQL) should have at least approved integrity, got: {:?}",
+            integrity
+        );
     }
 
     #[test]
@@ -3248,5 +3342,441 @@ mod tests {
         assert!(!is_mcp_text_wrapper(&serde_json::json!({"content": [{"type": "image", "data": "..."}]})));
         assert!(!is_mcp_text_wrapper(&serde_json::json!({"number": 42})));
         assert!(!is_mcp_text_wrapper(&serde_json::json!({})));
+    }
+
+    // =========================================================================
+    // Issue github/gh-aw#22533: Bot-authored search results DIFC-filtered
+    //
+    // Regression between MCP server v0.31.0 → v0.32.0.
+    // search_issues finds bot-authored issues (github-actions[bot]) but they
+    // are DIFC-filtered because the guard assigns insufficient integrity.
+    // The agent then sees zero results and creates duplicate issues.
+    //
+    // Root causes:
+    // 1. MCP server v0.32.0 returns GraphQL format {"issues":[], "totalCount":N}
+    //    in addition to REST format {"items":[], "total_count":N}
+    // 2. is_search_result_wrapper only detected REST format (total_count)
+    // 3. response_items.rs only checked "items" key, missing "issues"
+    // 4. Empty GraphQL results bypassed metadata handler and got unscoped tags
+    // 5. default_labels used none_integrity("") producing unmatchable "none:"
+    // =========================================================================
+
+    /// Reproduces the exact scenario from github/gh-aw#22533:
+    /// search_issues returns github-actions[bot]-authored issues in REST format
+    /// with an owner-scoped policy. Items must receive owner-scoped approved
+    /// integrity so they pass DIFC and the agent can see them.
+    #[test]
+    fn test_issue_22533_rest_search_issues_bot_author_owner_scoped() {
+        let ctx = owner_scoped_ctx("licensee");
+        let tool_args = json!({
+            "query": "repo:licensee/licensee is:open is:issue \"[Repo Assist] Monthly Activity 2026-03\" in:title"
+        });
+        let response = json!({
+            "total_count": 3,
+            "incomplete_results": false,
+            "items": [
+                {
+                    "number": 941,
+                    "title": "[Repo Assist] Monthly Activity 2026-03",
+                    "state": "open",
+                    "user": {"login": "github-actions[bot]", "id": 41898282},
+                    "author_association": "CONTRIBUTOR",
+                    "repository_url": "https://api.github.com/repos/licensee/licensee"
+                },
+                {
+                    "number": 954,
+                    "title": "[Repo Assist] Monthly Activity 2026-03",
+                    "state": "open",
+                    "user": {"login": "github-actions[bot]", "id": 41898282},
+                    "author_association": "CONTRIBUTOR",
+                    "repository_url": "https://api.github.com/repos/licensee/licensee"
+                },
+                {
+                    "number": 955,
+                    "title": "[Repo Assist] Monthly Activity 2026-03",
+                    "state": "open",
+                    "user": {"login": "github-actions[bot]", "id": 41898282},
+                    "author_association": "CONTRIBUTOR",
+                    "repository_url": "https://api.github.com/repos/licensee/licensee"
+                }
+            ]
+        });
+
+        let result = label_response_paths("search_issues", &tool_args, &response, &ctx)
+            .expect("search_issues should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 3, "all 3 bot-authored issues must be labeled");
+
+        // Every item must have approved:licensee integrity (owner-scoped)
+        // so DIFC passes when agent has ["none:licensee", "unapproved:licensee", "approved:licensee"]
+        for (i, entry) in result.labeled_paths.iter().enumerate() {
+            assert!(
+                entry.labels.integrity.contains(&"approved:licensee".to_string()),
+                "item {} must have 'approved:licensee' for DIFC to pass, got: {:?}",
+                i, entry.labels.integrity
+            );
+        }
+    }
+
+    /// Same scenario as above but with GraphQL format that MCP server v0.32.0
+    /// can return. The "issues" key (not "items") and "totalCount" (not
+    /// "total_count") must be recognized.
+    #[test]
+    fn test_issue_22533_graphql_search_issues_bot_author_owner_scoped() {
+        let ctx = owner_scoped_ctx("licensee");
+        let tool_args = json!({
+            "query": "repo:licensee/licensee is:open is:issue \"[Repo Assist] Monthly Activity\" in:title"
+        });
+        // GraphQL format: "issues" key with "totalCount"
+        let response = json!({
+            "totalCount": 2,
+            "issues": [
+                {
+                    "number": 941,
+                    "title": "[Repo Assist] Monthly Activity 2026-03",
+                    "state": "OPEN",
+                    "author": {"login": "github-actions[bot]"},
+                    "authorAssociation": "CONTRIBUTOR",
+                    "repository_url": "https://api.github.com/repos/licensee/licensee"
+                },
+                {
+                    "number": 954,
+                    "title": "[Repo Assist] Monthly Activity 2026-03",
+                    "state": "OPEN",
+                    "author": {"login": "github-actions[bot]"},
+                    "authorAssociation": "CONTRIBUTOR",
+                    "repository_url": "https://api.github.com/repos/licensee/licensee"
+                }
+            ],
+            "pageInfo": {"hasNextPage": false, "hasPreviousPage": false}
+        });
+
+        let result = label_response_paths("search_issues", &tool_args, &response, &ctx)
+            .expect("search_issues with GraphQL format should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 2, "both GraphQL items must be labeled");
+
+        for (i, entry) in result.labeled_paths.iter().enumerate() {
+            assert!(
+                entry.labels.integrity.contains(&"approved:licensee".to_string()),
+                "GraphQL item {} must have 'approved:licensee', got: {:?}",
+                i, entry.labels.integrity
+            );
+            assert_eq!(
+                entry.path,
+                format!("/issues/{}", i),
+                "path should use /issues/ prefix for GraphQL format"
+            );
+        }
+    }
+
+    /// Empty GraphQL search result must NOT produce path labels.
+    /// It should return None so lib.rs metadata handler assigns
+    /// properly-scoped writer_integrity (not unscoped "none:").
+    #[test]
+    fn test_issue_22533_empty_graphql_search_returns_none() {
+        let ctx = owner_scoped_ctx("licensee");
+        let tool_args = json!({
+            "query": "repo:licensee/licensee is:open is:issue \"nonexistent\" in:title"
+        });
+        let response = json!({
+            "totalCount": 0,
+            "issues": [],
+            "pageInfo": {"hasNextPage": false, "hasPreviousPage": false}
+        });
+
+        let result = label_response_paths("search_issues", &tool_args, &response, &ctx);
+        assert!(
+            result.is_none(),
+            "empty GraphQL search must return None (defer to metadata handler), got: {:?}",
+            result.map(|r| r.labeled_paths.len())
+        );
+    }
+
+    /// Empty REST search result must also return None to defer to metadata handler.
+    #[test]
+    fn test_issue_22533_empty_rest_search_returns_none() {
+        let ctx = owner_scoped_ctx("licensee");
+        let tool_args = json!({
+            "query": "repo:licensee/licensee is:open is:issue \"nonexistent\" in:title"
+        });
+        let response = json!({
+            "total_count": 0,
+            "incomplete_results": false,
+            "items": []
+        });
+
+        let result = label_response_paths("search_issues", &tool_args, &response, &ctx);
+        assert!(
+            result.is_none(),
+            "empty REST search must return None (defer to metadata handler)"
+        );
+    }
+
+    /// Empty search_pull_requests must also return None for both formats.
+    #[test]
+    fn test_issue_22533_empty_search_pull_requests_returns_none() {
+        let ctx = owner_scoped_ctx("licensee");
+        let tool_args = json!({ "query": "repo:licensee/licensee is:open is:pr" });
+
+        // GraphQL format
+        let graphql = json!({
+            "totalCount": 0,
+            "issues": [],
+            "pageInfo": {}
+        });
+        assert!(
+            label_response_paths("search_pull_requests", &tool_args, &graphql, &ctx).is_none(),
+            "empty GraphQL search_pull_requests must return None"
+        );
+
+        // REST format
+        let rest = json!({
+            "total_count": 0,
+            "incomplete_results": false,
+            "items": []
+        });
+        assert!(
+            label_response_paths("search_pull_requests", &tool_args, &rest, &ctx).is_none(),
+            "empty REST search_pull_requests must return None"
+        );
+    }
+
+    /// MCP-wrapped GraphQL search results must be correctly extracted and
+    /// labeled. This tests the full pipeline from MCP wrapper through
+    /// extract_mcp_response → extract_items_array → per-item labeling.
+    #[test]
+    fn test_issue_22533_mcp_wrapped_graphql_search_issues() {
+        let ctx = owner_scoped_ctx("licensee");
+        let tool_args = json!({
+            "query": "repo:licensee/licensee is:open is:issue \"[Repo Assist]\" in:title"
+        });
+
+        let inner = json!({
+            "totalCount": 1,
+            "issues": [
+                {
+                    "number": 941,
+                    "title": "[Repo Assist] Monthly Activity 2026-03",
+                    "state": "OPEN",
+                    "author": {"login": "github-actions[bot]"},
+                    "repository_url": "https://api.github.com/repos/licensee/licensee"
+                }
+            ],
+            "pageInfo": {"hasNextPage": false}
+        });
+        let mcp_wrapped = json!({
+            "content": [{"type": "text", "text": inner.to_string()}]
+        });
+
+        let result = label_response_paths("search_issues", &tool_args, &mcp_wrapped, &ctx)
+            .expect("MCP-wrapped GraphQL search should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 1);
+        assert!(
+            result.labeled_paths[0].labels.integrity.contains(&"approved:licensee".to_string()),
+            "MCP-wrapped bot item must have approved:licensee, got: {:?}",
+            result.labeled_paths[0].labels.integrity
+        );
+    }
+
+    /// Verify the legacy response_items path also handles GraphQL format.
+    /// This is the fallback used when response_paths returns None.
+    #[test]
+    fn test_issue_22533_response_items_graphql_issues_key() {
+        let ctx = owner_scoped_ctx("licensee");
+        let tool_args = json!({
+            "query": "repo:licensee/licensee is:open is:issue \"[Repo Assist]\" in:title"
+        });
+        // GraphQL format passed directly (no MCP wrapper)
+        let response = json!({
+            "totalCount": 1,
+            "issues": [
+                {
+                    "number": 941,
+                    "title": "[Repo Assist] Monthly Activity 2026-03",
+                    "author": {"login": "github-actions[bot]"},
+                    "repository_url": "https://api.github.com/repos/licensee/licensee"
+                }
+            ]
+        });
+
+        let items = label_response_items("search_issues", &tool_args, &response, &ctx);
+
+        assert_eq!(items.len(), 1, "response_items must find item in 'issues' array");
+        assert!(
+            items[0].labels.integrity.contains(&"approved:licensee".to_string()),
+            "Bot-authored item from 'issues' key must have approved:licensee, got: {:?}",
+            items[0].labels.integrity
+        );
+    }
+
+    /// Verify that search_pull_requests also handles GraphQL format items
+    /// in the legacy response_items path.
+    #[test]
+    fn test_issue_22533_response_items_graphql_pull_requests_key() {
+        let ctx = owner_scoped_ctx("licensee");
+        let tool_args = json!({
+            "query": "repo:licensee/licensee is:open is:pr"
+        });
+        // The PR section of response_items looks for "items" and now
+        // also "pull_requests" key.
+        let response = json!({
+            "totalCount": 1,
+            "pull_requests": [
+                {
+                    "number": 100,
+                    "title": "Fix typo",
+                    "user": {"login": "dependabot[bot]"},
+                    "author_association": "CONTRIBUTOR",
+                    "repository_url": "https://api.github.com/repos/licensee/licensee"
+                }
+            ]
+        });
+
+        let items = label_response_items("search_pull_requests", &tool_args, &response, &ctx);
+
+        assert_eq!(items.len(), 1, "response_items must find item in 'pull_requests' array");
+        assert!(
+            items[0].labels.integrity.contains(&"approved:licensee".to_string()),
+            "Bot-authored PR from 'pull_requests' key must have approved:licensee, got: {:?}",
+            items[0].labels.integrity
+        );
+    }
+
+    /// Non-empty search results with real items must NOT return None.
+    /// Only empty results should defer to the metadata handler.
+    #[test]
+    fn test_issue_22533_nonempty_search_does_not_return_none() {
+        let ctx = owner_scoped_ctx("licensee");
+        let tool_args = json!({
+            "query": "repo:licensee/licensee is:open is:issue"
+        });
+        let response = json!({
+            "total_count": 1,
+            "items": [
+                {
+                    "number": 941,
+                    "title": "Test issue",
+                    "user": {"login": "octocat"},
+                    "author_association": "NONE",
+                    "repository_url": "https://api.github.com/repos/licensee/licensee"
+                }
+            ]
+        });
+
+        let result = label_response_paths("search_issues", &tool_args, &response, &ctx);
+        assert!(
+            result.is_some(),
+            "non-empty search must return Some with path labels"
+        );
+        assert_eq!(result.unwrap().labeled_paths.len(), 1);
+    }
+
+    /// search_issues with non-bot CONTRIBUTOR items in owner-scoped context.
+    /// These should still get properly-scoped labels even without bot elevation.
+    #[test]
+    fn test_issue_22533_non_bot_contributor_scoped_labels() {
+        let ctx = owner_scoped_ctx("licensee");
+        let tool_args = json!({
+            "query": "repo:licensee/licensee is:open is:issue"
+        });
+        let response = json!({
+            "total_count": 1,
+            "items": [
+                {
+                    "number": 100,
+                    "title": "Community fix",
+                    "user": {"login": "contributor-human"},
+                    "author_association": "CONTRIBUTOR",
+                    "repository_url": "https://api.github.com/repos/licensee/licensee"
+                }
+            ]
+        });
+
+        let result = label_response_paths("search_issues", &tool_args, &response, &ctx)
+            .expect("should produce path labels");
+
+        // CONTRIBUTOR → reader_integrity → ["none:licensee", "unapproved:licensee"]
+        let integrity = &result.labeled_paths[0].labels.integrity;
+        assert!(
+            integrity.contains(&"unapproved:licensee".to_string()),
+            "CONTRIBUTOR should have unapproved:licensee, got: {:?}",
+            integrity
+        );
+        assert!(
+            integrity.contains(&"none:licensee".to_string()),
+            "CONTRIBUTOR should have none:licensee, got: {:?}",
+            integrity
+        );
+    }
+
+    /// search_repositories with `repositories` key (GraphQL-style) must use
+    /// `/repositories/{i}` paths, not `/items/{i}`.
+    #[test]
+    fn test_search_repositories_repositories_key_uses_correct_paths() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        let response = json!({
+            "totalCount": 2,
+            "repositories": [
+                {
+                    "full_name": "owner/public-repo",
+                    "private": false
+                },
+                {
+                    "full_name": "owner/private-repo",
+                    "private": true
+                }
+            ]
+        });
+
+        let result = label_response_paths("search_repositories", &tool_args, &response, &ctx)
+            .expect("search_repositories with repositories key should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 2, "both items must be labeled");
+        assert_eq!(
+            result.items_path,
+            Some("/repositories".to_string()),
+            "items_path must reflect the actual key used"
+        );
+        assert_eq!(
+            result.labeled_paths[0].path, "/repositories/0",
+            "first item path must use /repositories/ prefix"
+        );
+        assert_eq!(
+            result.labeled_paths[1].path, "/repositories/1",
+            "second item path must use /repositories/ prefix"
+        );
+    }
+
+    /// search_repositories with `items` key (REST format) must use `/items/{i}` paths.
+    #[test]
+    fn test_search_repositories_items_key_uses_correct_paths() {
+        let ctx = default_ctx();
+        let tool_args = json!({});
+        let response = json!({
+            "total_count": 1,
+            "items": [
+                {
+                    "full_name": "owner/public-repo",
+                    "private": false
+                }
+            ]
+        });
+
+        let result = label_response_paths("search_repositories", &tool_args, &response, &ctx)
+            .expect("search_repositories with items key should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 1);
+        assert_eq!(
+            result.items_path,
+            Some("/items".to_string()),
+            "items_path must be /items for REST format"
+        );
+        assert_eq!(
+            result.labeled_paths[0].path, "/items/0",
+            "item path must use /items/ prefix for REST format"
+        );
     }
 }

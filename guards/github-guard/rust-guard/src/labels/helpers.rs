@@ -668,11 +668,22 @@ pub fn is_graphql_wrapper(response: &Value) -> bool {
     response.get("data").is_some()
 }
 
-/// Returns true if the response is a search result wrapper (has "total_count").
-/// Used to prevent treating `{"total_count":0,"incomplete_results":false}` as a
-/// single data item when the search returned zero results.
+/// Returns true if the response is a search result wrapper.
+/// Handles both REST format (`total_count`) and GraphQL format (`totalCount`)
+/// returned by different MCP server versions. Used to prevent treating
+/// `{"total_count":0,"incomplete_results":false}` or
+/// `{"totalCount":0,"issues":[],"pageInfo":{}}` as single data items.
 pub fn is_search_result_wrapper(response: &Value) -> bool {
-    response.get("total_count").is_some()
+    response.get("total_count").is_some() || response.get("totalCount").is_some()
+}
+
+/// Returns the total count from a search result wrapper, handling both
+/// REST format (`total_count`) and GraphQL format (`totalCount`).
+pub fn search_result_total_count(response: &Value) -> Option<u64> {
+    response
+        .get("total_count")
+        .and_then(|v| v.as_u64())
+        .or_else(|| response.get("totalCount").and_then(|v| v.as_u64()))
 }
 
 /// Returns true if the response is an MCP content wrapper where the text was not

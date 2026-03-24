@@ -111,13 +111,15 @@ pub fn label_response_items(
             if tool_name == "pull_request_read" && !method.is_empty() && method != "get" {
                 // Fall through — use resource-level labels from tool_rules
             } else {
-            // Handle array, {items: [...]}, GraphQL nested, GraphQL single, or REST single object.
+            // Handle array, {items: [...]}, {pull_requests: [...]}, GraphQL nested, GraphQL single, or REST single object.
             // Work directly with &[Value] slices to avoid allocating a Vec<&Value>.
             let single_item_buf;
             let graphql_single_buf;
             let items: &[Value] = if let Some(arr) = actual_response.as_array() {
                 arr.as_slice()
             } else if let Some(items_arr) = actual_response.get("items").and_then(|v| v.as_array()) {
+                items_arr.as_slice()
+            } else if let Some(items_arr) = actual_response.get("pull_requests").and_then(|v| v.as_array()) {
                 items_arr.as_slice()
             } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
                 nodes.as_slice()
@@ -232,13 +234,15 @@ pub fn label_response_items(
             if tool_name == "issue_read" && !method.is_empty() && method != "get" {
                 // Fall through — use resource-level labels from tool_rules
             } else {
-            // Handle single issue, array of issues, GraphQL nested, or GraphQL single object
+            // Handle single issue, array of issues, {issues: [...]}, GraphQL nested, or GraphQL single object
             let all_items: Vec<&Value> = if actual_response.is_array() {
                 actual_response
                     .as_array()
                     .map(|arr| arr.iter().collect())
                     .unwrap_or_default()
             } else if let Some(items_arr) = actual_response.get("items").and_then(|v| v.as_array()) {
+                items_arr.iter().collect()
+            } else if let Some(items_arr) = actual_response.get("issues").and_then(|v| v.as_array()) {
                 items_arr.iter().collect()
             } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
                 nodes.iter().collect()
