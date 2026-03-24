@@ -105,10 +105,10 @@ For each downloaded artifact set, check:
 
 ```bash
 # Example: Count DIFC events in JSONL
-grep -c 'difc_integrity' "$TMPDIR/*/mcp-logs/rpc-messages.jsonl" 2>/dev/null || echo "0"
+grep -c 'difc_integrity' "$TMPDIR"/*/mcp-logs/rpc-messages.jsonl 2>/dev/null || echo "0"
 
 # Example: Find guard errors
-grep -iE 'error|failed|blocked|unknown' "$TMPDIR/*/mcp-logs/mcp-gateway.log" 2>/dev/null | head -20
+grep -iE 'error|failed|blocked|unknown' "$TMPDIR"/*/mcp-logs/mcp-gateway.log 2>/dev/null | head -20
 ```
 
 ### Step 4: Classify Findings
