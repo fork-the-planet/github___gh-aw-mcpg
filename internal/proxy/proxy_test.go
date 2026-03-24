@@ -878,6 +878,11 @@ func TestDeriveAPIFromServerURL(t *testing.T) {
 			expected:  "https://github.mycompany.com/api/v3",
 		},
 		{
+			name:      "GHEC tenant with port",
+			serverURL: "https://mycompany.ghe.com:8443",
+			expected:  "https://copilot-api.mycompany.ghe.com:8443",
+		},
+		{
 			name:      "GHES with port",
 			serverURL: "https://github.example.com:8443",
 			expected:  "https://github.example.com:8443/api/v3",

@@ -66,16 +66,21 @@ func deriveAPIFromServerURL(serverURL string) string {
 		return ""
 	}
 
-	host := strings.ToLower(parsed.Host)
+	// Use Hostname() (not Host) so that an optional port does not interfere
+	// with the suffix / equality checks below.
+	hostname := strings.ToLower(parsed.Hostname())
 
 	switch {
-	case host == "github.com" || host == "www.github.com":
+	case hostname == "github.com" || hostname == "www.github.com":
 		return DefaultGitHubAPIBase
-	case strings.HasSuffix(host, ".ghe.com"):
-		// GHEC tenant: copilot-api.<subdomain>.ghe.com
-		return fmt.Sprintf("%s://copilot-api.%s", parsed.Scheme, parsed.Host)
+	case strings.HasSuffix(hostname, ".ghe.com"):
+		// GHEC tenant: copilot-api.<subdomain>.ghe.com (re-add port when present)
+		if port := parsed.Port(); port != "" {
+			return fmt.Sprintf("%s://copilot-api.%s:%s", parsed.Scheme, hostname, port)
+		}
+		return fmt.Sprintf("%s://copilot-api.%s", parsed.Scheme, hostname)
 	default:
-		// GHES: <host>/api/v3
+		// GHES: <host>/api/v3 (parsed.Host retains the port, if any)
 		return fmt.Sprintf("%s://%s/api/v3", parsed.Scheme, parsed.Host)
 	}
 }
