@@ -113,7 +113,19 @@ func injectFieldsIntoQuery(query string, fields []string) string {
 		return injectIntoFragment(query, fragName, injection)
 	}
 
-	// Step 2: No fragment — inject directly into nodes { ... }
+	// Step 2: Check if nodes contains an inline fragment (... on Type { ... }).
+	// For union/interface types (e.g., SearchResultItem), fields must go
+	// inside the inline fragment, not directly on the nodes level.
+	inlineFragPattern := regexp.MustCompile(`nodes\s*\{[^{}]*\.\.\.\s*on\s+\w+\s*\{`)
+	if inlineFragPattern.MatchString(query) {
+		// Find the inline fragment's opening brace and inject after it
+		inlineOpenPattern := regexp.MustCompile(`(\.\.\.\s*on\s+\w+\s*\{)`)
+		if inlineOpenPattern.MatchString(query) {
+			return inlineOpenPattern.ReplaceAllString(query, "${1}"+injection+",")
+		}
+	}
+
+	// Step 3: No fragment — inject directly into nodes { ... }
 	nodesPattern := regexp.MustCompile(`(nodes\s*\{)`)
 	if nodesPattern.MatchString(query) {
 		return nodesPattern.ReplaceAllString(query, "${1}"+injection+",")

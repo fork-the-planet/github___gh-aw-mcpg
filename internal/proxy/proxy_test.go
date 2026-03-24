@@ -498,6 +498,43 @@ func TestMatchGraphQL_ExtractsOwnerRepo(t *testing.T) {
 	}
 }
 
+func TestMatchGraphQL_ExtractsSearchQuery(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantQuery string
+	}{
+		{
+			name:      "inline search query",
+			body:      `{"query":"query { search(query:\"repo:github/gh-aw-mcpg is:issue\", type:ISSUE, first:3) { issueCount nodes { ... on Issue { number } } } }"}`,
+			wantQuery: "repo:github/gh-aw-mcpg is:issue",
+		},
+		{
+			name:      "variable search query",
+			body:      `{"query":"query($q: String!) { search(query: $q, type:ISSUE, first:3) { issueCount } }","variables":{"query":"repo:org/repo is:pr"}}`,
+			wantQuery: "repo:org/repo is:pr",
+		},
+		{
+			name:      "no search query for non-search tool",
+			body:      `{"query":"query { repository(owner:\"github\", name:\"copilot\") { issues { nodes { title } } } }"}`,
+			wantQuery: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			match := MatchGraphQL([]byte(tt.body))
+			require.NotNil(t, match)
+			if tt.wantQuery != "" {
+				assert.Equal(t, tt.wantQuery, match.Args["query"])
+			} else {
+				_, hasQuery := match.Args["query"]
+				assert.False(t, hasQuery)
+			}
+		})
+	}
+}
+
 func TestIsGraphQLPath(t *testing.T) {
 	assert.True(t, IsGraphQLPath("/graphql"))
 	assert.True(t, IsGraphQLPath("/graphql/"))
@@ -697,6 +734,39 @@ func TestRebuildGraphQLResponse(t *testing.T) {
 		m := result.(map[string]interface{})
 		assert.Nil(t, m["data"])
 	})
+
+	t.Run("returns data null when all items filtered", func(t *testing.T) {
+		original := map[string]interface{}{
+			"data": map[string]interface{}{
+				"viewer": map[string]interface{}{
+					"login": "octocat",
+				},
+			},
+		}
+		filtered := &difc.FilteredCollectionLabeledData{
+			Accessible: nil,
+			Filtered:   []difc.FilteredItemDetail{{Item: difc.LabeledItem{Data: map[string]interface{}{"login": "octocat"}}}},
+		}
+		result := rebuildGraphQLResponse(original, filtered)
+		m := result.(map[string]interface{})
+		assert.Nil(t, m["data"])
+	})
+
+	t.Run("returns data null when no nodes or edges found", func(t *testing.T) {
+		original := map[string]interface{}{
+			"data": map[string]interface{}{
+				"viewer": map[string]interface{}{
+					"login": "octocat",
+				},
+			},
+		}
+		filtered := &difc.FilteredCollectionLabeledData{
+			Accessible: []difc.LabeledItem{{Data: map[string]interface{}{"login": "octocat"}}},
+		}
+		result := rebuildGraphQLResponse(original, filtered)
+		m := result.(map[string]interface{})
+		assert.Nil(t, m["data"])
+	})
 }
 
 func TestDeepCloneJSON(t *testing.T) {
@@ -711,4 +781,66 @@ func TestDeepCloneJSON(t *testing.T) {
 	// Clone should be unaffected
 	assert.Equal(t, float64(1), cloned.(map[string]interface{})["a"].([]interface{})[0])
 	assert.Equal(t, "d", cloned.(map[string]interface{})["b"].(map[string]interface{})["c"])
+}
+
+func TestUnwrapSingleObject(t *testing.T) {
+	tests := []struct {
+		name     string
+		original interface{}
+		filtered interface{}
+		expected interface{}
+	}{
+		{
+			name:     "single object unwrapped from 1-element array",
+			original: map[string]interface{}{"name": "README.md", "path": "README.md"},
+			filtered: []interface{}{map[string]interface{}{"name": "README.md", "path": "README.md"}},
+			expected: map[string]interface{}{"name": "README.md", "path": "README.md"},
+		},
+		{
+			name:     "array original stays as array",
+			original: []interface{}{map[string]interface{}{"id": float64(1)}},
+			filtered: []interface{}{map[string]interface{}{"id": float64(1)}},
+			expected: []interface{}{map[string]interface{}{"id": float64(1)}},
+		},
+		{
+			name: "search envelope not unwrapped",
+			original: map[string]interface{}{
+				"total_count": float64(1),
+				"items":       []interface{}{map[string]interface{}{"id": float64(1)}},
+			},
+			filtered: map[string]interface{}{
+				"total_count": float64(1),
+				"items":       []interface{}{map[string]interface{}{"id": float64(1)}},
+			},
+			expected: map[string]interface{}{
+				"total_count": float64(1),
+				"items":       []interface{}{map[string]interface{}{"id": float64(1)}},
+			},
+		},
+		{
+			name:     "GraphQL response not unwrapped",
+			original: map[string]interface{}{"data": map[string]interface{}{"repository": nil}},
+			filtered: map[string]interface{}{"data": map[string]interface{}{"repository": nil}},
+			expected: map[string]interface{}{"data": map[string]interface{}{"repository": nil}},
+		},
+		{
+			name:     "multi-element array not unwrapped even if original was object",
+			original: map[string]interface{}{"name": "dir"},
+			filtered: []interface{}{map[string]interface{}{"a": "1"}, map[string]interface{}{"b": "2"}},
+			expected: []interface{}{map[string]interface{}{"a": "1"}, map[string]interface{}{"b": "2"}},
+		},
+		{
+			name:     "empty array stays as-is",
+			original: map[string]interface{}{"name": "file.txt"},
+			filtered: []interface{}{},
+			expected: []interface{}{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := unwrapSingleObject(tt.original, tt.filtered)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

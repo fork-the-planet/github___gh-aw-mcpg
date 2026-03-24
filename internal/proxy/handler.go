@@ -267,6 +267,8 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 				}
 				// Re-wrap search responses to preserve the envelope
 				finalData = rewrapSearchResponse(responseData, finalData)
+				// Unwrap single-object responses (e.g., get_file_contents)
+				finalData = unwrapSingleObject(responseData, finalData)
 			}
 		} else {
 			// Simple labeled data — already passed coarse check
@@ -430,6 +432,30 @@ func rewrapSearchResponse(originalData interface{}, filteredItems interface{}) i
 	return result
 }
 
+// unwrapSingleObject preserves the original response shape for single-object endpoints.
+// When the guard wraps a single object in a collection, ToResult() returns [obj].
+// This unwraps it back to obj when the original response was a single object
+// (e.g., get_file_contents, get_commit, issue_read).
+func unwrapSingleObject(originalData interface{}, filteredData interface{}) interface{} {
+	original, isMap := originalData.(map[string]interface{})
+	if !isMap {
+		return filteredData
+	}
+	// Don't unwrap search envelopes (handled by rewrapSearchResponse)
+	if _, hasTotalCount := original["total_count"]; hasTotalCount {
+		return filteredData
+	}
+	// Don't unwrap GraphQL responses (handled separately)
+	if _, hasData := original["data"]; hasData {
+		return filteredData
+	}
+	// If filtered result is a single-element array, unwrap to match original shape
+	if arr, ok := filteredData.([]interface{}); ok && len(arr) == 1 {
+		return arr[0]
+	}
+	return filteredData
+}
+
 // rebuildGraphQLResponse reconstructs a GraphQL response with only accessible
 // items, preserving the {"data": {...}} envelope that clients expect.
 func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCollectionLabeledData) interface{} {
@@ -437,8 +463,13 @@ func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCol
 	if !ok {
 		return map[string]interface{}{"data": nil}
 	}
-	data, ok := original["data"]
-	if !ok {
+	if _, ok := original["data"]; !ok {
+		return map[string]interface{}{"data": nil}
+	}
+
+	// If all items were filtered out, return {"data": null} to avoid leaking
+	// the original response through non-collection fields (e.g., viewer).
+	if filtered.GetAccessibleCount() == 0 {
 		return map[string]interface{}{"data": nil}
 	}
 
@@ -451,14 +482,17 @@ func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCol
 		accessibleItems = append(accessibleItems, item.Data)
 	}
 
-	// Walk the cloned structure and replace nodes/edges arrays
+	// Walk the cloned structure and replace nodes/edges arrays.
+	// If no nodes/edges found, return {"data": null} to prevent leaking
+	// non-collection data (e.g., viewer { login }).
 	if clonedMap, ok := cloned.(map[string]interface{}); ok {
 		if clonedData, ok := clonedMap["data"]; ok {
-			replaceNodesArray(clonedData, accessibleItems)
+			if !replaceNodesArray(clonedData, accessibleItems) {
+				return map[string]interface{}{"data": nil}
+			}
 		}
 	}
 
-	_ = data // suppress unused warning
 	return cloned
 }
 
