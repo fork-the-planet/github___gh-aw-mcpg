@@ -69,7 +69,7 @@ with names containing "agent", "copilot", or that have MCP-related artifacts).
 
 ```bash
 # List recent completed runs from the last 24 hours
-gh run list --repo github/gh-aw --limit 50 --json databaseId,name,conclusion,createdAt,headBranch,workflowName --status completed 2>/dev/null | jq '[.[] | select(.createdAt > (now - 86400 | strftime("%Y-%m-%dT%H:%M:%SZ")))]'
+gh run list --repo github/gh-aw --limit 50 --json databaseId,name,conclusion,createdAt,headBranch,workflowName --status completed 2>/dev/null | jq '[.[] | select((.createdAt | fromdateiso8601) > (now - 86400))]'
 ```
 
 ### Step 2: Download and Inspect Artifacts
