@@ -191,6 +191,212 @@ func TestInjectGuardFields_CommitSkipsWhenAuthorUserPresent(t *testing.T) {
 	assert.Equal(t, body, result)
 }
 
+func TestInjectGuardFields_SearchIssues(t *testing.T) {
+	query := `query { search(query: "is:issue repo:o/r", type: ISSUE, first: 10) { nodes { number title } } }`
+	body, _ := json.Marshal(GraphQLRequest{Query: query})
+
+	result := InjectGuardFields(body, "search_issues")
+
+	var gql GraphQLRequest
+	require.NoError(t, json.Unmarshal(result, &gql))
+	assert.Contains(t, gql.Query, "author{login}")
+	assert.Contains(t, gql.Query, "authorAssociation")
+	assert.Contains(t, gql.Query, "number")
+	assert.Contains(t, gql.Query, "title")
+}
+
+func TestInjectGuardFields_IssueRead(t *testing.T) {
+	query := `query { repository(owner:"o", name:"r") { issue(number: 1) { number title comments(first:10) { nodes { body } } } } }`
+	body, _ := json.Marshal(GraphQLRequest{Query: query})
+
+	result := InjectGuardFields(body, "issue_read")
+
+	var gql GraphQLRequest
+	require.NoError(t, json.Unmarshal(result, &gql))
+	assert.Contains(t, gql.Query, "author{login}")
+	assert.Contains(t, gql.Query, "authorAssociation")
+}
+
+func TestInjectGuardFields_PullRequestRead(t *testing.T) {
+	// Use a query with a nodes block (e.g., reviews sub-collection) so injection can occur.
+	query := `query { repository(owner:"o", name:"r") { pullRequest(number: 1) { reviews(first:5) { nodes { body } } } } }`
+	body, _ := json.Marshal(GraphQLRequest{Query: query})
+
+	result := InjectGuardFields(body, "pull_request_read")
+
+	var gql GraphQLRequest
+	require.NoError(t, json.Unmarshal(result, &gql))
+	assert.Contains(t, gql.Query, "author{login}")
+	assert.Contains(t, gql.Query, "authorAssociation")
+}
+
+func TestInjectGuardFields_NoNodesNoFragment(t *testing.T) {
+	// A query with required tool but no "nodes" block and no fragment spread —
+	// the injector cannot find a place to insert fields, so body is returned unchanged.
+	query := `query { repository(owner:"o", name:"r") { pullRequest(number: 1) { title } } }`
+	body, _ := json.Marshal(GraphQLRequest{Query: query})
+
+	result := InjectGuardFields(body, "list_pull_requests")
+
+	assert.Equal(t, body, result)
+}
+
+func TestInjectGuardFields_EmptyQuery(t *testing.T) {
+	body, _ := json.Marshal(GraphQLRequest{Query: ""})
+	result := InjectGuardFields(body, "list_pull_requests")
+	assert.Equal(t, body, result)
+}
+
+func TestFieldsForTool(t *testing.T) {
+	tests := []struct {
+		toolName      string
+		wantNil       bool
+		expectedField string
+	}{
+		{toolName: "list_issues", wantNil: false, expectedField: "author{login}"},
+		{toolName: "list_pull_requests", wantNil: false, expectedField: "author{login}"},
+		{toolName: "issue_read", wantNil: false, expectedField: "author{login}"},
+		{toolName: "pull_request_read", wantNil: false, expectedField: "author{login}"},
+		{toolName: "search_issues", wantNil: false, expectedField: "authorAssociation"},
+		{toolName: "list_commits", wantNil: false, expectedField: "author{user{login}}"},
+		{toolName: "get_me", wantNil: true},
+		{toolName: "get_file_contents", wantNil: true},
+		{toolName: "", wantNil: true},
+		{toolName: "unknown_tool", wantNil: true},
+	}
+
+	for _, tt := range tests {
+		t.Run("tool: "+tt.toolName, func(t *testing.T) {
+			fields := fieldsForTool(tt.toolName)
+			if tt.wantNil {
+				assert.Nil(t, fields, "expected nil fields for tool %q", tt.toolName)
+			} else {
+				require.NotNil(t, fields, "expected non-nil fields for tool %q", tt.toolName)
+				fieldStrings := make([]string, len(fields))
+				for i, f := range fields {
+					fieldStrings[i] = f.field
+				}
+				assert.Contains(t, fieldStrings, tt.expectedField)
+			}
+		})
+	}
+}
+
+func TestAllFieldsPresent(t *testing.T) {
+	tests := []struct {
+		name   string
+		query  string
+		fields []guardFieldSet
+		want   bool
+	}{
+		{
+			name:   "all fields present",
+			query:  `{ nodes { author { login } authorAssociation } }`,
+			fields: issueAndPRFields,
+			want:   true,
+		},
+		{
+			name:   "author login missing",
+			query:  `{ nodes { authorAssociation } }`,
+			fields: issueAndPRFields,
+			want:   false,
+		},
+		{
+			name:   "authorAssociation missing",
+			query:  `{ nodes { author { login } } }`,
+			fields: issueAndPRFields,
+			want:   false,
+		},
+		{
+			name:   "both missing",
+			query:  `{ nodes { title } }`,
+			fields: issueAndPRFields,
+			want:   false,
+		},
+		{
+			name:   "empty fields set is always true",
+			query:  `{ nodes { title } }`,
+			fields: []guardFieldSet{},
+			want:   true,
+		},
+		{
+			name:   "commit fields present",
+			query:  `{ nodes { author { user { login } } } }`,
+			fields: commitFields,
+			want:   true,
+		},
+		{
+			name:   "commit fields missing",
+			query:  `{ nodes { oid } }`,
+			fields: commitFields,
+			want:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := allFieldsPresent(tt.query, tt.fields)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestMissingFields(t *testing.T) {
+	tests := []struct {
+		name   string
+		query  string
+		fields []guardFieldSet
+		want   []string
+	}{
+		{
+			name:   "both fields missing",
+			query:  `{ nodes { title } }`,
+			fields: issueAndPRFields,
+			want:   []string{"author{login}", "authorAssociation"},
+		},
+		{
+			name:   "only authorAssociation missing",
+			query:  `{ nodes { author { login } title } }`,
+			fields: issueAndPRFields,
+			want:   []string{"authorAssociation"},
+		},
+		{
+			name:   "nothing missing",
+			query:  `{ nodes { author { login } authorAssociation } }`,
+			fields: issueAndPRFields,
+			want:   nil,
+		},
+		{
+			name:   "empty fields set returns nil",
+			query:  `{ nodes { title } }`,
+			fields: []guardFieldSet{},
+			want:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := missingFields(tt.query, tt.fields)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestInjectIntoFragment_FragmentNotFound(t *testing.T) {
+	query := `fragment other on Issue { title } query { repository(owner:"o",name:"r") { pullRequests(first:1) { nodes { ...other } } } }`
+
+	// Inject into fragment "nonexistent" — should return query unchanged.
+	result := injectIntoFragment(query, "nonexistent", "author{login}")
+	assert.Equal(t, query, result)
+}
+
+func TestInjectIntoFragment_NoOpeningBrace(t *testing.T) {
+	// Malformed: "fragment pr on PullRequest" with no brace
+	query := `fragment pr on PullRequest`
+	result := injectIntoFragment(query, "pr", "author{login}")
+	assert.Equal(t, query, result)
+}
+
 func countOccurrences(s, substr string) int {
 	count := 0
 	for i := 0; i+len(substr) <= len(s); i++ {
