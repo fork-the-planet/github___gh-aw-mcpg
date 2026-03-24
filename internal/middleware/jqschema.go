@@ -356,18 +356,20 @@ func WrapToolHandler(
 		logger.LogDebug("payload", "Schema transformation completed: tool=%s, queryID=%s, schemaSize=%d bytes",
 			toolName, queryID, len(schemaBytes))
 
-		// Build the transformed response: first PayloadPreviewSize chars + schema
-		payloadStr := string(payloadJSON)
+		// Build the transformed response: first PayloadPreviewSize chars + schema.
+		// Slice the bytes before converting to string to avoid allocating a full copy of the
+		// (potentially multi-MB) payload when only the first PayloadPreviewSize bytes are needed.
+		payloadLen := len(payloadJSON)
 		var preview string
-		truncated := len(payloadStr) > PayloadPreviewSize
+		truncated := payloadLen > PayloadPreviewSize
 		if truncated {
-			preview = payloadStr[:PayloadPreviewSize] + "..."
+			preview = string(payloadJSON[:PayloadPreviewSize]) + "..."
 			logger.LogInfo("payload", "Payload truncated for preview: tool=%s, queryID=%s, originalSize=%d bytes, previewSize=%d bytes",
-				toolName, queryID, len(payloadStr), PayloadPreviewSize)
+				toolName, queryID, payloadLen, PayloadPreviewSize)
 		} else {
-			preview = payloadStr
+			preview = string(payloadJSON)
 			logger.LogDebug("payload", "Payload small enough for full preview: tool=%s, queryID=%s, size=%d bytes",
-				toolName, queryID, len(payloadStr))
+				toolName, queryID, payloadLen)
 		}
 
 		// Create rewritten response using the PayloadMetadata struct
@@ -376,14 +378,14 @@ func WrapToolHandler(
 			PayloadPath:       filePath,
 			PayloadPreview:    preview,
 			PayloadSchema:     schemaObj,
-			OriginalSize:      len(payloadJSON),
+			OriginalSize:      payloadLen,
 			QueryID:           queryID,
 		}
 
 		logMiddleware.Printf("Rewritten response: tool=%s, queryID=%s, sessionID=%s, originalSize=%d, truncated=%v",
-			toolName, queryID, sessionID, len(payloadJSON), truncated)
+			toolName, queryID, sessionID, payloadLen, truncated)
 		logger.LogInfo("payload", "Created metadata response for client: tool=%s, queryID=%s, session=%s, payloadPath=%s, originalSize=%d bytes, truncated=%v",
-			toolName, queryID, sessionID, filePath, len(payloadJSON), truncated)
+			toolName, queryID, sessionID, filePath, payloadLen, truncated)
 
 		// Marshal the rewritten response to JSON for the Content field
 		rewrittenJSON, marshalErr := json.Marshal(rewrittenResponse)

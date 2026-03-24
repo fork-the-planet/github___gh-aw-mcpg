@@ -194,3 +194,44 @@ func BenchmarkCompileVsParse(b *testing.B) {
 		}
 	})
 }
+
+// BenchmarkPreviewCreation benchmarks the preview string creation for large payloads.
+// The optimized version slices the byte slice before converting to string, avoiding
+// a full allocation of the entire (potentially multi-MB) payload as a string.
+func BenchmarkPreviewCreation(b *testing.B) {
+	sizes := []struct {
+		name string
+		size int
+	}{
+		{"10KB", 10 * 1024},
+		{"100KB", 100 * 1024},
+		{"1MB", 1 * 1024 * 1024},
+	}
+
+	for _, tt := range sizes {
+		// Build a payload larger than PayloadPreviewSize
+		payload := make([]byte, tt.size)
+		for i := range payload {
+			payload[i] = 'x'
+		}
+
+		b.Run("optimized/"+tt.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				// Optimized: slice bytes before converting to string
+				_ = string(payload[:PayloadPreviewSize]) + "..."
+			}
+		})
+
+		b.Run("original/"+tt.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				// Original: convert full payload to string first
+				s := string(payload)
+				_ = s[:PayloadPreviewSize] + "..."
+			}
+		})
+	}
+}
