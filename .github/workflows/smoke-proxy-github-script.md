@@ -41,6 +41,8 @@ tools:
     - "head"
     - "tail"
     - "grep"
+    - "gh"
+    - "curl"
 sandbox:
   mcp:
     container: "ghcr.io/github/gh-aw-mcpg"
@@ -323,6 +325,89 @@ steps:
           console.log(`Bot integrity test error: ${err.message}`);
         }
 
+  # ── gh CLI tests (mirror github-script tests via direct proxy URLs) ─
+  - name: "Test 7-12: gh CLI tests via proxy"
+    env:
+      GH_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN || secrets.GH_AW_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+    run: |
+      RESULTS_DIR="${RESULTS_DIR:-/tmp/gh-aw/github-script-results}"
+      PROXY="http://localhost:18443"
+
+      # Test 7: In-scope list issues (gh CLI REST)
+      echo "--- Test 7: In-scope list issues (gh CLI) ---"
+      RESPONSE=$(gh api "$PROXY/repos/github/gh-aw-mcpg/issues?per_page=5&state=open" --jq 'length' 2>&1) || true
+      COUNT=$(echo "$RESPONSE" | head -1)
+      if [ "$COUNT" -gt 0 ] 2>/dev/null; then
+        echo "✅ Test 7: $COUNT items"
+        echo "{\"test\":\"gh-in-scope-list-issues\",\"item_count\":$COUNT}" > "$RESULTS_DIR/test7-gh-in-scope-issues.json"
+      else
+        echo "❌ Test 7: $RESPONSE"
+        echo "{\"test\":\"gh-in-scope-list-issues\",\"error\":\"unexpected: $RESPONSE\"}" > "$RESULTS_DIR/test7-gh-in-scope-issues.json"
+      fi
+
+      # Test 8: Out-of-scope list issues (gh CLI REST)
+      echo "--- Test 8: Out-of-scope list issues (gh CLI) ---"
+      RESPONSE=$(gh api "$PROXY/repos/octocat/Hello-World/issues?per_page=5" --jq 'length' 2>&1) || true
+      COUNT=$(echo "$RESPONSE" | head -1)
+      if [ "$COUNT" = "0" ] 2>/dev/null; then
+        echo "✅ Test 8: 0 items (blocked)"
+        echo "{\"test\":\"gh-out-of-scope-list-issues\",\"item_count\":0}" > "$RESULTS_DIR/test8-gh-out-of-scope-issues.json"
+      else
+        echo "Test 8: $COUNT items (expected: 0) — raw: $RESPONSE"
+        echo "{\"test\":\"gh-out-of-scope-list-issues\",\"item_count\":\"$COUNT\",\"raw\":\"$RESPONSE\"}" > "$RESULTS_DIR/test8-gh-out-of-scope-issues.json"
+      fi
+
+      # Test 9: In-scope GraphQL (gh CLI)
+      echo "--- Test 9: In-scope GraphQL (gh CLI) ---"
+      QUERY='query { repository(owner:"github", name:"gh-aw-mcpg") { issues(first:5, states:OPEN) { totalCount nodes { number title author { login } authorAssociation } } } }'
+      RESPONSE=$(gh api "$PROXY/graphql" -f query="$QUERY" --jq '.data.repository.issues.totalCount' 2>&1) || true
+      COUNT=$(echo "$RESPONSE" | head -1)
+      if [ "$COUNT" -gt 0 ] 2>/dev/null; then
+        echo "✅ Test 9: totalCount=$COUNT"
+        echo "{\"test\":\"gh-in-scope-graphql\",\"total_count\":$COUNT}" > "$RESULTS_DIR/test9-gh-in-scope-graphql.json"
+      else
+        echo "❌ Test 9: $RESPONSE"
+        echo "{\"test\":\"gh-in-scope-graphql\",\"error\":\"$RESPONSE\"}" > "$RESULTS_DIR/test9-gh-in-scope-graphql.json"
+      fi
+
+      # Test 10: Out-of-scope GraphQL (gh CLI)
+      echo "--- Test 10: Out-of-scope GraphQL (gh CLI) ---"
+      QUERY='query { repository(owner:"octocat", name:"Hello-World") { issues(first:5, states:OPEN) { totalCount nodes { number title author { login } } } } }'
+      RESPONSE=$(gh api "$PROXY/graphql" -f query="$QUERY" --jq '.data.repository.issues.totalCount' 2>&1) || true
+      COUNT=$(echo "$RESPONSE" | head -1)
+      if [ "$COUNT" = "0" ] || [ -z "$COUNT" ] || [ "$COUNT" = "null" ]; then
+        echo "✅ Test 10: blocked (count=$COUNT)"
+        echo "{\"test\":\"gh-out-of-scope-graphql\",\"total_count\":0,\"raw\":\"$RESPONSE\"}" > "$RESULTS_DIR/test10-gh-out-of-scope-graphql.json"
+      else
+        echo "Test 10: totalCount=$COUNT (expected: 0)"
+        echo "{\"test\":\"gh-out-of-scope-graphql\",\"total_count\":$COUNT}" > "$RESULTS_DIR/test10-gh-out-of-scope-graphql.json"
+      fi
+
+      # Test 11: In-scope search code (gh CLI) — uses /api/v3/ prefix to test StripGHHostPrefix
+      echo "--- Test 11: In-scope search code (gh CLI, /api/v3 prefix) ---"
+      RESPONSE=$(gh api "$PROXY/api/v3/search/code?q=repo:github/gh-aw-mcpg+filename:README&per_page=3" --jq '.total_count' 2>&1) || true
+      COUNT=$(echo "$RESPONSE" | head -1)
+      if [ "$COUNT" -gt 0 ] 2>/dev/null; then
+        echo "✅ Test 11: $COUNT results (via /api/v3/ prefix)"
+        echo "{\"test\":\"gh-in-scope-search\",\"total_count\":$COUNT,\"note\":\"used /api/v3/ prefix\"}" > "$RESULTS_DIR/test11-gh-in-scope-search.json"
+      else
+        echo "❌ Test 11: $RESPONSE"
+        echo "{\"test\":\"gh-in-scope-search\",\"error\":\"$RESPONSE\"}" > "$RESULTS_DIR/test11-gh-in-scope-search.json"
+      fi
+
+      # Test 12: In-scope get file contents (gh CLI) — uses /api/v3/ prefix
+      echo "--- Test 12: In-scope get file contents (gh CLI, /api/v3 prefix) ---"
+      RESPONSE=$(gh api "$PROXY/api/v3/repos/github/gh-aw-mcpg/contents/README.md" --jq '.name' 2>&1) || true
+      if [ "$RESPONSE" = "README.md" ]; then
+        echo "✅ Test 12: $RESPONSE (via /api/v3/ prefix)"
+        echo "{\"test\":\"gh-in-scope-file-contents\",\"name\":\"$RESPONSE\",\"note\":\"used /api/v3/ prefix\"}" > "$RESULTS_DIR/test12-gh-in-scope-file.json"
+      else
+        echo "❌ Test 12: $RESPONSE"
+        echo "{\"test\":\"gh-in-scope-file-contents\",\"error\":\"$RESPONSE\"}" > "$RESULTS_DIR/test12-gh-in-scope-file.json"
+      fi
+
+      echo "--- gh CLI tests complete ---"
+
   # ── Collect proxy logs ─────────────────────────────────────────────
   - name: Collect proxy logs and stop proxy
     if: always()
@@ -381,6 +466,12 @@ Pre-agent steps ran 6 tests through `actions/github-script@v8` with
 | 4 | Out-of-scope GraphQL: query issues (octocat/Hello-World) | Empty or blocked |
 | 5 | In-scope REST: search code (github/gh-aw-mcpg) | Returns data |
 | 6 | Integrity: bot-authored issues (github-actions[bot]) | Visible (trusted bot) |
+| 7 | gh CLI: In-scope list issues | Returns data |
+| 8 | gh CLI: Out-of-scope list issues | 0 items (blocked) |
+| 9 | gh CLI: In-scope GraphQL issues | Returns data |
+| 10 | gh CLI: Out-of-scope GraphQL issues | 0 items (blocked) |
+| 11 | gh CLI: In-scope search code | Returns data |
+| 12 | gh CLI: In-scope get file contents | Returns README.md |
 
 **Policy**: `{"allow-only":{"repos":["github/gh-aw-mcpg"],"min-integrity":"approved"}}`
 
@@ -393,11 +484,17 @@ Pre-agent steps ran 6 tests through `actions/github-script@v8` with
    - `test4-out-of-scope-graphql.json` — GraphQL issues (out-of-scope)
    - `test5-in-scope-search.json` — REST search code (in-scope)
    - `test6-bot-integrity.json` — bot-authored issue visibility
+   - `test7-gh-in-scope-issues.json` — gh CLI list issues (in-scope)
+   - `test8-gh-out-of-scope-issues.json` — gh CLI list issues (out-of-scope)
+   - `test9-gh-in-scope-graphql.json` — gh CLI GraphQL (in-scope)
+   - `test10-gh-out-of-scope-graphql.json` — gh CLI GraphQL (out-of-scope)
+   - `test11-gh-in-scope-search.json` — gh CLI search (in-scope)
+   - `test12-gh-in-scope-file.json` — gh CLI get file contents (in-scope)
    - `difc-summary.json` — DIFC filtering event counts
 
 2. **Evaluate each test**:
-   - **In-scope tests (1, 3, 5)**: PASS if `item_count > 0` and no error
-   - **Out-of-scope tests (2, 4)**: PASS if `item_count == 0` OR error/blocked
+   - **In-scope tests (1, 3, 5, 7, 9, 11, 12)**: PASS if `item_count > 0` and no error
+   - **Out-of-scope tests (2, 4, 8, 10)**: PASS if `item_count == 0` OR error/blocked
    - **Bot integrity (6)**: PASS if `bot_issue_count > 0` (trusted bots pass filter)
 
 3. **Check DIFC summary**: Note how many items were filtered and total RPC messages
@@ -429,14 +526,26 @@ Pre-agent steps ran 6 tests through `actions/github-script@v8` with
 |---|------|-------|--------|
 | 6 | Bot-authored issues visible | [count] | ✅/❌ |
 
+### gh CLI Tests (via GH_HOST proxy)
+| # | Test | Items | Status |
+|---|------|-------|--------|
+| 7 | gh CLI: In-scope list issues | [count] | ✅/❌ |
+| 8 | gh CLI: Out-of-scope list issues | [count] | ✅/❌ |
+| 9 | gh CLI: In-scope GraphQL | [count] | ✅/❌ |
+| 10 | gh CLI: Out-of-scope GraphQL | [count] | ✅/❌ |
+| 11 | gh CLI: In-scope search code | [count] | ✅/❌ |
+| 12 | gh CLI: In-scope file contents | [name] | ✅/❌ |
+
 ### DIFC Summary
 - Filtered events: [N]
 - Total RPC messages: [N]
 
 ### Conclusion
-- **In-scope access works**: ✅/❌ (tests 1, 3, 5)
-- **Out-of-scope blocked**: ✅/❌ (tests 2, 4)
+- **In-scope access works**: ✅/❌ (tests 1, 3, 5, 7, 9, 11, 12)
+- **Out-of-scope blocked**: ✅/❌ (tests 2, 4, 8, 10)
 - **Bot integrity preserved**: ✅/❌ (test 6)
+- **github-script routing**: ✅/❌ (tests 1-6 via base-url)
+- **gh CLI routing**: ✅/❌ (tests 7-12 via GH_HOST)
 - **Overall**: ✅ PASS / ❌ FAIL
 
 [Brief explanation of what this proves about using the proxy with github-script]
