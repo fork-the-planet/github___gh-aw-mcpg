@@ -17,7 +17,6 @@ func NormalizeInputSchema(schema map[string]interface{}, toolName string) map[st
 	// If backend didn't provide a schema, use a default empty object schema
 	// This allows the tool to be registered and clients will see it accepts any parameters
 	if schema == nil {
-		logSchema.Printf("Tool %s has nil schema, applying default empty object schema", toolName)
 		logger.LogWarn("backend", "Tool schema normalized: %s - backend provided no inputSchema, using default empty object schema", toolName)
 		return map[string]interface{}{
 			"type":       "object",
@@ -43,11 +42,9 @@ func NormalizeInputSchema(schema map[string]interface{}, toolName string) map[st
 				normalized[k] = v
 			}
 			normalized["type"] = "object"
-			logSchema.Printf("Tool %s schema normalized: added object type", toolName)
 			return normalized
 		}
 		// Schema without type and without properties - assume it's an empty object schema
-		logSchema.Printf("Tool %s has no type and no properties, using empty object schema", toolName)
 		logger.LogWarn("backend", "Tool schema normalized: %s - schema missing type, assuming empty object schema", toolName)
 		return map[string]interface{}{
 			"type":       "object",
@@ -80,7 +77,6 @@ func NormalizeInputSchema(schema map[string]interface{}, toolName string) map[st
 		}
 		normalized["properties"] = map[string]interface{}{}
 
-		logSchema.Printf("Tool %s schema normalized: added empty properties field", toolName)
 		return normalized
 	}
 

@@ -76,7 +76,6 @@ type Connection struct {
 // NewConnection creates a new MCP connection using the official SDK
 func NewConnection(ctx context.Context, serverID, command string, args []string, env map[string]string) (*Connection, error) {
 	logger.LogInfo("backend", "Creating new MCP backend connection, command=%s, args=%v", command, sanitize.SanitizeArgs(args))
-	logConn.Printf("Creating new MCP connection: command=%s, args=%v", command, sanitize.SanitizeArgs(args))
 	ctx, cancel := context.WithCancel(ctx)
 
 	// Create MCP client with logger
@@ -117,7 +116,6 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 			line := scanner.Text()
 			sanitizedLine := sanitize.SanitizeString(line)
 			logger.LogInfoWithServer(serverID, "backend", "[stderr] %s", sanitizedLine)
-			logConn.Printf("[%s stderr] %s", serverID, sanitizedLine)
 		}
 	}()
 
@@ -171,7 +169,6 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 	}
 
 	logger.LogInfoMd("backend", "Successfully connected to MCP backend server, command=%s", command)
-	logConn.Printf("Successfully connected to MCP server: command=%s", command)
 
 	conn := &Connection{
 		client:   client,
@@ -200,7 +197,6 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 // This ensures compatibility with all types of HTTP MCP servers.
 func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[string]string) (*Connection, error) {
 	logger.LogInfo("backend", "Creating HTTP MCP connection with transport fallback, url=%s", url)
-	logConn.Printf("Creating HTTP MCP connection: url=%s", url)
 	ctx, cancel := context.WithCancel(ctx)
 
 	// Create an HTTP client with appropriate timeouts

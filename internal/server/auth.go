@@ -45,7 +45,6 @@ func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
 		authHeader := r.Header.Get("Authorization")
 
 		if authHeader == "" {
-			logAuth.Printf("Authentication failed: missing Authorization header")
 			// Spec 7.1: Missing token returns 401
 			logger.LogErrorMd("auth", "Authentication failed: missing Authorization header, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
 			logRuntimeError("authentication_failed", "missing_auth_header", r, nil)
@@ -55,14 +54,12 @@ func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
 
 		// Spec 7.1: Authorization header must contain API key directly (not Bearer scheme)
 		if authHeader != apiKey {
-			logAuth.Printf("Authentication failed: invalid API key")
 			logger.LogErrorMd("auth", "Authentication failed: invalid API key, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
 			logRuntimeError("authentication_failed", "invalid_api_key", r, nil)
 			http.Error(w, "Unauthorized: invalid API key", http.StatusUnauthorized)
 			return
 		}
 
-		logAuth.Printf("Authentication successful")
 		logger.LogInfo("auth", "Authentication successful, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
 		// Token is valid, proceed to handler
 		next(w, r)

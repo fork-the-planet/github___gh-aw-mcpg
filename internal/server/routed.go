@@ -20,10 +20,8 @@ var logRouted = logger.New("server:routed")
 // Per spec 5.1.3: "Immediately reject any new RPC requests to /mcp/{server-name} endpoints with HTTP 503"
 // The logNamespace parameter is used to create a logger for debug output specific to the call site.
 func rejectIfShutdown(unifiedServer *UnifiedServer, next http.Handler, logNamespace string) http.Handler {
-	log := logger.New(logNamespace)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if unifiedServer.IsShutdown() {
-			log.Printf("Rejecting request during shutdown: remote=%s, method=%s, path=%s", r.RemoteAddr, r.Method, r.URL.Path)
 			logger.LogWarn("shutdown", "Request rejected during shutdown, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
 			writeJSONResponse(w, http.StatusServiceUnavailable, json.RawMessage(shutdownErrorJSON))
 			return

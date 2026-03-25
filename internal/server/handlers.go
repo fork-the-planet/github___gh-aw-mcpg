@@ -35,7 +35,6 @@ func handleOAuthDiscovery() http.Handler {
 func handleClose(unifiedServer *UnifiedServer) http.Handler {
 	logHandlers.Print("Creating close handler")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logHandlers.Printf("Close request received: remote=%s, method=%s, path=%s", r.RemoteAddr, r.Method, r.URL.Path)
 		log.Printf("[%s] %s %s", r.RemoteAddr, r.Method, r.URL.Path)
 		logger.LogInfo("shutdown", "Close endpoint called, remote=%s", r.RemoteAddr)
 
@@ -48,7 +47,6 @@ func handleClose(unifiedServer *UnifiedServer) http.Handler {
 
 		// Check if already closed (idempotency - spec 5.1.3)
 		if unifiedServer.IsShutdown() {
-			logHandlers.Print("Gateway already shutdown, returning 410 Gone")
 			logger.LogWarn("shutdown", "Close endpoint called but gateway already closed, remote=%s", r.RemoteAddr)
 			writeJSONResponse(w, http.StatusGone, map[string]interface{}{
 				"error": "Gateway has already been closed",
