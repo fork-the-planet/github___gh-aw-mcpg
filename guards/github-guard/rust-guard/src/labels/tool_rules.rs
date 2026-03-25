@@ -313,11 +313,25 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
-        // === GitHub Actions ===
-        "actions_get" | "actions_list" => {
-            // S(workflow/artifact) = inherits from repo visibility
-            // Public repos: artifacts are public. Private repos: artifacts are private-scoped.
-            // I(workflow/artifact) = approved - maintained by repo team
+        // === Repo-scoped resources: visibility-inherited secrecy, approved integrity ===
+        // S = inherits from repo visibility; I = approved (writer-level)
+        "actions_get"
+        | "actions_list"
+        | "get_discussion"
+        | "get_discussion_comments"
+        | "get_job_logs"
+        | "get_label"
+        | "get_repository"
+        | "get_repository_tree"
+        | "get_tag"
+        | "list_branches"
+        | "list_discussion_categories"
+        | "list_discussions"
+        | "list_label"
+        | "list_releases"
+        | "get_latest_release"
+        | "get_release_by_tag"
+        | "list_tags" => {
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             integrity = writer_integrity(repo_id, ctx);
         }
@@ -380,39 +394,6 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
-        "get_repository" => {
-            // Single repository metadata should inherit repository visibility.
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Branches & Tags ===
-        "list_branches" | "list_tags" | "get_tag" => {
-            // Branch/tag metadata from repo
-            // S = inherits from repo
-            // I = approved (maintained by repo team)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Releases ===
-        "list_releases" | "get_latest_release" | "get_release_by_tag" => {
-            // Release metadata
-            // S = inherits from repo (releases can be private)
-            // I = project (created by maintainers)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Labels ===
-        "get_label" => {
-            // Label metadata
-            // S = inherits from repo
-            // I = project (managed by maintainers)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
         // === Issue Types ===
         "list_issue_types" => {
             // Org-level issue types
@@ -442,39 +423,6 @@ pub fn apply_tool_labels(
                 baseline_scope = owner.clone();
                 integrity = writer_integrity(&baseline_scope, ctx);
             }
-        }
-
-        // === Job Logs (Actions) ===
-        "get_job_logs" => {
-            // S = inherits from repo visibility (public repo logs are public)
-            // I = approved — CI output is system-generated, not user-controlled
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Discussions (repo-scoped, user content) ===
-        "list_discussions" | "get_discussion" => {
-            // Discussions are user-submitted content, similar to issues.
-            // S = inherits from repo visibility
-            // I = approved — treat discussion content as approved at the resource level
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        "get_discussion_comments" => {
-            // Discussion comments are user-submitted, lowest-trust user content.
-            // S = inherits from repo visibility
-            // I = approved — treat discussion comments as approved at the resource level
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        "list_discussion_categories" => {
-            // Discussion categories are maintainer-managed metadata.
-            // S = inherits from repo visibility
-            // I = approved — managed by maintainers
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
         }
 
         // === Gists (user-scoped) ===
@@ -515,24 +463,6 @@ pub fn apply_tool_labels(
             secrecy = private_user_label();
             baseline_scope = "github".to_string();
             integrity = project_github_label(ctx);
-        }
-
-        // === Repository Tree ===
-        "get_repository_tree" => {
-            // Tree listing shows file structure; inherits from repo + branch.
-            // S = inherits from repo visibility
-            // I = approved (repo metadata, maintained by repo team)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Labels (list) ===
-        "list_label" => {
-            // Label listing — maintainer-managed metadata.
-            // S = inherits from repo visibility
-            // I = approved (managed by maintainers)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
         }
 
         // === Starred Repositories ===

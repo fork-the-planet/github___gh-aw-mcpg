@@ -253,6 +253,27 @@ fn first_matching_approval_label<'a>(item: &'a Value, ctx: &PolicyContext) -> Op
     })
 }
 
+/// Apply approval-label promotion: if the item carries a configured approval label,
+/// raise integrity to at least writer (approved) level.
+fn apply_approval_label_promotion(
+    item: &Value,
+    resource_type: &str,
+    repo_full_name: &str,
+    integrity: Vec<String>,
+    ctx: &PolicyContext,
+) -> Vec<String> {
+    if let Some(label) = first_matching_approval_label(item, ctx) {
+        let number = item.get("number").and_then(|v| v.as_u64()).unwrap_or(0);
+        crate::log_info(&format!(
+            "[integrity] {}:{}#{} promoted to approved (label '{}' in approval-labels)",
+            resource_type, repo_full_name, number, label
+        ));
+        max_integrity(repo_full_name, integrity, writer_integrity(repo_full_name, ctx), ctx)
+    } else {
+        integrity
+    }
+}
+
 pub fn ensure_integrity_baseline(
     scope: &str,
     integrity: Vec<String>,
@@ -1127,21 +1148,7 @@ pub fn pr_integrity(
     let integrity = ensure_integrity_baseline(repo_full_name, integrity, ctx);
 
     // Step 2: Apply approval-labels promotion — raise to at least approved.
-    if let Some(label) = first_matching_approval_label(item, ctx) {
-        let number = item.get("number").and_then(|v| v.as_u64()).unwrap_or(0);
-        crate::log_info(&format!(
-            "[integrity] pr:{}#{} promoted to approved (label '{}' in approval-labels)",
-            repo_full_name, number, label
-        ));
-        max_integrity(
-            repo_full_name,
-            integrity,
-            writer_integrity(repo_full_name, ctx),
-            ctx,
-        )
-    } else {
-        integrity
-    }
+    apply_approval_label_promotion(item, "pr", repo_full_name, integrity, ctx)
 }
 
 /// Determine integrity level for an issue
@@ -1218,21 +1225,7 @@ pub fn issue_integrity(
     let integrity = ensure_integrity_baseline(repo_full_name, integrity, ctx);
 
     // Step 2: Apply approval-labels promotion — raise to at least approved.
-    if let Some(label) = first_matching_approval_label(item, ctx) {
-        let number = item.get("number").and_then(|v| v.as_u64()).unwrap_or(0);
-        crate::log_info(&format!(
-            "[integrity] issue:{}#{} promoted to approved (label '{}' in approval-labels)",
-            repo_full_name, number, label
-        ));
-        max_integrity(
-            repo_full_name,
-            integrity,
-            writer_integrity(repo_full_name, ctx),
-            ctx,
-        )
-    } else {
-        integrity
-    }
+    apply_approval_label_promotion(item, "issue", repo_full_name, integrity, ctx)
 }
 
 /// Determine integrity level for a commit.
