@@ -50,6 +50,16 @@ When using `run_containerized.sh`, these additional variables are available:
 | `DOCKER_HOST` | Docker daemon socket path | `/var/run/docker.sock` |
 | `DOCKER_API_VERSION` | Docker API version (set by helper scripts, Docker client auto-negotiates) | Set by querying Docker daemon's current API version; falls back to `1.44` if detection fails |
 
+## Proxy Mode Variables
+
+When running `awmg proxy`, these variables configure the upstream GitHub API:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GITHUB_API_URL` | Explicit GitHub API endpoint (e.g., `https://copilot-api.mycompany.ghe.com`); used by proxy to set upstream target | (auto-derived) |
+| `GITHUB_SERVER_URL` | GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `copilot-api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com` | (falls back to `api.github.com`) |
+| `GITHUB_TOKEN` / `GH_TOKEN` | GitHub auth token for the proxy to forward requests | (required) |
+
 ## DIFC / Guard Policy Configuration
 
 These environment variables configure guard policies (e.g., AllowOnly policies for restricting tool access to specific GitHub repositories):

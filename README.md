@@ -191,6 +191,7 @@ This maps ~25 REST URL patterns and GraphQL queries to guard tool names, then ru
 | **Guard Response Labeling** | [docs/GUARD_RESPONSE_LABELING.md](docs/GUARD_RESPONSE_LABELING.md) — How guards label MCP responses with secrecy/integrity tags |
 | **HTTP Backend Sessions** | [docs/HTTP_BACKEND_SESSION_ID.md](docs/HTTP_BACKEND_SESSION_ID.md) — Session ID management for HTTP transport backends |
 | **Architecture Patterns** | [docs/MCP_SERVER_ARCHITECTURE_PATTERNS.md](docs/MCP_SERVER_ARCHITECTURE_PATTERNS.md) — MCP server design patterns and compatibility |
+| **Gateway Compatibility** | [docs/GATEWAY_COMPATIBILITY_QUICK_REFERENCE.md](docs/GATEWAY_COMPATIBILITY_QUICK_REFERENCE.md) — Quick reference for gateway compatibility |
 | **Security Model** | [docs/aw-security.md](docs/aw-security.md) — Security architecture overview |
 | **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) — Development setup, building, testing, project structure |
 
