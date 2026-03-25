@@ -133,38 +133,13 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 		cancel()
 		stderrPipeWriter.Close() // Close pipe to stop the stderr streaming goroutine
 
-		// Enhanced error context for debugging
-		logger.LogErrorMd("backend", "MCP backend connection failed, command=%s, args=%v, error=%v", command, sanitize.SanitizeArgs(expandedArgs), err)
-		log.Printf("❌ MCP Connection Failed:")
-		log.Printf("   Command: %s", command)
-		log.Printf("   Args: %v", sanitize.SanitizeArgs(expandedArgs))
-		log.Printf("   Error: %v", err)
-
-		// Log captured stderr output from the container/process
 		stderrOutput := strings.TrimSpace(stderrBuf.String())
-		if stderrOutput != "" {
-			sanitizedStderr := sanitize.SanitizeString(stderrOutput)
-			logger.LogErrorMd("backend", "MCP backend stderr output:\n%s", sanitizedStderr)
-			log.Printf("   📋 Container/Process stderr output:")
-			for _, line := range strings.Split(sanitizedStderr, "\n") {
-				log.Printf("      %s", line)
-			}
-		}
-
-		// Check if it's a command not found error
-		if strings.Contains(err.Error(), "executable file not found") ||
-			strings.Contains(err.Error(), "no such file or directory") {
-			logger.LogErrorMd("backend", "MCP backend command not found, command=%s", command)
-			log.Printf("   ⚠️  Command '%s' not found in PATH", command)
-			log.Printf("   ⚠️  Verify the command is installed and executable")
-		}
-
-		// Check if it's a connection/protocol error
-		if strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "broken pipe") {
-			logger.LogErrorMd("backend", "MCP backend connection/protocol error, command=%s", command)
-			log.Printf("   ⚠️  Process started but terminated unexpectedly")
-			log.Printf("   ⚠️  Check if the command supports MCP protocol over stdio")
-		}
+		LogConnectionError(ConnectionErrorContext{
+			ServerID:     serverID,
+			Command:      command,
+			Args:         expandedArgs,
+			StderrOutput: stderrOutput,
+		}, err)
 
 		logConn.Printf("Connection failed: command=%s, error=%v", command, err)
 		return nil, fmt.Errorf("failed to connect: %w", err)

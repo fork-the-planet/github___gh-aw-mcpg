@@ -9,6 +9,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/mcp"
 )
 
 // sessionSuffix returns a formatted session suffix for log messages
@@ -69,29 +70,16 @@ func (l *Launcher) logEnvPassthrough(args []string) {
 
 // logLaunchError logs detailed launch failure diagnostics
 func (l *Launcher) logLaunchError(serverID, sessionID string, err error, serverCfg *config.ServerConfig, isDirectCommand bool) {
-	logger.LogErrorWithServer(serverID, "backend", "Failed to launch MCP backend server%s: server=%s%s, error=%v",
-		sessionSuffix(sessionID), serverID, sessionSuffix(sessionID), err)
-	log.Printf("[LAUNCHER] ❌ FAILED to launch server '%s'%s", serverID, sessionSuffix(sessionID))
-	log.Printf("[LAUNCHER] Error: %v", err)
-	log.Printf("[LAUNCHER] Debug Information:")
-	log.Printf("[LAUNCHER]   - Command: %s", serverCfg.Command)
-	log.Printf("[LAUNCHER]   - Args: %v", sanitize.SanitizeArgs(serverCfg.Args))
-	log.Printf("[LAUNCHER]   - Env vars: %v", sanitize.TruncateSecretMap(serverCfg.Env))
-	log.Printf("[LAUNCHER]   - Running in container: %v", l.runningInContainer)
-	log.Printf("[LAUNCHER]   - Is direct command: %v", isDirectCommand)
-	log.Printf("[LAUNCHER]   - Startup timeout: %v", l.startupTimeout)
-
-	if isDirectCommand && l.runningInContainer {
-		log.Printf("[LAUNCHER] ⚠️  Possible causes:")
-		log.Printf("[LAUNCHER]   - Command '%s' may not be installed in the gateway container", serverCfg.Command)
-		log.Printf("[LAUNCHER]   - Consider using 'container' config instead of 'command'")
-		log.Printf("[LAUNCHER]   - Or add '%s' to the gateway's Dockerfile", serverCfg.Command)
-	} else if isDirectCommand {
-		log.Printf("[LAUNCHER] ⚠️  Possible causes:")
-		log.Printf("[LAUNCHER]   - Command '%s' may not be in PATH", serverCfg.Command)
-		log.Printf("[LAUNCHER]   - Check if '%s' is installed: which %s", serverCfg.Command, serverCfg.Command)
-		log.Printf("[LAUNCHER]   - Verify file permissions and execute bit")
-	}
+	mcp.LogConnectionError(mcp.ConnectionErrorContext{
+		ServerID:           serverID,
+		SessionID:          sessionID,
+		Command:            serverCfg.Command,
+		Args:               serverCfg.Args,
+		Env:                serverCfg.Env,
+		RunningInContainer: l.runningInContainer,
+		IsDirectCommand:    isDirectCommand,
+		StartupTimeout:     l.startupTimeout,
+	}, err)
 }
 
 // logTimeoutError logs startup timeout diagnostics
