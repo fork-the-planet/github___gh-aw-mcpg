@@ -105,11 +105,15 @@ func extractNumberField(m map[string]interface{}) string {
 const maxFilteredItemsInNotice = 5
 
 // buildDIFCFilteredNotice builds a human-readable notice for the agent when items are
-// removed from a tool response by DIFC integrity policy in filter/propagate mode.
+// removed from a tool response by DIFC policy in filter/propagate mode.
 //
 // The notice is surfaced as an additional text content block appended to the tool
 // response so that agents (and targeted-dispatch workflows) are aware that items exist
 // but were withheld, rather than concluding the result set is genuinely empty.
+//
+// The notice distinguishes between secrecy-blocked and integrity-blocked items so that
+// downstream consumers can provide accurate guidance (e.g. secrecy violations cannot be
+// resolved by lowering min-integrity).
 //
 // For up to maxFilteredItemsInNotice items the description and reason for each item are
 // included. For larger sets only the count is reported to keep the message concise.
@@ -123,6 +127,9 @@ func buildDIFCFilteredNotice(filtered *difc.FilteredCollectionLabeledData) strin
 	}
 
 	logDifcLog.Printf("Building DIFC filtered notice: filteredCount=%d, maxInline=%d", n, maxFilteredItemsInNotice)
+
+	// Determine the policy label: distinguish secrecy-only, integrity-only, or mixed.
+	policyLabel := difcPolicyLabel(filtered.Filtered)
 
 	// For a small number of filtered items, include per-item descriptions and reasons.
 	if n <= maxFilteredItemsInNotice {
@@ -147,14 +154,35 @@ func buildDIFCFilteredNotice(filtered *difc.FilteredCollectionLabeledData) strin
 		}
 		if len(parts) > 0 {
 			return fmt.Sprintf(
-				"[DIFC] %d item(s) in this response were removed by integrity policy and are not shown: %s.",
-				n, strings.Join(parts, "; "),
+				"[Filtered] %d item(s) in this response were removed by %s and are not shown: %s.",
+				n, policyLabel, strings.Join(parts, "; "),
 			)
 		}
 	}
 
 	return fmt.Sprintf(
-		"[DIFC] %d item(s) in this response were removed by integrity policy and are not shown.",
-		n,
+		"[Filtered] %d item(s) in this response were removed by %s and are not shown.",
+		n, policyLabel,
 	)
+}
+
+// difcPolicyLabel returns a human-readable policy label based on whether the filtered
+// items were blocked due to secrecy, integrity, or a mix of both.
+func difcPolicyLabel(items []difc.FilteredItemDetail) string {
+	secrecyCount, integrityCount := 0, 0
+	for _, d := range items {
+		if d.IsSecrecyViolation {
+			secrecyCount++
+		} else {
+			integrityCount++
+		}
+	}
+	switch {
+	case secrecyCount > 0 && integrityCount == 0:
+		return "secrecy policy"
+	case integrityCount > 0 && secrecyCount == 0:
+		return "integrity policy"
+	default:
+		return "access policy"
+	}
 }

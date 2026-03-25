@@ -1085,6 +1085,8 @@ func TestEvaluator_FilterCollection_FilteredItemsHaveReasons(t *testing.T) {
 		require.Equal(t, 1, filtered.GetFilteredCount(), "item should be filtered")
 		assert.NotEmpty(t, filtered.Filtered[0].Reason,
 			"filtered item must carry a denial reason for the audit trail")
+		assert.True(t, filtered.Filtered[0].IsSecrecyViolation,
+			"secrecy-blocked item must have IsSecrecyViolation=true")
 	})
 
 	t.Run("integrity violation reason is non-empty", func(t *testing.T) {
@@ -1111,6 +1113,8 @@ func TestEvaluator_FilterCollection_FilteredItemsHaveReasons(t *testing.T) {
 		require.Equal(t, 1, filtered.GetFilteredCount(), "item should be filtered")
 		assert.NotEmpty(t, filtered.Filtered[0].Reason,
 			"filtered item must carry a denial reason for the audit trail")
+		assert.False(t, filtered.Filtered[0].IsSecrecyViolation,
+			"integrity-blocked item must have IsSecrecyViolation=false")
 	})
 
 	t.Run("every filtered item in a mixed collection has a reason", func(t *testing.T) {
@@ -1131,7 +1135,34 @@ func TestEvaluator_FilterCollection_FilteredItemsHaveReasons(t *testing.T) {
 		for i, detail := range filtered.Filtered {
 			assert.NotEmpty(t, detail.Reason,
 				"filtered item[%d] must have a non-empty denial reason", i)
+			assert.True(t, detail.IsSecrecyViolation,
+				"filtered item[%d] blocked by secrecy must have IsSecrecyViolation=true", i)
 		}
+	})
+
+	t.Run("IsSecrecyViolation is false for integrity-only violation", func(t *testing.T) {
+		// Agent requires approved integrity; item has none.
+		agentSecrecy := NewSecrecyLabel()
+		agentIntegrity := NewIntegrityLabelWithTags([]Tag{"approved:org/repo"})
+
+		collection := &CollectionLabeledData{
+			Items: []LabeledItem{
+				{
+					Data: "low-integrity-item",
+					Labels: &LabeledResource{
+						Description: "unapproved PR",
+						Secrecy:     *NewSecrecyLabel(),
+						Integrity:   *NewIntegrityLabel(), // empty
+					},
+				},
+			},
+		}
+
+		filtered := eval.FilterCollection(agentSecrecy, agentIntegrity, collection, OperationRead)
+
+		require.Equal(t, 1, filtered.GetFilteredCount())
+		assert.False(t, filtered.Filtered[0].IsSecrecyViolation,
+			"integrity-only violation must not be marked as secrecy")
 	})
 }
 

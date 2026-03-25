@@ -131,8 +131,9 @@ func (c *CollectionLabeledData) ToResult() (interface{}, error) {
 
 // FilteredItemDetail pairs a filtered item with the reason it was denied
 type FilteredItemDetail struct {
-	Item   LabeledItem
-	Reason string // Human-readable denial reason from EvaluationResult
+	Item               LabeledItem
+	Reason             string // Human-readable denial reason from EvaluationResult
+	IsSecrecyViolation bool   // True when the item was blocked due to secrecy requirements; false when due to integrity
 }
 
 // FilteredCollectionLabeledData represents a collection with some items filtered out

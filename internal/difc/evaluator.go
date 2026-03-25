@@ -436,8 +436,9 @@ func (e *Evaluator) FilterCollection(
 			filtered.Accessible = append(filtered.Accessible, item)
 		} else {
 			filtered.Filtered = append(filtered.Filtered, FilteredItemDetail{
-				Item:   item,
-				Reason: result.Reason,
+				Item:               item,
+				Reason:             result.Reason,
+				IsSecrecyViolation: len(result.SecrecyToAdd) > 0,
 			})
 		}
 	}
