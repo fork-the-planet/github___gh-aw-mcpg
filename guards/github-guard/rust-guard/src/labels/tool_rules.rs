@@ -10,9 +10,9 @@ use super::helpers::{
     author_association_floor_from_str, ensure_integrity_baseline, extract_number_as_string,
     extract_repo_info, extract_repo_info_from_search_query, format_repo_id,
     is_configured_trusted_bot, is_default_branch_commit_context, is_default_branch_ref,
-    is_trusted_first_party_bot, max_integrity, merged_integrity, policy_private_scope_label,
-    private_user_label, project_github_label, reader_integrity, secret_label, writer_integrity,
-    PolicyContext,
+    is_trusted_first_party_bot, is_trusted_user, max_integrity, merged_integrity,
+    policy_private_scope_label, private_user_label, project_github_label, reader_integrity,
+    secret_label, writer_integrity, PolicyContext,
 };
 
 fn apply_repo_visibility_secrecy(
@@ -126,10 +126,11 @@ pub fn apply_tool_labels(
                             info.author_association.as_deref(),
                             ctx,
                         );
-                        // Elevate trusted first-party bots to approved
+                        // Elevate trusted first-party bots and trusted users to approved
                         if let Some(ref login) = info.author_login {
                             if is_trusted_first_party_bot(login)
                                 || is_configured_trusted_bot(login, ctx)
+                                || is_trusted_user(login, ctx)
                             {
                                 floor = max_integrity(
                                     repo_id,
@@ -186,10 +187,11 @@ pub fn apply_tool_labels(
                             ctx,
                         );
 
-                        // Elevate trusted first-party bots to approved
+                        // Elevate trusted first-party bots and trusted users to approved
                         if let Some(ref login) = facts.author_login {
                             if is_trusted_first_party_bot(login)
                                 || is_configured_trusted_bot(login, ctx)
+                                || is_trusted_user(login, ctx)
                             {
                                 integrity = max_integrity(
                                     repo_id,

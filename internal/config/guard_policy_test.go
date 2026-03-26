@@ -282,6 +282,84 @@ func TestNormalizeGuardPolicyBlockedAndApproval(t *testing.T) {
 	})
 }
 
+// TestNormalizeGuardPolicyTrustedUsers tests NormalizeGuardPolicy with trusted-users.
+func TestNormalizeGuardPolicyTrustedUsers(t *testing.T) {
+	t.Run("trusted-users propagated to normalized policy", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:        "public",
+			MinIntegrity: "none",
+			TrustedUsers: []string{"contractor-1", "partner-dev"},
+		}}
+
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"contractor-1", "partner-dev"}, got.TrustedUsers)
+	})
+
+	t.Run("trusted-users deduplication", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:        "public",
+			MinIntegrity: "none",
+			TrustedUsers: []string{"contractor-1", "contractor-1", "partner-dev"},
+		}}
+
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Len(t, got.TrustedUsers, 2)
+		assert.Contains(t, got.TrustedUsers, "contractor-1")
+		assert.Contains(t, got.TrustedUsers, "partner-dev")
+	})
+
+	t.Run("trusted-users case-insensitive deduplication", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:        "public",
+			MinIntegrity: "none",
+			TrustedUsers: []string{"Contractor-1", "contractor-1", "CONTRACTOR-1"},
+		}}
+
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Len(t, got.TrustedUsers, 1)
+		assert.Equal(t, "Contractor-1", got.TrustedUsers[0]) // keeps first occurrence
+	})
+
+	t.Run("empty trusted-users string entry returns error", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:        "public",
+			MinIntegrity: "none",
+			TrustedUsers: []string{"valid-user", ""},
+		}}
+
+		_, err := NormalizeGuardPolicy(policy)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "trusted-users entries must not be empty")
+	})
+
+	t.Run("empty trusted-users slice results in nil normalized list", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:        "public",
+			MinIntegrity: "none",
+			TrustedUsers: []string{},
+		}}
+
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Empty(t, got.TrustedUsers)
+	})
+
+	t.Run("whitespace-only entry rejected", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:        "public",
+			MinIntegrity: "none",
+			TrustedUsers: []string{"  "},
+		}}
+
+		_, err := NormalizeGuardPolicy(policy)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "trusted-users entries must not be empty")
+	})
+}
+
 func TestIsValidRepoScope(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -632,6 +710,30 @@ func TestAllowOnlyPolicyUnmarshalJSON(t *testing.T) {
 				assert.Equal(t, []string{"ok"}, p.ApprovalLabels)
 			},
 		},
+		{
+			name: "trusted-users parsed correctly",
+			json: `{"repos":"public","min-integrity":"none","trusted-users":["contractor-1","partner-dev"]}`,
+			check: func(t *testing.T, p *AllowOnlyPolicy) {
+				assert.Equal(t, []string{"contractor-1", "partner-dev"}, p.TrustedUsers)
+			},
+		},
+		{
+			name: "empty trusted-users array is valid",
+			json: `{"repos":"public","min-integrity":"none","trusted-users":[]}`,
+			check: func(t *testing.T, p *AllowOnlyPolicy) {
+				assert.Empty(t, p.TrustedUsers)
+			},
+		},
+		{
+			name: "all fields including trusted-users parse correctly",
+			json: `{"repos":"public","min-integrity":"approved","blocked-users":["bad"],"approval-labels":["ok"],"trusted-users":["contractor-1"]}`,
+			check: func(t *testing.T, p *AllowOnlyPolicy) {
+				assert.Equal(t, "approved", p.MinIntegrity)
+				assert.Equal(t, []string{"bad"}, p.BlockedUsers)
+				assert.Equal(t, []string{"ok"}, p.ApprovalLabels)
+				assert.Equal(t, []string{"contractor-1"}, p.TrustedUsers)
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -739,6 +841,36 @@ func TestAllowOnlyPolicyMarshalJSON(t *testing.T) {
 		jsonStr := string(data)
 		assert.NotContains(t, jsonStr, `"blocked-users"`)
 		assert.NotContains(t, jsonStr, `"approval-labels"`)
+		assert.NotContains(t, jsonStr, `"trusted-users"`)
+	})
+
+	t.Run("trusted-users is included when set", func(t *testing.T) {
+		policy := AllowOnlyPolicy{
+			Repos:        "public",
+			MinIntegrity: "none",
+			TrustedUsers: []string{"contractor-1", "partner-dev"},
+		}
+
+		data, err := json.Marshal(policy)
+		require.NoError(t, err)
+
+		jsonStr := string(data)
+		assert.Contains(t, jsonStr, `"trusted-users"`)
+		assert.Contains(t, jsonStr, `"contractor-1"`)
+		assert.Contains(t, jsonStr, `"partner-dev"`)
+	})
+
+	t.Run("nil trusted-users is omitted", func(t *testing.T) {
+		policy := AllowOnlyPolicy{
+			Repos:        "public",
+			MinIntegrity: "none",
+		}
+
+		data, err := json.Marshal(policy)
+		require.NoError(t, err)
+
+		jsonStr := string(data)
+		assert.NotContains(t, jsonStr, `"trusted-users"`)
 	})
 }
 

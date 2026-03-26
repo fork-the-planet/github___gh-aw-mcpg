@@ -84,6 +84,10 @@ pub struct PolicyContext {
     /// GitHub label names that promote a content item's effective integrity to "approved"
     /// when present on the item. Does not override blocked_users.
     pub approval_labels: Vec<String>,
+    /// GitHub usernames that are elevated to approved (writer) integrity regardless of
+    /// their author_association. Analogous to trusted_bots but for regular human users.
+    /// blocked_users takes precedence over trusted_users.
+    pub trusted_users: Vec<String>,
 }
 
 fn normalize_scope(scope: &str, ctx: &PolicyContext) -> String {
@@ -986,11 +990,13 @@ pub fn has_author_association(item: &Value) -> bool {
 /// Extract author_association from an item and return initial integrity floor.
 /// Trusted first-party GitHub bots and any gateway-configured trusted bots are
 /// elevated to approved (writer) integrity regardless of their author_association value.
+/// Users in the trusted_users list are also elevated to approved integrity.
 pub fn author_association_floor(item: &Value, scope: &str, ctx: &PolicyContext) -> Vec<String> {
     let author_login = extract_author_login(item);
     if !author_login.is_empty()
         && (is_trusted_first_party_bot(author_login)
-            || is_configured_trusted_bot(author_login, ctx))
+            || is_configured_trusted_bot(author_login, ctx)
+            || is_trusted_user(author_login, ctx))
     {
         return writer_integrity(scope, ctx);
     }
@@ -1092,10 +1098,11 @@ pub fn pr_integrity(
                         facts.author_association.as_deref(),
                         ctx,
                     );
-                    // Elevate trusted bots
+                    // Elevate trusted bots and trusted users
                     let enriched_floor = if let Some(ref login) = facts.author_login {
                         if is_trusted_first_party_bot(login)
                             || is_configured_trusted_bot(login, ctx)
+                            || is_trusted_user(login, ctx)
                         {
                             max_integrity(
                                 repo_full_name,
@@ -1337,6 +1344,20 @@ pub fn is_configured_trusted_bot(username: &str, ctx: &PolicyContext) -> bool {
     }
     let lower = username.to_lowercase();
     ctx.trusted_bots.iter().any(|b| b.to_lowercase() == lower)
+}
+
+/// Check if a user is in the gateway-configured trusted users list.
+///
+/// This checks the `trusted_users` list in `PolicyContext`, which is populated from
+/// the allow-only policy's `trusted-users` field. Users in this list receive approved
+/// (writer) integrity regardless of their `author_association`. Comparison is
+/// case-insensitive. `blocked_users` takes precedence over `trusted_users`.
+pub fn is_trusted_user(username: &str, ctx: &PolicyContext) -> bool {
+    if ctx.trusted_users.is_empty() {
+        return false;
+    }
+    let lower = username.to_lowercase();
+    ctx.trusted_users.iter().any(|u| u.to_lowercase() == lower)
 }
 
 /// Check if a user appears to be a bot (broad detection).
