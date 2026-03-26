@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/stretchr/testify/assert"
@@ -168,11 +169,27 @@ func TestCallSDKMethod_ToolsCall_NilSession(t *testing.T) {
 
 // newPlainJSONTestServer creates an httptest.Server that responds to the MCP
 // initialize handshake and then responds to subsequent requests using handler.
+// Non-POST requests and requests with non-JSON bodies are rejected with 405 /
+// 400 so that SDK transports (which send GET/DELETE) fail fast and the
+// connection falls back to the plain JSON-RPC path.
 func newPlainJSONTestServer(t *testing.T, handler func(w http.ResponseWriter, r *http.Request, method string, body []byte)) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Only accept POST – reject other methods so that streamable/SSE transports
+		// fail fast during their own connect attempts.
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
+
+		// Reject empty bodies (e.g. from SDK probe requests)
+		if len(body) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
 		var req map[string]interface{}
 		require.NoError(t, json.Unmarshal(body, &req))
@@ -220,6 +237,19 @@ func TestSendRequestWithServerID_StdioPath_NilSession(t *testing.T) {
 	assert.Contains(t, err.Error(), "SDK session not available")
 }
 
+// newPlainJSONConn creates a Connection that uses the plain JSON-RPC transport,
+// bypassing the normal SDK transport fallback.  This is intentional in tests
+// that exercise the plain-JSON branch of SendRequestWithServerID.
+func newPlainJSONConn(t *testing.T, serverURL string, headers map[string]string) *Connection {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	conn, err := tryPlainJSONTransport(ctx, cancel, "test-server", serverURL, headers, httpClient)
+	require.NoError(t, err)
+	return conn
+}
+
 // TestSendRequestWithServerID_AgentTags_PlainJSONSuccess verifies that when
 // shouldAttachAgentTags is true the function still returns the correct result
 // via the plain JSON-RPC HTTP path (exercises the LogRPCRequestWithAgentSnapshot /
@@ -238,10 +268,8 @@ func TestSendRequestWithServerID_AgentTags_PlainJSONSuccess(t *testing.T) {
 	})
 	defer srv.Close()
 
-	conn, err := NewHTTPConnection(context.Background(), "sink-server", srv.URL, map[string]string{
-		"Authorization": "test-token",
-	})
-	require.NoError(t, err)
+	conn := newPlainJSONConn(t, srv.URL, map[string]string{"Authorization": "test-token"})
+	conn.serverID = "sink-server"
 	defer conn.Close()
 
 	ctx := context.WithValue(context.Background(), AgentTagsSnapshotContextKey, &AgentTagsSnapshot{
@@ -312,10 +340,8 @@ func TestSendRequestWithServerID_AgentTags_PlainJSONError(t *testing.T) {
 	})
 	defer srv.Close()
 
-	conn, err := NewHTTPConnection(context.Background(), "sink-server", srv.URL, map[string]string{
-		"Authorization": "test-token",
-	})
-	require.NoError(t, err)
+	conn := newPlainJSONConn(t, srv.URL, map[string]string{"Authorization": "test-token"})
+	conn.serverID = "sink-server"
 	defer conn.Close()
 
 	ctx := context.WithValue(context.Background(), AgentTagsSnapshotContextKey, &AgentTagsSnapshot{

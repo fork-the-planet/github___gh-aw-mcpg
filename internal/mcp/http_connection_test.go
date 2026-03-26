@@ -12,20 +12,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNewHTTPConnection_WithCustomHeaders tests that custom headers skip SDK transports
-// and use plain JSON-RPC transport directly
+// TestNewHTTPConnection_WithCustomHeaders tests that custom headers are injected into the
+// SDK-managed Streamable HTTP transport (not bypassed to plain JSON-RPC).
 func TestNewHTTPConnection_WithCustomHeaders(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	// Track which transport was attempted
+	// Track which requests were received
 	serverCallCount := 0
 
 	// Create test server that responds to initialize requests
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		serverCallCount++
 
-		// Verify custom headers are present
+		// Verify custom headers are injected into every request
 		assert.Equal("test-auth-token", r.Header.Get("Authorization"))
 		assert.Equal("custom-value", r.Header.Get("X-Custom-Header"))
 
@@ -62,11 +62,12 @@ func TestNewHTTPConnection_WithCustomHeaders(t *testing.T) {
 	// Verify connection properties
 	assert.True(conn.IsHTTP(), "Connection should be HTTP")
 	assert.Equal(testServer.URL, conn.GetHTTPURL())
-	assert.Equal(HTTPTransportPlainJSON, conn.httpTransportType, "Should use plain JSON transport")
+	// Custom headers are now injected via RoundTripper so the SDK Streamable transport is used
+	assert.Equal(HTTPTransportStreamable, conn.httpTransportType, "Should use Streamable HTTP transport even with custom headers")
 	assert.Equal("session-123", conn.httpSessionID, "Session ID should be captured")
 
-	// Verify only one call was made (plain JSON transport, no fallback attempts)
-	assert.Equal(1, serverCallCount, "Should only attempt plain JSON transport with custom headers")
+	// Verify at least one call was made (Streamable transport connects successfully)
+	assert.GreaterOrEqual(serverCallCount, 1, "Server should have received at least one request")
 }
 
 // TestNewHTTPConnection_WithoutHeaders_FallbackSequence tests connection without custom headers.
@@ -282,8 +283,10 @@ func TestTryPlainJSONTransport_InitializeFailure(t *testing.T) {
 	}
 }
 
-// TestTryPlainJSONTransport_SSEFormattedResponse tests handling of SSE-formatted responses
-func TestTryPlainJSONTransport_SSEFormattedResponse(t *testing.T) {
+// TestHTTPConnection_SSEFormattedResponse tests handling of SSE-formatted responses.
+// Even when the server returns SSE-formatted data, the streamable HTTP transport
+// (which is tried first) is able to handle it.
+func TestHTTPConnection_SSEFormattedResponse(t *testing.T) {
 	require := require.New(t)
 
 	// Create test server that returns SSE-formatted initialize response
@@ -311,11 +314,14 @@ data: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","serverIn
 
 	// Verify session was captured
 	assert.Equal(t, "sse-session-456", conn.httpSessionID)
-	assert.Equal(t, HTTPTransportPlainJSON, conn.httpTransportType)
+	// The streamable transport handles SSE-formatted text/event-stream responses
+	assert.Equal(t, HTTPTransportStreamable, conn.httpTransportType)
 }
 
-// TestTryPlainJSONTransport_NoSessionIDInResponse tests handling when server doesn't return session ID
-func TestTryPlainJSONTransport_NoSessionIDInResponse(t *testing.T) {
+// TestHTTPConnection_NoSessionIDInResponse tests handling when server doesn't return session ID.
+// When the streamable transport is used and the server omits Mcp-Session-Id, the
+// connection still succeeds; the httpSessionID will be empty in that case.
+func TestHTTPConnection_NoSessionIDInResponse(t *testing.T) {
 	require := require.New(t)
 
 	// Create test server that doesn't return Mcp-Session-Id header
@@ -347,9 +353,8 @@ func TestTryPlainJSONTransport_NoSessionIDInResponse(t *testing.T) {
 	require.NotNil(conn)
 	defer conn.Close()
 
-	// Should have a temporary session ID
-	assert.NotEmpty(t, conn.httpSessionID, "Should have temporary session ID")
-	assert.Contains(t, conn.httpSessionID, "awmg-init-", "Should be temporary session ID")
+	// Session ID may be empty when the server does not return one; the connection is still valid
+	assert.Equal(t, HTTPTransportStreamable, conn.httpTransportType)
 }
 
 // TestNewHTTPConnection_HeadersPropagation tests that custom headers are properly propagated

@@ -88,9 +88,19 @@ func TestCallTool_ArgumentsPassed(t *testing.T) {
 				bodyBytes, err := io.ReadAll(r.Body)
 				require.NoError(t, err, "Failed to read request body")
 
+				// Ignore requests with empty or non-JSON bodies (e.g. GET/DELETE from
+				// the Streamable HTTP transport during session lifecycle management).
+				if len(bodyBytes) == 0 {
+					w.WriteHeader(http.StatusMethodNotAllowed)
+					return
+				}
+
 				var request map[string]interface{}
 				err = json.Unmarshal(bodyBytes, &request)
-				require.NoError(t, err, "Failed to parse request JSON")
+				if err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
 
 				method, _ := request["method"].(string)
 

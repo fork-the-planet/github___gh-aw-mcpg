@@ -184,12 +184,14 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 // For HTTP servers that are already running, we connect and initialize a session
 //
 // This function implements a fallback strategy for HTTP transports:
-//  1. If custom headers are provided, skip SDK transports (they don't support custom headers)
-//     and use plain JSON-RPC 2.0 over HTTP POST (for safeinputs compatibility)
-//  2. Otherwise, try standard transports:
+//  1. Try standard transports in order:
 //     a. Streamable HTTP (2025-03-26 spec) using SDK's StreamableClientTransport
 //     b. SSE (2024-11-05 spec) using SDK's SSEClientTransport
 //     c. Plain JSON-RPC 2.0 over HTTP POST as final fallback
+//
+// Custom headers (e.g. Authorization) are injected into every outgoing request via a
+// custom http.RoundTripper, so the SDK transports are used even when authentication
+// headers are configured.
 //
 // This ensures compatibility with all types of HTTP MCP servers.
 func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[string]string) (*Connection, error) {
@@ -206,26 +208,16 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 		},
 	}
 
-	// If custom headers are provided, skip SDK transports as they don't support headers
-	// This is typical for backends like safeinputs that require authentication
-	if len(headers) > 0 {
-		logConn.Printf("Custom headers detected, using plain JSON-RPC transport for %s", url)
-		conn, err := tryPlainJSONTransport(ctx, cancel, serverID, url, headers, httpClient)
-		if err == nil {
-			logger.LogInfo("backend", "Successfully connected using plain JSON-RPC transport, url=%s", url)
-			log.Printf("Configured HTTP MCP server with plain JSON-RPC transport: %s", url)
-			return conn, nil
-		}
-		cancel()
-		logger.LogError("backend", "Plain JSON-RPC transport failed for url=%s, error=%v", url, err)
-		return nil, fmt.Errorf("failed to connect with plain JSON-RPC transport: %w", err)
-	}
+	// Build a header-injecting client so that all SDK transports send custom headers
+	// (e.g. Authorization) on every request.  When no headers are configured the
+	// original client is returned unchanged.
+	headerClient := buildHTTPClientWithHeaders(httpClient, headers)
 
 	// Try standard transports in order: streamable HTTP → SSE → plain JSON-RPC
 
 	// Try 1: Streamable HTTP (2025-03-26 spec)
 	logConn.Printf("Attempting streamable HTTP transport for %s", url)
-	conn, err := tryStreamableHTTPTransport(ctx, cancel, serverID, url, headers, httpClient)
+	conn, err := tryStreamableHTTPTransport(ctx, cancel, serverID, url, headers, headerClient)
 	if err == nil {
 		logger.LogInfo("backend", "Successfully connected using streamable HTTP transport, url=%s", url)
 		log.Printf("Configured HTTP MCP server with streamable transport: %s", url)
@@ -235,7 +227,7 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 
 	// Try 2: SSE (2024-11-05 spec)
 	logConn.Printf("Attempting SSE transport for %s", url)
-	conn, err = trySSETransport(ctx, cancel, serverID, url, headers, httpClient)
+	conn, err = trySSETransport(ctx, cancel, serverID, url, headers, headerClient)
 	if err == nil {
 		logger.LogWarn("backend", "⚠️  MCP over SSE has been deprecated. Connected using SSE transport for url=%s. Please migrate to streamable HTTP transport (2025-03-26 spec).", url)
 		log.Printf("⚠️  WARNING: MCP over SSE (2024-11-05 spec) has been DEPRECATED")
@@ -313,6 +305,9 @@ func (c *Connection) reconnectSDKTransport() error {
 		_ = c.session.Close()
 	}
 
+	// Rebuild the header-injecting client so custom auth headers are preserved on reconnect.
+	headerClient := buildHTTPClientWithHeaders(c.httpClient, c.headers)
+
 	// Build the appropriate transport.
 	client := newMCPClient(logConn)
 	var transport sdk.Transport
@@ -320,13 +315,13 @@ func (c *Connection) reconnectSDKTransport() error {
 	case HTTPTransportStreamable:
 		transport = &sdk.StreamableClientTransport{
 			Endpoint:   c.httpURL,
-			HTTPClient: c.httpClient,
+			HTTPClient: headerClient,
 			MaxRetries: 0,
 		}
 	case HTTPTransportSSE:
 		transport = &sdk.SSEClientTransport{
 			Endpoint:   c.httpURL,
-			HTTPClient: c.httpClient,
+			HTTPClient: headerClient,
 		}
 	default:
 		return fmt.Errorf("cannot reconnect: unsupported transport type %s", c.httpTransportType)

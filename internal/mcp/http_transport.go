@@ -197,6 +197,40 @@ func newHTTPConnection(ctx context.Context, cancel context.CancelFunc, client *s
 	}
 }
 
+// headerInjectingRoundTripper is an http.RoundTripper that injects a fixed set of
+// HTTP headers into every outgoing request. It is used so that SDK-managed transports
+// (StreamableClientTransport, SSEClientTransport) can send custom auth headers even
+// though those transports do not expose a per-request header API.
+type headerInjectingRoundTripper struct {
+	base    http.RoundTripper
+	headers map[string]string
+}
+
+func (rt *headerInjectingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone the request so we don't mutate the caller's copy.
+	reqCopy := req.Clone(req.Context())
+	for k, v := range rt.headers {
+		reqCopy.Header.Set(k, v)
+	}
+	return rt.base.RoundTrip(reqCopy)
+}
+
+// buildHTTPClientWithHeaders returns a copy of baseClient whose transport injects
+// the provided headers into every outgoing request.  When headers is empty the
+// original baseClient is returned unchanged.
+func buildHTTPClientWithHeaders(baseClient *http.Client, headers map[string]string) *http.Client {
+	if len(headers) == 0 {
+		return baseClient
+	}
+	base := baseClient.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	clone := *baseClient
+	clone.Transport = &headerInjectingRoundTripper{base: base, headers: headers}
+	return &clone
+}
+
 // createJSONRPCRequest creates a JSON-RPC 2.0 request map
 func createJSONRPCRequest(requestID uint64, method string, params interface{}) map[string]interface{} {
 	return map[string]interface{}{

@@ -332,8 +332,6 @@ func TestHTTPError_RequestFailure(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	initDone := false
-
 	// Create a server that succeeds on initialize but fails on subsequent requests
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -341,8 +339,10 @@ func TestHTTPError_RequestFailure(t *testing.T) {
 		}
 		json.NewDecoder(r.Body).Decode(&req)
 
-		if req.Method == "initialize" && !initDone {
-			initDone = true
+		if req.Method == "initialize" {
+			// Always succeed on initialize – the gateway may probe with multiple
+			// transport types (streamable, SSE, plain JSON-RPC) before settling on
+			// plain JSON-RPC.
 			// Initialize succeeds
 			response := map[string]interface{}{
 				"jsonrpc": "2.0",

@@ -330,8 +330,14 @@ func TestHTTPRequest_ErrorResponses(t *testing.T) {
 					http.Error(w, "Internal error", http.StatusInternalServerError)
 					return
 				}
+				// Silently reject empty-body requests (e.g. GET/DELETE from Streamable
+				// transport during session lifecycle); they are not part of this test.
+				if len(bodyBytes) == 0 {
+					w.WriteHeader(http.StatusMethodNotAllowed)
+					return
+				}
 				if err := json.Unmarshal(bodyBytes, &reqBody); err != nil {
-					t.Errorf("Failed to unmarshal request body: %v", err)
+					// Silently reject non-JSON bodies (probe requests from SDK transports).
 					http.Error(w, "Bad request", http.StatusBadRequest)
 					return
 				}

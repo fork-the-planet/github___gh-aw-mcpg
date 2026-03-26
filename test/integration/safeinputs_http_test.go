@@ -243,30 +243,38 @@ func TestSafeinputsHTTPBackend(t *testing.T) {
 	assert.False(t, requestCount == 0, "Expected at least one request to safeinputs server during initialization")
 	t.Logf("✓ Received %d request(s) to safeinputs server", requestCount)
 
-	// Verify all requests had session IDs
+	// The gateway now tries Streamable HTTP and SSE transports before falling back to
+	// plain JSON-RPC.  The early probe requests (from SDK transports) may not carry a
+	// Mcp-Session-Id header because the session has not been established yet.
+	// What matters is that:
+	//   1. Every request carries the Authorization header (custom-header injection works).
+	//   2. At least one request has a valid gateway-style session ID (the plain JSON-RPC
+	//      initialization succeeded and used the expected session ID pattern).
+	sessionIDFound := false
 	for i, headers := range receivedHeaders {
-		if headers["Mcp-Session-Id"] == "" {
-			t.Errorf("Request #%d missing Mcp-Session-Id header", i+1)
-		} else {
-			t.Logf("Request #%d session ID: %s", i+1, headers["Mcp-Session-Id"])
-
-			// Verify the session ID follows the expected pattern for initialization
-			if strings.HasPrefix(headers["Mcp-Session-Id"], "awmg-init-") ||
-				strings.HasPrefix(headers["Mcp-Session-Id"], "gateway-init-") {
-				t.Logf("✓ Request #%d has correct gateway initialization session ID pattern", i+1)
-			}
-		}
-
-		// Verify Authorization header was passed through
+		// Authorization header must be present on every request.
 		if headers["Authorization"] != "safeinputs-secret-key" {
 			t.Errorf("Request #%d has incorrect Authorization header: got %s, want safeinputs-secret-key",
 				i+1, headers["Authorization"])
 		}
+
+		sessionID := headers["Mcp-Session-Id"]
+		if sessionID != "" {
+			t.Logf("Request #%d session ID: %s", i+1, sessionID)
+			if strings.HasPrefix(sessionID, "awmg-init-") ||
+				strings.HasPrefix(sessionID, "gateway-init-") {
+				t.Logf("✓ Request #%d has correct gateway initialization session ID pattern", i+1)
+				sessionIDFound = true
+			}
+		} else {
+			t.Logf("Request #%d: no Mcp-Session-Id (transport probe request)", i+1)
+		}
 	}
 
 	// Final verification
-	if len(receivedHeaders) > 0 && receivedHeaders[0]["Mcp-Session-Id"] != "" {
+	if sessionIDFound {
 		t.Logf("✅ SUCCESS: Gateway correctly sends Mcp-Session-Id header to safeinputs HTTP backend")
-		t.Logf("   Session ID pattern: %s", receivedHeaders[0]["Mcp-Session-Id"])
+	} else {
+		t.Errorf("No request carried a gateway-style Mcp-Session-Id header (awmg-init-*); plain JSON-RPC initialization may have failed")
 	}
 }

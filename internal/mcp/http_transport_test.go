@@ -783,15 +783,14 @@ func TestSendHTTPRequest_SessionIDFromConnection(t *testing.T) {
 	}))
 	defer testServer.Close()
 
-	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
-		"Authorization": "test-token",
-	})
-	require.NoError(t, err)
+	// Use plain JSON transport directly: this test exercises the session-ID propagation
+	// logic in sendHTTPRequest, which is specific to the plain JSON-RPC code path.
+	conn := newPlainJSONConn(t, testServer.URL, map[string]string{"Authorization": "test-token"})
 	require.NotNil(t, conn)
 	defer conn.Close()
 
 	// No session ID in context - should use stored session from initialization
-	_, err = conn.sendHTTPRequest(context.Background(), "tools/list", nil)
+	_, err := conn.sendHTTPRequest(context.Background(), "tools/list", nil)
 	require.NoError(t, err)
 
 	require.Len(t, receivedSessionIDs, 1)
@@ -1069,15 +1068,87 @@ func TestSendHTTPRequest_NoReconnectOnOtherErrors(t *testing.T) {
 	}))
 	defer testServer.Close()
 
-	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
-		"Authorization": "test-token",
-	})
-	require.NoError(t, err)
+	// Use plain JSON transport directly: this test verifies the no-reconnect behaviour
+	// on 500 errors, which is specific to the plain JSON-RPC sendHTTPRequest path.
+	conn := newPlainJSONConn(t, testServer.URL, map[string]string{"Authorization": "test-token"})
+	require.NotNil(t, conn)
 	defer conn.Close()
 
-	_, err = conn.sendHTTPRequest(context.Background(), "tools/list", nil)
+	_, err := conn.sendHTTPRequest(context.Background(), "tools/list", nil)
 	require.NoError(t, err)
 
 	// initCount should be 1 (initial only) – no reconnect was attempted.
 	assert.Equal(t, 1, initCount, "should not reconnect on non-session-not-found errors")
+}
+
+// =============================================================================
+// headerInjectingRoundTripper / buildHTTPClientWithHeaders tests
+// =============================================================================
+
+// TestHeaderInjectingRoundTripper verifies that every request made through the
+// custom RoundTripper receives the configured headers.
+func TestHeaderInjectingRoundTripper(t *testing.T) {
+	received := make(map[string]string)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received["Authorization"] = r.Header.Get("Authorization")
+		received["X-Custom"] = r.Header.Get("X-Custom")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	rt := &headerInjectingRoundTripper{
+		base: http.DefaultTransport,
+		headers: map[string]string{
+			"Authorization": "Basic dXNlcjpwYXNz",
+			"X-Custom":      "hello",
+		},
+	}
+	client := &http.Client{Transport: rt}
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	assert.Equal(t, "Basic dXNlcjpwYXNz", received["Authorization"])
+	assert.Equal(t, "hello", received["X-Custom"])
+}
+
+// TestBuildHTTPClientWithHeaders_Empty verifies that an empty headers map returns
+// the same client (pointer equality).
+func TestBuildHTTPClientWithHeaders_Empty(t *testing.T) {
+	base := &http.Client{}
+	result := buildHTTPClientWithHeaders(base, nil)
+	assert.Same(t, base, result, "empty headers should return the original client unchanged")
+
+	result2 := buildHTTPClientWithHeaders(base, map[string]string{})
+	assert.Same(t, base, result2, "empty map should return the original client unchanged")
+}
+
+// TestBuildHTTPClientWithHeaders_NonEmpty verifies that a non-empty headers map
+// returns a new client whose transport injects the headers.
+func TestBuildHTTPClientWithHeaders_NonEmpty(t *testing.T) {
+	received := make(map[string]string)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received["Authorization"] = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	base := &http.Client{Transport: http.DefaultTransport}
+	injected := buildHTTPClientWithHeaders(base, map[string]string{
+		"Authorization": "Bearer token123",
+	})
+	assert.NotSame(t, base, injected, "non-empty headers should return a new client")
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := injected.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	assert.Equal(t, "Bearer token123", received["Authorization"])
 }
