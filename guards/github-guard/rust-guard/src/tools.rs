@@ -43,6 +43,9 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "enable_workflow",    // gh workflow enable
     "disable_workflow",   // gh workflow disable
     "set_secret",         // gh secret set
+    "set_variable",         // gh variable set
+    "upload_release_asset", // gh release upload
+    "sync_fork",            // gh repo sync
 ];
 
 /// Read-write operations that both read and modify data
