@@ -13,6 +13,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// DIFC flag defaults
+const (
+	defaultAllowOnlyMinIntegrity = ""
+)
+
 // DIFC flag variables
 var (
 	difcMode          string
@@ -27,12 +32,12 @@ var (
 func init() {
 	RegisterFlag(func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&difcMode, "guards-mode", getDefaultDIFCMode(), "Guards enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads)")
-		cmd.Flags().StringVar(&difcSinkServerIDs, "guards-sink-server-ids", os.Getenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS"), "Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots")
-		cmd.Flags().StringVar(&guardPolicyJSON, "guard-policy-json", os.Getenv("MCP_GATEWAY_GUARD_POLICY_JSON"), "Guard policy JSON (e.g. {\"allow-only\":{\"repos\":\"public\",\"min-integrity\":\"none\"}})")
+		cmd.Flags().StringVar(&difcSinkServerIDs, "guards-sink-server-ids", getDefaultDIFCSinkServerIDs(), "Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots")
+		cmd.Flags().StringVar(&guardPolicyJSON, "guard-policy-json", getDefaultGuardPolicyJSON(), "Guard policy JSON (e.g. {\"allow-only\":{\"repos\":\"public\",\"min-integrity\":\"none\"}})")
 		cmd.Flags().BoolVar(&allowOnlyPublic, "allowonly-scope-public", getDefaultAllowOnlyScopePublic(), "Use public AllowOnly scope")
-		cmd.Flags().StringVar(&allowOnlyOwner, "allowonly-scope-owner", os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER"), "AllowOnly owner scope value")
-		cmd.Flags().StringVar(&allowOnlyRepo, "allowonly-scope-repo", os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO"), "AllowOnly repo name (requires owner)")
-		cmd.Flags().StringVar(&allowOnlyMinInt, "allowonly-min-integrity", os.Getenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY"), "AllowOnly integrity: none|unapproved|approved|merged")
+		cmd.Flags().StringVar(&allowOnlyOwner, "allowonly-scope-owner", getDefaultAllowOnlyOwner(), "AllowOnly owner scope value")
+		cmd.Flags().StringVar(&allowOnlyRepo, "allowonly-scope-repo", getDefaultAllowOnlyRepo(), "AllowOnly repo name (requires owner)")
+		cmd.Flags().StringVar(&allowOnlyMinInt, "allowonly-min-integrity", getDefaultAllowOnlyMinIntegrity(), "AllowOnly integrity: none|unapproved|approved|merged")
 	})
 }
 
@@ -52,6 +57,36 @@ func getDefaultDIFCMode() string {
 
 func getDefaultAllowOnlyScopePublic() bool {
 	return envutil.GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false)
+}
+
+// getDefaultDIFCSinkServerIDs returns the default DIFC sink server IDs string,
+// checking MCP_GATEWAY_GUARDS_SINK_SERVER_IDS environment variable.
+func getDefaultDIFCSinkServerIDs() string {
+	return envutil.GetEnvString("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", "")
+}
+
+// getDefaultGuardPolicyJSON returns the default guard policy JSON string,
+// checking MCP_GATEWAY_GUARD_POLICY_JSON environment variable.
+func getDefaultGuardPolicyJSON() string {
+	return envutil.GetEnvString("MCP_GATEWAY_GUARD_POLICY_JSON", "")
+}
+
+// getDefaultAllowOnlyOwner returns the default AllowOnly owner scope,
+// checking MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER environment variable.
+func getDefaultAllowOnlyOwner() string {
+	return envutil.GetEnvString("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER", "")
+}
+
+// getDefaultAllowOnlyRepo returns the default AllowOnly repo name,
+// checking MCP_GATEWAY_ALLOWONLY_SCOPE_REPO environment variable.
+func getDefaultAllowOnlyRepo() string {
+	return envutil.GetEnvString("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", "")
+}
+
+// getDefaultAllowOnlyMinIntegrity returns the default AllowOnly minimum integrity level,
+// checking MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY environment variable.
+func getDefaultAllowOnlyMinIntegrity() string {
+	return envutil.GetEnvString("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", defaultAllowOnlyMinIntegrity)
 }
 
 // ValidateDIFCMode validates the guards mode flag value and returns an error if invalid

@@ -28,12 +28,17 @@
 //
 // Current helpers and their environment variables:
 //
-//	flags_logging.go  getDefaultLogDir()              → MCP_GATEWAY_LOG_DIR
-//	flags_logging.go  getDefaultPayloadDir()          → MCP_GATEWAY_PAYLOAD_DIR
-//	flags_logging.go  getDefaultPayloadPathPrefix()   → MCP_GATEWAY_PAYLOAD_PATH_PREFIX
-//	flags_logging.go  getDefaultPayloadSizeThreshold() → MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD
-//	flags_difc.go     getDefaultDIFCMode()             → MCP_GATEWAY_GUARDS_MODE
-//	flags_difc.go     getDefaultDIFCSinkServerIDs()    → MCP_GATEWAY_GUARDS_SINK_SERVER_IDS
+//	flags_logging.go  getDefaultLogDir()                → MCP_GATEWAY_LOG_DIR
+//	flags_logging.go  getDefaultPayloadDir()             → MCP_GATEWAY_PAYLOAD_DIR
+//	flags_logging.go  getDefaultPayloadPathPrefix()      → MCP_GATEWAY_PAYLOAD_PATH_PREFIX
+//	flags_logging.go  getDefaultPayloadSizeThreshold()   → MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD
+//	flags_difc.go     getDefaultDIFCMode()               → MCP_GATEWAY_GUARDS_MODE
+//	flags_difc.go     getDefaultDIFCSinkServerIDs()      → MCP_GATEWAY_GUARDS_SINK_SERVER_IDS
+//	flags_difc.go     getDefaultGuardPolicyJSON()        → MCP_GATEWAY_GUARD_POLICY_JSON
+//	flags_difc.go     getDefaultAllowOnlyScopePublic()   → MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC
+//	flags_difc.go     getDefaultAllowOnlyOwner()         → MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER
+//	flags_difc.go     getDefaultAllowOnlyRepo()          → MCP_GATEWAY_ALLOWONLY_SCOPE_REPO
+//	flags_difc.go     getDefaultAllowOnlyMinIntegrity()  → MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY
 //
 // This pattern is intentionally kept in individual feature files because:
 //   - Each helper names the specific environment variable it reads, making the

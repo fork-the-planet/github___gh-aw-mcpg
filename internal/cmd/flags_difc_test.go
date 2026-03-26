@@ -145,20 +145,43 @@ func TestValidDIFCModes(t *testing.T) {
 }
 
 func TestGetDefaultDIFCSinkServerIDs(t *testing.T) {
-	originalEnv := os.Getenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS")
-	defer func() {
-		if originalEnv != "" {
-			os.Setenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", originalEnv)
-		} else {
-			os.Unsetenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS")
-		}
-	}()
+	tests := []struct {
+		name     string
+		envValue string
+		setEnv   bool
+		expected string
+	}{
+		{
+			name:     "no env var - returns empty string",
+			setEnv:   false,
+			expected: "",
+		},
+		{
+			name:     "env var set - returns value",
+			envValue: "safeoutputs,github",
+			setEnv:   true,
+			expected: "safeoutputs,github",
+		},
+		{
+			name:     "empty env var - returns empty string",
+			envValue: "",
+			setEnv:   true,
+			expected: "",
+		},
+	}
 
-	os.Unsetenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS")
-	assert.Equal(t, "", os.Getenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setEnv {
+				t.Setenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", tt.envValue)
+			} else {
+				t.Setenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", "")
+			}
 
-	os.Setenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", "safeoutputs,github")
-	assert.Equal(t, "safeoutputs,github", os.Getenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS"))
+			result := getDefaultDIFCSinkServerIDs()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
 
 func TestParseDIFCSinkServerIDs(t *testing.T) {
@@ -246,48 +269,15 @@ func TestBuildAllowOnlyPolicy(t *testing.T) {
 }
 
 func TestGetDefaultGuardPolicyInputs(t *testing.T) {
-	originalJSON := os.Getenv("MCP_GATEWAY_GUARD_POLICY_JSON")
-	originalPublic := os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC")
-	originalOwner := os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER")
-	originalRepo := os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO")
-	originalMin := os.Getenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY")
-	defer func() {
-		if originalJSON != "" {
-			os.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", originalJSON)
-		} else {
-			os.Unsetenv("MCP_GATEWAY_GUARD_POLICY_JSON")
-		}
-		if originalPublic != "" {
-			os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", originalPublic)
-		} else {
-			os.Unsetenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC")
-		}
-		if originalOwner != "" {
-			os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER", originalOwner)
-		} else {
-			os.Unsetenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER")
-		}
-		if originalRepo != "" {
-			os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", originalRepo)
-		} else {
-			os.Unsetenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO")
-		}
-		if originalMin != "" {
-			os.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", originalMin)
-		} else {
-			os.Unsetenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY")
-		}
-	}()
+	t.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", `{"allow-only":{"repos":"public","min-integrity":"none"}}`)
+	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "1")
+	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER", "lpcox")
+	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", "gh-aw-mcpg")
+	t.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "unapproved")
 
-	os.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", `{"allow-only":{"repos":"public","min-integrity":"none"}}`)
-	os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "1")
-	os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER", "lpcox")
-	os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", "gh-aw-mcpg")
-	os.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "unapproved")
-
-	assert.NotEmpty(t, os.Getenv("MCP_GATEWAY_GUARD_POLICY_JSON"))
+	assert.NotEmpty(t, getDefaultGuardPolicyJSON())
 	assert.True(t, getDefaultAllowOnlyScopePublic())
-	assert.Equal(t, "lpcox", os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER"))
-	assert.Equal(t, "gh-aw-mcpg", os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO"))
-	assert.Equal(t, "unapproved", os.Getenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY"))
+	assert.Equal(t, "lpcox", getDefaultAllowOnlyOwner())
+	assert.Equal(t, "gh-aw-mcpg", getDefaultAllowOnlyRepo())
+	assert.Equal(t, "unapproved", getDefaultAllowOnlyMinIntegrity())
 }
