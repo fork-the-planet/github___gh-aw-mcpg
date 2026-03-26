@@ -12,17 +12,23 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
+	"github.com/github/gh-aw-mcpg/internal/logger"
 )
+
+var logGuardInit = logger.New("server:guard_init")
 
 // hasServerGuardPolicies reports whether any server in cfg has per-server guard policies
 // configured. This is used during DIFC auto-detection to enable enforcement when policies
 // are present even if no non-noop guard was registered (e.g., guard missing or failed to load).
 func hasServerGuardPolicies(cfg *config.Config) bool {
+	logGuardInit.Printf("Checking for server guard policies: serverCount=%d", len(cfg.Servers))
 	for _, srv := range cfg.Servers {
 		if len(srv.GuardPolicies) > 0 {
+			logGuardInit.Print("Found at least one server with guard policies configured")
 			return true
 		}
 	}
+	logGuardInit.Print("No server guard policies found")
 	return false
 }
 
@@ -151,13 +157,16 @@ func (us *UnifiedServer) logServerGuardPolicies(serverID string) {
 func findServerWASMGuardFile(serverID string) (string, bool, error) {
 	guardsRootDir := strings.TrimSpace(os.Getenv(wasmGuardsDirEnvVar))
 	if guardsRootDir == "" {
+		logGuardInit.Printf("Skipping WASM guard discovery: %s is not set", wasmGuardsDirEnvVar)
 		return "", false, nil
 	}
 
 	serverGuardDir := filepath.Join(guardsRootDir, serverID)
+	logGuardInit.Printf("Searching for WASM guard file: serverID=%s, dir=%s", serverID, serverGuardDir)
 	entries, err := os.ReadDir(serverGuardDir)
 	if err != nil {
 		if os.IsNotExist(err) {
+			logGuardInit.Printf("No WASM guard directory found for serverID=%s", serverID)
 			return "", false, nil
 		}
 		return "", false, fmt.Errorf("failed to read server guard directory %q: %w", serverGuardDir, err)
@@ -169,10 +178,13 @@ func findServerWASMGuardFile(serverID string) (string, bool, error) {
 		}
 
 		if strings.EqualFold(filepath.Ext(entry.Name()), ".wasm") {
-			return filepath.Join(serverGuardDir, entry.Name()), true, nil
+			wasmPath := filepath.Join(serverGuardDir, entry.Name())
+			logGuardInit.Printf("Found WASM guard file: serverID=%s, path=%s", serverID, wasmPath)
+			return wasmPath, true, nil
 		}
 	}
 
+	logGuardInit.Printf("No WASM guard file found in directory: serverID=%s, dir=%s", serverID, serverGuardDir)
 	return "", false, nil
 }
 
@@ -231,6 +243,7 @@ func normalizeScopeKind(policy map[string]interface{}) map[string]interface{} {
 }
 
 func (us *UnifiedServer) resolveGuardPolicy(serverID string) (*config.GuardPolicy, string, error) {
+	logGuardInit.Printf("Resolving guard policy: serverID=%s", serverID)
 	if us.cfg != nil && us.cfg.GuardPolicy != nil {
 		if err := config.ValidateGuardPolicy(us.cfg.GuardPolicy); err != nil {
 			return nil, "", err
@@ -239,30 +252,36 @@ func (us *UnifiedServer) resolveGuardPolicy(serverID string) (*config.GuardPolic
 		if source == "" {
 			source = "override"
 		}
+		logGuardInit.Printf("Using global guard policy: serverID=%s, source=%s", serverID, source)
 		return us.cfg.GuardPolicy, source, nil
 	}
 
 	if us.cfg == nil {
+		logGuardInit.Printf("No config available for guard policy: serverID=%s, using legacy", serverID)
 		return nil, "legacy", nil
 	}
 
 	serverCfg, ok := us.cfg.Servers[serverID]
 	if !ok || serverCfg == nil {
+		logGuardInit.Printf("No server config found for guard policy: serverID=%s, using legacy", serverID)
 		return nil, "legacy", nil
 	}
 
 	if policy, err := config.ParseServerGuardPolicy(serverID, serverCfg.GuardPolicies); err != nil {
 		return nil, "", err
 	} else if policy != nil {
+		logGuardInit.Printf("Using server-level guard policy: serverID=%s", serverID)
 		return policy, "server", nil
 	}
 
 	if serverCfg.Guard == "" {
+		logGuardInit.Printf("No guard configured for server: serverID=%s, using legacy", serverID)
 		return nil, "legacy", nil
 	}
 
 	guardCfg, ok := us.cfg.Guards[serverCfg.Guard]
 	if !ok || guardCfg == nil || guardCfg.Policy == nil {
+		logGuardInit.Printf("No guard config policy found: serverID=%s, guard=%s, using legacy", serverID, serverCfg.Guard)
 		return nil, "legacy", nil
 	}
 
@@ -270,6 +289,7 @@ func (us *UnifiedServer) resolveGuardPolicy(serverID string) (*config.GuardPolic
 		return nil, "", err
 	}
 
+	logGuardInit.Printf("Using guard config policy: serverID=%s, guard=%s", serverID, serverCfg.Guard)
 	return guardCfg.Policy, "config", nil
 }
 
@@ -322,6 +342,7 @@ func (us *UnifiedServer) ensureGuardInitialized(
 		if state, ok := session.GuardInit[serverID]; ok && state.Initialized && state.PolicyHash == policyHash {
 			mode := state.DIFCMode
 			us.sessionMu.RUnlock()
+			logGuardInit.Printf("Guard session cache hit: server=%s, session=%s, mode=%s", serverID, sessionID, mode)
 			return mode, nil
 		}
 	}
