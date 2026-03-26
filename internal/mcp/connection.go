@@ -72,9 +72,26 @@ type Connection struct {
 	httpClient        *http.Client
 	httpSessionID     string            // Session ID returned by the HTTP backend
 	httpTransportType HTTPTransportType // Type of HTTP transport in use
-	// reconnectMu serialises session-reconnect operations so that only one
-	// goroutine performs the reconnect while others wait for it to finish.
-	reconnectMu sync.Mutex
+	// sessionMu protects mutable session state: httpSessionID, session, and client.
+	// Readers take RLock; the reconnect functions take the full Lock.
+	sessionMu sync.RWMutex
+}
+
+// getSDKSession returns a snapshot of the current SDK session under a read lock.
+// Returns nil if no session is available (e.g. plain JSON-RPC transport).
+func (c *Connection) getSDKSession() *sdk.ClientSession {
+	c.sessionMu.RLock()
+	s := c.session
+	c.sessionMu.RUnlock()
+	return s
+}
+
+// getHTTPSessionID returns a snapshot of the current HTTP session ID under a read lock.
+func (c *Connection) getHTTPSessionID() string {
+	c.sessionMu.RLock()
+	id := c.httpSessionID
+	c.sessionMu.RUnlock()
+	return id
 }
 
 // NewConnection creates a new MCP connection using the official SDK
@@ -261,10 +278,10 @@ func (c *Connection) GetHTTPHeaders() map[string]string {
 
 // reconnectPlainJSON re-initialises the plain JSON-RPC session with the HTTP backend.
 // It is safe for concurrent callers: only one reconnect runs at a time, and the updated
-// session ID is available to all callers once the mutex is released.
+// session ID is available to all callers once the lock is released.
 func (c *Connection) reconnectPlainJSON() error {
-	c.reconnectMu.Lock()
-	defer c.reconnectMu.Unlock()
+	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
 
 	logConn.Printf("Session expired, reconnecting plain JSON-RPC for serverID=%s", c.serverID)
 	logger.LogWarn("backend", "MCP session expired for %s, attempting to reconnect...", c.serverID)
@@ -284,8 +301,8 @@ func (c *Connection) reconnectPlainJSON() error {
 // reconnectSDKTransport re-establishes the SDK session for streamable or SSE transports.
 // It is safe for concurrent callers: only one reconnect runs at a time.
 func (c *Connection) reconnectSDKTransport() error {
-	c.reconnectMu.Lock()
-	defer c.reconnectMu.Unlock()
+	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
 
 	logConn.Printf("Session expired, reconnecting SDK transport for serverID=%s, type=%s", c.serverID, c.httpTransportType)
 	logger.LogWarn("backend", "MCP session expired for %s, attempting to reconnect...", c.serverID)
@@ -337,9 +354,13 @@ func (c *Connection) callSDKMethodWithReconnect(method string, params interface{
 	result, err := c.callSDKMethod(method, params)
 	if err != nil && isSessionNotFoundError(err) {
 		logConn.Printf("Session not found error from SDK (serverID=%s), attempting reconnect", c.serverID)
-		if reconnErr := c.reconnectSDKTransport(); reconnErr == nil {
-			result, err = c.callSDKMethod(method, params)
+		if reconnErr := c.reconnectSDKTransport(); reconnErr != nil {
+			logConn.Printf("SDK session reconnect failed for serverID=%s: %v; returning original error", c.serverID, reconnErr)
+			logger.LogError("backend", "SDK session reconnect failed for %s: %v", c.serverID, reconnErr)
+			// Return the original session-not-found error so the caller sees a meaningful message.
+			return result, err
 		}
+		result, err = c.callSDKMethod(method, params)
 	}
 	return result, err
 }
@@ -463,7 +484,7 @@ func marshalToResponse(result interface{}) (*Response, error) {
 // This helper centralizes session validation logic across all MCP method wrappers.
 // Returns an error if the session is nil (e.g., for plain JSON-RPC transport).
 func (c *Connection) requireSession() error {
-	if c.session == nil {
+	if c.getSDKSession() == nil {
 		return fmt.Errorf("SDK session not available for plain JSON-RPC transport")
 	}
 	return nil
@@ -518,7 +539,7 @@ func callParamMethod[P any](c *Connection, rawParams interface{}, fn func(P) (in
 func (c *Connection) listTools() (*Response, error) {
 	logConn.Printf("listTools: requesting tool list from backend serverID=%s", c.serverID)
 	return c.callListMethod(func() (interface{}, error) {
-		result, err := c.session.ListTools(c.ctx, &sdk.ListToolsParams{})
+		result, err := c.getSDKSession().ListTools(c.ctx, &sdk.ListToolsParams{})
 		if err == nil {
 			logConn.Printf("listTools: received %d tools from serverID=%s", len(result.Tools), c.serverID)
 		}
@@ -534,7 +555,7 @@ func (c *Connection) callTool(params interface{}) (*Response, error) {
 			p.Arguments = make(map[string]interface{})
 		}
 		logConn.Printf("callTool: parsed name=%s, arguments=%+v", p.Name, p.Arguments)
-		return c.session.CallTool(c.ctx, &sdk.CallToolParams{
+		return c.getSDKSession().CallTool(c.ctx, &sdk.CallToolParams{
 			Name:      p.Name,
 			Arguments: p.Arguments,
 		})
@@ -544,7 +565,7 @@ func (c *Connection) callTool(params interface{}) (*Response, error) {
 func (c *Connection) listResources() (*Response, error) {
 	logConn.Printf("listResources: requesting resource list from backend serverID=%s", c.serverID)
 	return c.callListMethod(func() (interface{}, error) {
-		result, err := c.session.ListResources(c.ctx, &sdk.ListResourcesParams{})
+		result, err := c.getSDKSession().ListResources(c.ctx, &sdk.ListResourcesParams{})
 		if err == nil {
 			logConn.Printf("listResources: received %d resources from serverID=%s", len(result.Resources), c.serverID)
 		}
@@ -558,7 +579,7 @@ func (c *Connection) readResource(params interface{}) (*Response, error) {
 	}
 	return callParamMethod(c, params, func(p readResourceParams) (interface{}, error) {
 		logConn.Printf("readResource: reading resource uri=%s from serverID=%s", p.URI, c.serverID)
-		return c.session.ReadResource(c.ctx, &sdk.ReadResourceParams{
+		return c.getSDKSession().ReadResource(c.ctx, &sdk.ReadResourceParams{
 			URI: p.URI,
 		})
 	})
@@ -567,7 +588,7 @@ func (c *Connection) readResource(params interface{}) (*Response, error) {
 func (c *Connection) listPrompts() (*Response, error) {
 	logConn.Printf("listPrompts: requesting prompt list from backend serverID=%s", c.serverID)
 	return c.callListMethod(func() (interface{}, error) {
-		result, err := c.session.ListPrompts(c.ctx, &sdk.ListPromptsParams{})
+		result, err := c.getSDKSession().ListPrompts(c.ctx, &sdk.ListPromptsParams{})
 		if err == nil {
 			logConn.Printf("listPrompts: received %d prompts from serverID=%s", len(result.Prompts), c.serverID)
 		}
@@ -582,7 +603,7 @@ func (c *Connection) getPrompt(params interface{}) (*Response, error) {
 	}
 	return callParamMethod(c, params, func(p getPromptParams) (interface{}, error) {
 		logConn.Printf("getPrompt: getting prompt name=%s from serverID=%s", p.Name, c.serverID)
-		return c.session.GetPrompt(c.ctx, &sdk.GetPromptParams{
+		return c.getSDKSession().GetPrompt(c.ctx, &sdk.GetPromptParams{
 			Name:      p.Name,
 			Arguments: p.Arguments,
 		})
@@ -593,8 +614,8 @@ func (c *Connection) getPrompt(params interface{}) (*Response, error) {
 func (c *Connection) Close() error {
 	logConn.Printf("Closing connection: serverID=%s, isHTTP=%v", c.serverID, c.isHTTP)
 	c.cancel()
-	if c.session != nil {
-		return c.session.Close()
+	if session := c.getSDKSession(); session != nil {
+		return session.Close()
 	}
 	return nil
 }

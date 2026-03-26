@@ -456,7 +456,8 @@ func (c *Connection) initializeHTTPSession() (string, error) {
 
 // buildSessionHeaderModifier returns a header modifier function that adds the Mcp-Session-Id header.
 // Priority: context session ID > stored connection session ID.
-// The returned function reads c.httpSessionID at call time, so it picks up any reconnected session.
+// The returned function calls getHTTPSessionID() at request time, so it always picks up
+// any session ID updated by a reconnect.
 func (c *Connection) buildSessionHeaderModifier(ctx context.Context) func(*http.Request) {
 	// Capture any context-provided session ID once (it never changes for this request).
 	ctxSessionID, _ := ctx.Value(SessionIDContextKey).(string)
@@ -465,8 +466,8 @@ func (c *Connection) buildSessionHeaderModifier(ctx context.Context) func(*http.
 		if ctxSessionID != "" {
 			sessionID = ctxSessionID
 			logConn.Printf("Using session ID from context: %s", sessionID)
-		} else if c.httpSessionID != "" {
-			sessionID = c.httpSessionID
+		} else if id := c.getHTTPSessionID(); id != "" {
+			sessionID = id
 			logConn.Printf("Using stored session ID from initialization: %s", sessionID)
 		}
 		if sessionID != "" {

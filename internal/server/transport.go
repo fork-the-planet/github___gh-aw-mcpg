@@ -37,7 +37,7 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey st
 	}, &sdk.StreamableHTTPOptions{
 		Stateless:      false,                                         // Support stateful sessions
 		Logger:         logger.NewSlogLoggerWithHandler(logTransport), // Integrate SDK logging with project logger
-		SessionTimeout: 2 * time.Hour,                                 // Allow long-running agent workflows (issue: sessions expiring mid-run)
+		SessionTimeout: 2 * time.Hour,                                 // Long-running agent workflows can exceed 30 min without MCP activity; 2 h reduces forced reconnects
 	})
 
 	// Apply standard middleware stack (SDK logging → shutdown check → auth)
