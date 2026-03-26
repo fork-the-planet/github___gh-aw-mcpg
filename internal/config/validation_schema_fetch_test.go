@@ -6,12 +6,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	// Speed up all retry-related tests by disabling inter-attempt delays and
+	// shortening the per-attempt HTTP timeout so timeout tests don't take 30 s.
+	schemaFetchRetryDelay = 0
+	schemaHTTPClientTimeout = 200 * time.Millisecond
+}
 
 // TestFetchAndFixSchema_SuccessfulFetch tests the happy path where schema is fetched successfully
 func TestFetchAndFixSchema_SuccessfulFetch(t *testing.T) {
@@ -52,35 +60,48 @@ func TestFetchAndFixSchema_SuccessfulFetch(t *testing.T) {
 // TestFetchAndFixSchema_HTTPError tests handling of HTTP error responses
 func TestFetchAndFixSchema_HTTPError(t *testing.T) {
 	tests := []struct {
-		name       string
-		statusCode int
-		wantErr    string
+		name         string
+		statusCode   int
+		wantErr      string
+		wantRequests int // expected number of HTTP requests (1 = no retry, 3 = full retry)
 	}{
 		{
-			name:       "404 Not Found",
-			statusCode: http.StatusNotFound,
-			wantErr:    "failed to fetch schema: HTTP 404",
+			name:         "404 Not Found",
+			statusCode:   http.StatusNotFound,
+			wantErr:      "failed to fetch schema: HTTP 404",
+			wantRequests: 1, // permanent error, no retry
 		},
 		{
-			name:       "500 Internal Server Error",
-			statusCode: http.StatusInternalServerError,
-			wantErr:    "failed to fetch schema: HTTP 500",
+			name:         "500 Internal Server Error",
+			statusCode:   http.StatusInternalServerError,
+			wantErr:      "failed to fetch schema: HTTP 500",
+			wantRequests: maxSchemaFetchRetries, // transient, retried
 		},
 		{
-			name:       "403 Forbidden",
-			statusCode: http.StatusForbidden,
-			wantErr:    "failed to fetch schema: HTTP 403",
+			name:         "403 Forbidden",
+			statusCode:   http.StatusForbidden,
+			wantErr:      "failed to fetch schema: HTTP 403",
+			wantRequests: 1, // permanent error, no retry
 		},
 		{
-			name:       "503 Service Unavailable",
-			statusCode: http.StatusServiceUnavailable,
-			wantErr:    "failed to fetch schema: HTTP 503",
+			name:         "503 Service Unavailable",
+			statusCode:   http.StatusServiceUnavailable,
+			wantErr:      "failed to fetch schema: HTTP 503",
+			wantRequests: maxSchemaFetchRetries, // transient, retried
+		},
+		{
+			name:         "429 Too Many Requests",
+			statusCode:   http.StatusTooManyRequests,
+			wantErr:      "failed to fetch schema: HTTP 429",
+			wantRequests: maxSchemaFetchRetries, // transient, retried
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var requestCount atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requestCount.Add(1)
 				w.WriteHeader(tt.statusCode)
 			}))
 			defer server.Close()
@@ -90,6 +111,8 @@ func TestFetchAndFixSchema_HTTPError(t *testing.T) {
 			assert.Error(t, err)
 			assert.Nil(t, result)
 			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.Equal(t, int32(tt.wantRequests), requestCount.Load(),
+				"expected %d HTTP request(s) for status %d", tt.wantRequests, tt.statusCode)
 		})
 	}
 }
@@ -108,9 +131,11 @@ func TestFetchAndFixSchema_NetworkError(t *testing.T) {
 
 // TestFetchAndFixSchema_Timeout tests handling of request timeouts
 func TestFetchAndFixSchema_Timeout(t *testing.T) {
-	// Create a server that delays longer than the client timeout
+	// Create a server that delays longer than the configured client timeout.
+	// The init() in this test file sets schemaHTTPClientTimeout = 200ms, so any
+	// delay > 200ms will trigger a timeout on each attempt.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(15 * time.Second) // fetchAndFixSchema has 10 second timeout
+		time.Sleep(500 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -588,4 +613,54 @@ func TestFetchAndFixSchema_LargeSchema(t *testing.T) {
 	properties, ok := fixed["properties"].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, 100, len(properties), "Should preserve all 100 properties")
+}
+
+// TestFetchAndFixSchema_RetrySucceedsAfterTransientError verifies that a transient
+// error on the first attempt is retried and the eventual success is returned.
+func TestFetchAndFixSchema_RetrySucceedsAfterTransientError(t *testing.T) {
+	validSchema := map[string]interface{}{
+		"$schema": "http://json-schema.org/draft-07/schema#",
+		"type":    "object",
+	}
+	schemaJSON, err := json.Marshal(validSchema)
+	require.NoError(t, err)
+
+	var requestCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := requestCount.Add(1)
+		if n < 3 {
+			// First two attempts return 429
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(schemaJSON)
+	}))
+	defer server.Close()
+
+	result, err := fetchAndFixSchema(server.URL)
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Equal(t, int32(3), requestCount.Load(), "should have made 3 requests (2 failures + 1 success)")
+}
+
+// TestFetchAndFixSchema_ExponentialBackoffDelays verifies that all retries are attempted
+// when transient errors occur, and that the function eventually gives up after
+// maxSchemaFetchRetries attempts.
+func TestFetchAndFixSchema_ExponentialBackoffDelays(t *testing.T) {
+	var requestCount atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer server.Close()
+
+	_, err := fetchAndFixSchema(server.URL)
+
+	require.Error(t, err)
+	assert.Equal(t, int32(maxSchemaFetchRetries), requestCount.Load(),
+		"should make exactly maxSchemaFetchRetries requests before giving up")
+	assert.Contains(t, err.Error(), "failed to fetch schema: HTTP 429")
 }

@@ -16,6 +16,28 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
+const (
+	// maxSchemaFetchRetries is the number of fetch attempts before giving up.
+	maxSchemaFetchRetries = 3
+)
+
+// schemaFetchRetryDelay is the base delay between retry attempts using exponential
+// backoff (1×, 2×, 4×, …). It is a variable so tests can override it to zero for
+// fast execution.
+var schemaFetchRetryDelay = time.Second
+
+// schemaHTTPClientTimeout is the per-attempt HTTP request timeout. It is a variable
+// so tests can shorten it to avoid long waits when testing timeout behaviour.
+var schemaHTTPClientTimeout = 10 * time.Second
+
+// isTransientHTTPError returns true for status codes that indicate a temporary
+// server-side condition (rate-limiting or transient failure) worth retrying.
+func isTransientHTTPError(statusCode int) bool {
+	return statusCode == http.StatusTooManyRequests ||
+		statusCode == http.StatusServiceUnavailable ||
+		(statusCode >= 500 && statusCode < 600)
+}
+
 var (
 	// Compile regex patterns from schema for additional validation
 	containerPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9./_-]*(:([a-zA-Z0-9._-]+|latest))?$`)
@@ -83,22 +105,56 @@ func fetchAndFixSchema(url string) ([]byte, error) {
 	logSchema.Printf("Fetching schema from URL: %s", url)
 
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: schemaHTTPClientTimeout,
 	}
 
-	fetchStart := time.Now()
-	resp, err := client.Get(url)
-	if err != nil {
-		logSchema.Printf("Schema fetch failed after %v: %v", time.Since(fetchStart), err)
-		return nil, fmt.Errorf("failed to fetch schema from %s: %w", url, err)
+	var resp *http.Response
+	var lastErr error
+
+	for attempt := 1; attempt <= maxSchemaFetchRetries; attempt++ {
+		if attempt > 1 {
+			delay := schemaFetchRetryDelay << uint(attempt-2) // 1×, 2×, 4× base delay
+			logSchema.Printf("Retrying schema fetch (attempt %d/%d) after %v: %v", attempt, maxSchemaFetchRetries, delay, lastErr)
+			time.Sleep(delay)
+		}
+
+		fetchStart := time.Now()
+		var err error
+		resp, err = client.Get(url)
+		if err != nil {
+			logSchema.Printf("Schema fetch attempt %d failed after %v: %v", attempt, time.Since(fetchStart), err)
+			lastErr = fmt.Errorf("failed to fetch schema from %s: %w", url, err)
+			resp = nil
+			continue
+		}
+		logSchema.Printf("HTTP request attempt %d completed in %v with status %d", attempt, time.Since(fetchStart), resp.StatusCode)
+
+		if resp.StatusCode == http.StatusOK {
+			lastErr = nil
+			break
+		}
+
+		if isTransientHTTPError(resp.StatusCode) {
+			lastErr = fmt.Errorf("failed to fetch schema: HTTP %d", resp.StatusCode)
+			logSchema.Printf("Schema fetch attempt %d returned transient error: HTTP %d, will retry", attempt, resp.StatusCode)
+			resp.Body.Close()
+			resp = nil
+			continue
+		}
+
+		// Permanent HTTP error (404, 403, 401, etc.) — do not retry.
+		lastErr = fmt.Errorf("failed to fetch schema: HTTP %d", resp.StatusCode)
+		logSchema.Printf("Schema fetch returned permanent error: HTTP %d", resp.StatusCode)
+		resp.Body.Close()
+		resp = nil
+		break
+	}
+
+	if resp == nil {
+		return nil, lastErr
 	}
 	defer resp.Body.Close()
-	logSchema.Printf("HTTP request completed in %v", time.Since(fetchStart))
-
-	if resp.StatusCode != http.StatusOK {
-		logSchema.Printf("Schema fetch returned non-OK status: %d", resp.StatusCode)
-		return nil, fmt.Errorf("failed to fetch schema: HTTP %d", resp.StatusCode)
-	}
+	logSchema.Printf("HTTP request completed in %v", time.Since(startTime))
 
 	readStart := time.Now()
 	schemaBytes, err := io.ReadAll(resp.Body)
