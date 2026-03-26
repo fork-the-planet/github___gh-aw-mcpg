@@ -1,0 +1,598 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/github/gh-aw-mcpg/internal/config"
+	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/guard"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// ─── Configurable test guard ──────────────────────────────────────────────────
+
+// difcTestGuard is a fully configurable Guard for callBackendTool DIFC phase tests.
+// The zero value produces a valid noop-style result; each field can be overridden.
+type difcTestGuard struct {
+	name string
+
+	// LabelAgent configuration
+	labelAgentResult *guard.LabelAgentResult
+	labelAgentErr    error
+
+	// LabelResource configuration
+	labelResourceResult *difc.LabeledResource
+	labelResourceOp     difc.OperationType
+	labelResourceErr    error
+
+	// LabelResponse configuration
+	labelResponseResult difc.LabeledData
+	labelResponseErr    error
+}
+
+func (g *difcTestGuard) Name() string { return g.name }
+
+func (g *difcTestGuard) LabelAgent(_ context.Context, _ interface{}, _ guard.BackendCaller, _ *difc.Capabilities) (*guard.LabelAgentResult, error) {
+	if g.labelAgentErr != nil {
+		return nil, g.labelAgentErr
+	}
+	if g.labelAgentResult != nil {
+		return g.labelAgentResult, nil
+	}
+	// Default: allow-all labels in filter mode so ensureGuardInitialized succeeds.
+	return &guard.LabelAgentResult{
+		Agent: guard.AgentLabelsPayload{
+			Secrecy:   []string{},
+			Integrity: []string{},
+		},
+		DIFCMode: "filter",
+		NormalizedPolicy: map[string]interface{}{
+			"scope_kind":    "all",
+			"min-integrity": "none",
+		},
+	}, nil
+}
+
+func (g *difcTestGuard) LabelResource(_ context.Context, _ string, _ interface{}, _ guard.BackendCaller, _ *difc.Capabilities) (*difc.LabeledResource, difc.OperationType, error) {
+	if g.labelResourceErr != nil {
+		return nil, difc.OperationRead, g.labelResourceErr
+	}
+	if g.labelResourceResult != nil {
+		return g.labelResourceResult, g.labelResourceOp, nil
+	}
+	return difc.NewLabeledResource("test-resource"), difc.OperationRead, nil
+}
+
+func (g *difcTestGuard) LabelResponse(_ context.Context, _ string, _ interface{}, _ guard.BackendCaller, _ *difc.Capabilities) (difc.LabeledData, error) {
+	if g.labelResponseErr != nil {
+		return nil, g.labelResponseErr
+	}
+	return g.labelResponseResult, nil
+}
+
+// ─── Test helpers ─────────────────────────────────────────────────────────────
+
+// newBackendWithToolResponse creates an httptest.Server that responds to a
+// tools/call request with the supplied JSON response body.
+func newBackendWithToolResponse(t *testing.T, toolName string, toolResponse interface{}) *httptest.Server {
+	t.Helper()
+	respBytes, err := json.Marshal(toolResponse)
+	require.NoError(t, err)
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		method, _ := req["method"].(string)
+		w.Header().Set("Content-Type", "application/json")
+		switch method {
+		case "initialize":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]interface{}{},
+					"serverInfo":      map[string]interface{}{"name": "test-backend", "version": "1.0"},
+				},
+			})
+		case "tools/list":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"tools": []map[string]interface{}{
+						{
+							"name":        toolName,
+							"description": "test tool",
+							"inputSchema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{}},
+						},
+					},
+				},
+			})
+		case "tools/call":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": json.RawMessage(respBytes),
+			})
+		}
+	}))
+}
+
+// defaultToolResponse is the standard successful tools/call payload used by most tests.
+var defaultToolResponse = map[string]interface{}{
+	"content": []map[string]interface{}{
+		{"type": "text", "text": "tool result"},
+	},
+	"isError": false,
+}
+
+// makeUnifiedWithGuard builds a UnifiedServer wired to backend and using the supplied
+// guard, registered under guardTypeName.  GuardPolicies are set on the server so DIFC
+// is auto-enabled.  The caller is responsible for closing the returned httptest.Server.
+func makeUnifiedWithGuard(t *testing.T, guardTypeName string, g *difcTestGuard, backend *httptest.Server, difcMode string) *UnifiedServer {
+	t.Helper()
+	guard.RegisterGuardType(guardTypeName, func() (guard.Guard, error) { return g, nil })
+
+	cfg := &config.Config{
+		DIFCMode: difcMode,
+		Servers: map[string]*config.ServerConfig{
+			"test-server": {
+				Type:  "http",
+				URL:   backend.URL,
+				Guard: guardTypeName,
+				GuardPolicies: map[string]interface{}{
+					"allow-only": map[string]interface{}{
+						"repos":         "public",
+						"min-integrity": "none",
+					},
+				},
+			},
+		},
+		Guards: map[string]*config.GuardConfig{
+			guardTypeName: {Type: guardTypeName},
+		},
+		GuardPolicy: &config.GuardPolicy{
+			AllowOnly: &config.AllowOnlyPolicy{
+				Repos:        "public",
+				MinIntegrity: config.IntegrityNone,
+			},
+		},
+		GuardPolicySource: "cli",
+	}
+	us, err := NewUnified(context.Background(), cfg)
+	require.NoError(t, err)
+	return us
+}
+
+// callCtx returns a context carrying SessionID and agentID ready for callBackendTool.
+func callCtx(sessionID string) context.Context {
+	ctx := context.Background()
+	ctx = context.WithValue(ctx, SessionIDContextKey, sessionID)
+	return guard.SetAgentIDInContext(ctx, sessionID)
+}
+
+// ─── Phase 1: LabelResource ───────────────────────────────────────────────────
+
+// TestCallBackendTool_Phase1_LabelResourceError verifies that an error from
+// LabelResource propagates as an IsError CallToolResult.
+func TestCallBackendTool_Phase1_LabelResourceError(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backend := newBackendWithToolResponse(t, "test_tool", defaultToolResponse)
+	defer backend.Close()
+
+	g := &difcTestGuard{
+		name:             "difc-phase1-error-guard",
+		labelResourceErr: fmt.Errorf("labeling system unavailable"),
+	}
+	us := makeUnifiedWithGuard(t, "difc-phase1-error-type", g, backend, "strict")
+
+	result, _, err := us.callBackendTool(callCtx("session-p1"), "test-server", "test_tool", nil)
+
+	require.NotNil(result, "callBackendTool must always return non-nil CallToolResult")
+	assert.True(result.IsError, "result should be marked as error when LabelResource fails")
+	require.Error(err)
+	assert.Contains(err.Error(), "guard labeling failed")
+}
+
+// ─── Phase 2: Coarse-grained access check ────────────────────────────────────
+
+// TestCallBackendTool_Phase2_WriteOperationBlocked verifies that a write operation
+// where the agent lacks the required integrity is blocked before reaching the backend.
+func TestCallBackendTool_Phase2_WriteOperationBlocked(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backend := newBackendWithToolResponse(t, "create_item", defaultToolResponse)
+	defer backend.Close()
+
+	// The resource requires "approved" integrity; the agent will have none.
+	resourceWithIntegrity := difc.NewLabeledResource("protected write target")
+	resourceWithIntegrity.Integrity.Label.Add(difc.Tag("approved:some/repo"))
+
+	g := &difcTestGuard{
+		name:                "difc-phase2-write-guard",
+		labelResourceResult: resourceWithIntegrity,
+		labelResourceOp:     difc.OperationWrite,
+	}
+	us := makeUnifiedWithGuard(t, "difc-phase2-write-type", g, backend, "strict")
+
+	result, data, err := us.callBackendTool(callCtx("session-p2"), "test-server", "create_item", nil)
+
+	require.NotNil(result, "must return non-nil CallToolResult even on DIFC block")
+	assert.True(result.IsError, "write should be blocked — result should be an error")
+	assert.Nil(data, "no data should be returned when write is blocked")
+	require.Error(err)
+	assert.Contains(err.Error(), "DIFC policy violation",
+		"error should mention DIFC policy violation")
+}
+
+// TestCallBackendTool_Phase2_ReadOperationNotBlocked verifies that read operations
+// skip the coarse-grained block and proceed to the backend even when the coarse
+// check would have failed.
+func TestCallBackendTool_Phase2_ReadOperationNotBlocked(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backend := newBackendWithToolResponse(t, "read_tool", defaultToolResponse)
+	defer backend.Close()
+
+	// The resource carries a restricted secrecy tag the agent does not have.
+	// A coarse READ check would normally fail, but per DIFC spec the gateway
+	// skips the coarse block for reads and does fine-grained filtering instead.
+	resource := difc.NewLabeledResource("read target")
+	resource.Secrecy.Label.Add(difc.Tag("private:some/repo"))
+
+	g := &difcTestGuard{
+		name:                "difc-phase2-read-guard",
+		labelResourceResult: resource,
+		labelResourceOp:     difc.OperationRead,
+		// LabelResponse returns nil so Phase 5 uses the coarse result (allowed for read fallback)
+		labelResponseResult: nil,
+	}
+	us := makeUnifiedWithGuard(t, "difc-phase2-read-type", g, backend, "filter")
+
+	result, _, err := us.callBackendTool(callCtx("session-p2r"), "test-server", "read_tool", nil)
+
+	// Should NOT be blocked — the read was forwarded to the backend.
+	require.NotNil(result)
+	assert.NoError(err, "read operation should not be blocked at the coarse-grained check")
+}
+
+// ─── Phase 3: Backend connectivity ───────────────────────────────────────────
+
+// TestCallBackendTool_Phase3_BackendConnectionFailure verifies that if the backend
+// server is unreachable, callBackendTool propagates the error appropriately.
+func TestCallBackendTool_Phase3_BackendConnectionFailure(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backend := newBackendWithToolResponse(t, "test_tool", defaultToolResponse)
+	backendURL := backend.URL
+	backend.Close() // close immediately — backend is unreachable
+
+	g := &difcTestGuard{name: "difc-phase3-guard"}
+
+	guard.RegisterGuardType("difc-phase3-type", func() (guard.Guard, error) { return g, nil })
+	cfg := &config.Config{
+		DIFCMode: "strict",
+		Servers: map[string]*config.ServerConfig{
+			"unreachable-server": {
+				Type:  "http",
+				URL:   backendURL,
+				Guard: "difc-phase3-type",
+				GuardPolicies: map[string]interface{}{
+					"allow-only": map[string]interface{}{
+						"repos": "public", "min-integrity": "none",
+					},
+				},
+			},
+		},
+		Guards: map[string]*config.GuardConfig{
+			"difc-phase3-type": {Type: "difc-phase3-type"},
+		},
+		GuardPolicy: &config.GuardPolicy{
+			AllowOnly: &config.AllowOnlyPolicy{
+				Repos: "public", MinIntegrity: config.IntegrityNone,
+			},
+		},
+		GuardPolicySource: "cli",
+	}
+
+	// NewUnified may fail to register tools from the backend since it is closed.
+	// We handle the error gracefully: if it succeeds we can test the call; if
+	// tools/list fails the server may refuse to start — in that case skip.
+	us, err := NewUnified(context.Background(), cfg)
+	if err != nil {
+		t.Skip("backend unavailable during NewUnified (expected in this test)")
+		return
+	}
+
+	result, _, callErr := us.callBackendTool(callCtx("session-p3"), "unreachable-server", "test_tool", nil)
+
+	require.NotNil(result, "must return non-nil CallToolResult on backend failure")
+	assert.True(result.IsError, "result should be an error when backend unreachable")
+	assert.Error(callErr)
+}
+
+// ─── Phase 4: LabelResponse ───────────────────────────────────────────────────
+
+// TestCallBackendTool_Phase4_LabelResponseError verifies that an error from
+// LabelResponse propagates as an IsError CallToolResult.
+func TestCallBackendTool_Phase4_LabelResponseError(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backend := newBackendWithToolResponse(t, "search_tool", defaultToolResponse)
+	defer backend.Close()
+
+	g := &difcTestGuard{
+		name:             "difc-phase4-error-guard",
+		labelResponseErr: fmt.Errorf("response labeling engine crashed"),
+	}
+	us := makeUnifiedWithGuard(t, "difc-phase4-error-type", g, backend, "strict")
+
+	result, _, err := us.callBackendTool(callCtx("session-p4"), "test-server", "search_tool", nil)
+
+	require.NotNil(result)
+	assert.True(result.IsError)
+	require.Error(err)
+	assert.Contains(err.Error(), "response labeling failed")
+}
+
+// TestCallBackendTool_Phase4_WriteSkipsLabelResponse verifies that for write
+// operations (OperationWrite) LabelResponse is NOT called before the access
+// check blocks the request.  We detect this by setting a sentinel error on
+// LabelResponse: if LabelResponse were called, the error message would contain
+// the sentinel text rather than "DIFC policy violation".
+func TestCallBackendTool_Phase4_WriteSkipsLabelResponse(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backend := newBackendWithToolResponse(t, "write_tool", defaultToolResponse)
+	defer backend.Close()
+
+	// Resource has no integrity requirements — the write coarse-check passes
+	// only if the agent's integrity covers the resource's requirements (vacuously true here).
+	// Setting labelResponseErr lets us detect if LabelResponse is mistakenly called.
+	g := &difcTestGuard{
+		name:                "difc-phase4-write-guard",
+		labelResourceResult: difc.NewLabeledResource("write target"),
+		labelResourceOp:     difc.OperationWrite,
+		labelResponseErr:    fmt.Errorf("LabelResponse must NOT be called for pure writes"),
+	}
+	us := makeUnifiedWithGuard(t, "difc-phase4-write-type", g, backend, "strict")
+
+	result, _, err := us.callBackendTool(callCtx("session-p4w"), "test-server", "write_tool", nil)
+	require.NotNil(result)
+
+	// If LabelResponse had been called the error would contain the sentinel text.
+	if err != nil {
+		assert.NotContains(err.Error(), "LabelResponse must NOT be called",
+			"LabelResponse must not be invoked for pure write operations")
+	}
+}
+
+// ─── Phase 5: Fine-grained collection filtering ───────────────────────────────
+
+// makeTwoItemCollection returns a CollectionLabeledData where the first item is
+// publicly accessible (no tags) and the second item carries a restricted tag.
+func makeTwoItemCollection() *difc.CollectionLabeledData {
+	item1 := difc.LabeledItem{
+		Data:   map[string]interface{}{"id": 1, "title": "public issue"},
+		Labels: difc.NewLabeledResource("public item"),
+	}
+	item2Labels := difc.NewLabeledResource("restricted item")
+	item2Labels.Secrecy.Label.Add(difc.Tag("private:restricted/repo"))
+	item2 := difc.LabeledItem{
+		Data:   map[string]interface{}{"id": 2, "title": "private issue"},
+		Labels: item2Labels,
+	}
+	return &difc.CollectionLabeledData{
+		Items: []difc.LabeledItem{item1, item2},
+	}
+}
+
+// TestCallBackendTool_Phase5_StrictMode_BlocksFilteredCollection verifies that
+// when a collection response contains items the agent cannot access in strict mode,
+// the entire response is blocked with a DIFC error.
+func TestCallBackendTool_Phase5_StrictMode_BlocksFilteredCollection(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	listResponse := map[string]interface{}{
+		"content": []map[string]interface{}{
+			{"type": "text", "text": `[{"id":1},{"id":2}]`},
+		},
+		"isError": false,
+	}
+	backend := newBackendWithToolResponse(t, "list_issues", listResponse)
+	defer backend.Close()
+
+	g := &difcTestGuard{
+		name:                "difc-phase5-strict-guard",
+		labelResponseResult: makeTwoItemCollection(),
+	}
+	// strictMode guard in strict enforcement — label_agent returns filter mode but
+	// we override the enforcement mode via DIFCMode = "strict"
+	g.labelAgentResult = &guard.LabelAgentResult{
+		Agent: guard.AgentLabelsPayload{
+			Secrecy:   []string{},
+			Integrity: []string{},
+		},
+		DIFCMode: "strict",
+		NormalizedPolicy: map[string]interface{}{
+			"scope_kind":    "all",
+			"min-integrity": "none",
+		},
+	}
+
+	us := makeUnifiedWithGuard(t, "difc-phase5-strict-type", g, backend, "strict")
+	// The agent has no secrecy tags, so it cannot read private:restricted/repo items.
+	// In strict mode the entire collection response must be blocked.
+
+	result, _, err := us.callBackendTool(callCtx("session-p5s"), "test-server", "list_issues", nil)
+
+	require.NotNil(result, "must return non-nil CallToolResult")
+	assert.True(result.IsError, "strict mode must block when any item is filtered")
+	require.Error(err)
+	assert.Contains(err.Error(), "DIFC policy violation",
+		"error should mention DIFC policy violation")
+}
+
+// TestCallBackendTool_Phase5_FilterMode_PartialCollection verifies that in filter
+// mode, only accessible items are returned along with a DIFC notice.
+func TestCallBackendTool_Phase5_FilterMode_PartialCollection(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	listResponse := map[string]interface{}{
+		"content": []map[string]interface{}{
+			{"type": "text", "text": `[{"id":1},{"id":2}]`},
+		},
+		"isError": false,
+	}
+	backend := newBackendWithToolResponse(t, "list_issues", listResponse)
+	defer backend.Close()
+
+	g := &difcTestGuard{
+		name:                "difc-phase5-filter-guard",
+		labelResponseResult: makeTwoItemCollection(),
+	}
+	// filter mode — partial results should be returned
+	g.labelAgentResult = &guard.LabelAgentResult{
+		Agent:    guard.AgentLabelsPayload{Secrecy: []string{}, Integrity: []string{}},
+		DIFCMode: "filter",
+		NormalizedPolicy: map[string]interface{}{
+			"scope_kind":    "all",
+			"min-integrity": "none",
+		},
+	}
+
+	us := makeUnifiedWithGuard(t, "difc-phase5-filter-type", g, backend, "filter")
+
+	result, data, err := us.callBackendTool(callCtx("session-p5f"), "test-server", "list_issues", nil)
+
+	require.NotNil(result)
+	assert.NoError(err, "filter mode should not return an error when items are filtered")
+	assert.False(result.IsError, "result should not be marked as error in filter mode")
+	require.NotNil(data, "partial data should still be returned")
+
+	// At least one content item should mention DIFC filtering notice.
+	var foundNotice bool
+	for _, c := range result.Content {
+		if tc, ok := c.(*sdk.TextContent); ok {
+			if strings.Contains(tc.Text, "DIFC") || strings.Contains(tc.Text, "filtered") {
+				foundNotice = true
+				break
+			}
+		}
+	}
+	assert.True(foundNotice, "result should contain a DIFC filter notice")
+}
+
+// TestCallBackendTool_Phase5_NilLabeledData_PassesBackendResult verifies that when
+// LabelResponse returns nil (no fine-grained labels), the original backend result
+// is used as the final response.
+func TestCallBackendTool_Phase5_NilLabeledData_PassesBackendResult(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backend := newBackendWithToolResponse(t, "get_item", defaultToolResponse)
+	defer backend.Close()
+
+	g := &difcTestGuard{
+		name:                "difc-phase5-nil-guard",
+		labelResponseResult: nil, // no fine-grained labels
+	}
+	us := makeUnifiedWithGuard(t, "difc-phase5-nil-type", g, backend, "filter")
+
+	result, data, err := us.callBackendTool(callCtx("session-p5n"), "test-server", "get_item", nil)
+
+	require.NotNil(result)
+	assert.NoError(err)
+	assert.False(result.IsError)
+	assert.NotNil(data, "backend result should be passed through when LabelResponse returns nil")
+}
+
+// ─── Phase 6: Label accumulation ─────────────────────────────────────────────
+
+// TestCallBackendTool_Phase6_PropagateModeAccumulatesLabels verifies that in
+// propagate mode, labels from the resource/response are accumulated onto the
+// agent after a read operation.
+func TestCallBackendTool_Phase6_PropagateModeAccumulatesLabels(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backend := newBackendWithToolResponse(t, "list_files", defaultToolResponse)
+	defer backend.Close()
+
+	resourceWithTags := difc.NewLabeledResource("tagged resource")
+	resourceWithTags.Secrecy.Label.Add(difc.Tag("private:org/repo"))
+
+	g := &difcTestGuard{
+		name:                "difc-phase6-propagate-guard",
+		labelResourceResult: resourceWithTags,
+		labelResourceOp:     difc.OperationRead,
+		labelResponseResult: nil, // no fine-grained labels; resource labels accumulate instead
+	}
+	g.labelAgentResult = &guard.LabelAgentResult{
+		Agent:    guard.AgentLabelsPayload{Secrecy: []string{}, Integrity: []string{}},
+		DIFCMode: "propagate",
+		NormalizedPolicy: map[string]interface{}{
+			"scope_kind":    "all",
+			"min-integrity": "none",
+		},
+	}
+
+	us := makeUnifiedWithGuard(t, "difc-phase6-propagate-type", g, backend, "propagate")
+
+	agentID := "session-p6"
+	ctx := callCtx(agentID)
+
+	result, _, err := us.callBackendTool(ctx, "test-server", "list_files", nil)
+	require.NotNil(result)
+	assert.NoError(err)
+	assert.False(result.IsError)
+
+	// Agent labels should now contain the resource's secrecy tag (propagate mode).
+	agentLabels, ok := us.agentRegistry.Get(agentID)
+	require.True(ok, "agent should exist in registry after call")
+	secrecyTags := agentLabels.GetSecrecyTags()
+	assert.Contains(secrecyTags, difc.Tag("private:org/repo"),
+		"agent secrecy should be updated with resource tag in propagate mode")
+}
+
+// ─── Guard initialization ─────────────────────────────────────────────────────
+
+// TestCallBackendTool_GuardInitError verifies that when label_agent fails (guard
+// session initialization error), the call is aborted with an IsError result.
+func TestCallBackendTool_GuardInitError(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backend := newBackendWithToolResponse(t, "test_tool", defaultToolResponse)
+	defer backend.Close()
+
+	g := &difcTestGuard{
+		name:          "difc-guard-init-error",
+		labelAgentErr: fmt.Errorf("guard service unavailable"),
+	}
+	us := makeUnifiedWithGuard(t, "difc-guard-init-error-type", g, backend, "strict")
+
+	result, _, err := us.callBackendTool(callCtx("session-gi"), "test-server", "test_tool", nil)
+
+	require.NotNil(result, "callBackendTool must always return non-nil CallToolResult")
+	assert.True(result.IsError, "result should be marked as error when guard init fails")
+	require.Error(err)
+	assert.Contains(err.Error(), "guard session initialization failed")
+}
