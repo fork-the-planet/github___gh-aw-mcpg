@@ -18,16 +18,17 @@ import (
 
 // Proxy subcommand flag variables
 var (
-	proxyGuardWasm   string
-	proxyPolicy      string
-	proxyToken       string
-	proxyListen      string
-	proxyLogDir      string
-	proxyDIFCMode    string
-	proxyAPIURL      string
-	proxyTLS         bool
-	proxyTLSDir      string
-	proxyTrustedBots []string
+	proxyGuardWasm    string
+	proxyPolicy       string
+	proxyToken        string
+	proxyListen       string
+	proxyLogDir       string
+	proxyDIFCMode     string
+	proxyAPIURL       string
+	proxyTLS          bool
+	proxyTLSDir       string
+	proxyTrustedBots  []string
+	proxyTrustedUsers []string
 )
 
 func init() {
@@ -96,6 +97,7 @@ Local usage:
 	cmd.Flags().BoolVar(&proxyTLS, "tls", false, "Enable HTTPS with auto-generated self-signed certificates")
 	cmd.Flags().StringVar(&proxyTLSDir, "tls-dir", "", "Directory for TLS certificates (default: <log-dir>/proxy-tls)")
 	cmd.Flags().StringSliceVar(&proxyTrustedBots, "trusted-bots", nil, "Additional trusted bot usernames (comma-separated, extends built-in list)")
+	cmd.Flags().StringSliceVar(&proxyTrustedUsers, "trusted-users", nil, "User logins that receive approved integrity (comma-separated)")
 
 	// Only require --guard-wasm when no baked-in guard is available
 	if defaultGuard == "" {
@@ -162,6 +164,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		GitHubAPIURL: apiURL,
 		DIFCMode:     proxyDIFCMode,
 		TrustedBots:  proxyTrustedBots,
+		TrustedUsers: proxyTrustedUsers,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create proxy server: %w", err)

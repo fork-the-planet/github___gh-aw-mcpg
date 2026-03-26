@@ -281,6 +281,8 @@ struct AllowOnlyPolicy {
     blocked_users: Vec<String>,
     #[serde(rename = "approval-labels", default)]
     approval_labels: Vec<String>,
+    #[serde(rename = "trusted-users", default)]
+    trusted_users: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -512,6 +514,7 @@ pub extern "C" fn label_agent(
         trusted_bots,
         blocked_users: policy.blocked_users,
         approval_labels: policy.approval_labels,
+        trusted_users: policy.trusted_users,
     };
     set_runtime_policy_context(ctx.clone());
 

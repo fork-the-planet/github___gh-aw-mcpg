@@ -384,7 +384,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 	// Validate that the allow-only object contains only known keys.
 	for k := range allowOnly {
 		switch k {
-		case "repos", "min-integrity", "integrity", "blocked-users", "approval-labels":
+		case "repos", "min-integrity", "integrity", "blocked-users", "approval-labels", "trusted-users":
 			// valid allow-only keys
 		default:
 			return nil, fmt.Errorf("invalid guard policy transport shape: unexpected allow-only key %q", k)
@@ -449,20 +449,35 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		}
 	}
 
+	// Validate trusted-users if present inside allow-only.
+	// Must be a non-empty array of non-empty strings when present.
+	if trustedUsersRaw, ok := allowOnly["trusted-users"]; ok {
+		arr, ok := trustedUsersRaw.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid trusted-users value: expected array of strings")
+		}
+		for _, entry := range arr {
+			if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
+				return nil, fmt.Errorf("invalid trusted-users value: each entry must be a non-empty string")
+			}
+		}
+	}
+
 	return payload, nil
 }
 
 // BuildLabelAgentPayload constructs the label_agent input payload from the given guard policy
-// and an optional list of additional trusted bot usernames. The trusted bots are merged with
-// the guard's built-in list and cannot remove any built-in entries. If trustedBots is nil or
-// empty, the returned payload contains only the allow-only policy.
-func BuildLabelAgentPayload(policy interface{}, trustedBots []string) interface{} {
-	if len(trustedBots) == 0 {
+// and optional lists of additional trusted bot usernames and trusted user logins. The trusted
+// bots are merged with the guard's built-in list and cannot remove any built-in entries. If
+// both trustedBots and trustedUsers are nil or empty, the returned payload contains only the
+// allow-only policy.
+func BuildLabelAgentPayload(policy interface{}, trustedBots []string, trustedUsers []string) interface{} {
+	if len(trustedBots) == 0 && len(trustedUsers) == 0 {
 		return policy
 	}
 
-	// Marshal the policy to a generic map so we can inject the trusted-bots key
-	// alongside the allow-only policy without altering the policy itself.
+	// Marshal the policy to a generic map so we can inject the trusted-bots and trusted-users
+	// keys alongside the allow-only policy without altering the policy itself.
 	policyJSON, err := json.Marshal(policy)
 	if err != nil {
 		// If we can't marshal the policy, return it as-is; buildStrictLabelAgentPayload
@@ -475,12 +490,29 @@ func BuildLabelAgentPayload(policy interface{}, trustedBots []string) interface{
 		return policy
 	}
 
-	// Convert []string to []interface{} for JSON compatibility
-	bots := make([]interface{}, len(trustedBots))
-	for i, b := range trustedBots {
-		bots[i] = b
+	if len(trustedBots) > 0 {
+		// trusted-bots is a top-level key in the label_agent payload.
+		// Convert []string to []interface{} for JSON compatibility.
+		bots := make([]interface{}, len(trustedBots))
+		for i, b := range trustedBots {
+			bots[i] = b
+		}
+		payload["trusted-bots"] = bots
 	}
-	payload["trusted-bots"] = bots
+
+	if len(trustedUsers) > 0 {
+		// trusted-users is injected inside the allow-only object.
+		// Convert []string to []interface{} for JSON compatibility.
+		users := make([]interface{}, len(trustedUsers))
+		for i, u := range trustedUsers {
+			users[i] = u
+		}
+		// Inject into allow-only object if present
+		if allowOnly, ok := payload["allow-only"].(map[string]interface{}); ok {
+			allowOnly["trusted-users"] = users
+		}
+	}
+
 	return payload
 }
 

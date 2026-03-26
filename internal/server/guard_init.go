@@ -329,7 +329,7 @@ func (us *UnifiedServer) ensureGuardInitialized(
 	// The policyHash covers both the policy and trusted bots so that any change
 	// to either field invalidates the cached guard session state.
 	trustedBots := us.getTrustedBots()
-	labelAgentPayload := guard.BuildLabelAgentPayload(policy, trustedBots)
+	labelAgentPayload := guard.BuildLabelAgentPayload(policy, trustedBots, nil)
 	payloadJSON, err := json.Marshal(labelAgentPayload)
 	if err != nil {
 		return defaultMode, fmt.Errorf("failed to serialize label_agent payload: %w", err)

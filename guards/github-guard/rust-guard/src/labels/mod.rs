@@ -3889,4 +3889,169 @@ mod tests {
             None
         );
     }
+
+    #[test]
+    fn test_trusted_user_detection() {
+        use super::helpers::is_trusted_user;
+
+        let ctx_with_users = PolicyContext {
+            trusted_users: vec!["contractor-1".to_string(), "partner-dev".to_string()],
+            ..Default::default()
+        };
+
+        // Configured trusted users are detected
+        assert!(is_trusted_user("contractor-1", &ctx_with_users));
+        assert!(is_trusted_user("partner-dev", &ctx_with_users));
+
+        // Case-insensitive
+        assert!(is_trusted_user("Contractor-1", &ctx_with_users));
+        assert!(is_trusted_user("PARTNER-DEV", &ctx_with_users));
+
+        // Users not in the list are not detected
+        assert!(!is_trusted_user("other-user", &ctx_with_users));
+        assert!(!is_trusted_user("dependabot[bot]", &ctx_with_users));
+
+        // Empty context has no trusted users
+        let empty_ctx = default_ctx();
+        assert!(!is_trusted_user("contractor-1", &empty_ctx));
+        assert!(!is_trusted_user("", &empty_ctx));
+    }
+
+    #[test]
+    fn test_trusted_user_issue_integrity_elevation() {
+        let repo = "github/copilot";
+
+        let ctx_with_users = PolicyContext {
+            trusted_users: vec!["contractor-1".to_string()],
+            ..Default::default()
+        };
+
+        // A trusted user issue gets approved (writer) integrity even with NONE association
+        let trusted_user_issue = json!({
+            "user": {"login": "contractor-1"},
+            "author_association": "NONE"
+        });
+        assert_eq!(
+            issue_integrity(&trusted_user_issue, repo, false, &ctx_with_users),
+            writer_integrity(repo, &ctx_with_users)
+        );
+
+        // Case-insensitive match
+        let upper_user_issue = json!({
+            "user": {"login": "CONTRACTOR-1"},
+            "author_association": "NONE"
+        });
+        assert_eq!(
+            issue_integrity(&upper_user_issue, repo, false, &ctx_with_users),
+            writer_integrity(repo, &ctx_with_users)
+        );
+
+        // Without trusted_users in context, the same user gets none integrity
+        let ctx_without_users = default_ctx();
+        assert_eq!(
+            issue_integrity(&trusted_user_issue, repo, false, &ctx_without_users),
+            none_integrity(repo, &ctx_without_users)
+        );
+    }
+
+    #[test]
+    fn test_trusted_user_pr_integrity_elevation() {
+        let repo = "github/copilot";
+
+        let ctx_with_users = PolicyContext {
+            trusted_users: vec!["partner-dev".to_string()],
+            ..Default::default()
+        };
+
+        // A trusted user PR gets approved (writer) integrity even with NONE association
+        let trusted_user_pr = json!({
+            "user": {"login": "partner-dev"},
+            "author_association": "NONE"
+        });
+        assert_eq!(
+            pr_integrity(&trusted_user_pr, repo, false, None, &ctx_with_users),
+            writer_integrity(repo, &ctx_with_users)
+        );
+
+        // Without trusted_users, the same user gets none integrity
+        let ctx_without_users = default_ctx();
+        assert_eq!(
+            pr_integrity(&trusted_user_pr, repo, false, None, &ctx_without_users),
+            none_integrity(repo, &ctx_without_users)
+        );
+    }
+
+    #[test]
+    fn test_trusted_user_case_insensitive() {
+        let repo = "github/copilot";
+
+        let ctx = PolicyContext {
+            trusted_users: vec!["MyUser".to_string()],
+            ..Default::default()
+        };
+
+        // Matching regardless of case
+        let issue_lower = json!({
+            "user": {"login": "myuser"},
+            "author_association": "NONE"
+        });
+        assert_eq!(
+            issue_integrity(&issue_lower, repo, false, &ctx),
+            writer_integrity(repo, &ctx)
+        );
+
+        let issue_upper = json!({
+            "user": {"login": "MYUSER"},
+            "author_association": "NONE"
+        });
+        assert_eq!(
+            issue_integrity(&issue_upper, repo, false, &ctx),
+            writer_integrity(repo, &ctx)
+        );
+    }
+
+    #[test]
+    fn test_blocked_user_overrides_trusted_user() {
+        let repo = "github/copilot";
+
+        // User appears in both blocked-users and trusted-users
+        let ctx = PolicyContext {
+            trusted_users: vec!["dual-listed".to_string()],
+            blocked_users: vec!["dual-listed".to_string()],
+            ..Default::default()
+        };
+
+        let issue = json!({
+            "user": {"login": "dual-listed"},
+            "author_association": "NONE"
+        });
+
+        // blocked-users takes precedence — integrity should be blocked
+        let result = issue_integrity(&issue, repo, false, &ctx);
+        assert!(
+            result.iter().any(|t| t.contains("blocked")),
+            "Expected blocked integrity when user is in both blocked-users and trusted-users, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_trusted_user_with_first_timer_association() {
+        let repo = "github/copilot";
+
+        let ctx = PolicyContext {
+            trusted_users: vec!["known-contractor".to_string()],
+            ..Default::default()
+        };
+
+        // A trusted user with FIRST_TIMER association gets elevated to approved
+        let first_timer_issue = json!({
+            "user": {"login": "known-contractor"},
+            "author_association": "FIRST_TIMER"
+        });
+        assert_eq!(
+            issue_integrity(&first_timer_issue, repo, false, &ctx),
+            writer_integrity(repo, &ctx)
+        );
+    }
 }

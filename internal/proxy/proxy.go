@@ -127,6 +127,11 @@ type Config struct {
 	// initialization, extending the guard's built-in trusted bot list
 	// (e.g. dependabot[bot], github-actions[bot]).
 	TrustedBots []string
+
+	// TrustedUsers is an optional list of GitHub usernames to elevate to approved
+	// (writer) integrity, regardless of their author_association. These are injected
+	// into the allow-only policy's trusted-users field during LabelAgent initialization.
+	TrustedUsers []string
 }
 
 // New creates a new proxy Server from the given Config.
@@ -182,7 +187,7 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 	// Initialize guard policy (LabelAgent)
 	if cfg.Policy != "" {
 		logProxy.Printf("Initializing guard policy from config")
-		if err := s.initGuardPolicy(ctx, cfg.Policy, cfg.TrustedBots); err != nil {
+		if err := s.initGuardPolicy(ctx, cfg.Policy, cfg.TrustedBots, cfg.TrustedUsers); err != nil {
 			return nil, fmt.Errorf("failed to initialize guard policy: %w", err)
 		}
 	} else {
@@ -193,9 +198,9 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 	return s, nil
 }
 
-// initGuardPolicy calls LabelAgent with the provided policy JSON and optional trusted bots.
-func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trustedBots []string) error {
-	logProxy.Printf("Initializing guard policy: policyJSON_len=%d, trustedBots=%d", len(policyJSON), len(trustedBots))
+// initGuardPolicy calls LabelAgent with the provided policy JSON, optional trusted bots, and optional trusted users.
+func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trustedBots []string, trustedUsers []string) error {
+	logProxy.Printf("Initializing guard policy: policyJSON_len=%d, trustedBots=%d, trustedUsers=%d", len(policyJSON), len(trustedBots), len(trustedUsers))
 
 	var policy interface{}
 	if err := json.Unmarshal([]byte(policyJSON), &policy); err != nil {
@@ -221,8 +226,8 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trusted
 		return fmt.Errorf("policy validation failed: %w", err)
 	}
 
-	// Build payload with optional trusted bots
-	payload := guard.BuildLabelAgentPayload(policy, trustedBots)
+	// Build payload with optional trusted bots and trusted users
+	payload := guard.BuildLabelAgentPayload(policy, trustedBots, trustedUsers)
 
 	logProxy.Printf("Calling LabelAgent to initialize agent labels from guard")
 	backend := &restBackendCaller{server: s}

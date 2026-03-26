@@ -43,6 +43,7 @@ type AllowOnlyPolicy struct {
 	MinIntegrity   string      `toml:"MinIntegrity" json:"min-integrity"`
 	BlockedUsers   []string    `toml:"BlockedUsers" json:"blocked-users,omitempty"`
 	ApprovalLabels []string    `toml:"ApprovalLabels" json:"approval-labels,omitempty"`
+	TrustedUsers   []string    `toml:"TrustedUsers" json:"trusted-users,omitempty"`
 }
 
 // NormalizedGuardPolicy is a canonical policy representation for caching and observability.
@@ -52,6 +53,7 @@ type NormalizedGuardPolicy struct {
 	MinIntegrity   string   `json:"min-integrity"`
 	BlockedUsers   []string `json:"blocked-users,omitempty"`
 	ApprovalLabels []string `json:"approval-labels,omitempty"`
+	TrustedUsers   []string `json:"trusted-users,omitempty"`
 }
 
 func (p *GuardPolicy) UnmarshalJSON(data []byte) error {
@@ -132,6 +134,10 @@ func (p *AllowOnlyPolicy) UnmarshalJSON(data []byte) error {
 			if err := json.Unmarshal(value, &p.ApprovalLabels); err != nil {
 				return fmt.Errorf("invalid allow-only.approval-labels: %w", err)
 			}
+		case "trusted-users":
+			if err := json.Unmarshal(value, &p.TrustedUsers); err != nil {
+				return fmt.Errorf("invalid allow-only.trusted-users: %w", err)
+			}
 		default:
 			return fmt.Errorf("allow-only contains unsupported field %q", key)
 		}
@@ -153,6 +159,7 @@ func (p AllowOnlyPolicy) MarshalJSON() ([]byte, error) {
 		MinIntegrity   string      `json:"min-integrity"`
 		BlockedUsers   []string    `json:"blocked-users,omitempty"`
 		ApprovalLabels []string    `json:"approval-labels,omitempty"`
+		TrustedUsers   []string    `json:"trusted-users,omitempty"`
 	}
 
 	return json.Marshal(serializedAllowOnly(p))
@@ -327,6 +334,23 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 			if _, exists := seen[key]; !exists {
 				seen[key] = struct{}{}
 				normalized.ApprovalLabels = append(normalized.ApprovalLabels, l)
+			}
+		}
+	}
+
+	// Validate and normalize trusted-users.
+	// Dedup uses lowercased keys to match Rust guard's case-insensitive comparison.
+	if len(policy.AllowOnly.TrustedUsers) > 0 {
+		seen := make(map[string]struct{}, len(policy.AllowOnly.TrustedUsers))
+		for _, u := range policy.AllowOnly.TrustedUsers {
+			u = strings.TrimSpace(u)
+			if u == "" {
+				return nil, fmt.Errorf("allow-only.trusted-users entries must not be empty")
+			}
+			key := strings.ToLower(u)
+			if _, exists := seen[key]; !exists {
+				seen[key] = struct{}{}
+				normalized.TrustedUsers = append(normalized.TrustedUsers, u)
 			}
 		}
 	}
