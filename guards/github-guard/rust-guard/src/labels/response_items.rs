@@ -316,16 +316,7 @@ pub fn label_response_items(
 
         // === File Contents - repo-scoped secrecy ===
         "get_file_contents" => {
-            let all_items: Vec<&Value> = if actual_response.is_array() {
-                actual_response
-                    .as_array()
-                    .map(|arr| arr.iter().collect())
-                    .unwrap_or_default()
-            } else if actual_response.is_object() && !is_search_result_wrapper(&actual_response) && !is_mcp_text_wrapper(&actual_response) {
-                vec![&actual_response]
-            } else {
-                vec![]
-            };
+            let all_items = collect_items_simple(&actual_response);
 
             let items_limited = limit_items_with_log(all_items.as_slice(), "get_file_contents");
             let (arg_owner, arg_repo, repo_full_name) = extract_repo_info(tool_args);
@@ -351,16 +342,7 @@ pub fn label_response_items(
 
         // === Commits - label by branch (default branch = merged) ===
         "list_commits" | "get_commit" => {
-            let all_items: Vec<&Value> = if actual_response.is_array() {
-                actual_response
-                    .as_array()
-                    .map(|arr| arr.iter().collect())
-                    .unwrap_or_default()
-            } else if actual_response.is_object() && !is_search_result_wrapper(&actual_response) && !is_mcp_text_wrapper(&actual_response) {
-                vec![&actual_response]
-            } else {
-                vec![]
-            };
+            let all_items = collect_items_simple(&actual_response);
 
             // Limit items to prevent WASM memory exhaustion
             let items_limited = limit_items_with_log(all_items.as_slice(), "list_commits");
@@ -403,16 +385,7 @@ pub fn label_response_items(
 
         // === Gists - label by visibility ===
         "list_gists" | "get_gist" => {
-            let all_items: Vec<&Value> = if actual_response.is_array() {
-                actual_response
-                    .as_array()
-                    .map(|arr| arr.iter().collect())
-                    .unwrap_or_default()
-            } else if actual_response.is_object() && !is_search_result_wrapper(&actual_response) && !is_mcp_text_wrapper(&actual_response) {
-                vec![&actual_response]
-            } else {
-                vec![]
-            };
+            let all_items = collect_items_simple(&actual_response);
 
             // Limit items to prevent WASM memory exhaustion
             let items_limited = limit_items_with_log(all_items.as_slice(), "list_gists");
@@ -460,16 +433,7 @@ pub fn label_response_items(
 
         // === Releases - merged-level integrity (endorsed) ===
         "list_releases" | "get_latest_release" | "get_release_by_tag" => {
-            let all_items: Vec<&Value> = if actual_response.is_array() {
-                actual_response
-                    .as_array()
-                    .map(|arr| arr.iter().collect())
-                    .unwrap_or_default()
-            } else if actual_response.is_object() && !is_search_result_wrapper(&actual_response) && !is_mcp_text_wrapper(&actual_response) {
-                vec![&actual_response]
-            } else {
-                vec![]
-            };
+            let all_items = collect_items_simple(&actual_response);
 
             // Limit items to prevent WASM memory exhaustion
             let items_limited = limit_items_with_log(all_items.as_slice(), "list_releases");

@@ -660,6 +660,23 @@ pub fn extract_items_array(response: &Value) -> (Option<&Vec<Value>>, String) {
     (None, String::new())
 }
 
+/// Collect items from a response that is either a JSON array or a single object.
+///
+/// Returns a `Vec<&Value>` of items to process. Wrappers like MCP text envelopes
+/// and search-result metadata objects are excluded from single-object promotion.
+pub(crate) fn collect_items_simple(response: &Value) -> Vec<&Value> {
+    if let Some(arr) = response.as_array() {
+        arr.iter().collect()
+    } else if response.is_object()
+        && !is_search_result_wrapper(response)
+        && !is_mcp_text_wrapper(response)
+    {
+        vec![response]
+    } else {
+        vec![]
+    }
+}
+
 /// GraphQL collection fields under data.repository and their JSON Pointer paths.
 const GRAPHQL_COLLECTION_FIELDS: &[(&str, &str)] = &[
     ("issues", "/data/repository/issues/nodes"),
