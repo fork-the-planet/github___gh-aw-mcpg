@@ -22,7 +22,8 @@ args = ["run", "--rm", "-i", "-e", "NO_COLOR=1", "-e", "TERM=dumb", "-e", "PYTHO
 [servers.serena]
 command = "docker"
 args = ["run", "--rm", "-i",
-        "-v", "${PWD}:/workspace:ro",
+        # Replace /path/to/workspace with an absolute path (TOML does not expand ${PWD})
+        "-v", "/path/to/workspace:/workspace:ro",
         "-e", "NO_COLOR=1", "-e", "TERM=dumb",
         "ghcr.io/github/serena-mcp-server:latest"]
 
