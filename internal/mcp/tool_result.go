@@ -72,7 +72,7 @@ func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 		Content []struct {
 			Type     string            `json:"type"`
 			Text     string            `json:"text,omitempty"`
-			Data     []byte            `json:"data,omitempty"`     // base64-encoded image/audio data
+			Data     []byte            `json:"data,omitempty"`     // image/audio binary data (automatically decoded from base64 JSON)
 			MIMEType string            `json:"mimeType,omitempty"` // image/audio MIME type
 			Resource *resourceContents `json:"resource,omitempty"` // embedded resource
 		} `json:"content"`

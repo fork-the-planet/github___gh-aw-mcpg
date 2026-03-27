@@ -537,18 +537,22 @@ func (c *Connection) listTools() (*Response, error) {
 		return nil, err
 	}
 	logConn.Printf("listTools: requesting tool list from backend serverID=%s", c.serverID)
-	var allTools []*sdk.Tool
-	cursor := ""
-	for {
+	// Fetch first page to determine initial capacity
+	first, err := c.getSDKSession().ListTools(c.ctx, &sdk.ListToolsParams{})
+	if err != nil {
+		return nil, err
+	}
+	allTools := make([]*sdk.Tool, len(first.Tools), max(len(first.Tools), 1))
+	copy(allTools, first.Tools)
+	logConn.Printf("listTools: received page of %d tools from serverID=%s", len(first.Tools), c.serverID)
+	cursor := first.NextCursor
+	for cursor != "" {
 		result, err := c.getSDKSession().ListTools(c.ctx, &sdk.ListToolsParams{Cursor: cursor})
 		if err != nil {
 			return nil, err
 		}
 		allTools = append(allTools, result.Tools...)
 		logConn.Printf("listTools: received page of %d tools (total so far: %d) from serverID=%s", len(result.Tools), len(allTools), c.serverID)
-		if result.NextCursor == "" {
-			break
-		}
 		cursor = result.NextCursor
 	}
 	logConn.Printf("listTools: received %d tools total from serverID=%s", len(allTools), c.serverID)
@@ -575,18 +579,22 @@ func (c *Connection) listResources() (*Response, error) {
 		return nil, err
 	}
 	logConn.Printf("listResources: requesting resource list from backend serverID=%s", c.serverID)
-	var allResources []*sdk.Resource
-	cursor := ""
-	for {
+	// Fetch first page to determine initial capacity
+	first, err := c.getSDKSession().ListResources(c.ctx, &sdk.ListResourcesParams{})
+	if err != nil {
+		return nil, err
+	}
+	allResources := make([]*sdk.Resource, len(first.Resources), max(len(first.Resources), 1))
+	copy(allResources, first.Resources)
+	logConn.Printf("listResources: received page of %d resources from serverID=%s", len(first.Resources), c.serverID)
+	cursor := first.NextCursor
+	for cursor != "" {
 		result, err := c.getSDKSession().ListResources(c.ctx, &sdk.ListResourcesParams{Cursor: cursor})
 		if err != nil {
 			return nil, err
 		}
 		allResources = append(allResources, result.Resources...)
 		logConn.Printf("listResources: received page of %d resources (total so far: %d) from serverID=%s", len(result.Resources), len(allResources), c.serverID)
-		if result.NextCursor == "" {
-			break
-		}
 		cursor = result.NextCursor
 	}
 	logConn.Printf("listResources: received %d resources total from serverID=%s", len(allResources), c.serverID)
@@ -610,18 +618,22 @@ func (c *Connection) listPrompts() (*Response, error) {
 		return nil, err
 	}
 	logConn.Printf("listPrompts: requesting prompt list from backend serverID=%s", c.serverID)
-	var allPrompts []*sdk.Prompt
-	cursor := ""
-	for {
+	// Fetch first page to determine initial capacity
+	first, err := c.getSDKSession().ListPrompts(c.ctx, &sdk.ListPromptsParams{})
+	if err != nil {
+		return nil, err
+	}
+	allPrompts := make([]*sdk.Prompt, len(first.Prompts), max(len(first.Prompts), 1))
+	copy(allPrompts, first.Prompts)
+	logConn.Printf("listPrompts: received page of %d prompts from serverID=%s", len(first.Prompts), c.serverID)
+	cursor := first.NextCursor
+	for cursor != "" {
 		result, err := c.getSDKSession().ListPrompts(c.ctx, &sdk.ListPromptsParams{Cursor: cursor})
 		if err != nil {
 			return nil, err
 		}
 		allPrompts = append(allPrompts, result.Prompts...)
 		logConn.Printf("listPrompts: received page of %d prompts (total so far: %d) from serverID=%s", len(result.Prompts), len(allPrompts), c.serverID)
-		if result.NextCursor == "" {
-			break
-		}
 		cursor = result.NextCursor
 	}
 	logConn.Printf("listPrompts: received %d prompts total from serverID=%s", len(allPrompts), c.serverID)
