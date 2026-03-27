@@ -11,8 +11,11 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
+var logSession = logger.New("server:session")
+
 // NewSession creates a new Session with the given session ID and optional token
 func NewSession(sessionID, token string) *Session {
+	logSession.Printf("Creating new session: sessionID=%s, has_token=%v", sessionID, token != "")
 	return &Session{
 		Token:     token,
 		SessionID: sessionID,
@@ -24,6 +27,7 @@ func NewSession(sessionID, token string) *Session {
 // getSessionID extracts the MCP session ID from the context
 func (us *UnifiedServer) getSessionID(ctx context.Context) string {
 	if sessionID, ok := ctx.Value(SessionIDContextKey).(string); ok && sessionID != "" {
+		logSession.Printf("Extracted session ID from context: %s", sessionID)
 		log.Printf("Extracted session ID from context: %s", sessionID)
 		return sessionID
 	}
@@ -62,6 +66,7 @@ func (us *UnifiedServer) ensureSessionDirectory(sessionID string) error {
 // Sessions are automatically created if one doesn't exist (for standard MCP client compatibility)
 func (us *UnifiedServer) requireSession(ctx context.Context) error {
 	sessionID := us.getSessionID(ctx)
+	logSession.Printf("Checking session: sessionID=%s", sessionID)
 	log.Printf("Checking session for ID: %s", sessionID)
 
 	// Use double-checked locking to auto-create session if needed
@@ -103,5 +108,6 @@ func (us *UnifiedServer) getSessionKeys() []string {
 	for k := range us.sessions {
 		keys = append(keys, k)
 	}
+	logSession.Printf("Active sessions: count=%d", len(keys))
 	return keys
 }
