@@ -100,10 +100,10 @@
       "version": "v0.20.10",
       "sha": "fbfd9c6c189226748411491745178e0c2017392d"
     },
-    "anchore/sbom-action@v0.23.1": {
+    "anchore/sbom-action@v0.24.0": {
       "repo": "anchore/sbom-action",
-      "version": "v0.23.1",
-      "sha": "57aae528053a48a3f6235f2d9461b05fbcb7366d"
+      "version": "v0.24.0",
+      "sha": "e22c389904149dbc22b58101806040fa8d37a610"
     },
     "astral-sh/setup-uv@v7.6.0": {
       "repo": "astral-sh/setup-uv",
@@ -170,35 +170,30 @@
       "version": "v1.23.0",
       "sha": "ee09b1e59bb240681c382eb1f0abc6a04af72764"
     },
-    "github/codeql-action/upload-sarif@v4.33.0": {
+    "github/codeql-action/upload-sarif@v4.35.1": {
       "repo": "github/codeql-action/upload-sarif",
-      "version": "v4.33.0",
-      "sha": "f0213c31c702f929cf06ddb900ac315d246a8997"
+      "version": "v4.35.1",
+      "sha": "0e9f55954318745b37b7933c693bc093f7336125"
     },
-    "github/gh-aw-actions/setup@v0.61.2": {
+    "github/gh-aw-actions/setup-cli@v0.64.2": {
+      "repo": "github/gh-aw-actions/setup-cli",
+      "version": "v0.64.2",
+      "sha": "f22886a9607f5c27e79742a8bfc5faa34737138b"
+    },
+    "github/gh-aw-actions/setup@v0.64.2": {
       "repo": "github/gh-aw-actions/setup",
-      "version": "v0.61.2",
-      "sha": "71cfb3cbe2002225f9d5afa180669fff36b86ea2"
+      "version": "v0.64.2",
+      "sha": "f22886a9607f5c27e79742a8bfc5faa34737138b"
     },
-    "github/gh-aw-actions/setup@v0.62.0": {
-      "repo": "github/gh-aw-actions/setup",
-      "version": "v0.62.0",
-      "sha": "b2c35f34e1013dd9ed2a84c559e2b2fec9ad38e6"
-    },
-    "github/gh-aw-actions/setup@v0.63.0": {
-      "repo": "github/gh-aw-actions/setup",
-      "version": "v0.63.0",
-      "sha": "9128d2542bbf1bdfec94dabeaf3e1d3c0d402577"
-    },
-    "github/gh-aw/actions/setup@v0.62.0": {
+    "github/gh-aw/actions/setup@v0.64.2": {
       "repo": "github/gh-aw/actions/setup",
-      "version": "v0.62.0",
-      "sha": "f1633bcc50ad7480f44d25961863c36fadd787ec"
+      "version": "v0.64.2",
+      "sha": "72346ee09bdaa904d167f1be907e590fd9128fa3"
     },
-    "github/stale-repos@v9.0.3": {
+    "github/stale-repos@v9.0.5": {
       "repo": "github/stale-repos",
-      "version": "v9.0.3",
-      "sha": "d0f1b1dd26c263d8e4dde6fbc7f2faa3b4bd623b"
+      "version": "v9.0.5",
+      "sha": "2ac16fe3d101119ed6e7f3deedddd7604e1029d8"
     },
     "haskell-actions/setup@v2.10.3": {
       "repo": "haskell-actions/setup",
@@ -210,10 +205,10 @@
       "version": "v2.2.0",
       "sha": "0c5077e51419868618aeaa5fe8019c62421857d6"
     },
-    "ruby/setup-ruby@v1.295.0": {
+    "ruby/setup-ruby@v1.299.0": {
       "repo": "ruby/setup-ruby",
-      "version": "v1.295.0",
-      "sha": "319994f95fa847cf3fb3cd3dbe89f6dcde9f178f"
+      "version": "v1.299.0",
+      "sha": "3ff19f5e2baf30647122352b96108b1fbe250c64"
     },
     "super-linter/super-linter@v8.5.0": {
       "repo": "super-linter/super-linter",

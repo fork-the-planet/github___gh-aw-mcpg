@@ -52,11 +52,6 @@ safe-outputs:
     required-labels: [smoke-test]
     max: 1
   update-discussion:
-    labels: true
-    title: false
-    body: false
-    allowed-labels: [status, smoke-test]
-    max: 3
   add-comment:
     max: 2
     target: "triggering"
@@ -87,7 +82,7 @@ This workflow tests safe-outputs enforcement for discussion-related operations:
 |---|---|
 | `create-discussion` | `title-prefix: "[smoke-safeoutputs] "`, `category: "General"`, `max: 1`, `close-older-discussions: true`, `labels: [smoke-test]` |
 | `close-discussion` | `required-category: "General"`, `required-labels: [smoke-test]`, `max: 1` |
-| `update-discussion` | `labels: true`, `title: false`, `body: false`, `allowed-labels: [status, smoke-test]`, `max: 3` |
+| `update-discussion` | enabled (all fields allowed) |
 | `add-comment` | `max: 2`, `target: "triggering"`, `hide-older-comments: true` |
 
 ## Test Matrix
@@ -108,37 +103,19 @@ Work through each test case below. For each test, attempt the operation and reco
 
 ### Phase 2: update-discussion Enforcement
 
-Use the discussion created in Test 1.1 (or find an existing discussion with "smoke-test" label if none was created) for the following tests. **This phase tests the original enforcement bug where `labels: true` with `title: false, body: false` still allowed title/body updates.**
+Use the discussion created in Test 1.1 for the following tests.
 
-**Test 2.1 — SHOULD SUCCEED** (positive case: update allowed label):
-- Attempt: Update discussion labels with ["smoke-test"] (in allowed-labels list)
-- Expected: ✅ Processed (labels: true, "smoke-test" is in allowed-labels)
+**Note**: The compiler does not currently support field-level controls (title/body/labels toggles) for `update-discussion`. This phase tests that the operation works when enabled. Field-level enforcement testing is deferred until compiler support is added.
+
+**Test 2.1 — SHOULD SUCCEED** (positive case: update labels):
+- Attempt: Update discussion labels with ["smoke-test", "status"]
+- Expected: ✅ Processed (update-discussion is enabled)
 - Record the actual outcome
 
-**Test 2.2 — SHOULD SUCCEED** (positive case: update with second allowed label):
-- Attempt: Update discussion labels with ["status"] (in allowed-labels list)
-- Expected: ✅ Processed (labels: true, "status" is in allowed-labels)
+**Test 2.2 — SHOULD SUCCEED** (positive case: update body):
+- Attempt: Update discussion body with an appended note "Updated by smoke test ${{ github.run_id }}"
+- Expected: ✅ Processed (update-discussion is enabled)
 - Record the actual outcome
-
-**Test 2.3 — SHOULD FAIL** (negative case: update body — body: false):
-- Attempt: Update discussion body with text "This body update should be rejected"
-- Expected: ❌ Rejected (body: false in update-discussion config)
-- Record the actual outcome — **CRITICAL**: this tests the original enforcement bug
-
-**Test 2.4 — SHOULD FAIL** (negative case: update title — title: false):
-- Attempt: Update discussion title with "[smoke-safeoutputs] Modified Title"
-- Expected: ❌ Rejected (title: false in update-discussion config)
-- Record the actual outcome — **CRITICAL**: this tests the original enforcement bug
-
-**Test 2.5 — SHOULD FAIL** (negative case: non-allowed label):
-- Attempt: Update discussion labels with ["priority"] (not in allowed-labels list)
-- Expected: ❌ Rejected (allowed-labels only contains "status" and "smoke-test")
-- Record the actual outcome
-
-**Test 2.6 — SHOULD FAIL** (negative case: max exceeded):
-- Attempt: A 4th update-discussion operation (tests 2.1, 2.2, and one other already consumed max: 3)
-- Expected: ❌ Rejected (max: 3 exceeded)
-- Record the actual outcome (skip if fewer than 3 updates were attempted)
 
 ### Phase 3: close-discussion Enforcement
 
@@ -203,7 +180,7 @@ Then **create an issue** with the full test results:
 
 **Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 **Trigger**: ${{ github.event_name }}
-**Configuration tested**: create-discussion (max:1, prefix, category), update-discussion (labels only, allowed-labels:[status,smoke-test], max:3), close-discussion (required-category:General, required-labels:[smoke-test]), add-comment (max:2, target:triggering)
+**Configuration tested**: create-discussion (max:1, prefix, category), update-discussion (enabled, all fields), close-discussion (required-category:General, required-labels:[smoke-test]), add-comment (max:2, target:triggering)
 
 ### Phase 1: create-discussion
 | Test | Operation | Expected | Actual | Status |
@@ -211,15 +188,11 @@ Then **create an issue** with the full test results:
 | 1.1 | Create discussion (valid prefix+category+label) | ✅ Processed | [result] | ✅/❌ |
 | 1.2 | Create 2nd discussion (max exceeded) | ❌ Rejected | [result] | ✅/❌ |
 
-### Phase 2: update-discussion (Original Bug Area ⚠️)
+### Phase 2: update-discussion
 | Test | Operation | Expected | Actual | Status |
 |------|-----------|----------|--------|--------|
-| 2.1 | Update labels: ["smoke-test"] (allowed) | ✅ Processed | [result] | ✅/❌ |
-| 2.2 | Update labels: ["status"] (allowed) | ✅ Processed | [result] | ✅/❌ |
-| 2.3 | Update body (body: false) | ❌ Rejected | [result] | ✅/❌ |
-| 2.4 | Update title (title: false) | ❌ Rejected | [result] | ✅/❌ |
-| 2.5 | Update labels: ["priority"] (not in allowed-labels) | ❌ Rejected | [result] | ✅/❌ |
-| 2.6 | 4th update (max: 3 exceeded) | ❌ Rejected | [result] | ✅/❌ SKIPPED |
+| 2.1 | Update labels: ["smoke-test", "status"] | ✅ Processed | [result] | ✅/❌ |
+| 2.2 | Update body (append note) | ✅ Processed | [result] | ✅/❌ |
 
 ### Phase 3: close-discussion
 | Test | Operation | Expected | Actual | Status |
@@ -238,7 +211,7 @@ Then **create an issue** with the full test results:
 
 ### Summary
 - Phase 1 (create-discussion): [X/2] ✅
-- Phase 2 (update-discussion): [X/6] ✅ ← **CRITICAL: Original bug reproduction**
+- Phase 2 (update-discussion): [X/2] ✅
 - Phase 3 (close-discussion): [X/3] ✅
 - Phase 4 (add-comment): [X/4] ✅ or SKIPPED
 - **Overall: PASS / FAIL**

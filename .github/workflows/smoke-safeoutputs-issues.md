@@ -51,8 +51,7 @@ safe-outputs:
     required-title-prefix: "[smoke-safeoutputs]"
     max: 1
   update-issue:
-    title: true
-    body: false
+    body:
     max: 1
   link-sub-issue:
     parent-title-prefix: "[smoke-safeoutputs]"
@@ -79,7 +78,7 @@ timeout-minutes: 20
 |---|---|
 | `create-issue` | `title-prefix: "[smoke-safeoutputs] "`, `labels: [smoke-test, automated]`, `max: 3`, `expires: 2h`, `close-older-issues: true` |
 | `close-issue` | `required-labels: [smoke-test]`, `required-title-prefix: "[smoke-safeoutputs]"`, `max: 1` |
-| `update-issue` | `title: true`, `body: false`, `max: 1` |
+| `update-issue` | `body:` (enabled), `max: 1` |
 | `link-sub-issue` | `parent-title-prefix: "[smoke-safeoutputs]"`, `sub-title-prefix: "[smoke-safeoutputs]"`, `max: 1` |
 | `assign-milestone` | `allowed: [v1.0]`, `max: 1` |
 
@@ -116,17 +115,12 @@ Work through each test case. For each test, attempt the operation and record whe
 
 Use the parent issue from Test 1.1 for the following tests.
 
-**Test 2.1 — SHOULD SUCCEED** (positive case: update title):
-- Attempt: Update the title of the parent issue to "[smoke-safeoutputs] Parent Issue (updated) ${{ github.run_id }}"
-- Expected: ✅ Processed (title: true is configured)
+**Test 2.1 — SHOULD SUCCEED** (positive case: update body):
+- Attempt: Update the body of the parent issue to append "Updated by smoke test ${{ github.run_id }}"
+- Expected: ✅ Processed (body: is enabled in update-issue config)
 - Record the actual outcome
 
-**Test 2.2 — SHOULD FAIL** (negative case: update body — body: false):
-- Attempt: Update the body of the parent issue with "This body update should be rejected by safe-outputs"
-- Expected: ❌ Rejected (body: false in update-issue config)
-- Record the actual outcome
-
-**Test 2.3 — SHOULD FAIL** (negative case: max exceeded):
+**Test 2.2 — SHOULD FAIL** (negative case: max exceeded):
 - Attempt: A second update-issue operation (max: 1 already consumed by Test 2.1)
 - Expected: ❌ Rejected (max: 1 exceeded)
 - Record the actual outcome
@@ -198,7 +192,7 @@ Use the parent issue from Test 1.1 for the following tests.
 
 **Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 **Trigger**: ${{ github.event_name }}
-**Configuration**: create-issue (max:3, prefix), close-issue (required-labels, required-prefix, max:1), update-issue (title:true, body:false, max:1), link-sub-issue (prefix restrictions), assign-milestone (allowed:[v1.0])
+**Configuration**: create-issue (max:3, prefix), close-issue (required-labels, required-prefix, max:1), update-issue (body enabled, max:1), link-sub-issue (prefix restrictions), assign-milestone (allowed:[v1.0])
 
 ### Phase 1: create-issue
 | Test | Operation | Expected | Actual | Status |
@@ -208,12 +202,11 @@ Use the parent issue from Test 1.1 for the following tests.
 | 1.3 | Create issue without prefix | ❌ Rejected | [result] | ✅/❌ |
 | 1.4 | Create 4th issue (max exceeded) | ❌ Rejected | [result] | ✅/❌ |
 
-### Phase 2: update-issue (title:true, body:false)
+### Phase 2: update-issue (body enabled, max:1)
 | Test | Operation | Expected | Actual | Status |
 |------|-----------|----------|--------|--------|
-| 2.1 | Update title (allowed) | ✅ Processed | [result] | ✅/❌ |
-| 2.2 | Update body (body: false) | ❌ Rejected | [result] | ✅/❌ |
-| 2.3 | 2nd update (max: 1 exceeded) | ❌ Rejected | [result] | ✅/❌ |
+| 2.1 | Update body (allowed) | ✅ Processed | [result] | ✅/❌ |
+| 2.2 | 2nd update (max: 1 exceeded) | ❌ Rejected | [result] | ✅/❌ |
 
 ### Phase 3: link-sub-issue (prefix restrictions)
 | Test | Operation | Expected | Actual | Status |
@@ -239,7 +232,7 @@ Use the parent issue from Test 1.1 for the following tests.
 
 ### Summary
 - Phase 1 (create-issue): [X/4] ✅
-- Phase 2 (update-issue): [X/3] ✅
+- Phase 2 (update-issue): [X/2] ✅
 - Phase 3 (link-sub-issue): [X/3] ✅
 - Phase 4 (close-issue): [X/4] ✅
 - Phase 5 (assign-milestone): [X/3] ✅

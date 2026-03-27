@@ -33,7 +33,7 @@ safe-outputs:
     title-prefix: "[integrity-audit] "
     labels: [integrity-audit, automation]
     close-older-issues: true
-    expires: 7
+    expires: 7d
     max: 1
 
 timeout-minutes: 20
