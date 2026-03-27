@@ -242,6 +242,48 @@ func TestConnectionPoolConcurrency(t *testing.T) {
 	assert.Equal(t, 1000, metadata.RequestCount)
 }
 
+// TestConnectionPoolConcurrencyWithDeletes verifies that concurrent Get and Delete
+// operations do not race. Previously, Get used a manual RUnlock/Lock/RLock upgrade
+// that created a window in which another goroutine could delete the connection,
+// causing Get to update and return a deleted connection.
+func TestConnectionPoolConcurrencyWithDeletes(t *testing.T) {
+	ctx := context.Background()
+	pool := NewSessionConnectionPool(ctx)
+
+	mockConn := &mcp.Connection{}
+	pool.Set("backend1", "session1", mockConn)
+
+	done := make(chan bool)
+
+	// Goroutines that continuously Get the connection
+	for i := 0; i < 5; i++ {
+		go func() {
+			for j := 0; j < 200; j++ {
+				pool.Get("backend1", "session1")
+			}
+			done <- true
+		}()
+	}
+
+	// Goroutines that interleave Set and Delete operations
+	for i := 0; i < 3; i++ {
+		go func() {
+			for j := 0; j < 50; j++ {
+				pool.Set("backend1", "session1", mockConn)
+				pool.Delete("backend1", "session1")
+			}
+			done <- true
+		}()
+	}
+
+	for i := 0; i < 8; i++ {
+		<-done
+	}
+	// No assertion needed — the goal is to detect races via -race flag.
+	// If the race condition is present, this test will fail non-deterministically
+	// under the Go race detector (go test -race).
+}
+
 func TestConnectionPoolDeleteNonExistent(t *testing.T) {
 	ctx := context.Background()
 	pool := NewSessionConnectionPool(ctx)

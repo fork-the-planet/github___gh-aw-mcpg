@@ -206,8 +206,12 @@ func (p *SessionConnectionPool) Stop() {
 
 // Get retrieves a connection from the pool
 func (p *SessionConnectionPool) Get(backendID, sessionID string) (*mcp.Connection, bool) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+	// Use a write lock for the entire operation to atomically read and update
+	// metadata. The previous pattern of acquiring a read lock, manually unlocking,
+	// and then acquiring a write lock introduced a race window in which another
+	// goroutine could delete the connection between the two lock acquisitions.
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	key := ConnectionKey{BackendID: backendID, SessionID: sessionID}
 	metadata, exists := p.connections[key]
@@ -225,14 +229,9 @@ func (p *SessionConnectionPool) Get(backendID, sessionID string) (*mcp.Connectio
 	logPool.Printf("Reusing connection: backend=%s, session=%s, requests=%d",
 		backendID, sessionID, metadata.RequestCount)
 
-	// Update last used time and state (need write lock for this)
-	p.mu.RUnlock()
-	p.mu.Lock()
 	metadata.LastUsedAt = time.Now()
 	metadata.RequestCount++
 	metadata.State = ConnectionStateActive
-	p.mu.Unlock()
-	p.mu.RLock()
 
 	return metadata.Connection, true
 }
