@@ -326,6 +326,7 @@ pub fn ensure_integrity_baseline(
 // ============================================================================
 
 /// Returns a vec with the "secret" label
+#[cfg(test)]
 #[inline]
 pub fn secret_label() -> Vec<String> {
     vec![label_constants::SECRET.to_string()]

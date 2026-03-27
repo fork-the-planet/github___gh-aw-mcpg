@@ -49,11 +49,13 @@ pub use helpers::{
     has_author_association, is_blocked_user, is_bot, is_graphql_wrapper, is_mcp_text_wrapper,
     is_search_result_wrapper, issue_integrity, limit_items_with_log, make_item_path,
     merged_integrity, none_integrity, pr_integrity, private_scope_label, private_user_label,
-    project_github_label, reader_integrity, search_result_total_count, secret_label,
+    project_github_label, reader_integrity, search_result_total_count,
     writer_integrity, MinIntegrity, PolicyContext, PolicyScopeEntry, ScopeKind,
 };
 #[cfg(test)]
 pub use helpers::has_approval_label;
+#[cfg(test)]
+pub use helpers::secret_label;
 
 // Re-export response labeling functions (wrappers that pass PolicyContext)
 pub fn apply_tool_labels(

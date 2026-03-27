@@ -5,6 +5,7 @@
 /// Common label string constants to ensure consistency across the codebase
 pub mod label_constants {
     pub const NONE: &str = "none";
+    #[cfg(test)]
     pub const SECRET: &str = "secret";
     pub const PRIVATE_USER: &str = "private:user";
     pub const READER_PREFIX: &str = "unapproved:";
