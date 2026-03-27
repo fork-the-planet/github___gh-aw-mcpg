@@ -16,13 +16,18 @@ import (
 func TestConnection_SendRequest(t *testing.T) {
 	var receivedMethod string
 
-	srv := newPlainJSONTestServer(t, func(w http.ResponseWriter, r *http.Request, method string, _ []byte) {
+	srv := newPlainJSONTestServer(t, func(w http.ResponseWriter, r *http.Request, method string, body []byte) {
 		receivedMethod = method
+
+		var req map[string]interface{}
+		err := json.Unmarshal(body, &req)
+		require.NoError(t, err)
+		require.Contains(t, req, "id")
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"jsonrpc": "2.0",
-			"id":      1,
+			"id":      req["id"],
 			"result": map[string]interface{}{
 				"tools": []interface{}{},
 			},

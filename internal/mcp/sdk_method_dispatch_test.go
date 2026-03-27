@@ -211,6 +211,12 @@ func newPlainJSONTestServer(t *testing.T, handler func(w http.ResponseWriter, r 
 			return
 		}
 
+		// SDK sends notifications/initialized after initialize; acknowledge it.
+		if method == "notifications/initialized" {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+
 		handler(w, r, method, body)
 	}))
 }
