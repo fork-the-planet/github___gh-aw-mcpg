@@ -99,10 +99,93 @@ func TestConvertToCallToolResult(t *testing.T) {
 		assert.Contains(t, text.Text, "value")
 	})
 
+	t.Run("image content type is converted to ImageContent", func(t *testing.T) {
+		// base64("hello") = "aGVsbG8="
+		input := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{"type": "image", "data": "aGVsbG8=", "mimeType": "image/png"},
+			},
+		}
+
+		result, err := ConvertToCallToolResult(input)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Len(t, result.Content, 1)
+
+		img, ok := result.Content[0].(*sdk.ImageContent)
+		require.True(t, ok, "Expected ImageContent")
+		assert.Equal(t, "image/png", img.MIMEType)
+		assert.Equal(t, []byte("hello"), img.Data)
+	})
+
+	t.Run("audio content type is converted to AudioContent", func(t *testing.T) {
+		// base64("world") = "d29ybGQ="
+		input := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{"type": "audio", "data": "d29ybGQ=", "mimeType": "audio/wav"},
+			},
+		}
+
+		result, err := ConvertToCallToolResult(input)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Len(t, result.Content, 1)
+
+		audio, ok := result.Content[0].(*sdk.AudioContent)
+		require.True(t, ok, "Expected AudioContent")
+		assert.Equal(t, "audio/wav", audio.MIMEType)
+		assert.Equal(t, []byte("world"), audio.Data)
+	})
+
+	t.Run("resource content type is converted to EmbeddedResource", func(t *testing.T) {
+		input := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "resource",
+					"resource": map[string]interface{}{
+						"uri":      "file:///path/to/resource.txt",
+						"mimeType": "text/plain",
+						"text":     "resource content",
+					},
+				},
+			},
+		}
+
+		result, err := ConvertToCallToolResult(input)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Len(t, result.Content, 1)
+
+		res, ok := result.Content[0].(*sdk.EmbeddedResource)
+		require.True(t, ok, "Expected EmbeddedResource")
+		require.NotNil(t, res.Resource)
+		assert.Equal(t, "file:///path/to/resource.txt", res.Resource.URI)
+		assert.Equal(t, "text/plain", res.Resource.MIMEType)
+		assert.Equal(t, "resource content", res.Resource.Text)
+	})
+
+	t.Run("resource content type without resource field is skipped", func(t *testing.T) {
+		input := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{"type": "resource"},
+			},
+		}
+
+		result, err := ConvertToCallToolResult(input)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		// Resource item without "resource" field is skipped
+		assert.Empty(t, result.Content)
+	})
+
 	t.Run("unknown content type is treated as text", func(t *testing.T) {
 		input := map[string]interface{}{
 			"content": []interface{}{
-				map[string]interface{}{"type": "image", "text": "image data"},
+				map[string]interface{}{"type": "custom_type", "text": "custom data"},
 			},
 		}
 
@@ -114,7 +197,7 @@ func TestConvertToCallToolResult(t *testing.T) {
 
 		text, ok := result.Content[0].(*sdk.TextContent)
 		require.True(t, ok)
-		assert.Equal(t, "image data", text.Text)
+		assert.Equal(t, "custom data", text.Text)
 	})
 
 	t.Run("simple string value is wrapped as text", func(t *testing.T) {

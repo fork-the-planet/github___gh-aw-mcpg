@@ -60,6 +60,7 @@ type ToolInfo struct {
 	Name        string
 	Description string
 	InputSchema map[string]interface{}
+	Annotations *sdk.ToolAnnotations
 	BackendID   string // Which backend this tool belongs to
 	Handler     func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error)
 }
@@ -249,11 +250,15 @@ func (g *guardBackendCaller) CallTool(ctx context.Context, toolName string, args
 	return executeBackendToolCall(g.ctx, g.server.launcher, g.serverID, sessionID.(string), toolName, args)
 }
 
-// newErrorCallToolResult creates a standard error CallToolResult
-// This helper reduces code duplication for error returns following the pattern:
-// return &sdk.CallToolResult{IsError: true}, nil, err
+// newErrorCallToolResult creates a standard error CallToolResult with the error message
+// included as text content, so MCP clients can understand what went wrong.
 func newErrorCallToolResult(err error) (*sdk.CallToolResult, interface{}, error) {
-	return &sdk.CallToolResult{IsError: true}, nil, err
+	return &sdk.CallToolResult{
+		IsError: true,
+		Content: []sdk.Content{
+			&sdk.TextContent{Text: err.Error()},
+		},
+	}, nil, err
 }
 
 // callBackendTool calls a tool on a backend server with DIFC enforcement

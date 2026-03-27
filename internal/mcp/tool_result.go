@@ -8,6 +8,15 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// resourceContents mirrors sdk.ResourceContents for JSON unmarshaling of
+// embedded resource content items returned by backend MCP servers.
+type resourceContents struct {
+	URI      string `json:"uri"`
+	MIMEType string `json:"mimeType,omitempty"`
+	Text     string `json:"text,omitempty"`
+	Blob     []byte `json:"blob,omitempty"`
+}
+
 var logToolResult = logger.New("mcp:tool_result")
 
 // ConvertToCallToolResult converts backend result data to SDK CallToolResult format.
@@ -61,8 +70,11 @@ func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 	// Parse the backend result structure (standard MCP CallToolResult format)
 	var backendResult struct {
 		Content []struct {
-			Type string `json:"type"`
-			Text string `json:"text,omitempty"`
+			Type     string            `json:"type"`
+			Text     string            `json:"text,omitempty"`
+			Data     []byte            `json:"data,omitempty"`     // base64-encoded image/audio data
+			MIMEType string            `json:"mimeType,omitempty"` // image/audio MIME type
+			Resource *resourceContents `json:"resource,omitempty"` // embedded resource
 		} `json:"content"`
 		IsError bool `json:"isError,omitempty"`
 	}
@@ -89,8 +101,31 @@ func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 			content = append(content, &sdk.TextContent{
 				Text: item.Text,
 			})
+		case "image":
+			content = append(content, &sdk.ImageContent{
+				Data:     item.Data,
+				MIMEType: item.MIMEType,
+			})
+		case "audio":
+			content = append(content, &sdk.AudioContent{
+				Data:     item.Data,
+				MIMEType: item.MIMEType,
+			})
+		case "resource":
+			if item.Resource != nil {
+				content = append(content, &sdk.EmbeddedResource{
+					Resource: &sdk.ResourceContents{
+						URI:      item.Resource.URI,
+						MIMEType: item.Resource.MIMEType,
+						Text:     item.Resource.Text,
+						Blob:     item.Resource.Blob,
+					},
+				})
+			} else {
+				logToolResult.Printf("Resource content item missing 'resource' field, skipping")
+			}
 		default:
-			// For unknown types, try to preserve as text
+			// For unknown types, preserve as text with whatever text field is present
 			logToolResult.Printf("Unknown content type '%s', treating as text", item.Type)
 			content = append(content, &sdk.TextContent{
 				Text: item.Text,

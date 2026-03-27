@@ -533,14 +533,26 @@ func callParamMethod[P any](c *Connection, rawParams interface{}, fn func(P) (in
 }
 
 func (c *Connection) listTools() (*Response, error) {
+	if err := c.requireSession(); err != nil {
+		return nil, err
+	}
 	logConn.Printf("listTools: requesting tool list from backend serverID=%s", c.serverID)
-	return c.callListMethod(func() (interface{}, error) {
-		result, err := c.getSDKSession().ListTools(c.ctx, &sdk.ListToolsParams{})
-		if err == nil {
-			logConn.Printf("listTools: received %d tools from serverID=%s", len(result.Tools), c.serverID)
+	var allTools []*sdk.Tool
+	cursor := ""
+	for {
+		result, err := c.getSDKSession().ListTools(c.ctx, &sdk.ListToolsParams{Cursor: cursor})
+		if err != nil {
+			return nil, err
 		}
-		return result, err
-	})
+		allTools = append(allTools, result.Tools...)
+		logConn.Printf("listTools: received page of %d tools (total so far: %d) from serverID=%s", len(result.Tools), len(allTools), c.serverID)
+		if result.NextCursor == "" {
+			break
+		}
+		cursor = result.NextCursor
+	}
+	logConn.Printf("listTools: received %d tools total from serverID=%s", len(allTools), c.serverID)
+	return marshalToResponse(&sdk.ListToolsResult{Tools: allTools})
 }
 
 func (c *Connection) callTool(params interface{}) (*Response, error) {
@@ -559,14 +571,26 @@ func (c *Connection) callTool(params interface{}) (*Response, error) {
 }
 
 func (c *Connection) listResources() (*Response, error) {
+	if err := c.requireSession(); err != nil {
+		return nil, err
+	}
 	logConn.Printf("listResources: requesting resource list from backend serverID=%s", c.serverID)
-	return c.callListMethod(func() (interface{}, error) {
-		result, err := c.getSDKSession().ListResources(c.ctx, &sdk.ListResourcesParams{})
-		if err == nil {
-			logConn.Printf("listResources: received %d resources from serverID=%s", len(result.Resources), c.serverID)
+	var allResources []*sdk.Resource
+	cursor := ""
+	for {
+		result, err := c.getSDKSession().ListResources(c.ctx, &sdk.ListResourcesParams{Cursor: cursor})
+		if err != nil {
+			return nil, err
 		}
-		return result, err
-	})
+		allResources = append(allResources, result.Resources...)
+		logConn.Printf("listResources: received page of %d resources (total so far: %d) from serverID=%s", len(result.Resources), len(allResources), c.serverID)
+		if result.NextCursor == "" {
+			break
+		}
+		cursor = result.NextCursor
+	}
+	logConn.Printf("listResources: received %d resources total from serverID=%s", len(allResources), c.serverID)
+	return marshalToResponse(&sdk.ListResourcesResult{Resources: allResources})
 }
 
 func (c *Connection) readResource(params interface{}) (*Response, error) {
@@ -582,14 +606,26 @@ func (c *Connection) readResource(params interface{}) (*Response, error) {
 }
 
 func (c *Connection) listPrompts() (*Response, error) {
+	if err := c.requireSession(); err != nil {
+		return nil, err
+	}
 	logConn.Printf("listPrompts: requesting prompt list from backend serverID=%s", c.serverID)
-	return c.callListMethod(func() (interface{}, error) {
-		result, err := c.getSDKSession().ListPrompts(c.ctx, &sdk.ListPromptsParams{})
-		if err == nil {
-			logConn.Printf("listPrompts: received %d prompts from serverID=%s", len(result.Prompts), c.serverID)
+	var allPrompts []*sdk.Prompt
+	cursor := ""
+	for {
+		result, err := c.getSDKSession().ListPrompts(c.ctx, &sdk.ListPromptsParams{Cursor: cursor})
+		if err != nil {
+			return nil, err
 		}
-		return result, err
-	})
+		allPrompts = append(allPrompts, result.Prompts...)
+		logConn.Printf("listPrompts: received page of %d prompts (total so far: %d) from serverID=%s", len(result.Prompts), len(allPrompts), c.serverID)
+		if result.NextCursor == "" {
+			break
+		}
+		cursor = result.NextCursor
+	}
+	logConn.Printf("listPrompts: received %d prompts total from serverID=%s", len(allPrompts), c.serverID)
+	return marshalToResponse(&sdk.ListPromptsResult{Prompts: allPrompts})
 }
 
 func (c *Connection) getPrompt(params interface{}) (*Response, error) {
