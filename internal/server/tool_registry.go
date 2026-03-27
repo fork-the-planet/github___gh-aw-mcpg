@@ -143,6 +143,7 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 			Name        string                 `json:"name"`
 			Description string                 `json:"description"`
 			InputSchema map[string]interface{} `json:"inputSchema"`
+			Annotations *sdk.ToolAnnotations   `json:"annotations,omitempty"`
 		} `json:"tools"`
 	}
 
@@ -179,6 +180,7 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 			Name:        prefixedName,
 			Description: toolDesc,
 			InputSchema: normalizedSchema,
+			Annotations: tool.Annotations,
 			BackendID:   serverID,
 		}
 		us.toolsMu.Unlock()
@@ -253,6 +255,7 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 			Name:        prefixedName,
 			Description: toolDesc,
 			InputSchema: normalizedSchema, // Include the schema for clients to understand parameters
+			Annotations: tool.Annotations,
 		}, wrappedHandler)
 
 		log.Printf("Registered tool: %s", logName)

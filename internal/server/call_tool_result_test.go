@@ -187,7 +187,13 @@ func TestNewErrorCallToolResult(t *testing.T) {
 			require.NotNil(t, result, "CallToolResult should not be nil")
 			assert.True(t, result.IsError, "IsError should be true")
 
-			t.Logf("✓ Error CallToolResult properly created with IsError=%v", result.IsError)
+			// Verify error message is included in content
+			require.Len(t, result.Content, 1, "Should have one content item with error message")
+			textContent, ok := result.Content[0].(*sdk.TextContent)
+			require.True(t, ok, "Content should be TextContent")
+			assert.Equal(t, tt.err.Error(), textContent.Text, "Error message should be in content")
+
+			t.Logf("✓ Error CallToolResult properly created with IsError=%v, message=%q", result.IsError, textContent.Text)
 		})
 	}
 }
