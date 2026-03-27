@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -34,9 +35,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Health check endpoint
 	if rawPath == "/health" || rawPath == "/healthz" {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		writeJSONResponse(w, http.StatusOK, map[string]string{"status": "ok"})
 		return
 	}
 
@@ -68,9 +67,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if match == nil {
 			// Unknown GraphQL query — fail closed: deny rather than risk leaking unfiltered data
 			logHandler.Printf("unknown GraphQL query, blocking request: %s", strutil.Truncate(string(graphQLBody), 500))
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			writeJSONResponse(w, http.StatusForbidden, map[string]interface{}{
 				"errors": []map[string]string{{"message": "access denied: unrecognized GraphQL operation"}},
 				"data":   nil,
 			})
@@ -80,13 +77,10 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if match.ToolName == "graphql_introspection" {
 			logHandler.Printf("GraphQL introspection query, passing through")
 			clientAuth := r.Header.Get("Authorization")
-			resp, err := h.server.forwardToGitHub(r.Context(), http.MethodPost, "/graphql", bytes.NewReader(graphQLBody), "application/json", clientAuth)
-			if err != nil {
-				http.Error(w, "upstream request failed", http.StatusBadGateway)
+			resp, respBody := h.forwardAndReadBody(w, r.Context(), http.MethodPost, "/graphql", bytes.NewReader(graphQLBody), "application/json", clientAuth)
+			if resp == nil {
 				return
 			}
-			defer resp.Body.Close()
-			respBody, _ := io.ReadAll(resp.Body)
 			h.writeResponse(w, resp, respBody)
 			return
 		}
@@ -157,9 +151,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		} else {
 			// Write blocked
 			logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, evalResult.Reason)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			json.NewEncoder(w).Encode(map[string]string{
+			writeJSONResponse(w, http.StatusForbidden, map[string]string{
 				"message": fmt.Sprintf("DIFC policy violation: %s", evalResult.Reason),
 			})
 			return
@@ -169,22 +161,13 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	// **Phase 3: Forward to upstream GitHub API**
 	clientAuth := r.Header.Get("Authorization")
 	var resp *http.Response
+	var respBody []byte
 	if graphQLBody != nil {
-		resp, err = s.forwardToGitHub(ctx, http.MethodPost, "/graphql", bytes.NewReader(graphQLBody), "application/json", clientAuth)
+		resp, respBody = h.forwardAndReadBody(w, ctx, http.MethodPost, "/graphql", bytes.NewReader(graphQLBody), "application/json", clientAuth)
 	} else {
-		resp, err = s.forwardToGitHub(ctx, r.Method, path, nil, "", clientAuth)
+		resp, respBody = h.forwardAndReadBody(w, ctx, r.Method, path, nil, "", clientAuth)
 	}
-	if err != nil {
-		logHandler.Printf("[DIFC] Phase 3 failed: %v", err)
-		http.Error(w, "upstream request failed", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-
-	// Read the response body
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(w, "failed to read upstream response", http.StatusBadGateway)
+	if resp == nil {
 		return
 	}
 
@@ -241,9 +224,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			// Strict mode: block entire response if any item filtered
 			if s.enforcementMode == difc.EnforcementStrict && filtered.GetFilteredCount() > 0 {
 				logHandler.Printf("[DIFC] STRICT: blocking response — %d filtered items", filtered.GetFilteredCount())
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusForbidden)
-				json.NewEncoder(w).Encode(map[string]string{
+				writeJSONResponse(w, http.StatusForbidden, map[string]string{
 					"message": fmt.Sprintf("DIFC policy violation: %d of %d items not accessible",
 						filtered.GetFilteredCount(), filtered.TotalCount),
 				})
@@ -329,16 +310,8 @@ func (h *proxyHandler) passthrough(w http.ResponseWriter, r *http.Request, path 
 		defer r.Body.Close()
 	}
 
-	resp, err := h.server.forwardToGitHub(r.Context(), r.Method, path, body, r.Header.Get("Content-Type"), r.Header.Get("Authorization"))
-	if err != nil {
-		http.Error(w, "upstream request failed", http.StatusBadGateway)
-		return
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		http.Error(w, "failed to read upstream response", http.StatusBadGateway)
+	resp, respBody := h.forwardAndReadBody(w, r.Context(), r.Method, path, body, r.Header.Get("Content-Type"), r.Header.Get("Authorization"))
+	if resp == nil {
 		return
 	}
 
@@ -376,6 +349,35 @@ func (h *proxyHandler) writeEmptyResponse(w http.ResponseWriter, resp *http.Resp
 		empty = "[]" // safe default for nil or unknown types
 	}
 	w.Write([]byte(empty))
+}
+
+// writeJSONResponse sets the Content-Type header, writes the status code, and encodes
+// body as JSON. It centralises the three-line pattern used across HTTP handlers.
+func writeJSONResponse(w http.ResponseWriter, statusCode int, body interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(body)
+}
+
+// forwardAndReadBody forwards a request to the upstream GitHub API and reads the
+// entire response body. On success it returns the response and body bytes. It writes
+// a 502 error to w and returns nil, nil on failure.
+func (h *proxyHandler) forwardAndReadBody(
+	w http.ResponseWriter, ctx context.Context,
+	method, path string, body io.Reader, contentType, clientAuth string,
+) (*http.Response, []byte) {
+	resp, err := h.server.forwardToGitHub(ctx, method, path, body, contentType, clientAuth)
+	if err != nil {
+		http.Error(w, "upstream request failed", http.StatusBadGateway)
+		return nil, nil
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		http.Error(w, "failed to read upstream response", http.StatusBadGateway)
+		return nil, nil
+	}
+	return resp, respBody
 }
 
 // copyResponseHeaders copies relevant headers from upstream to the client response.
