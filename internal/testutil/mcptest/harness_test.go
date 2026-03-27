@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/github/gh-aw-mcpg/internal/testutil/mcptest"
 )
@@ -24,9 +24,8 @@ func TestBasicServerWithOneTool(t *testing.T) {
 	driver := mcptest.NewTestDriver()
 	defer driver.Stop()
 
-	if err := driver.AddTestServer("test", config); err != nil {
-		t.Fatalf("Failed to add test server: %v", err)
-	}
+	err := driver.AddTestServer("test", config)
+	require.NoError(t, err, "Failed to add test server")
 
 	transport, err := driver.CreateStdioTransport("test")
 	require.NoError(t, err, "Failed to create transport")
@@ -38,42 +37,19 @@ func TestBasicServerWithOneTool(t *testing.T) {
 	// Validate tools
 	tools, err := validator.ListTools()
 	require.NoError(t, err, "Failed to list tools")
-
-	if len(tools) != 1 {
-		t.Errorf("Expected 1 tool, got %d", len(tools))
-	}
-
-	if len(tools) > 0 {
-		if tools[0].Name != "test_echo" {
-			t.Errorf("Expected tool name 'test_echo', got '%s'", tools[0].Name)
-		}
-		t.Logf("✓ Tool found: %s - %s", tools[0].Name, tools[0].Description)
-	}
+	require.Len(t, tools, 1, "Expected exactly 1 tool")
+	assert.Equal(t, "test_echo", tools[0].Name)
 
 	// Test tool execution
 	result, err := validator.CallTool("test_echo", map[string]interface{}{
 		"message": "Hello, World!",
 	})
 	require.NoError(t, err, "Failed to call tool")
-
-	if result.IsError {
-		t.Error("Tool returned an error")
-	}
-
-	if len(result.Content) != 1 {
-		t.Errorf("Expected 1 content item, got %d", len(result.Content))
-	}
-
-	if len(result.Content) > 0 {
-		textContent, ok := result.Content[0].(*sdk.TextContent)
-		if !ok {
-			t.Error("Expected TextContent")
-		} else if textContent.Text != "Echo: Hello, World!" {
-			t.Errorf("Expected 'Echo: Hello, World!', got '%s'", textContent.Text)
-		} else {
-			t.Logf("✓ Tool executed correctly: %s", textContent.Text)
-		}
-	}
+	assert.False(t, result.IsError)
+	require.Len(t, result.Content, 1, "Expected exactly 1 content item")
+	textContent, ok := result.Content[0].(*sdk.TextContent)
+	require.True(t, ok, "Expected *sdk.TextContent")
+	assert.Equal(t, "Echo: Hello, World!", textContent.Text)
 }
 
 // TestServerWithMultipleTools tests a server with multiple tools
@@ -111,9 +87,8 @@ func TestServerWithMultipleTools(t *testing.T) {
 	driver := mcptest.NewTestDriver()
 	defer driver.Stop()
 
-	if err := driver.AddTestServer("test", config); err != nil {
-		t.Fatalf("Failed to add test server: %v", err)
-	}
+	err := driver.AddTestServer("test", config)
+	require.NoError(t, err, "Failed to add test server")
 
 	transport, err := driver.CreateStdioTransport("test")
 	require.NoError(t, err, "Failed to create transport")
@@ -125,24 +100,14 @@ func TestServerWithMultipleTools(t *testing.T) {
 	// Validate: Should have 3 tools
 	tools, err := validator.ListTools()
 	require.NoError(t, err, "Failed to list tools")
+	require.Len(t, tools, 3, "Expected exactly 3 tools")
 
-	if len(tools) != 3 {
-		t.Errorf("Expected 3 tools, got %d", len(tools))
+	// Verify all expected tools are present
+	toolNames := make([]string, len(tools))
+	for i, tool := range tools {
+		toolNames[i] = tool.Name
 	}
-
-	// Test each tool
-	toolNames := make(map[string]bool)
-	for _, tool := range tools {
-		toolNames[tool.Name] = true
-		t.Logf("✓ Found tool: %s", tool.Name)
-	}
-
-	expectedTools := []string{"echo1", "echo2", "add"}
-	for _, expected := range expectedTools {
-		if !toolNames[expected] {
-			t.Errorf("Expected tool '%s' not found", expected)
-		}
-	}
+	assert.ElementsMatch(t, []string{"echo1", "echo2", "add"}, toolNames)
 
 	// Test the add tool
 	result, err := validator.CallTool("add", map[string]interface{}{
@@ -150,19 +115,11 @@ func TestServerWithMultipleTools(t *testing.T) {
 		"b": 3.0,
 	})
 	require.NoError(t, err, "Failed to call add tool")
-
-	if result.IsError {
-		t.Error("Add tool returned an error")
-	}
-
-	if len(result.Content) > 0 {
-		textContent, ok := result.Content[0].(*sdk.TextContent)
-		if !ok {
-			t.Error("Expected TextContent")
-		} else {
-			t.Logf("✓ Add tool result: %s", textContent.Text)
-		}
-	}
+	assert.False(t, result.IsError)
+	require.Len(t, result.Content, 1, "Expected exactly 1 content item")
+	textContent, ok := result.Content[0].(*sdk.TextContent)
+	require.True(t, ok, "Expected *sdk.TextContent")
+	assert.Equal(t, "8", textContent.Text)
 }
 
 // TestServerWithResources tests a server with resources
@@ -183,9 +140,8 @@ func TestServerWithResources(t *testing.T) {
 	driver := mcptest.NewTestDriver()
 	defer driver.Stop()
 
-	if err := driver.AddTestServer("test", config); err != nil {
-		t.Fatalf("Failed to add test server: %v", err)
-	}
+	err := driver.AddTestServer("test", config)
+	require.NoError(t, err, "Failed to add test server")
 
 	transport, err := driver.CreateStdioTransport("test")
 	require.NoError(t, err, "Failed to create transport")
@@ -197,39 +153,15 @@ func TestServerWithResources(t *testing.T) {
 	// Test: List resources
 	resources, err := validator.ListResources()
 	require.NoError(t, err, "Failed to list resources")
-
-	// Validate: Should have 1 resource
-	if len(resources) != 1 {
-		t.Errorf("Expected 1 resource, got %d", len(resources))
-	}
-
-	if len(resources) > 0 {
-		if resources[0].URI != "test://doc1" {
-			t.Errorf("Expected URI 'test://doc1', got '%s'", resources[0].URI)
-		}
-		t.Logf("✓ Resource found: %s - %s", resources[0].URI, resources[0].Name)
-	}
+	require.Len(t, resources, 1, "Expected exactly 1 resource")
+	assert.Equal(t, "test://doc1", resources[0].URI)
 
 	// Test: Read resource
-	result, err := validator.ReadResource("test://doc1")
+	readResult, err := validator.ReadResource("test://doc1")
 	require.NoError(t, err, "Failed to read resource")
-
-	// Validate: Should have content
-	if len(result.Contents) != 1 {
-		t.Errorf("Expected 1 content item, got %d", len(result.Contents))
-	}
-
-	if len(result.Contents) > 0 {
-		content := result.Contents[0]
-		if content.URI != "test://doc1" {
-			t.Errorf("Expected URI 'test://doc1', got '%s'", content.URI)
-		}
-		if content.Text != "This is test content" {
-			t.Errorf("Expected 'This is test content', got '%s'", content.Text)
-		} else {
-			t.Logf("✓ Resource read correctly: %s", content.Text)
-		}
-	}
+	require.Len(t, readResult.Contents, 1, "Expected exactly 1 content item")
+	assert.Equal(t, "test://doc1", readResult.Contents[0].URI)
+	assert.Equal(t, "This is test content", readResult.Contents[0].Text)
 }
 
 // TestServerInfo validates server metadata
@@ -247,9 +179,8 @@ func TestServerInfo(t *testing.T) {
 	driver := mcptest.NewTestDriver()
 	defer driver.Stop()
 
-	if err := driver.AddTestServer("test", config); err != nil {
-		t.Fatalf("Failed to add test server: %v", err)
-	}
+	err := driver.AddTestServer("test", config)
+	require.NoError(t, err, "Failed to add test server")
 
 	transport, err := driver.CreateStdioTransport("test")
 	require.NoError(t, err, "Failed to create transport")
@@ -261,15 +192,6 @@ func TestServerInfo(t *testing.T) {
 	// Test: Get server info
 	serverInfo := validator.GetServerInfo()
 	require.NotNil(t, serverInfo, "Server info is nil")
-
-	// Validate: Server name and version
-	if serverInfo.Name != "custom-test-server" {
-		t.Errorf("Expected name 'custom-test-server', got '%s'", serverInfo.Name)
-	}
-
-	if serverInfo.Version != "2.5.0" {
-		t.Errorf("Expected version '2.5.0', got '%s'", serverInfo.Version)
-	}
-
-	t.Logf("✓ Server info validated: %s v%s", serverInfo.Name, serverInfo.Version)
+	assert.Equal(t, "custom-test-server", serverInfo.Name)
+	assert.Equal(t, "2.5.0", serverInfo.Version)
 }
