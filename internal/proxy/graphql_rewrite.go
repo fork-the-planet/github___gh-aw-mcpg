@@ -4,7 +4,11 @@ import (
 	"encoding/json"
 	"regexp"
 	"strings"
+
+	"github.com/github/gh-aw-mcpg/internal/logger"
 )
+
+var logGraphQLRewrite = logger.New("proxy:graphql_rewrite")
 
 // guardFieldSet defines the GraphQL fields the DIFC guard needs for a
 // specific class of GitHub objects.
@@ -71,6 +75,7 @@ func missingFields(query string, fields []guardFieldSet) []string {
 func InjectGuardFields(body []byte, toolName string) []byte {
 	fields := fieldsForTool(toolName)
 	if fields == nil {
+		logGraphQLRewrite.Printf("No guard field injection needed for tool=%s", toolName)
 		return body
 	}
 
@@ -80,6 +85,7 @@ func InjectGuardFields(body []byte, toolName string) []byte {
 	}
 
 	if gql.Query == "" || allFieldsPresent(gql.Query, fields) {
+		logGraphQLRewrite.Printf("Guard fields already present for tool=%s, skipping injection", toolName)
 		return body
 	}
 
@@ -110,6 +116,7 @@ func injectFieldsIntoQuery(query string, fields []string) string {
 	fragmentInNodes := regexp.MustCompile(`nodes\s*\{\s*\.\.\.(\w+)`)
 	if m := fragmentInNodes.FindStringSubmatch(query); m != nil {
 		fragName := m[1]
+		logGraphQLRewrite.Printf("Injecting into named fragment: fragName=%s, fields=%q", fragName, injection)
 		return injectIntoFragment(query, fragName, injection)
 	}
 
@@ -121,6 +128,7 @@ func injectFieldsIntoQuery(query string, fields []string) string {
 		// Find the inline fragment's opening brace and inject after it
 		inlineOpenPattern := regexp.MustCompile(`(\.\.\.\s*on\s+\w+\s*\{)`)
 		if inlineOpenPattern.MatchString(query) {
+			logGraphQLRewrite.Printf("Injecting into inline fragment: fields=%q", injection)
 			return inlineOpenPattern.ReplaceAllString(query, "${1}"+injection+",")
 		}
 	}
@@ -128,9 +136,11 @@ func injectFieldsIntoQuery(query string, fields []string) string {
 	// Step 3: No fragment — inject directly into nodes { ... }
 	nodesPattern := regexp.MustCompile(`(nodes\s*\{)`)
 	if nodesPattern.MatchString(query) {
+		logGraphQLRewrite.Printf("Injecting into nodes selection: fields=%q", injection)
 		return nodesPattern.ReplaceAllString(query, "${1}"+injection+",")
 	}
 
+	logGraphQLRewrite.Printf("No injection point found in query for fields=%q", injection)
 	return query
 }
 
