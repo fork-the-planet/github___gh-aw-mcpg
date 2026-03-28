@@ -140,8 +140,9 @@ func TestParseResourceResponse(t *testing.T) {
 					"secrecy": []interface{}{"private"},
 				},
 			},
-			wantDesc:    "",
-			wantSecrecy: []difc.Tag{"private"},
+			wantDesc:      "",
+			wantSecrecy:   []difc.Tag{"private"},
+			wantOperation: difc.OperationWrite,
 		},
 		{
 			name: "non-string tags in secrecy array are skipped",
@@ -150,7 +151,8 @@ func TestParseResourceResponse(t *testing.T) {
 					"secrecy": []interface{}{"valid-tag", 42, true, nil, "another-tag"},
 				},
 			},
-			wantSecrecy: []difc.Tag{"another-tag", "valid-tag"},
+			wantSecrecy:   []difc.Tag{"another-tag", "valid-tag"},
+			wantOperation: difc.OperationWrite,
 		},
 		{
 			name: "non-string tags in integrity array are skipped",
@@ -160,6 +162,7 @@ func TestParseResourceResponse(t *testing.T) {
 				},
 			},
 			wantIntegrity: []difc.Tag{"also-good", "good-tag"},
+			wantOperation: difc.OperationWrite,
 		},
 
 		// ── Error cases ────────────────────────────────────────────────────────
@@ -220,7 +223,8 @@ func TestParseResourceResponse(t *testing.T) {
 					"secrecy": "not-an-array",
 				},
 			},
-			wantSecrecy: []difc.Tag{},
+			wantSecrecy:   []difc.Tag{},
+			wantOperation: difc.OperationWrite,
 		},
 		{
 			name: "integrity value is not an array (map) defaults to empty label",
@@ -230,6 +234,7 @@ func TestParseResourceResponse(t *testing.T) {
 				},
 			},
 			wantIntegrity: []difc.Tag{},
+			wantOperation: difc.OperationWrite,
 		},
 		{
 			name: "description field is not a string - ignored",
@@ -238,7 +243,8 @@ func TestParseResourceResponse(t *testing.T) {
 					"description": 999,
 				},
 			},
-			wantDesc: "",
+			wantDesc:      "",
+			wantOperation: difc.OperationWrite,
 		},
 	}
 
@@ -305,11 +311,11 @@ func TestParseResourceResponse_OperationCoverage(t *testing.T) {
 
 func TestParseCollectionLabeledData(t *testing.T) {
 	tests := []struct {
-		name           string
-		items          []interface{}
-		wantItemCount  int
-		wantErr        bool
-		checkItems     func(t *testing.T, collection *difc.CollectionLabeledData)
+		name          string
+		items         []interface{}
+		wantItemCount int
+		wantErr       bool
+		checkItems    func(t *testing.T, collection *difc.CollectionLabeledData)
 	}{
 		// ── Empty / nil inputs ─────────────────────────────────────────────────
 
@@ -605,7 +611,7 @@ func TestParseCollectionLabeledData(t *testing.T) {
 				},
 				"not-a-map",
 				map[string]interface{}{
-					"data": "item-2-empty-labels",
+					"data":   "item-2-empty-labels",
 					"labels": map[string]interface{}{},
 				},
 			},

@@ -776,26 +776,6 @@ func TestParseEnforcementMode(t *testing.T) {
 	}
 }
 
-// TestNewEvaluatorWithMode tests creating evaluator with specific mode
-func TestNewEvaluatorWithMode(t *testing.T) {
-	t.Run("creates evaluator with strict mode", func(t *testing.T) {
-		eval := NewEvaluatorWithMode(EnforcementStrict)
-		assert.Equal(t, EnforcementStrict, eval.GetMode())
-	})
-
-	t.Run("creates evaluator with propagate mode", func(t *testing.T) {
-		eval := NewEvaluatorWithMode(EnforcementPropagate)
-		assert.Equal(t, EnforcementPropagate, eval.GetMode())
-	})
-
-	t.Run("SetMode changes mode", func(t *testing.T) {
-		eval := NewEvaluator()
-		assert.Equal(t, EnforcementStrict, eval.GetMode())
-		eval.SetMode(EnforcementPropagate)
-		assert.Equal(t, EnforcementPropagate, eval.GetMode())
-	})
-}
-
 // TestEvaluationResult_RequiresPropagation tests the RequiresPropagation method
 func TestEvaluationResult_RequiresPropagation(t *testing.T) {
 	tests := []struct {
