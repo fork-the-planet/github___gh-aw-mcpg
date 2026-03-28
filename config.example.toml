@@ -8,8 +8,9 @@
 # Gateway-level settings that apply to the entire server.
 
 [gateway]
-# Port number for the HTTP server (default: 3000)
-# Valid range: 1-65535
+# Note: This field is parsed and validated but does NOT control the actual listen port.
+# To change the listen port, use the --listen flag: ./awmg --config config.toml --listen 127.0.0.1:4000
+# This field is stored for metadata purposes only. Valid range: 1-65535
 port = 3000
 
 # API key for authentication (optional)

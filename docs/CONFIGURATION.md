@@ -338,12 +338,13 @@ The `customSchemas` top-level field allows you to define custom server types bey
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| `port` | HTTP port (1-65535) | From `--listen` flag |
+| `port` | Validated and stored but **not used to control the listen port** — the actual listen address is always set by the `--listen` CLI flag (default `127.0.0.1:3000`). Setting this field has no effect on which port the server binds to. | `3000` (informational only) |
 | `apiKey` | API key for authentication | (disabled) |
 | `domain` | Gateway domain (`"localhost"`, `"host.docker.internal"`, or `"${VAR}"`) | `localhost` |
 | `startupTimeout` | Seconds to wait for backend startup | `60` |
 | `toolTimeout` | Seconds to wait for tool execution | `120` |
 | `payloadDir` | Directory for large payload files | `/tmp/jq-payloads` |
+| `trustedBots` (JSON) / `trusted_bots` (TOML) | Optional list of additional bot usernames to trust with "approved" integrity level. Additive to the built-in trusted bot list. Must be a non-empty array when present; each entry must be a non-empty string (spec §4.1.3.4). Example: `["my-bot[bot]", "org-automation"]` | (disabled) |
 
 **TOML-only / CLI-only options** (not available in JSON stdin):
 
