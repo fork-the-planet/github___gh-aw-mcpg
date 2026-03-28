@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
@@ -15,7 +16,7 @@ var logSession = logger.New("server:session")
 
 // NewSession creates a new Session with the given session ID and optional token
 func NewSession(sessionID, token string) *Session {
-	logSession.Printf("Creating new session: sessionID=%s, has_token=%v", sessionID, token != "")
+	logSession.Printf("Creating new session: sessionID=%s, has_token=%v", auth.TruncateSessionID(sessionID), token != "")
 	return &Session{
 		Token:     token,
 		SessionID: sessionID,
@@ -27,8 +28,8 @@ func NewSession(sessionID, token string) *Session {
 // getSessionID extracts the MCP session ID from the context
 func (us *UnifiedServer) getSessionID(ctx context.Context) string {
 	if sessionID, ok := ctx.Value(SessionIDContextKey).(string); ok && sessionID != "" {
-		logSession.Printf("Extracted session ID from context: %s", sessionID)
-		log.Printf("Extracted session ID from context: %s", sessionID)
+		logSession.Printf("Extracted session ID from context: %s", auth.TruncateSessionID(sessionID))
+		log.Printf("Extracted session ID from context: %s", auth.TruncateSessionID(sessionID))
 		return sessionID
 	}
 	// No session ID in context - this happens before the SDK assigns one
@@ -58,7 +59,7 @@ func (us *UnifiedServer) ensureSessionDirectory(sessionID string) error {
 	}
 
 	logUnified.Printf("Created session directory: %s", sessionDir)
-	log.Printf("Created payload directory for session: %s", sessionID)
+	log.Printf("Created payload directory for session: %s", auth.TruncateSessionID(sessionID))
 	return nil
 }
 
@@ -66,8 +67,8 @@ func (us *UnifiedServer) ensureSessionDirectory(sessionID string) error {
 // Sessions are automatically created if one doesn't exist (for standard MCP client compatibility)
 func (us *UnifiedServer) requireSession(ctx context.Context) error {
 	sessionID := us.getSessionID(ctx)
-	logSession.Printf("Checking session: sessionID=%s", sessionID)
-	log.Printf("Checking session for ID: %s", sessionID)
+	logSession.Printf("Checking session: sessionID=%s", auth.TruncateSessionID(sessionID))
+	log.Printf("Checking session for ID: %s", auth.TruncateSessionID(sessionID))
 
 	// Use double-checked locking to auto-create session if needed
 	us.sessionMu.RLock()
@@ -79,15 +80,15 @@ func (us *UnifiedServer) requireSession(ctx context.Context) error {
 		us.sessionMu.Lock()
 		// Double-check after acquiring write lock to avoid race condition
 		if us.sessions[sessionID] == nil {
-			log.Printf("Auto-creating session for ID: %s", sessionID)
+			log.Printf("Auto-creating session for ID: %s", auth.TruncateSessionID(sessionID))
 			us.sessions[sessionID] = NewSession(sessionID, "")
-			log.Printf("Session auto-created for ID: %s", sessionID)
+			log.Printf("Session auto-created for ID: %s", auth.TruncateSessionID(sessionID))
 
 			// Ensure session directory exists in payload mount point
 			// This is done after releasing the lock to avoid holding it during I/O
 			us.sessionMu.Unlock()
 			if err := us.ensureSessionDirectory(sessionID); err != nil {
-				logger.LogWarn("client", "Failed to create session directory for session=%s: %v", sessionID, err)
+				logger.LogWarn("client", "Failed to create session directory for session=%s: %v", auth.TruncateSessionID(sessionID), err)
 				// Don't fail - payloads will attempt to create the directory when needed
 			}
 			return nil
@@ -95,7 +96,7 @@ func (us *UnifiedServer) requireSession(ctx context.Context) error {
 		us.sessionMu.Unlock()
 	}
 
-	log.Printf("Session validated for ID: %s", sessionID)
+	log.Printf("Session validated for ID: %s", auth.TruncateSessionID(sessionID))
 	return nil
 }
 
