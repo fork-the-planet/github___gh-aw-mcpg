@@ -29,7 +29,6 @@ func NewSession(sessionID, token string) *Session {
 func (us *UnifiedServer) getSessionID(ctx context.Context) string {
 	if sessionID, ok := ctx.Value(SessionIDContextKey).(string); ok && sessionID != "" {
 		logSession.Printf("Extracted session ID from context: %s", auth.TruncateSessionID(sessionID))
-		log.Printf("Extracted session ID from context: %s", auth.TruncateSessionID(sessionID))
 		return sessionID
 	}
 	// No session ID in context - this happens before the SDK assigns one
@@ -46,7 +45,7 @@ func (us *UnifiedServer) ensureSessionDirectory(sessionID string) error {
 	// Check if directory already exists
 	if _, err := os.Stat(sessionDir); err == nil {
 		// Directory already exists
-		logUnified.Printf("Session directory already exists: %s", sessionDir)
+		logSession.Printf("Session directory already exists: %s", sessionDir)
 		return nil
 	} else if !os.IsNotExist(err) {
 		// Some other error occurred while checking
@@ -58,7 +57,7 @@ func (us *UnifiedServer) ensureSessionDirectory(sessionID string) error {
 		return fmt.Errorf("failed to create session directory: %w", err)
 	}
 
-	logUnified.Printf("Created session directory: %s", sessionDir)
+	logSession.Printf("Created session directory: %s", sessionDir)
 	log.Printf("Created payload directory for session: %s", auth.TruncateSessionID(sessionID))
 	return nil
 }
@@ -68,7 +67,6 @@ func (us *UnifiedServer) ensureSessionDirectory(sessionID string) error {
 func (us *UnifiedServer) requireSession(ctx context.Context) error {
 	sessionID := us.getSessionID(ctx)
 	logSession.Printf("Checking session: sessionID=%s", auth.TruncateSessionID(sessionID))
-	log.Printf("Checking session for ID: %s", auth.TruncateSessionID(sessionID))
 
 	// Use double-checked locking to auto-create session if needed
 	us.sessionMu.RLock()
