@@ -73,9 +73,9 @@ func TestWriteJSONResponse(t *testing.T) {
 
 	t.Run("encodes nil body as JSON null", func(t *testing.T) {
 		rec := httptest.NewRecorder()
-		WriteJSONResponse(rec, http.StatusNoContent, nil)
+		WriteJSONResponse(rec, http.StatusOK, nil)
 
-		assert.Equal(t, http.StatusNoContent, rec.Code)
+		assert.Equal(t, http.StatusOK, rec.Code)
 		assert.JSONEq(t, "null", rec.Body.String())
 	})
 
