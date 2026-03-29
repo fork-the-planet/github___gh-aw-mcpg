@@ -73,9 +73,9 @@ func (us *UnifiedServer) requireSession(ctx context.Context) error {
 	// so that ensureSessionDirectory is called exactly once per new session.
 	isNew := false
 	if _, err := syncutil.GetOrCreate(&us.sessionMu, us.sessions, sessionID, func() (*Session, error) {
-		log.Printf("Auto-creating session for ID: %s", auth.TruncateSessionID(sessionID))
+		logSession.Printf("Auto-creating session for ID: %s", auth.TruncateSessionID(sessionID))
 		s := NewSession(sessionID, "")
-		log.Printf("Session auto-created for ID: %s", auth.TruncateSessionID(sessionID))
+		logSession.Printf("Session auto-created for ID: %s", auth.TruncateSessionID(sessionID))
 		isNew = true
 		return s, nil
 	}); err != nil {
@@ -91,7 +91,7 @@ func (us *UnifiedServer) requireSession(ctx context.Context) error {
 		}
 	}
 
-	log.Printf("Session validated for ID: %s", auth.TruncateSessionID(sessionID))
+	logSession.Printf("Session validated for ID: %s", auth.TruncateSessionID(sessionID))
 	return nil
 }
 
