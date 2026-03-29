@@ -24,31 +24,30 @@ var (
 	globalMarkdownMu     sync.RWMutex
 )
 
+// setupMarkdownLogger configures a MarkdownLogger after the log file has been opened.
+func setupMarkdownLogger(file *os.File, logDir, fileName string) (*MarkdownLogger, error) {
+	ml := &MarkdownLogger{
+		logDir:      logDir,
+		fileName:    fileName,
+		logFile:     file,
+		initialized: false, // Will be initialized on first write
+	}
+	return ml, nil
+}
+
+// handleMarkdownLoggerError sets fallback mode (no stdout redirect) when the file cannot be opened.
+func handleMarkdownLoggerError(_ error, logDir, fileName string) (*MarkdownLogger, error) {
+	ml := &MarkdownLogger{
+		logDir:      logDir,
+		fileName:    fileName,
+		useFallback: true,
+	}
+	return ml, nil
+}
+
 // InitMarkdownLogger initializes the global markdown logger
 func InitMarkdownLogger(logDir, fileName string) error {
-	logger, err := initLogger(
-		logDir, fileName, os.O_TRUNC,
-		// Setup function: configure the logger after file is opened
-		func(file *os.File, logDir, fileName string) (*MarkdownLogger, error) {
-			ml := &MarkdownLogger{
-				logDir:      logDir,
-				fileName:    fileName,
-				logFile:     file,
-				initialized: false, // Will be initialized on first write
-			}
-			return ml, nil
-		},
-		// Error handler: set fallback mode (no stdout redirect)
-		func(err error, logDir, fileName string) (*MarkdownLogger, error) {
-			ml := &MarkdownLogger{
-				logDir:      logDir,
-				fileName:    fileName,
-				useFallback: true,
-			}
-			return ml, nil
-		},
-	)
-
+	logger, err := initLogger(logDir, fileName, os.O_TRUNC, setupMarkdownLogger, handleMarkdownLoggerError)
 	initGlobalMarkdownLogger(logger)
 	return err
 }
@@ -69,23 +68,30 @@ func (ml *MarkdownLogger) initializeFile() error {
 	return nil
 }
 
-// Close closes the log file and writes the closing details tag
-func (ml *MarkdownLogger) Close() error {
+// withLock acquires ml.mu, executes fn, then releases ml.mu.
+// Use this in methods that return an error to avoid repeating the lock/unlock preamble.
+func (ml *MarkdownLogger) withLock(fn func() error) error {
 	ml.mu.Lock()
 	defer ml.mu.Unlock()
+	return fn()
+}
 
-	if ml.logFile != nil {
-		// Write closing details tag before closing
-		footer := "\n</details>\n"
-		if _, err := ml.logFile.WriteString(footer); err != nil {
-			// Even if footer write fails, try to close the file properly
+// Close closes the log file and writes the closing details tag
+func (ml *MarkdownLogger) Close() error {
+	return ml.withLock(func() error {
+		if ml.logFile != nil {
+			// Write closing details tag before closing
+			footer := "\n</details>\n"
+			if _, err := ml.logFile.WriteString(footer); err != nil {
+				// Even if footer write fails, try to close the file properly
+				return closeLogFile(ml.logFile, &ml.mu, "markdown")
+			}
+
+			// Footer written successfully, now close
 			return closeLogFile(ml.logFile, &ml.mu, "markdown")
 		}
-
-		// Footer written successfully, now close
-		return closeLogFile(ml.logFile, &ml.mu, "markdown")
-	}
-	return nil
+		return nil
+	})
 }
 
 // getEmojiForLevel returns the appropriate emoji for the log level

@@ -39,62 +39,69 @@ var (
 	globalToolsMu     sync.RWMutex
 )
 
+// setupToolsLogger configures a ToolsLogger after the log file has been opened.
+// The file is closed immediately because ToolsLogger writes atomically on each update.
+func setupToolsLogger(file *os.File, logDir, fileName string) (*ToolsLogger, error) {
+	// Close the file immediately - we'll write directly later
+	if file != nil {
+		file.Close()
+	}
+
+	tl := &ToolsLogger{
+		logDir:   logDir,
+		fileName: fileName,
+		data: &ToolsData{
+			Servers: make(map[string][]ToolInfo),
+		},
+	}
+	log.Printf("Tools logging to file: %s", filepath.Join(logDir, fileName))
+	return tl, nil
+}
+
+// handleToolsLoggerError falls back to a no-op logger when the file cannot be opened.
+func handleToolsLoggerError(err error, logDir, fileName string) (*ToolsLogger, error) {
+	log.Printf("WARNING: Failed to initialize tools log file: %v", err)
+	log.Printf("WARNING: Tools logging disabled")
+	tl := &ToolsLogger{
+		logDir:      logDir,
+		fileName:    fileName,
+		useFallback: true,
+		data: &ToolsData{
+			Servers: make(map[string][]ToolInfo),
+		},
+	}
+	return tl, nil
+}
+
 // InitToolsLogger initializes the global tools logger
 // If the log directory doesn't exist and can't be created, falls back to no-op
 func InitToolsLogger(logDir, fileName string) error {
-	logger, err := initLogger(
-		logDir, fileName, os.O_TRUNC, // Truncate existing file to start fresh
-		// Setup function: configure the logger after directory is ready
-		func(file *os.File, logDir, fileName string) (*ToolsLogger, error) {
-			// Close the file immediately - we'll write directly later
-			if file != nil {
-				file.Close()
-			}
-
-			tl := &ToolsLogger{
-				logDir:   logDir,
-				fileName: fileName,
-				data: &ToolsData{
-					Servers: make(map[string][]ToolInfo),
-				},
-			}
-			log.Printf("Tools logging to file: %s", filepath.Join(logDir, fileName))
-			return tl, nil
-		},
-		// Error handler: fallback to no-op on error
-		func(err error, logDir, fileName string) (*ToolsLogger, error) {
-			log.Printf("WARNING: Failed to initialize tools log file: %v", err)
-			log.Printf("WARNING: Tools logging disabled")
-			tl := &ToolsLogger{
-				logDir:      logDir,
-				fileName:    fileName,
-				useFallback: true,
-				data: &ToolsData{
-					Servers: make(map[string][]ToolInfo),
-				},
-			}
-			return tl, nil
-		},
-	)
-
+	logger, err := initLogger(logDir, fileName, os.O_TRUNC, setupToolsLogger, handleToolsLoggerError)
 	initGlobalToolsLogger(logger)
 	return err
 }
 
-// LogTools logs the tools for a specific server
-func (tl *ToolsLogger) LogTools(serverID string, tools []ToolInfo) error {
+// withLock acquires tl.mu, executes fn, then releases tl.mu.
+// Use this in methods that return an error to avoid repeating the lock/unlock preamble.
+func (tl *ToolsLogger) withLock(fn func() error) error {
 	tl.mu.Lock()
 	defer tl.mu.Unlock()
+	return fn()
+}
 
-	if tl.useFallback {
-		return nil // Silently skip if in fallback mode
-	}
+// LogTools logs the tools for a specific server
+func (tl *ToolsLogger) LogTools(serverID string, tools []ToolInfo) error {
+	return tl.withLock(func() error {
+		if tl.useFallback {
+			return nil // Silently skip if in fallback mode
+		}
 
-	// Update the data structure
-	tl.data.Servers[serverID] = tools
+		// Update the data structure
+		tl.data.Servers[serverID] = tools
 
-	// Write the updated data to file
-	return tl.writeToFile()
+		// Write the updated data to file
+		return tl.writeToFile()
+	})
 }
 
 // writeToFile writes the current tools data to the JSON file

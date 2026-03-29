@@ -20,6 +20,21 @@ var varExprPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 
 var logValidation = logger.New("config:validation")
 
+// logValidateServerStart logs the beginning of server config validation.
+func logValidateServerStart(name, serverType string) {
+	logValidation.Printf("Validating server config: name=%s, type=%s", name, serverType)
+}
+
+// logValidateServerPassed logs a successful server config validation.
+func logValidateServerPassed(name string) {
+	logValidation.Printf("Server config validation passed: name=%s", name)
+}
+
+// logValidateServerFailed logs a failed server config validation with the given reason.
+func logValidateServerFailed(name, reason string) {
+	logValidation.Printf("Validation failed: %s, name=%s", reason, name)
+}
+
 // expandVariablesCore is the shared implementation for variable expansion.
 // It works with byte slices and handles the core expansion logic, tracking undefined variables.
 // This eliminates code duplication between expandVariables and ExpandRawJSONVariables.
@@ -105,7 +120,7 @@ func validateMounts(mounts []string, jsonPath string) error {
 
 // validateServerConfigWithCustomSchemas validates a server configuration with custom schema support
 func validateServerConfigWithCustomSchemas(name string, server *StdinServerConfig, customSchemas map[string]interface{}) error {
-	logValidation.Printf("Validating server config: name=%s, type=%s", name, server.Type)
+	logValidateServerStart(name, server.Type)
 	jsonPath := fmt.Sprintf("mcpServers.%s", name)
 
 	// Validate type (empty defaults to stdio)
@@ -134,7 +149,7 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 	// For stdio servers, container is required
 	if server.Type == "stdio" || server.Type == "local" {
 		if server.Container == "" {
-			logValidation.Printf("Validation failed: stdio server missing container field, name=%s", name)
+			logValidateServerFailed(name, "stdio server missing container field")
 			return rules.MissingRequired("container", "stdio", jsonPath, "Add a 'container' field (e.g., \"ghcr.io/owner/image:tag\")")
 		}
 
@@ -150,16 +165,16 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 	// For HTTP servers, url is required and mounts are not allowed
 	if server.Type == "http" {
 		if server.URL == "" {
-			logValidation.Printf("Validation failed: HTTP server missing url field, name=%s", name)
+			logValidateServerFailed(name, "HTTP server missing url field")
 			return rules.MissingRequired("url", "HTTP", jsonPath, "Add a 'url' field (e.g., \"https://example.com/mcp\")")
 		}
 		if len(server.Mounts) > 0 {
-			logValidation.Printf("Validation failed: HTTP server has mounts field, name=%s", name)
+			logValidateServerFailed(name, "HTTP server has mounts field")
 			return rules.UnsupportedField("mounts", "mounts are only supported for stdio (containerized) servers", jsonPath, "Remove the 'mounts' field from HTTP server configuration; mounts only apply to stdio servers")
 		}
 	}
 
-	logValidation.Printf("Server config validation passed: name=%s", name)
+	logValidateServerPassed(name)
 	return nil
 }
 
@@ -403,7 +418,7 @@ func validateTOMLStdioContainerization(servers map[string]*ServerConfig) error {
 
 			// Check if command is Docker
 			if cfg.Command != "docker" {
-				logValidation.Printf("Validation failed: stdio server using non-Docker command, name=%s, command=%s", name, cfg.Command)
+				logValidateServerFailed(name, fmt.Sprintf("stdio server using non-Docker command, command=%s", cfg.Command))
 				return fmt.Errorf(
 					"server '%s': stdio servers must use containerized execution (command must be 'docker', got '%s'). "+
 						"This is required by MCP Gateway Specification Section 3.2.1 (Containerization Requirement). "+

@@ -11,27 +11,24 @@ import (
 
 // Close Pattern for Logger Types
 //
-// All logger types in this package should implement their Close() method using this pattern:
+// All logger types in this package implement their Close() method using the withLock
+// helper to ensure consistent mutex handling:
 //
 //	func (l *Logger) Close() error {
-//	    l.mu.Lock()
-//	    defer l.mu.Unlock()
-//
-//	    // Optional: Perform cleanup before closing (e.g., write footer)
-//	    // if l.logFile != nil {
-//	    //     if err := writeCleanup(); err != nil {
-//	    //         return closeLogFile(l.logFile, &l.mu, "loggerName")
-//	    //     }
-//	    // }
-//
-//	    return closeLogFile(l.logFile, &l.mu, "loggerName")
+//	    return l.withLock(func() error {
+//	        // Optional: Perform cleanup before closing (e.g., write footer)
+//	        return closeLogFile(l.logFile, &l.mu, "loggerName")
+//	    })
 //	}
+//
+// The withLock helper (defined on each logger type) acquires the mutex, executes the
+// callback, then releases the mutex — ensuring the lock is always released via defer.
 //
 // Why this pattern?
 //
-//  1. Mutex protection: Acquire lock at method entry to ensure thread-safe cleanup
-//  2. Deferred unlock: Use defer to release lock even if errors occur
-//  3. Optional cleanup: Logger-specific cleanup (like MarkdownLogger's footer) goes before closeLogFile
+//  1. Consistent locking: withLock enforces acquire-on-enter / release-on-exit
+//  2. Deferred unlock: Implemented inside withLock using defer, so it's never forgotten
+//  3. Optional cleanup: Logger-specific cleanup (like MarkdownLogger's footer) goes inside the callback
 //  4. Shared helper: Always delegate to closeLogFile() for consistent sync and close behavior
 //  5. Error handling: Return errors from closeLogFile to indicate serious issues
 //
@@ -40,38 +37,28 @@ import (
 // Simple Close() with no cleanup (FileLogger, JSONLLogger):
 //
 //	func (fl *FileLogger) Close() error {
-//	    fl.mu.Lock()
-//	    defer fl.mu.Unlock()
-//	    return closeLogFile(fl.logFile, &fl.mu, "file")
+//	    return fl.withLock(func() error {
+//	        return closeLogFile(fl.logFile, &fl.mu, "file")
+//	    })
 //	}
 //
 // Close() with custom cleanup (MarkdownLogger):
 //
 //	func (ml *MarkdownLogger) Close() error {
-//	    ml.mu.Lock()
-//	    defer ml.mu.Unlock()
-//
-//	    if ml.logFile != nil {
-//	        // Write closing details tag before closing
-//	        footer := "\n</details>\n"
-//	        if _, err := ml.logFile.WriteString(footer); err != nil {
-//	            // Even if footer write fails, try to close the file properly
+//	    return ml.withLock(func() error {
+//	        if ml.logFile != nil {
+//	            footer := "\n</details>\n"
+//	            if _, err := ml.logFile.WriteString(footer); err != nil {
+//	                return closeLogFile(ml.logFile, &ml.mu, "markdown")
+//	            }
 //	            return closeLogFile(ml.logFile, &ml.mu, "markdown")
 //	        }
-//
-//	        // Footer written successfully, now close
-//	        return closeLogFile(ml.logFile, &ml.mu, "markdown")
-//	    }
-//	    return nil
+//	        return nil
+//	    })
 //	}
 //
-// This pattern is intentionally duplicated across logger types rather than abstracted:
-//   - It's a standard Go idiom for wrapper methods
-//   - The duplication is minimal (5-14 lines per type)
-//   - Each logger can customize cleanup as needed
-//   - The shared closeLogFile() helper eliminates complex logic duplication
-//
-// When adding a new logger type, follow this pattern to ensure consistent behavior.
+// When adding a new logger type, add a withLock helper and follow this pattern to ensure
+// consistent, safe Close() behavior.
 
 // Initialization Pattern for Logger Types
 //
@@ -81,14 +68,12 @@ import (
 //
 // Standard Initialization Pattern:
 //
-// All logger types use the initLogger() generic helper function for initialization:
+// All logger types use the initLogger() generic helper function for initialization.
+// The setup and error-handler callbacks are defined as named package-level functions
+// (e.g., setupFileLogger, handleFileLoggerError) to aid readability and testability:
 //
 //	func Init*Logger(logDir, fileName string) error {
-//	    logger, err := initLogger(
-//	        logDir, fileName, fileFlags,
-//	        setupFunc,    // Configure logger after file is opened
-//	        errorHandler, // Handle initialization failures
-//	    )
+//	    logger, err := initLogger(logDir, fileName, fileFlags, setup*Logger, handle*LoggerError)
 //	    initGlobal*Logger(logger)
 //	    return err
 //	}
@@ -96,8 +81,8 @@ import (
 // The initLogger() helper:
 //  1. Attempts to create the log directory (if needed)
 //  2. Opens the log file with specified flags (os.O_APPEND, os.O_TRUNC, etc.)
-//  3. Calls setupFunc to configure the logger instance
-//  4. On error, calls errorHandler to implement fallback behavior
+//  3. Calls setup*Logger to configure the logger instance
+//  4. On error, calls handle*LoggerError to implement fallback behavior
 //  5. Returns the initialized logger and any error
 //
 // Fallback Behavior Strategies:

@@ -37,25 +37,25 @@ type JSONLRPCMessage struct {
 	Payload        json.RawMessage `json:"payload"` // Full sanitized payload as raw JSON
 }
 
+// setupJSONLLogger configures a JSONLLogger after the log file has been opened.
+func setupJSONLLogger(file *os.File, logDir, fileName string) (*JSONLLogger, error) {
+	jl := &JSONLLogger{
+		logDir:   logDir,
+		fileName: fileName,
+		logFile:  file,
+		encoder:  json.NewEncoder(file),
+	}
+	return jl, nil
+}
+
+// handleJSONLLoggerError returns the error immediately — JSONLLogger has no fallback mode.
+func handleJSONLLoggerError(err error, _ string, _ string) (*JSONLLogger, error) {
+	return nil, err
+}
+
 // InitJSONLLogger initializes the global JSONL logger
 func InitJSONLLogger(logDir, fileName string) error {
-	logger, err := initLogger(
-		logDir, fileName, os.O_APPEND,
-		// Setup function: configure the logger after file is opened
-		func(file *os.File, logDir, fileName string) (*JSONLLogger, error) {
-			jl := &JSONLLogger{
-				logDir:   logDir,
-				fileName: fileName,
-				logFile:  file,
-				encoder:  json.NewEncoder(file),
-			}
-			return jl, nil
-		},
-		// Error handler: return error immediately (no fallback)
-		func(err error, logDir, fileName string) (*JSONLLogger, error) {
-			return nil, err
-		},
-	)
+	logger, err := initLogger(logDir, fileName, os.O_APPEND, setupJSONLLogger, handleJSONLLoggerError)
 
 	// Only initialize global logger if successful (no error)
 	// Unlike FileLogger/MarkdownLogger which return fallback loggers,
@@ -67,12 +67,19 @@ func InitJSONLLogger(logDir, fileName string) error {
 	return err
 }
 
-// Close closes the JSONL log file
-func (jl *JSONLLogger) Close() error {
+// withLock acquires jl.mu, executes fn, then releases jl.mu.
+// Use this in methods that return an error to avoid repeating the lock/unlock preamble.
+func (jl *JSONLLogger) withLock(fn func() error) error {
 	jl.mu.Lock()
 	defer jl.mu.Unlock()
+	return fn()
+}
 
-	return closeLogFile(jl.logFile, &jl.mu, "JSONL")
+// Close closes the JSONL log file
+func (jl *JSONLLogger) Close() error {
+	return jl.withLock(func() error {
+		return closeLogFile(jl.logFile, &jl.mu, "JSONL")
+	})
 }
 
 // LogMessage logs an RPC message to the JSONL file
