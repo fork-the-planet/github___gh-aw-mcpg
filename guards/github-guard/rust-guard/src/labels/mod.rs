@@ -4230,9 +4230,15 @@ mod tests {
             &ctx,
         );
 
-        // Secrecy should be scoped to the repository (not empty public secrecy)
-        // The test uses cfg(test) backend which may keep current_secrecy unchanged;
-        // we just verify the call completes and does not panic.
-        let _ = secrecy;
+        // In the test environment the backend host is unavailable, so
+        // apply_repo_visibility_secrecy returns current_secrecy unchanged
+        // (the cfg(test) fallback path).  An empty initial secrecy therefore
+        // remains empty.  What matters is that the call completes without
+        // panicking and returns no unexpected secrecy labels.
+        assert!(
+            secrecy.is_empty(),
+            "transfer_repository secrecy should be empty in test env (no backend); got: {:?}",
+            secrecy
+        );
     }
 }
