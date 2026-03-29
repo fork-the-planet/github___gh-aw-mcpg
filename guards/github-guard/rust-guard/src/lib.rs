@@ -15,8 +15,8 @@ mod tools;
 
 use labels::constants::policy_integrity;
 use labels::{
-    extract_repo_info, extract_repo_info_from_search_query, MinIntegrity, PolicyContext,
-    PolicyScopeEntry, ScopeKind,
+    blocked_integrity, extract_repo_info, extract_repo_info_from_search_query, MinIntegrity,
+    PolicyContext, PolicyScopeEntry, ScopeKind,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -670,6 +670,20 @@ pub extern "C" fn label_resource(
     let baseline_scope = infer_scope_for_baseline(&input.tool_name, &input.tool_args, &repo_id);
     let final_integrity = labels::ensure_integrity_baseline(&baseline_scope, final_integrity, &ctx);
 
+    // Unconditionally blocked tools: override integrity to blocked_integrity so the
+    // DIFC evaluator always denies them.  This must happen after ensure_integrity_baseline
+    // because that helper would otherwise raise blocked-level tags to none-level.
+    let final_integrity = if tools::is_blocked_tool(&input.tool_name) {
+        log_info(&format!(
+            "    tool '{}' is unconditionally blocked — overriding integrity to blocked",
+            input.tool_name
+        ));
+        let scope = if repo_id.is_empty() { "global" } else { &repo_id };
+        blocked_integrity(scope, &ctx)
+    } else {
+        final_integrity
+    };
+
     // Log computed labels
     log_info(&format!("    desc={}", final_desc));
     if final_secrecy.is_empty() {
@@ -1130,5 +1144,48 @@ mod tests {
         let tool_args = json!({"query": "repo:github/gh-aw-mcpg is:pr is:open"});
         let inferred = infer_scope_for_baseline("search_pull_requests", &tool_args, "");
         assert_eq!(inferred, "github/gh-aw-mcpg");
+    }
+
+    #[test]
+    fn transfer_repository_integrity_is_blocked_after_ensure_baseline() {
+        // Verify that the is_blocked_tool + blocked_integrity override logic produces
+        // a "blocked:" tag, proving that ensure_integrity_baseline cannot raise it
+        // back to "none:".
+        let ctx = PolicyContext::default();
+        let repo_id = "github/copilot";
+
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "new_owner": "other-org"
+        });
+
+        let (_, integrity, _) = labels::apply_tool_labels(
+            "transfer_repository",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        let baseline_scope =
+            infer_scope_for_baseline("transfer_repository", &tool_args, repo_id);
+        let after_baseline = labels::ensure_integrity_baseline(&baseline_scope, integrity, &ctx);
+
+        // Simulate the is_blocked_tool override performed in label_resource
+        let final_integrity = if tools::is_blocked_tool("transfer_repository") {
+            let scope = if repo_id.is_empty() { "global" } else { repo_id };
+            blocked_integrity(scope, &ctx)
+        } else {
+            after_baseline
+        };
+
+        assert!(
+            final_integrity.iter().any(|t| t.contains("blocked")),
+            "transfer_repository must have blocked integrity after label_resource override; \
+             got: {:?}",
+            final_integrity
+        );
     }
 }

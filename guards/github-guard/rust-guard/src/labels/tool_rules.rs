@@ -146,6 +146,31 @@ pub fn apply_tool_labels(
             }
         }
 
+        // === Issue Pin/Unpin (repo-scoped write) ===
+        "pin_issue" | "unpin_issue" => {
+            // Pinning/unpinning an issue is a repo-level cosmetic write operation.
+            // S = S(repo) — inherits from repository visibility
+            // I = writer (requires repo write access to change issue pin state)
+            if !owner.is_empty() && !repo.is_empty() {
+                if let Some(issue_num) =
+                    extract_number_as_string(tool_args, field_names::ISSUE_NUMBER)
+                {
+                    desc = format!("issue:{}/{}#{}", owner, repo, issue_num);
+                }
+            }
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Repository Transfer (blocked: irreversible ownership change) ===
+        "transfer_repository" => {
+            // Repository transfers are irreversible and cannot be allowed by agents.
+            // Blocking is enforced in label_resource via is_blocked_tool(); this arm
+            // applies repo-visibility secrecy so the resource is at least correctly
+            // classified before the integrity override happens in label_resource.
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+        }
+
         // Search issues: extract repo scope from query or tool_args when available
         "search_issues" => {
             let (s_owner, s_repo, s_repo_id) = resolve_search_scope(tool_args, &owner, &repo);

@@ -40,6 +40,9 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     // Pre-emptive entries for anticipated future MCP tools (no equivalent tool today)
     "archive_repository", // gh repo archive
     "transfer_issue",     // gh issue transfer
+    "transfer_repository", // gh repo transfer — blocked: repo ownership transfer is irreversible
+    "pin_issue",          // gh issue pin
+    "unpin_issue",        // gh issue unpin
     "enable_workflow",    // gh workflow enable
     "disable_workflow",   // gh workflow disable
     "set_secret",         // gh secret set
@@ -102,4 +105,62 @@ pub fn is_lock_operation(tool_name: &str) -> bool {
 /// Check if a tool is an unlock operation
 pub fn is_unlock_operation(tool_name: &str) -> bool {
     tool_name.starts_with("unlock_")
+}
+
+/// Check if a tool is unconditionally blocked (always denied regardless of agent integrity).
+///
+/// Blocked tools are listed here when the operation is considered too dangerous
+/// to ever permit via an agent, even if the agent would otherwise satisfy the
+/// integrity requirements for a normal write operation.
+///
+/// Current entries:
+/// - `transfer_repository`: repository ownership transfer is irreversible and
+///   must never be performed by an automated agent.
+pub fn is_blocked_tool(tool_name: &str) -> bool {
+    matches!(tool_name, "transfer_repository")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_blocked_tool_transfer_repository() {
+        assert!(
+            is_blocked_tool("transfer_repository"),
+            "transfer_repository must be unconditionally blocked"
+        );
+    }
+
+    #[test]
+    fn test_is_blocked_tool_other_write_ops_not_blocked() {
+        // Regular write operations should not be blocked
+        for op in &["create_issue", "add_issue_comment", "pin_issue", "unpin_issue"] {
+            assert!(
+                !is_blocked_tool(op),
+                "{} should not be blocked",
+                op
+            );
+        }
+    }
+
+    #[test]
+    fn test_transfer_repository_is_write_operation() {
+        assert!(
+            is_write_operation("transfer_repository"),
+            "transfer_repository must be classified as a write operation"
+        );
+    }
+
+    #[test]
+    fn test_pin_unpin_issue_are_write_operations() {
+        assert!(
+            is_write_operation("pin_issue"),
+            "pin_issue must be classified as a write operation"
+        );
+        assert!(
+            is_write_operation("unpin_issue"),
+            "unpin_issue must be classified as a write operation"
+        );
+    }
 }
