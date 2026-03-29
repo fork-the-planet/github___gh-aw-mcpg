@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -253,7 +252,8 @@ func TestFileLogger_GetWriter(t *testing.T) {
 		globalLoggerMu.RUnlock()
 
 		require.NotNil(t, logger)
-		var _ io.Writer = logger.GetWriter()
+		w := logger.GetWriter()
+		require.NotNil(t, w)
 	})
 }
 
