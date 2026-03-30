@@ -160,6 +160,12 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 				return err
 			}
 		}
+
+		// auth is only valid on HTTP servers
+		if server.Auth != nil {
+			logValidateServerFailed(name, "auth field is not supported for stdio servers")
+			return rules.UnsupportedField("auth", "auth is only supported for HTTP servers (type: \"http\")", jsonPath, "Remove the 'auth' field from the stdio server configuration, or change the server type to 'http'")
+		}
 	}
 
 	// For HTTP servers, url is required and mounts are not allowed
@@ -172,9 +178,35 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 			logValidateServerFailed(name, "HTTP server has mounts field")
 			return rules.UnsupportedField("mounts", "mounts are only supported for stdio (containerized) servers", jsonPath, "Remove the 'mounts' field from HTTP server configuration; mounts only apply to stdio servers")
 		}
+
+		// Validate auth field if present
+		if server.Auth != nil {
+			if err := validateAuthConfig(server.Auth, name, jsonPath); err != nil {
+				return err
+			}
+		}
 	}
 
 	logValidateServerPassed(name)
+	return nil
+}
+
+// validateAuthConfig validates the auth configuration for an HTTP server.
+func validateAuthConfig(auth *AuthConfig, serverName, jsonPath string) error {
+	authPath := jsonPath + ".auth"
+	logValidation.Printf("Validating auth config: server=%s, type=%s", serverName, auth.Type)
+
+	if auth.Type == "" {
+		logValidateServerFailed(serverName, "auth.type is empty")
+		return rules.MissingRequired("type", "auth", authPath, "Specify the authentication type (currently only \"github-oidc\" is supported)")
+	}
+
+	if auth.Type != "github-oidc" {
+		logValidateServerFailed(serverName, fmt.Sprintf("unsupported auth.type: %s", auth.Type))
+		return rules.UnsupportedType("type", auth.Type, authPath, fmt.Sprintf("Unsupported auth type %q. Currently only \"github-oidc\" is supported", auth.Type))
+	}
+
+	logValidation.Printf("Auth config validated: server=%s, type=%s", serverName, auth.Type)
 	return nil
 }
 

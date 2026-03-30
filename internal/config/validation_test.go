@@ -948,3 +948,87 @@ func TestValidateTOMLStdioContainerization(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateAuthConfig tests auth configuration validation.
+func TestValidateAuthConfig(t *testing.T) {
+	tests := []struct {
+		name      string
+		server    *StdinServerConfig
+		shouldErr bool
+		errMsg    string
+	}{
+		{
+			name: "valid github-oidc auth on http server",
+			server: &StdinServerConfig{
+				Type: "http",
+				URL:  "https://example.com/mcp",
+				Auth: &AuthConfig{
+					Type:     "github-oidc",
+					Audience: "https://example.com",
+				},
+			},
+			shouldErr: false,
+		},
+		{
+			name: "valid github-oidc auth without audience on http server",
+			server: &StdinServerConfig{
+				Type: "http",
+				URL:  "https://example.com/mcp",
+				Auth: &AuthConfig{
+					Type: "github-oidc",
+				},
+			},
+			shouldErr: false,
+		},
+		{
+			name: "auth on stdio server is rejected",
+			server: &StdinServerConfig{
+				Type:      "stdio",
+				Container: "ghcr.io/owner/image:latest",
+				Auth: &AuthConfig{
+					Type: "github-oidc",
+				},
+			},
+			shouldErr: true,
+			errMsg:    "auth is only supported for HTTP servers",
+		},
+		{
+			name: "unknown auth type is rejected",
+			server: &StdinServerConfig{
+				Type: "http",
+				URL:  "https://example.com/mcp",
+				Auth: &AuthConfig{
+					Type: "unknown-type",
+				},
+			},
+			shouldErr: true,
+			errMsg:    "unknown-type",
+		},
+		{
+			name: "empty auth type is rejected",
+			server: &StdinServerConfig{
+				Type: "http",
+				URL:  "https://example.com/mcp",
+				Auth: &AuthConfig{
+					Type: "",
+				},
+			},
+			shouldErr: true,
+			errMsg:    "type",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateStandardServerConfig("test-server", tt.server, "mcpServers.test-server")
+			if tt.shouldErr {
+				require.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

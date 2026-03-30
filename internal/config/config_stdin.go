@@ -98,6 +98,9 @@ type StdinServerConfig struct {
 	// Guard is the name of the guard to use for this server (requires DIFC)
 	Guard string `json:"guard,omitempty"`
 
+	// Auth configures upstream authentication for HTTP MCP servers.
+	Auth *AuthConfig `json:"auth,omitempty"`
+
 	// AdditionalProperties stores any extra fields for custom server types
 	// This allows custom schemas to define their own fields beyond the standard ones
 	AdditionalProperties map[string]interface{} `json:"-"`
@@ -139,6 +142,7 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 		"registry":       true,
 		"guard-policies": true,
 		"guard":          true,
+		"auth":           true,
 	}
 
 	// Store additional properties (fields not in the struct)
@@ -170,6 +174,7 @@ func intPtrOrDefault(ptr *int, defaultValue int) int {
 // Fields stripped:
 //   - Top-level "guards": gateway-specific guard configuration
 //   - Per-server "guard": reference to a named guard
+//   - Per-server "auth": upstream authentication configuration (OIDC etc.)
 //
 // Note: "guard-policies" and "registry" are already injected into the upstream schema
 // by fetchAndFixSchema, so they do not need to be stripped here.
@@ -182,11 +187,12 @@ func stripExtensionFieldsForValidation(data []byte) ([]byte, error) {
 	// Strip top-level "guards" extension field
 	delete(config, "guards")
 
-	// Strip per-server "guard" extension field
+	// Strip per-server "guard" and "auth" extension fields
 	if servers, ok := config["mcpServers"].(map[string]interface{}); ok {
 		for _, server := range servers {
 			if serverMap, ok := server.(map[string]interface{}); ok {
 				delete(serverMap, "guard")
+				delete(serverMap, "auth")
 			}
 		}
 	}
@@ -372,7 +378,7 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 	if serverType == "http" {
 		logConfig.Printf("Configured HTTP MCP server: name=%s, url=%s", name, server.URL)
 		log.Printf("[CONFIG] Configured HTTP MCP server: %s -> %s", name, server.URL)
-		return &ServerConfig{
+		serverCfg := &ServerConfig{
 			Type:          "http",
 			URL:           server.URL,
 			Headers:       server.Headers,
@@ -380,7 +386,18 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 			Registry:      server.Registry,
 			GuardPolicies: server.GuardPolicies,
 			Guard:         server.Guard,
-		}, nil
+		}
+		if server.Auth != nil {
+			serverCfg.Auth = &AuthConfig{
+				Type:     server.Auth.Type,
+				Audience: server.Auth.Audience,
+			}
+			// Default audience to server URL if not specified
+			if serverCfg.Auth.Audience == "" {
+				serverCfg.Auth.Audience = server.URL
+			}
+		}
+		return serverCfg, nil
 	}
 
 	// stdio/local servers only from this point

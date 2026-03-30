@@ -118,6 +118,16 @@ func (c *Config) GetAPIKey() string {
 	return c.Gateway.APIKey
 }
 
+// AuthConfig configures upstream authentication for HTTP MCP servers.
+type AuthConfig struct {
+	// Type is the authentication type. Currently only "github-oidc" is supported.
+	Type string `toml:"type" json:"type"`
+
+	// Audience is the intended audience for the OIDC token.
+	// If empty, defaults to the server URL.
+	Audience string `toml:"audience" json:"audience,omitempty"`
+}
+
 // ServerConfig represents an individual MCP server configuration.
 type ServerConfig struct {
 	// Type is the server type: "stdio" or "http"
@@ -140,6 +150,9 @@ type ServerConfig struct {
 
 	// Headers are HTTP headers to send (for http servers)
 	Headers map[string]string `toml:"headers" json:"headers,omitempty"`
+
+	// Auth configures upstream authentication for HTTP MCP servers.
+	Auth *AuthConfig `toml:"auth" json:"auth,omitempty"`
 
 	// Tools is an optional list of tools to filter/expose
 	Tools []string `toml:"tools" json:"tools,omitempty"`

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/oidc"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -228,6 +229,44 @@ func buildHTTPClientWithHeaders(baseClient *http.Client, headers map[string]stri
 	}
 	clone := *baseClient
 	clone.Transport = &headerInjectingRoundTripper{base: base, headers: headers}
+	return &clone
+}
+
+// oidcRoundTripper is an http.RoundTripper that dynamically acquires a GitHub Actions
+// OIDC token and injects it as an Authorization: Bearer header on every outgoing request.
+// It wraps an inner transport (typically a headerInjectingRoundTripper for static headers)
+// and overrides any Authorization header set by that inner layer.
+type oidcRoundTripper struct {
+	base     http.RoundTripper
+	provider *oidc.Provider
+	audience string
+}
+
+func (rt *oidcRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	token, err := rt.provider.Token(req.Context(), rt.audience)
+	if err != nil {
+		return nil, fmt.Errorf("OIDC token acquisition failed: %w", err)
+	}
+	reqCopy := req.Clone(req.Context())
+	reqCopy.Header.Set("Authorization", "Bearer "+token)
+	return rt.base.RoundTrip(reqCopy)
+}
+
+// buildHTTPClientWithOIDC returns a copy of baseClient whose transport dynamically
+// injects a GitHub Actions OIDC token as Authorization: Bearer on every request.
+// Static headers (from buildHTTPClientWithHeaders) are applied first, then the OIDC
+// token overwrites the Authorization header.
+func buildHTTPClientWithOIDC(baseClient *http.Client, provider *oidc.Provider, audience string) *http.Client {
+	base := baseClient.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	clone := *baseClient
+	clone.Transport = &oidcRoundTripper{
+		base:     base,
+		provider: provider,
+		audience: audience,
+	}
 	return &clone
 }
 

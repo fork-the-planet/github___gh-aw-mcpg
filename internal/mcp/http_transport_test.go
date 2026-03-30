@@ -2,13 +2,16 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/oidc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -683,7 +686,7 @@ func TestSendHTTPRequest_EnsuresToolCallArguments(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	})
+	}, nil, "")
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()
@@ -735,7 +738,7 @@ func TestSendHTTPRequest_SessionIDFromContext(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	})
+	}, nil, "")
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()
@@ -840,7 +843,7 @@ func TestSendHTTPRequest_NonToolsCallMethodDoesNotAddArguments(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	})
+	}, nil, "")
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()
@@ -962,7 +965,7 @@ func TestSendHTTPRequest_ReconnectsOnSessionNotFound(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	})
+	}, nil, "")
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()
@@ -1023,7 +1026,7 @@ func TestSendHTTPRequest_ReconnectFailure(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	})
+	}, nil, "")
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()
@@ -1151,4 +1154,123 @@ func TestBuildHTTPClientWithHeaders_NonEmpty(t *testing.T) {
 	resp.Body.Close()
 
 	assert.Equal(t, "Bearer token123", received["Authorization"])
+}
+
+// =============================================================================
+// oidcRoundTripper tests
+// =============================================================================
+
+// makeTestJWT builds a minimal JWT for testing purposes.
+func makeTestJWT(exp int64) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	claims := map[string]interface{}{
+		"exp": exp,
+		"iss": "https://token.actions.githubusercontent.com",
+	}
+	claimsJSON, err := json.Marshal(claims)
+	if err != nil {
+		panic("makeTestJWT: unexpected json.Marshal error: " + err.Error())
+	}
+	payload := base64.RawURLEncoding.EncodeToString(claimsJSON)
+	return fmt.Sprintf("%s.%s.dummy", header, payload)
+}
+
+// newTestOIDCServer creates a test OIDC server that returns the provided token.
+func newTestOIDCServer(t *testing.T, token string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"value": token})
+	}))
+}
+
+// TestOIDCRoundTripper_SetsAuthorizationHeader verifies that the OIDC round tripper
+// injects an Authorization: Bearer header with the acquired token.
+func TestOIDCRoundTripper_SetsAuthorizationHeader(t *testing.T) {
+	jwtToken := makeTestJWT(time.Now().Add(10 * time.Minute).Unix())
+	oidcServer := newTestOIDCServer(t, jwtToken)
+	defer oidcServer.Close()
+
+	var receivedAuth string
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer targetServer.Close()
+
+	provider := oidc.NewProvider(oidcServer.URL, "request-token")
+	client := buildHTTPClientWithOIDC(&http.Client{}, provider, "https://example.com")
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", targetServer.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	assert.Equal(t, "Bearer "+jwtToken, receivedAuth, "OIDC token should be injected as Authorization: Bearer")
+}
+
+// TestOIDCRoundTripper_StaticHeadersCoexist verifies that static headers are preserved
+// while the OIDC token overrides the Authorization header.
+// This test mirrors the layering order used in NewHTTPConnection:
+// static headers are applied first (outer), OIDC Authorization is applied last (inner).
+func TestOIDCRoundTripper_StaticHeadersCoexist(t *testing.T) {
+	jwtToken := makeTestJWT(time.Now().Add(10 * time.Minute).Unix())
+	oidcServer := newTestOIDCServer(t, jwtToken)
+	defer oidcServer.Close()
+
+	receivedHeaders := make(map[string]string)
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders["Authorization"] = r.Header.Get("Authorization")
+		receivedHeaders["X-Custom-Header"] = r.Header.Get("X-Custom-Header")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer targetServer.Close()
+
+	// Build a client using the same layering as NewHTTPConnection:
+	//
+	//	headerInjectingRoundTripper (outer — sets static headers first)
+	//	  └─ oidcRoundTripper       (inner — overrides Authorization with OIDC token)
+	//	       └─ http.DefaultTransport
+	base := &http.Client{}
+	provider := oidc.NewProvider(oidcServer.URL, "request-token")
+	withOIDC := buildHTTPClientWithOIDC(base, provider, "https://example.com")
+	client := buildHTTPClientWithHeaders(withOIDC, map[string]string{
+		"Authorization":   "Bearer static-token",
+		"X-Custom-Header": "custom-value",
+	})
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", targetServer.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	assert.Equal(t, "Bearer "+jwtToken, receivedHeaders["Authorization"],
+		"OIDC token should override the static Authorization header")
+	assert.Equal(t, "custom-value", receivedHeaders["X-Custom-Header"],
+		"Static custom header should be preserved")
+}
+
+// TestOIDCRoundTripper_ErrorPropagation verifies that OIDC token acquisition errors
+// are propagated as transport errors.
+func TestOIDCRoundTripper_ErrorPropagation(t *testing.T) {
+	// Use an unreachable URL to trigger a token acquisition failure
+	provider := oidc.NewProvider("http://127.0.0.1:1", "request-token")
+
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer targetServer.Close()
+
+	client := buildHTTPClientWithOIDC(&http.Client{}, provider, "https://example.com")
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", targetServer.URL, nil)
+	require.NoError(t, err)
+
+	_, err = client.Do(req)
+	require.Error(t, err, "Should return an error when OIDC token acquisition fails")
+	assert.Contains(t, err.Error(), "OIDC token acquisition failed")
 }

@@ -1024,3 +1024,113 @@ func TestConvertStdinConfig_TrustedBots(t *testing.T) {
 		assert.Nil(t, cfg.Gateway.TrustedBots)
 	})
 }
+
+// TestConvertStdinServerConfig_HTTPWithAuth tests that auth config is properly converted.
+func TestConvertStdinServerConfig_HTTPWithAuth(t *testing.T) {
+	t.Run("auth with explicit audience", func(t *testing.T) {
+		server := &StdinServerConfig{
+			Type: "http",
+			URL:  "https://my-server.example.com/mcp",
+			Auth: &AuthConfig{
+				Type:     "github-oidc",
+				Audience: "https://my-server.example.com",
+			},
+		}
+
+		result, err := convertStdinServerConfig("my-server", server, nil)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Auth)
+		assert.Equal(t, "github-oidc", result.Auth.Type)
+		assert.Equal(t, "https://my-server.example.com", result.Auth.Audience)
+	})
+
+	t.Run("auth without audience defaults to server URL", func(t *testing.T) {
+		server := &StdinServerConfig{
+			Type: "http",
+			URL:  "https://my-server.example.com/mcp",
+			Auth: &AuthConfig{
+				Type: "github-oidc",
+			},
+		}
+
+		result, err := convertStdinServerConfig("my-server", server, nil)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.NotNil(t, result.Auth)
+		assert.Equal(t, "github-oidc", result.Auth.Type)
+		assert.Equal(t, "https://my-server.example.com/mcp", result.Auth.Audience,
+			"Audience should default to the server URL")
+	})
+
+	t.Run("HTTP server without auth has nil Auth", func(t *testing.T) {
+		server := &StdinServerConfig{
+			Type: "http",
+			URL:  "https://my-server.example.com/mcp",
+		}
+
+		result, err := convertStdinServerConfig("my-server", server, nil)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Nil(t, result.Auth)
+	})
+
+	t.Run("auth coexists with static headers", func(t *testing.T) {
+		server := &StdinServerConfig{
+			Type: "http",
+			URL:  "https://my-server.example.com/mcp",
+			Headers: map[string]string{
+				"X-Custom-Header": "custom-value",
+			},
+			Auth: &AuthConfig{
+				Type:     "github-oidc",
+				Audience: "https://my-server.example.com",
+			},
+		}
+
+		result, err := convertStdinServerConfig("my-server", server, nil)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, "custom-value", result.Headers["X-Custom-Header"])
+		require.NotNil(t, result.Auth)
+		assert.Equal(t, "github-oidc", result.Auth.Type)
+	})
+}
+
+// TestStdinServerConfig_AuthJSON tests JSON unmarshaling of the auth field.
+func TestStdinServerConfig_AuthJSON(t *testing.T) {
+	t.Run("auth field is unmarshaled correctly", func(t *testing.T) {
+		data := []byte(`{
+"type": "http",
+"url": "https://my-server.example.com/mcp",
+"auth": {
+"type": "github-oidc",
+"audience": "https://my-server.example.com"
+}
+}`)
+
+		var server StdinServerConfig
+		err := server.UnmarshalJSON(data)
+		require.NoError(t, err)
+		require.NotNil(t, server.Auth)
+		assert.Equal(t, "github-oidc", server.Auth.Type)
+		assert.Equal(t, "https://my-server.example.com", server.Auth.Audience)
+	})
+
+	t.Run("auth is recognized as known field (not additional property)", func(t *testing.T) {
+		data := []byte(`{
+"type": "http",
+"url": "https://my-server.example.com/mcp",
+"auth": {
+"type": "github-oidc"
+}
+}`)
+
+		var server StdinServerConfig
+		err := server.UnmarshalJSON(data)
+		require.NoError(t, err)
+		// "auth" should not appear in AdditionalProperties
+		_, exists := server.AdditionalProperties["auth"]
+		assert.False(t, exists, "auth should be a known field, not an additional property")
+	})
+}

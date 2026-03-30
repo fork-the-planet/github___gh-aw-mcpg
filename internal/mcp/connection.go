@@ -18,6 +18,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/oidc"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -190,8 +191,12 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 // custom http.RoundTripper, so the SDK transports are used even when authentication
 // headers are configured.
 //
+// When oidcProvider is non-nil, a GitHub Actions OIDC token is dynamically acquired
+// and injected as Authorization: Bearer on every request, overriding any static
+// Authorization header from the headers map.
+//
 // This ensures compatibility with all types of HTTP MCP servers.
-func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[string]string) (*Connection, error) {
+func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[string]string, oidcProvider *oidc.Provider, oidcAudience string) (*Connection, error) {
 	logger.LogInfo("backend", "Creating HTTP MCP connection with transport fallback, url=%s", url)
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -205,10 +210,25 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 		},
 	}
 
-	// Build a header-injecting client so that all SDK transports send custom headers
-	// (e.g. Authorization) on every request.  When no headers are configured the
+	// Build the transport layer in the correct order so that OIDC takes precedence
+	// over any static Authorization header:
+	//
+	//   headerInjectingRoundTripper (outer — sets static headers first)
+	//     └─ oidcRoundTripper        (inner — overrides Authorization with OIDC token)
+	//          └─ http.DefaultTransport
+	//
+	// By placing the OIDC layer inside, it runs last and its Authorization: Bearer
+	// header is the one that reaches the server, overwriting any static Authorization
+	// from the headers map. Other static headers (e.g. X-Custom-Header) pass through.
+	baseClient := httpClient
+	if oidcProvider != nil {
+		baseClient = buildHTTPClientWithOIDC(httpClient, oidcProvider, oidcAudience)
+		logger.LogInfo("backend", "OIDC authentication enabled for HTTP MCP connection: url=%s, audience=%s", url, oidcAudience)
+	}
+
+	// Wrap with static header injection on top. When no headers are configured the
 	// original client is returned unchanged.
-	headerClient := buildHTTPClientWithHeaders(httpClient, headers)
+	headerClient := buildHTTPClientWithHeaders(baseClient, headers)
 
 	// Try standard transports in order: streamable HTTP → SSE → plain JSON-RPC
 
@@ -237,7 +257,7 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 
 	// Try 3: Plain JSON-RPC over HTTP (non-standard, for fallback)
 	logConn.Printf("Attempting plain JSON-RPC transport for %s", url)
-	conn, err = tryPlainJSONTransport(ctx, cancel, serverID, url, headers, httpClient)
+	conn, err = tryPlainJSONTransport(ctx, cancel, serverID, url, headers, headerClient)
 	if err == nil {
 		logger.LogInfo("backend", "Successfully connected using plain JSON-RPC transport, url=%s", url)
 		log.Printf("Configured HTTP MCP server with plain JSON-RPC transport: %s", url)

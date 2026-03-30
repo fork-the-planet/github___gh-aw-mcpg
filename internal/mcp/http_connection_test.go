@@ -54,7 +54,7 @@ func TestNewHTTPConnection_WithCustomHeaders(t *testing.T) {
 		"X-Custom-Header": "custom-value",
 	}
 
-	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, customHeaders)
+	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, customHeaders, nil, "")
 	require.NoError(err, "Failed to create HTTP connection with custom headers")
 	require.NotNil(conn, "Connection should not be nil")
 	defer conn.Close()
@@ -112,7 +112,7 @@ func TestNewHTTPConnection_WithoutHeaders_FallbackSequence(t *testing.T) {
 	defer testServer.Close()
 
 	// Create connection without custom headers - streamable transport should succeed first
-	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, nil)
+	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, nil, nil, "")
 	require.NoError(err, "Connection should succeed")
 	require.NotNil(conn)
 	defer conn.Close()
@@ -134,7 +134,7 @@ func TestNewHTTPConnection_AllTransportsFail(t *testing.T) {
 	defer testServer.Close()
 
 	// Try to create connection without custom headers (will try all transports)
-	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, nil)
+	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, nil, nil, "")
 
 	// Should fail after trying all transports
 	require.Error(err, "Should fail when all transports fail")
@@ -161,7 +161,7 @@ func TestNewHTTPConnection_ContextCancellation(t *testing.T) {
 	cancel()
 
 	// Try to create connection with cancelled context
-	conn, err := NewHTTPConnection(ctx, "test-server", testServer.URL, map[string]string{"Auth": "token"})
+	conn, err := NewHTTPConnection(ctx, "test-server", testServer.URL, map[string]string{"Auth": "token"}, nil, "")
 
 	// Should fail due to context cancellation
 	require.Error(err, "Should fail with cancelled context")
@@ -198,7 +198,7 @@ func TestNewHTTPConnection_InvalidURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := NewHTTPConnection(context.Background(), "test-server", tt.url, tt.headers)
+			conn, err := NewHTTPConnection(context.Background(), "test-server", tt.url, tt.headers, nil, "")
 
 			if tt.expectError {
 				assert.Error(t, err, "Expected error for invalid URL")
@@ -273,7 +273,7 @@ func TestTryPlainJSONTransport_InitializeFailure(t *testing.T) {
 			// Try to create connection
 			conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 				"Authorization": "test-token",
-			})
+			}, nil, "")
 
 			// Should fail with appropriate error
 			require.Error(t, err, "Should fail on initialization error")
@@ -306,7 +306,7 @@ data: {"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","serverIn
 	// Create connection
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	})
+	}, nil, "")
 
 	require.NoError(err, "Should successfully parse SSE-formatted initialize response")
 	require.NotNil(conn)
@@ -347,7 +347,7 @@ func TestHTTPConnection_NoSessionIDInResponse(t *testing.T) {
 	// Create connection
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	})
+	}, nil, "")
 
 	require.NoError(err, "Should succeed even without session ID from server")
 	require.NotNil(conn)
@@ -393,7 +393,7 @@ func TestNewHTTPConnection_HeadersPropagation(t *testing.T) {
 		"X-Custom-2":    "value2",
 	}
 
-	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, customHeaders)
+	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, customHeaders, nil, "")
 	require.NoError(err)
 	require.NotNil(conn)
 	defer conn.Close()
@@ -440,7 +440,7 @@ func TestNewHTTPConnection_EmptyHeaders(t *testing.T) {
 	defer testServer.Close()
 
 	// Create connection with empty headers - should try SDK transports first
-	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{})
+	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{}, nil, "")
 	require.NoError(err, "Should succeed with empty headers")
 	require.NotNil(conn)
 	defer conn.Close()
@@ -473,7 +473,7 @@ func TestNewHTTPConnection_NilHeaders(t *testing.T) {
 	defer testServer.Close()
 
 	// Create connection with nil headers (should try SDK transports first)
-	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, nil)
+	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, nil, nil, "")
 	require.NoError(err, "Should succeed with nil headers")
 	require.NotNil(conn)
 	defer conn.Close()
@@ -509,7 +509,7 @@ func TestNewHTTPConnection_HTTPClientTimeout(t *testing.T) {
 	// Create connection
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test",
-	})
+	}, nil, "")
 
 	// Should succeed (delay is within timeout)
 	require.NoError(err, "Should succeed within timeout")
@@ -530,7 +530,7 @@ func TestNewHTTPConnection_ConnectionRefused(t *testing.T) {
 	// Try to create connection
 	conn, err := NewHTTPConnection(context.Background(), "test-server", unreachableURL, map[string]string{
 		"Authorization": "test",
-	})
+	}, nil, "")
 
 	// Should fail with connection error
 	require.Error(err, "Should fail with connection refused")
@@ -563,7 +563,7 @@ func TestNewHTTPConnection_GettersAfterCreation(t *testing.T) {
 		"X-Custom":      "custom-value",
 	}
 
-	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, customHeaders)
+	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, customHeaders, nil, "")
 	require.NoError(err)
 	require.NotNil(conn)
 	defer conn.Close()

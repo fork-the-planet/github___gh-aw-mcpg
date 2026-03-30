@@ -624,3 +624,152 @@ func TestLauncher_TimeoutWithNilGateway(t *testing.T) {
 	// Should use default timeout (60 seconds)
 	assert.Equal(t, "1m0s", l.startupTimeout.String())
 }
+
+func TestLauncher_OIDCProviderInitialization(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "https://token.actions.example.com")
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "test-request-token")
+
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"my-server": {
+				Type: "http",
+				URL:  "https://example.com/mcp",
+				Auth: &config.AuthConfig{
+					Type:     "github-oidc",
+					Audience: "https://example.com",
+				},
+			},
+		},
+	}
+
+	l := New(ctx, cfg)
+	defer l.Close()
+
+	assert.NotNil(t, l.oidcProvider, "OIDC provider should be initialized when ACTIONS_ID_TOKEN_REQUEST_URL is set")
+}
+
+func TestLauncher_OIDCProviderNotInitializedWithoutEnv(t *testing.T) {
+	ctx := context.Background()
+	// Do NOT set ACTIONS_ID_TOKEN_REQUEST_URL
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"plain-server": {
+				Type: "http",
+				URL:  "https://example.com/mcp",
+			},
+		},
+	}
+
+	l := New(ctx, cfg)
+	defer l.Close()
+
+	assert.Nil(t, l.oidcProvider, "OIDC provider should be nil when ACTIONS_ID_TOKEN_REQUEST_URL is not set")
+}
+
+func TestGetOrLaunch_OIDCMissingProvider(t *testing.T) {
+	ctx := context.Background()
+	// Ensure OIDC env var is NOT set so provider is nil
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+
+	cfg := newTestConfig(map[string]*config.ServerConfig{
+		"oidc-server": {
+			Type: "http",
+			URL:  "https://example.com/mcp",
+			Auth: &config.AuthConfig{
+				Type:     "github-oidc",
+				Audience: "https://example.com",
+			},
+		},
+	})
+
+	l := New(ctx, cfg)
+	defer l.Close()
+
+	_, err := GetOrLaunch(l, "oidc-server")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "OIDC authentication")
+	assert.Contains(t, err.Error(), "ACTIONS_ID_TOKEN_REQUEST_URL")
+}
+
+func TestGetOrLaunch_OIDCAudienceDefaultsToURL(t *testing.T) {
+	// Create a mock upstream that captures the Authorization header
+	var capturedAuth string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAuth = r.Header.Get("Authorization")
+		// Return a minimal MCP error (server will try to connect)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"error":   map[string]interface{}{"code": -1, "message": "test"},
+		})
+	}))
+	defer upstream.Close()
+
+	// Create a mock OIDC token endpoint
+	oidcEndpoint := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"value": "header.eyJleHAiOjk5OTk5OTk5OTl9.sig", // exp=9999999999
+		})
+	}))
+	defer oidcEndpoint.Close()
+
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", oidcEndpoint.URL)
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "test-token")
+
+	cfg := newTestConfig(map[string]*config.ServerConfig{
+		"oidc-server": {
+			Type: "http",
+			URL:  upstream.URL,
+			Auth: &config.AuthConfig{
+				Type: "github-oidc",
+				// Audience is empty — should default to URL
+			},
+		},
+	})
+
+	l := New(context.Background(), cfg)
+	defer l.Close()
+
+	// GetOrLaunch will try to connect and the mock will capture the auth header
+	_, _ = GetOrLaunch(l, "oidc-server")
+
+	// The OIDC provider should have been used (auth header set)
+	assert.NotEmpty(t, capturedAuth, "OIDC should have set Authorization header")
+	assert.Contains(t, capturedAuth, "Bearer ", "Authorization should be Bearer token")
+}
+
+func TestLauncher_MixedAuthTypes(t *testing.T) {
+	ctx := context.Background()
+
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"plain-http": {
+				Type: "http",
+				URL:  "https://example.com/mcp",
+			},
+			"oidc-http": {
+				Type: "http",
+				URL:  "https://secure.example.com/mcp",
+				Auth: &config.AuthConfig{
+					Type:     "github-oidc",
+					Audience: "https://secure.example.com",
+				},
+			},
+		},
+	}
+
+	// Without OIDC env vars, the launcher should still initialize
+	// (it logs a warning for OIDC servers but doesn't fail at construction)
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+	l := New(ctx, cfg)
+	defer l.Close()
+
+	assert.NotNil(t, l, "Launcher should be created even with OIDC servers and missing env vars")
+	assert.Nil(t, l.oidcProvider, "OIDC provider should be nil without env vars")
+}

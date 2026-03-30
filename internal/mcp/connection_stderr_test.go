@@ -37,7 +37,7 @@ func TestConnection_SendRequest(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", srv.URL, map[string]string{
 		"Authorization": "test-token",
-	})
+	}, nil, "")
 	require.NoError(t, err)
 	defer conn.Close()
 

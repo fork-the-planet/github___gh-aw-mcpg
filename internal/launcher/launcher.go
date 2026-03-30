@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	"github.com/github/gh-aw-mcpg/internal/oidc"
 	"github.com/github/gh-aw-mcpg/internal/syncutil"
 	"github.com/github/gh-aw-mcpg/internal/sys"
 )
@@ -32,6 +34,7 @@ type Launcher struct {
 	mu                 sync.RWMutex
 	runningInContainer bool
 	startupTimeout     time.Duration // Timeout for backend server startup
+	oidcProvider       *oidc.Provider
 }
 
 // New creates a new Launcher
@@ -52,6 +55,27 @@ func New(ctx context.Context, cfg *config.Config) *Launcher {
 		logLauncher.Printf("Using default startup timeout: %v", startupTimeout)
 	}
 
+	// Initialize OIDC provider from environment if available
+	var oidcProvider *oidc.Provider
+	if reqURL := os.Getenv("ACTIONS_ID_TOKEN_REQUEST_URL"); reqURL != "" {
+		reqToken := os.Getenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN")
+		oidcProvider = oidc.NewProvider(reqURL, reqToken)
+		logLauncher.Printf("OIDC provider initialized from ACTIONS_ID_TOKEN_REQUEST_URL")
+		logger.LogInfo("startup", "GitHub Actions OIDC provider initialized")
+	}
+
+	// Validate that all servers requiring OIDC have the provider available
+	for serverID, serverCfg := range cfg.Servers {
+		if serverCfg.Auth != nil && serverCfg.Auth.Type == "github-oidc" && oidcProvider == nil {
+			log.Printf("[LAUNCHER] ERROR: Server %q requires OIDC authentication but ACTIONS_ID_TOKEN_REQUEST_URL is not set.", serverID)
+			log.Printf("[LAUNCHER]        OIDC auth is only available when running in GitHub Actions with `permissions: { id-token: write }`.")
+			logger.LogError("startup",
+				"Server %q requires OIDC authentication but ACTIONS_ID_TOKEN_REQUEST_URL is not set. "+
+					"OIDC auth is only available when running in GitHub Actions with `permissions: { id-token: write }`.",
+				serverID)
+		}
+	}
+
 	return &Launcher{
 		ctx:                ctx,
 		config:             cfg,
@@ -59,6 +83,7 @@ func New(ctx context.Context, cfg *config.Config) *Launcher {
 		sessionPool:        NewSessionConnectionPool(ctx),
 		runningInContainer: inContainer,
 		startupTimeout:     startupTimeout,
+		oidcProvider:       oidcProvider,
 	}
 }
 
@@ -83,8 +108,27 @@ func GetOrLaunch(l *Launcher, serverID string) (*mcp.Connection, error) {
 			log.Printf("[LAUNCHER] Configuring HTTP MCP backend: %s", serverID)
 			log.Printf("[LAUNCHER] URL: %s", serverCfg.URL)
 
+			// Determine OIDC provider and audience for this server
+			var oidcProvider *oidc.Provider
+			var oidcAudience string
+			if serverCfg.Auth != nil && serverCfg.Auth.Type == "github-oidc" {
+				oidcProvider = l.oidcProvider
+				oidcAudience = serverCfg.Auth.Audience
+				if oidcAudience == "" {
+					oidcAudience = serverCfg.URL
+				}
+				if oidcProvider == nil {
+					logger.LogErrorWithServer(serverID, "backend",
+						"Server %q requires OIDC auth but ACTIONS_ID_TOKEN_REQUEST_URL is not set", serverID)
+					return nil, fmt.Errorf(
+						"server %q requires OIDC authentication but ACTIONS_ID_TOKEN_REQUEST_URL is not set; "+
+							"OIDC auth is only available in GitHub Actions with `permissions: { id-token: write }`",
+						serverID)
+				}
+			}
+
 			// Create an HTTP connection
-			conn, err := mcp.NewHTTPConnection(l.ctx, serverID, serverCfg.URL, serverCfg.Headers)
+			conn, err := mcp.NewHTTPConnection(l.ctx, serverID, serverCfg.URL, serverCfg.Headers, oidcProvider, oidcAudience)
 			if err != nil {
 				logger.LogErrorWithServer(serverID, "backend", "Failed to create HTTP connection: %s, error=%v", serverID, err)
 				log.Printf("[LAUNCHER] ❌ FAILED to create HTTP connection for '%s'", serverID)
