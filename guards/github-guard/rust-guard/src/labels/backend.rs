@@ -71,6 +71,7 @@ pub struct IssueAuthorInfo {
 #[derive(Debug, Clone)]
 pub struct CollaboratorPermission {
     pub permission: Option<String>,
+    #[cfg_attr(not(test), allow(dead_code))]
     pub login: Option<String>,
 }
 

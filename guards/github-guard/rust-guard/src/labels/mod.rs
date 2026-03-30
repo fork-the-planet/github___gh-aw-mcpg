@@ -35,6 +35,7 @@ mod response_paths;
 pub mod tool_rules;
 
 // Re-export commonly used items for backward compatibility
+#[allow(unused_imports)]
 pub use constants::MEDIUM_BUFFER_SIZE;
 
 // Re-export helpers - these are part of the public API and used by tests

@@ -240,7 +240,7 @@ pub fn is_blocked_user(username: &str, ctx: &PolicyContext) -> bool {
 /// Extract GitHub label names from a content item's `labels` array.
 ///
 /// Returns the `name` field from each element of the item's `labels` array.
-fn extract_github_label_names<'a>(item: &'a Value) -> Vec<&'a str> {
+fn extract_github_label_names(item: &Value) -> Vec<&str> {
     item.get("labels")
         .and_then(|v| v.as_array())
         .map(|arr| {
