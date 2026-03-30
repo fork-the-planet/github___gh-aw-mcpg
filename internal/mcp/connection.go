@@ -220,7 +220,7 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 	// By placing the OIDC layer inside, it runs last and its Authorization: Bearer
 	// header is the one that reaches the server, overwriting any static Authorization
 	// from the headers map. Other static headers (e.g. X-Custom-Header) pass through.
-	var baseClient *http.Client = httpClient
+	baseClient := httpClient
 	if oidcProvider != nil {
 		baseClient = buildHTTPClientWithOIDC(httpClient, oidcProvider, oidcAudience)
 		logger.LogInfo("backend", "OIDC authentication enabled for HTTP MCP connection: url=%s, audience=%s", url, oidcAudience)

@@ -299,3 +299,97 @@ func TestProvider_ContextCancellation(t *testing.T) {
 	_, err := provider.Token(ctx, "https://example.com")
 	require.Error(t, err)
 }
+
+func TestProvider_MalformedJWT_WrongPartCount(t *testing.T) {
+	tests := []struct {
+		name  string
+		token string
+	}{
+		{"two parts", "header.payload"},
+		{"one part", "headeronly"},
+		{"four parts", "a.b.c.d"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(map[string]string{"value": tt.token})
+			}))
+			defer server.Close()
+
+			provider := oidc.NewProvider(server.URL, "test-token")
+			// Should still return a token (falls back to 5-min TTL when JWT parsing fails)
+			got, err := provider.Token(context.Background(), "https://example.com")
+			require.NoError(t, err)
+			assert.Equal(t, tt.token, got)
+		})
+	}
+}
+
+func TestProvider_InvalidBase64Payload(t *testing.T) {
+	// JWT with invalid base64 in payload
+	invalidToken := "eyJhbGciOiJSUzI1NiJ9.!!!invalid-base64!!!.signature"
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"value": invalidToken})
+	}))
+	defer server.Close()
+
+	provider := oidc.NewProvider(server.URL, "test-token")
+	got, err := provider.Token(context.Background(), "https://example.com")
+	require.NoError(t, err, "Should fall back to 5-min TTL, not error")
+	assert.Equal(t, invalidToken, got)
+}
+
+func TestProvider_MalformedClaimsJSON(t *testing.T) {
+	// JWT with valid base64 but invalid JSON in payload
+	invalidJSON := base64.RawURLEncoding.EncodeToString([]byte(`{not valid json`))
+	malformedToken := fmt.Sprintf("eyJhbGciOiJSUzI1NiJ9.%s.signature", invalidJSON)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"value": malformedToken})
+	}))
+	defer server.Close()
+
+	provider := oidc.NewProvider(server.URL, "test-token")
+	got, err := provider.Token(context.Background(), "https://example.com")
+	require.NoError(t, err, "Should fall back to 5-min TTL, not error")
+	assert.Equal(t, malformedToken, got)
+}
+
+func TestProvider_RequestTokenSentAsBearer(t *testing.T) {
+	var capturedAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"value": "header.eyJleHAiOjk5OTk5OTk5OTl9.sig",
+		})
+	}))
+	defer server.Close()
+
+	provider := oidc.NewProvider(server.URL, "my-secret-request-token")
+	_, err := provider.Token(context.Background(), "https://example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer my-secret-request-token", capturedAuth, "Request token should be sent as Bearer auth")
+}
+
+func TestProvider_AudiencePassedAsQueryParam(t *testing.T) {
+	var capturedAudience string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedAudience = r.URL.Query().Get("audience")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"value": "header.eyJleHAiOjk5OTk5OTk5OTl9.sig",
+		})
+	}))
+	defer server.Close()
+
+	provider := oidc.NewProvider(server.URL, "test-token")
+	_, err := provider.Token(context.Background(), "https://my-mcp-server.example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "https://my-mcp-server.example.com", capturedAudience, "Audience should be passed as query parameter")
+}
