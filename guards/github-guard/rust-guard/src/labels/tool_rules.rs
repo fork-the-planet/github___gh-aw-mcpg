@@ -7,12 +7,12 @@ use serde_json::Value;
 
 use super::constants::{field_names, SENSITIVE_FILE_KEYWORDS, SENSITIVE_FILE_PATTERNS};
 use super::helpers::{
-    author_association_floor_from_str, ensure_integrity_baseline, extract_number_as_string,
-    extract_repo_info, extract_repo_info_from_search_query, format_repo_id,
-    is_configured_trusted_bot, is_default_branch_commit_context, is_default_branch_ref,
-    is_trusted_first_party_bot, is_trusted_user, max_integrity, merged_integrity,
-    policy_private_scope_label, private_user_label, project_github_label, reader_integrity,
-    writer_integrity, PolicyContext,
+    author_association_floor_from_str, collaborator_permission_floor, ensure_integrity_baseline,
+    extract_number_as_string, extract_repo_info, extract_repo_info_from_search_query,
+    format_repo_id, is_configured_trusted_bot, is_default_branch_commit_context,
+    is_default_branch_ref, is_trusted_first_party_bot, is_trusted_user, max_integrity,
+    merged_integrity, policy_private_scope_label, private_user_label, project_github_label,
+    reader_integrity, writer_integrity, PolicyContext,
 };
 
 fn apply_repo_visibility_secrecy(
@@ -140,6 +140,20 @@ pub fn apply_tool_labels(
                                 );
                             }
                         }
+                        // Supplement with collaborator permission when author_association
+                        // gives less than writer integrity (e.g., CONTRIBUTOR for org admins)
+                        if floor.len() < 3 {
+                            if let Some(ref login) = info.author_login {
+                                if let Some(collab) = super::backend::get_collaborator_permission(&owner, &repo, login) {
+                                    let perm_floor = collaborator_permission_floor(
+                                        repo_id,
+                                        collab.permission.as_deref(),
+                                        ctx,
+                                    );
+                                    floor = max_integrity(repo_id, floor, perm_floor, ctx);
+                                }
+                            }
+                        }
                         integrity = max_integrity(repo_id, integrity, floor, ctx);
                     }
                 }
@@ -234,6 +248,21 @@ pub fn apply_tool_labels(
                                     writer_integrity(repo_id, ctx),
                                     ctx,
                                 );
+                            }
+                        }
+
+                        // Supplement with collaborator permission when author_association
+                        // gives less than writer integrity (e.g., CONTRIBUTOR for org admins)
+                        if integrity.len() < 3 {
+                            if let Some(ref login) = facts.author_login {
+                                if let Some(collab) = super::backend::get_collaborator_permission(&owner, &repo, login) {
+                                    let perm_floor = collaborator_permission_floor(
+                                        repo_id,
+                                        collab.permission.as_deref(),
+                                        ctx,
+                                    );
+                                    integrity = max_integrity(repo_id, integrity, perm_floor, ctx);
+                                }
                             }
                         }
 

@@ -323,6 +323,15 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 		}
 		apiPath = fmt.Sprintf("/search/repositories?q=%s&per_page=%s", query, perPage)
 
+	case "get_collaborator_permission":
+		owner, _ := argsMap["owner"].(string)
+		repo, _ := argsMap["repo"].(string)
+		username, _ := argsMap["username"].(string)
+		if owner == "" || repo == "" || username == "" {
+			return nil, fmt.Errorf("get_collaborator_permission: missing owner/repo/username")
+		}
+		apiPath = fmt.Sprintf("/repos/%s/%s/collaborators/%s/permission", owner, repo, username)
+
 	default:
 		logProxy.Printf("restBackendCaller: unsupported tool %s", toolName)
 		return nil, fmt.Errorf("unsupported tool: %s", toolName)

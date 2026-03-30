@@ -1024,6 +1024,32 @@ pub fn author_association_floor(item: &Value, scope: &str, ctx: &PolicyContext) 
     author_association_floor_from_str(scope, association, ctx)
 }
 
+/// Map collaborator permission level to integrity.
+/// Uses the effective permission from GET /repos/{owner}/{repo}/collaborators/{username}/permission
+/// which correctly reflects inherited org permissions (unlike author_association).
+///
+/// Mapping:
+/// - admin, maintain, write => approved (writer integrity)
+/// - triage, read => unapproved (reader integrity)
+/// - none, missing => none
+pub fn collaborator_permission_floor(
+    scope: &str,
+    permission: Option<&str>,
+    ctx: &PolicyContext,
+) -> Vec<String> {
+    let Some(raw) = permission else {
+        return vec![];
+    };
+
+    let normalized = raw.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "admin" | "maintain" | "write" => writer_integrity(scope, ctx),
+        "triage" | "read" => reader_integrity(scope, ctx),
+        "none" => vec![],
+        _ => vec![],
+    }
+}
+
 /// Check if a branch/ref should be treated as default branch context
 pub fn is_default_branch_ref(branch_ref: &str) -> bool {
     branch_ref.is_empty()
@@ -1380,4 +1406,110 @@ pub fn is_bot(username: &str) -> bool {
         || lower == "renovate"
         || lower == "github-actions"
         || lower == "copilot"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_ctx() -> PolicyContext {
+        PolicyContext {
+            scopes: vec![],
+            blocked_users: vec![],
+            trusted_bots: vec![],
+            trusted_users: vec![],
+            approval_labels: vec![],
+        }
+    }
+
+    #[test]
+    fn test_collaborator_permission_floor_admin() {
+        let ctx = test_ctx();
+        let result = collaborator_permission_floor("owner/repo", Some("admin"), &ctx);
+        assert!(!result.is_empty(), "admin should give approved integrity");
+        assert_eq!(result.len(), 3, "writer integrity has 3 tags (none+reader+writer)");
+    }
+
+    #[test]
+    fn test_collaborator_permission_floor_maintain() {
+        let ctx = test_ctx();
+        let result = collaborator_permission_floor("owner/repo", Some("maintain"), &ctx);
+        assert_eq!(result.len(), 3, "maintain should give writer/approved integrity");
+    }
+
+    #[test]
+    fn test_collaborator_permission_floor_write() {
+        let ctx = test_ctx();
+        let result = collaborator_permission_floor("owner/repo", Some("write"), &ctx);
+        assert_eq!(result.len(), 3, "write should give writer/approved integrity");
+    }
+
+    #[test]
+    fn test_collaborator_permission_floor_triage() {
+        let ctx = test_ctx();
+        let result = collaborator_permission_floor("owner/repo", Some("triage"), &ctx);
+        assert_eq!(result.len(), 2, "triage should give reader/unapproved integrity");
+    }
+
+    #[test]
+    fn test_collaborator_permission_floor_read() {
+        let ctx = test_ctx();
+        let result = collaborator_permission_floor("owner/repo", Some("read"), &ctx);
+        assert_eq!(result.len(), 2, "read should give reader/unapproved integrity");
+    }
+
+    #[test]
+    fn test_collaborator_permission_floor_none() {
+        let ctx = test_ctx();
+        let result = collaborator_permission_floor("owner/repo", Some("none"), &ctx);
+        assert!(result.is_empty(), "none permission should give empty integrity");
+    }
+
+    #[test]
+    fn test_collaborator_permission_floor_missing() {
+        let ctx = test_ctx();
+        let result = collaborator_permission_floor("owner/repo", None, &ctx);
+        assert!(result.is_empty(), "missing permission should give empty integrity");
+    }
+
+    #[test]
+    fn test_collaborator_permission_floor_case_insensitive() {
+        let ctx = test_ctx();
+        let upper = collaborator_permission_floor("owner/repo", Some("ADMIN"), &ctx);
+        let mixed = collaborator_permission_floor("owner/repo", Some("Admin"), &ctx);
+        let lower = collaborator_permission_floor("owner/repo", Some("admin"), &ctx);
+        assert_eq!(upper, mixed);
+        assert_eq!(mixed, lower);
+        assert_eq!(lower.len(), 3);
+    }
+
+    #[test]
+    fn test_collaborator_permission_floor_whitespace() {
+        let ctx = test_ctx();
+        let result = collaborator_permission_floor("owner/repo", Some("  write  "), &ctx);
+        assert_eq!(result.len(), 3, "should trim whitespace");
+    }
+
+    #[test]
+    fn test_collaborator_permission_floor_unknown() {
+        let ctx = test_ctx();
+        let result = collaborator_permission_floor("owner/repo", Some("unknown"), &ctx);
+        assert!(result.is_empty(), "unknown permission should give empty integrity");
+    }
+
+    #[test]
+    fn test_collaborator_permission_matches_author_association_writer() {
+        let ctx = test_ctx();
+        let perm_result = collaborator_permission_floor("owner/repo", Some("write"), &ctx);
+        let assoc_result = author_association_floor_from_str("owner/repo", Some("COLLABORATOR"), &ctx);
+        assert_eq!(perm_result, assoc_result, "write permission and COLLABORATOR association should produce same integrity");
+    }
+
+    #[test]
+    fn test_collaborator_permission_matches_author_association_reader() {
+        let ctx = test_ctx();
+        let perm_result = collaborator_permission_floor("owner/repo", Some("read"), &ctx);
+        let assoc_result = author_association_floor_from_str("owner/repo", Some("CONTRIBUTOR"), &ctx);
+        assert_eq!(perm_result, assoc_result, "read permission and CONTRIBUTOR association should produce same integrity");
+    }
 }

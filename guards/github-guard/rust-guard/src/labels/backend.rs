@@ -47,6 +47,15 @@ pub struct IssueAuthorInfo {
     pub author_login: Option<String>,
 }
 
+/// Collaborator permission level from GitHub REST API.
+/// Uses GET /repos/{owner}/{repo}/collaborators/{username}/permission
+/// which returns the user's effective permission including inherited org permissions.
+#[derive(Debug, Clone)]
+pub struct CollaboratorPermission {
+    pub permission: Option<String>,
+    pub login: Option<String>,
+}
+
 /// Check whether a repository is private using the backend MCP server.
 ///
 /// Returns:
@@ -460,6 +469,61 @@ pub fn get_issue_author_info(
     get_issue_author_info_with_callback(crate::invoke_backend, owner, repo, issue_number)
 }
 
+/// Fetch collaborator permission level for a user in a repository.
+/// Uses the synthetic `get_collaborator_permission` tool which the gateway translates
+/// to GET /repos/{owner}/{repo}/collaborators/{username}/permission.
+/// Returns the user's effective permission (including inherited org permissions),
+/// which is more accurate than author_association for org admins.
+pub fn get_collaborator_permission_with_callback(
+    callback: GithubMcpCallback,
+    owner: &str,
+    repo: &str,
+    username: &str,
+) -> Option<CollaboratorPermission> {
+    if owner.is_empty() || repo.is_empty() || username.is_empty() {
+        return None;
+    }
+
+    let args = serde_json::json!({
+        "owner": owner,
+        "repo": repo,
+        "username": username,
+    });
+
+    let args_str = args.to_string();
+    let mut result_buffer = vec![0u8; SMALL_BUFFER_SIZE];
+
+    let len = match callback("get_collaborator_permission", &args_str, &mut result_buffer) {
+        Ok(len) if len > 0 => len,
+        _ => return None,
+    };
+
+    let response_str = std::str::from_utf8(&result_buffer[..len]).ok()?;
+    let response = serde_json::from_str::<Value>(response_str).ok()?;
+    let data = super::extract_mcp_response(&response);
+
+    let permission = data
+        .get("permission")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let login = data
+        .get("user")
+        .and_then(|u| u.get("login"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    Some(CollaboratorPermission { permission, login })
+}
+
+pub fn get_collaborator_permission(
+    owner: &str,
+    repo: &str,
+    username: &str,
+) -> Option<CollaboratorPermission> {
+    get_collaborator_permission_with_callback(crate::invoke_backend, owner, repo, username)
+}
+
 fn extract_repo_private_flag(response: &Value, repo_id: &str) -> Option<bool> {
     // Direct object response
     if let Some(is_private) = repo_visibility_from_items(response, repo_id) {
@@ -800,6 +864,213 @@ mod tests {
             "cache-repo",
         );
         assert_eq!(second, Some(false));
+    }
+
+    // --- Collaborator permission tests ---
+
+    fn collab_admin_callback(
+        tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        assert_eq!(tool, "get_collaborator_permission");
+        copy_payload(
+            serde_json::json!({
+                "permission": "admin",
+                "user": { "login": "org-admin" }
+            }),
+            buffer,
+        )
+    }
+
+    fn collab_write_callback(
+        _tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        copy_payload(
+            serde_json::json!({
+                "permission": "write",
+                "user": { "login": "writer-user" }
+            }),
+            buffer,
+        )
+    }
+
+    fn collab_maintain_callback(
+        _tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        copy_payload(
+            serde_json::json!({
+                "permission": "maintain",
+                "user": { "login": "maintainer-user" }
+            }),
+            buffer,
+        )
+    }
+
+    fn collab_read_callback(
+        _tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        copy_payload(
+            serde_json::json!({
+                "permission": "read",
+                "user": { "login": "reader-user" }
+            }),
+            buffer,
+        )
+    }
+
+    fn collab_triage_callback(
+        _tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        copy_payload(
+            serde_json::json!({
+                "permission": "triage",
+                "user": { "login": "triage-user" }
+            }),
+            buffer,
+        )
+    }
+
+    fn collab_none_callback(
+        _tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        copy_payload(
+            serde_json::json!({
+                "permission": "none",
+                "user": { "login": "no-access-user" }
+            }),
+            buffer,
+        )
+    }
+
+    fn collab_error_callback(
+        _tool: &str,
+        _args: &str,
+        _buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        Err(-1)
+    }
+
+    fn collab_mcp_wrapped_callback(
+        _tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        let inner = serde_json::json!({
+            "permission": "admin",
+            "user": { "login": "wrapped-admin" }
+        })
+        .to_string();
+        copy_payload(
+            serde_json::json!({
+                "content": [{ "type": "text", "text": inner }]
+            }),
+            buffer,
+        )
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_admin() {
+        let result =
+            get_collaborator_permission_with_callback(collab_admin_callback, "org", "repo", "org-admin");
+        assert!(result.is_some());
+        let perm = result.unwrap();
+        assert_eq!(perm.permission.as_deref(), Some("admin"));
+        assert_eq!(perm.login.as_deref(), Some("org-admin"));
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_write() {
+        let result =
+            get_collaborator_permission_with_callback(collab_write_callback, "org", "repo", "writer-user");
+        assert!(result.is_some());
+        let perm = result.unwrap();
+        assert_eq!(perm.permission.as_deref(), Some("write"));
+        assert_eq!(perm.login.as_deref(), Some("writer-user"));
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_maintain() {
+        let result =
+            get_collaborator_permission_with_callback(collab_maintain_callback, "org", "repo", "maintainer-user");
+        assert!(result.is_some());
+        let perm = result.unwrap();
+        assert_eq!(perm.permission.as_deref(), Some("maintain"));
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_read() {
+        let result =
+            get_collaborator_permission_with_callback(collab_read_callback, "org", "repo", "reader-user");
+        assert!(result.is_some());
+        let perm = result.unwrap();
+        assert_eq!(perm.permission.as_deref(), Some("read"));
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_triage() {
+        let result =
+            get_collaborator_permission_with_callback(collab_triage_callback, "org", "repo", "triage-user");
+        assert!(result.is_some());
+        let perm = result.unwrap();
+        assert_eq!(perm.permission.as_deref(), Some("triage"));
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_none() {
+        let result =
+            get_collaborator_permission_with_callback(collab_none_callback, "org", "repo", "no-access-user");
+        assert!(result.is_some());
+        let perm = result.unwrap();
+        assert_eq!(perm.permission.as_deref(), Some("none"));
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_callback_error() {
+        let result =
+            get_collaborator_permission_with_callback(collab_error_callback, "org", "repo", "user");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_empty_owner() {
+        let result =
+            get_collaborator_permission_with_callback(collab_admin_callback, "", "repo", "user");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_empty_repo() {
+        let result =
+            get_collaborator_permission_with_callback(collab_admin_callback, "org", "", "user");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_empty_username() {
+        let result =
+            get_collaborator_permission_with_callback(collab_admin_callback, "org", "repo", "");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_collaborator_permission_mcp_wrapped() {
+        let result =
+            get_collaborator_permission_with_callback(collab_mcp_wrapped_callback, "org", "repo", "wrapped-admin");
+        assert!(result.is_some());
+        let perm = result.unwrap();
+        assert_eq!(perm.permission.as_deref(), Some("admin"));
+        assert_eq!(perm.login.as_deref(), Some("wrapped-admin"));
     }
 }
 
