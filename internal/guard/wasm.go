@@ -628,6 +628,9 @@ func (g *WasmGuard) LabelAgent(ctx context.Context, policy interface{}, backend 
 		return nil, fmt.Errorf("WASM guard does not export label_agent")
 	}
 
+	// Normalisation and payload-build operate only on the caller-supplied `policy`
+	// argument and do not access any g.* fields, so they are safe to run outside
+	// the lock that callWasmGuardFunction acquires.
 	normalizedPolicy, err := normalizePolicyPayload(policy)
 	if err != nil {
 		logWasm.Printf("LabelAgent normalizePolicyPayload failed: guard=%s, error=%v", g.name, err)

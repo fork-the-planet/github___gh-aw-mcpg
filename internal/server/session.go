@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -39,14 +38,7 @@ func SessionIDFromContext(ctx context.Context) string {
 // getSessionID extracts the MCP session ID from the context
 func (us *UnifiedServer) getSessionID(ctx context.Context) string {
 	sessionID := SessionIDFromContext(ctx)
-	if sessionID != "default" {
-		logSession.Printf("Extracted session ID from context: %s", auth.TruncateSessionID(sessionID))
-	} else {
-		// No session ID in context - this happens before the SDK assigns one
-		// For now, use "default" as a placeholder for single-client scenarios
-		// In production multi-agent scenarios, the SDK will provide session IDs after initialize
-		log.Printf("No session ID in context, using 'default' (this is normal before SDK session is established)")
-	}
+	logSession.Printf("Extracted session ID from context: %s", auth.TruncateSessionID(sessionID))
 	return sessionID
 }
 
