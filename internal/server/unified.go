@@ -326,7 +326,10 @@ func lookupEnrichmentToken() string {
 		"GH_TOKEN",
 	} {
 		if v := os.Getenv(key); v != "" {
-			return v
+			v = strings.TrimSpace(v)
+			if v != "" {
+				return v
+			}
 		}
 	}
 	return ""
