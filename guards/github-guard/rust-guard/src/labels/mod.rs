@@ -4241,4 +4241,440 @@ mod tests {
             secrecy
         );
     }
+
+    // =========================================================================
+    // Write tool DIFC labeling tests
+    // =========================================================================
+
+    #[test]
+    fn test_apply_tool_labels_create_gist_matches_list_gists() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "description": "test", "public": false, "files": {} });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "create_gist",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "create_gist must carry private:user secrecy");
+        assert_eq!(integrity, reader_integrity("user", &ctx), "create_gist must have reader integrity (user content)");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_update_gist_matches_get_gist() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "gist_id": "abc123", "files": {} });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "update_gist",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "update_gist must carry private:user secrecy");
+        assert_eq!(integrity, reader_integrity("user", &ctx), "update_gist must have reader integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_create_issue_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "title": "test issue"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "create_issue",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "create_issue should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_issue_write_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "issue_number": 1,
+            "body": "updated"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "issue_write",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "issue_write should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_add_issue_comment_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "issue_number": 1,
+            "body": "comment"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "add_issue_comment",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "add_issue_comment should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_create_pull_request_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "title": "test PR",
+            "head": "feature",
+            "base": "main"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "create_pull_request",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "create_pull_request should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_merge_pull_request_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "pullNumber": 42
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "merge_pull_request",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "merge_pull_request should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_create_or_update_file_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "path": "README.md",
+            "content": "hello"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "create_or_update_file",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "create_or_update_file should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_push_files_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "files": []
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "push_files",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "push_files should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_create_branch_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "branch": "feature",
+            "from_branch": "main"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "create_branch",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "create_branch should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_projects_write_owner_scoped_integrity() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "method": "add_item",
+            "projectId": "PVT_123"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "projects_write",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity("github", &ctx), "projects_write should have writer integrity scoped to owner");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_label_write_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "method": "create",
+            "name": "bug"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "label_write",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "label_write should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_actions_run_trigger_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "workflow_id": "ci.yml"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "actions_run_trigger",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "actions_run_trigger should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_dismiss_notification_private_user() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "threadId": "123" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "dismiss_notification",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, private_user_label(), "dismiss_notification must carry private:user secrecy");
+        assert_eq!(integrity, none_integrity("", &ctx), "dismiss_notification should have none-level integrity (references unknown content)");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_star_repository_public() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot"
+        });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "star_repository",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert!(secrecy.is_empty(), "star_repository should have empty (public) secrecy");
+        assert_eq!(integrity, project_github_label(&ctx), "star_repository should have project:github integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_assign_copilot_to_issue_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "issue_number": 1
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "assign_copilot_to_issue",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "assign_copilot_to_issue should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_pull_request_review_write_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "pullNumber": 42,
+            "body": "LGTM",
+            "event": "APPROVE"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "pull_request_review_write",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "pull_request_review_write should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_sub_issue_write_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "issue_number": 1,
+            "sub_issue_id": 2
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "sub_issue_write",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "sub_issue_write should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_fork_repository_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "fork_repository",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "fork_repository should have writer integrity");
+    }
 }
