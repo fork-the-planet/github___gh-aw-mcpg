@@ -555,7 +555,7 @@ pub fn apply_tool_labels(
         }
 
         // === Gists (user-scoped) ===
-        "list_gists" | "get_gist" => {
+        "list_gists" | "get_gist" | "create_gist" | "update_gist" => {
             // Gists are user content; secrecy depends on public/secret flag.
             // Resource-level: conservative labeling; response labeling refines per-item.
             // S = private:user (conservative — some gists may be secret)
@@ -566,7 +566,10 @@ pub fn apply_tool_labels(
         }
 
         // === Notifications (user-scoped, private) ===
-        "list_notifications" | "get_notification_details" => {
+        "list_notifications" | "get_notification_details"
+        | "dismiss_notification" | "mark_all_notifications_read"
+        | "manage_notification_subscription"
+        | "manage_repository_notification_subscription" => {
             // Notifications are private to the authenticated user.
             // S = private:user
             // I = none (notifications reference external content of unknown trust)
@@ -612,6 +615,71 @@ pub fn apply_tool_labels(
             // I = approved — maintained by repo security contacts
             secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
             integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Issue/PR write operations (repo-scoped) ===
+        "create_issue" | "issue_write" | "sub_issue_write" | "add_issue_comment"
+        | "create_pull_request" | "update_pull_request" | "merge_pull_request"
+        | "pull_request_review_write" | "add_comment_to_pending_review"
+        | "add_reply_to_pull_request_comment" => {
+            // Write operations that return the created/modified resource.
+            // S = S(repo) — response contains repo-scoped content
+            // I = writer (agent-authored content)
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Repo content and structure write operations ===
+        "create_or_update_file" | "push_files" | "delete_file" | "create_branch"
+        | "update_pull_request_branch" | "create_repository" | "fork_repository" => {
+            // Write operations that modify repo content/structure.
+            // S = S(repo) — response references repo-scoped content
+            // I = writer (agent-authored content)
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Projects write operations (org-scoped) ===
+        "projects_write" => {
+            // Projects are org-scoped; write responses carry the same labels as reads.
+            // I = approved:<owner>
+            if !owner.is_empty() {
+                baseline_scope = owner.clone();
+                integrity = writer_integrity(&baseline_scope, ctx);
+            }
+        }
+
+        // === Label write operations (repo-scoped) ===
+        "label_write" => {
+            // Label creates/updates/deletes return repo-scoped content.
+            // S = S(repo); I = writer
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Actions: Workflow run triggers ===
+        "actions_run_trigger" => {
+            // Triggering a workflow run returns repo-scoped metadata.
+            // S = S(repo); I = writer
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Copilot agent operations (repo-scoped) ===
+        "assign_copilot_to_issue" | "request_copilot_review" => {
+            // Copilot assignment/review requests return repo-scoped content.
+            // S = S(repo); I = writer
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Star/unstar operations (public metadata) ===
+        "star_repository" | "unstar_repository" => {
+            // Starring is a public action; response is minimal metadata.
+            // S = public (empty); I = project:github
+            secrecy = vec![];
+            baseline_scope = "github".to_string();
+            integrity = project_github_label(ctx);
         }
 
         _ => {
