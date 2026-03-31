@@ -39,6 +39,8 @@ const MCPProtocolVersion = "2025-11-25"
 // requestIDCounter is used to generate unique request IDs for HTTP requests
 var requestIDCounter uint64
 
+var logHTTP = logger.New("mcp:http_transport")
+
 // httpRequestResult contains the result of an HTTP request execution
 type httpRequestResult struct {
 	StatusCode   int
@@ -183,6 +185,7 @@ func newHTTPConnection(ctx context.Context, cancel context.CancelFunc, client *s
 	if session != nil {
 		sessionID = session.ID()
 	}
+	logHTTP.Printf("Creating HTTP connection: serverID=%s, url=%s, transport=%s, headers=%d, sessionID=%s", serverID, url, transportType, len(headers), sessionID)
 	return &Connection{
 		client:            client,
 		session:           session,
@@ -223,6 +226,7 @@ func buildHTTPClientWithHeaders(baseClient *http.Client, headers map[string]stri
 	if len(headers) == 0 {
 		return baseClient
 	}
+	logHTTP.Printf("Wrapping HTTP client with %d custom header(s)", len(headers))
 	base := baseClient.Transport
 	if base == nil {
 		base = http.DefaultTransport
@@ -243,6 +247,7 @@ type oidcRoundTripper struct {
 }
 
 func (rt *oidcRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	logHTTP.Printf("Acquiring OIDC token for audience=%s", rt.audience)
 	token, err := rt.provider.Token(req.Context(), rt.audience)
 	if err != nil {
 		return nil, fmt.Errorf("OIDC token acquisition failed: %w", err)
@@ -257,6 +262,7 @@ func (rt *oidcRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 // Static headers (from buildHTTPClientWithHeaders) are applied first, then the OIDC
 // token overwrites the Authorization header.
 func buildHTTPClientWithOIDC(baseClient *http.Client, provider *oidc.Provider, audience string) *http.Client {
+	logHTTP.Printf("Wrapping HTTP client with OIDC provider: audience=%s", audience)
 	base := baseClient.Transport
 	if base == nil {
 		base = http.DefaultTransport
@@ -293,9 +299,11 @@ func ensureToolCallArguments(params interface{}) interface{} {
 	// Check if arguments field exists
 	if _, hasArgs := paramsMap["arguments"]; !hasArgs {
 		// Add empty arguments map if missing
+		logHTTP.Print("tools/call params missing 'arguments' field, adding empty map")
 		paramsMap["arguments"] = make(map[string]interface{})
 	} else if paramsMap["arguments"] == nil {
 		// Replace nil with empty map
+		logHTTP.Print("tools/call params has nil 'arguments' field, replacing with empty map")
 		paramsMap["arguments"] = make(map[string]interface{})
 	}
 
@@ -304,6 +312,7 @@ func ensureToolCallArguments(params interface{}) interface{} {
 
 // setupHTTPRequest creates and configures an HTTP request with standard headers
 func setupHTTPRequest(ctx context.Context, url string, requestBody []byte, headers map[string]string) (*http.Request, error) {
+	logHTTP.Printf("Setting up HTTP request: url=%s, bodyLen=%d, customHeaders=%d", url, len(requestBody), len(headers))
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(requestBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
