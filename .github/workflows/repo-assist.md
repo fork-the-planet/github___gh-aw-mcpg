@@ -169,6 +169,8 @@ steps:
 
 source: githubnext/agentics/workflows/repo-assist.md@851905c06e905bf362a9f6cc54f912e3df747d55
 engine: copilot
+features:
+  difc-proxy: true
 ---
 
 # Repo Assist

@@ -48,6 +48,8 @@ tools:
   cache-memory:
 
 timeout-minutes: 15
+features:
+  difc-proxy: true
 ---
 
 # Go Logger Enhancement

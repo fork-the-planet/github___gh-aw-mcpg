@@ -40,6 +40,8 @@ safe-outputs:
     create-issue: true
 
 timeout-minutes: 15
+features:
+  difc-proxy: true
 ---
 
 # Nightly Schema Updater 🔄

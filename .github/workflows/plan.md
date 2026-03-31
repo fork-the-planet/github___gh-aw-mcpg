@@ -28,6 +28,8 @@ safe-outputs:
   close-discussion:
     required-category: "Ideas"
 timeout-minutes: 10
+features:
+  difc-proxy: true
 ---
 
 # Planning Assistant

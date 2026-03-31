@@ -16,6 +16,8 @@ permissions:
 name: Smoke Safe-Outputs PRs
 engine:
   id: copilot
+features:
+  difc-proxy: true
 strict: false
 imports:
   - shared/reporting.md

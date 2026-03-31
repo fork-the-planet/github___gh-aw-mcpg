@@ -37,6 +37,8 @@ safe-outputs:
     max: 1
 
 timeout-minutes: 20
+features:
+  difc-proxy: true
 ---
 
 # Integrity Filtering Audit

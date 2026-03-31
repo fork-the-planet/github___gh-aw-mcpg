@@ -29,7 +29,7 @@
 #     - shared/mcp-pagination.md
 #     - shared/reporting.md
 #
-# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"6af3b7c52fcb5b0b7619f971a89f12bb1e46c53966016c97d5225a686ed76c40","compiler_version":"v0.64.5","agent_id":"copilot"}
+# gh-aw-metadata: {"schema_version":"v3","frontmatter_hash":"e07aa46dec4302a34030fa85383b4d0672431b1d2610bfc0357f475da65e911f","compiler_version":"v0.64.5","agent_id":"copilot"}
 
 name: "Smoke Copilot"
 "on":
@@ -171,16 +171,16 @@ jobs:
         run: |
           bash ${RUNNER_TEMP}/gh-aw/actions/create_prompt_first.sh
           {
-          cat << 'GH_AW_PROMPT_0947623f0db7aad2_EOF'
+          cat << 'GH_AW_PROMPT_ab7634416755671b_EOF'
           <system>
-          GH_AW_PROMPT_0947623f0db7aad2_EOF
+          GH_AW_PROMPT_ab7634416755671b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/xpia.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/temp_folder_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/markdown.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/playwright_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/cache_memory_prompt.md"
           cat "${RUNNER_TEMP}/gh-aw/prompts/safe_outputs_prompt.md"
-          cat << 'GH_AW_PROMPT_0947623f0db7aad2_EOF'
+          cat << 'GH_AW_PROMPT_ab7634416755671b_EOF'
           <safe-output-tools>
           Tools: add_comment(max:2), create_issue, add_labels, missing_tool, missing_data, noop
           </safe-output-tools>
@@ -212,26 +212,26 @@ jobs:
           {{/if}}
           </github-context>
           
-          GH_AW_PROMPT_0947623f0db7aad2_EOF
+          GH_AW_PROMPT_ab7634416755671b_EOF
           cat "${RUNNER_TEMP}/gh-aw/prompts/github_mcp_tools_with_safeoutputs_prompt.md"
-          cat << 'GH_AW_PROMPT_0947623f0db7aad2_EOF'
+          cat << 'GH_AW_PROMPT_ab7634416755671b_EOF'
           </system>
-          GH_AW_PROMPT_0947623f0db7aad2_EOF
-          cat << 'GH_AW_PROMPT_0947623f0db7aad2_EOF'
+          GH_AW_PROMPT_ab7634416755671b_EOF
+          cat << 'GH_AW_PROMPT_ab7634416755671b_EOF'
           {{#runtime-import .github/workflows/shared/mcp-pagination.md}}
-          GH_AW_PROMPT_0947623f0db7aad2_EOF
-          cat << 'GH_AW_PROMPT_0947623f0db7aad2_EOF'
+          GH_AW_PROMPT_ab7634416755671b_EOF
+          cat << 'GH_AW_PROMPT_ab7634416755671b_EOF'
           {{#runtime-import .github/workflows/shared/reporting.md}}
-          GH_AW_PROMPT_0947623f0db7aad2_EOF
-          cat << 'GH_AW_PROMPT_0947623f0db7aad2_EOF'
+          GH_AW_PROMPT_ab7634416755671b_EOF
+          cat << 'GH_AW_PROMPT_ab7634416755671b_EOF'
           {{#runtime-import .github/workflows/shared/go-make.md}}
-          GH_AW_PROMPT_0947623f0db7aad2_EOF
-          cat << 'GH_AW_PROMPT_0947623f0db7aad2_EOF'
+          GH_AW_PROMPT_ab7634416755671b_EOF
+          cat << 'GH_AW_PROMPT_ab7634416755671b_EOF'
           {{#runtime-import .github/workflows/shared/github-mcp-app.md}}
-          GH_AW_PROMPT_0947623f0db7aad2_EOF
-          cat << 'GH_AW_PROMPT_0947623f0db7aad2_EOF'
+          GH_AW_PROMPT_ab7634416755671b_EOF
+          cat << 'GH_AW_PROMPT_ab7634416755671b_EOF'
           {{#runtime-import .github/workflows/smoke-copilot.md}}
-          GH_AW_PROMPT_0947623f0db7aad2_EOF
+          GH_AW_PROMPT_ab7634416755671b_EOF
           } > "$GH_AW_PROMPT"
       - name: Interpolate variables and render templates
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
@@ -418,12 +418,12 @@ jobs:
           mkdir -p ${RUNNER_TEMP}/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/safeoutputs
           mkdir -p /tmp/gh-aw/mcp-logs/safeoutputs
-          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/config.json << 'GH_AW_SAFE_OUTPUTS_CONFIG_5270bf99fbe0e42d_EOF'
+          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/config.json << 'GH_AW_SAFE_OUTPUTS_CONFIG_9df8ca4b2eaf3b1f_EOF'
           {"add_comment":{"hide_older_comments":true,"max":2},"add_labels":{"allowed":["smoke-copilot"]},"create_issue":{"close_older_issues":true,"expires":2,"group":true,"max":1},"missing_data":{},"missing_tool":{},"noop":{"max":1,"report-as-issue":"true"}}
-          GH_AW_SAFE_OUTPUTS_CONFIG_5270bf99fbe0e42d_EOF
+          GH_AW_SAFE_OUTPUTS_CONFIG_9df8ca4b2eaf3b1f_EOF
       - name: Write Safe Outputs Tools
         run: |
-          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/tools_meta.json << 'GH_AW_SAFE_OUTPUTS_TOOLS_META_f423332bbdd735d5_EOF'
+          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/tools_meta.json << 'GH_AW_SAFE_OUTPUTS_TOOLS_META_11ee5fde091963ba_EOF'
           {
             "description_suffixes": {
               "add_comment": " CONSTRAINTS: Maximum 2 comment(s) can be added.",
@@ -433,8 +433,8 @@ jobs:
             "repo_params": {},
             "dynamic_tools": []
           }
-          GH_AW_SAFE_OUTPUTS_TOOLS_META_f423332bbdd735d5_EOF
-          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/validation.json << 'GH_AW_SAFE_OUTPUTS_VALIDATION_340ccec798b5a6d3_EOF'
+          GH_AW_SAFE_OUTPUTS_TOOLS_META_11ee5fde091963ba_EOF
+          cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/validation.json << 'GH_AW_SAFE_OUTPUTS_VALIDATION_6b8f24ba8e721fdd_EOF'
           {
             "add_comment": {
               "defaultMax": 1,
@@ -564,7 +564,7 @@ jobs:
               }
             }
           }
-          GH_AW_SAFE_OUTPUTS_VALIDATION_340ccec798b5a6d3_EOF
+          GH_AW_SAFE_OUTPUTS_VALIDATION_6b8f24ba8e721fdd_EOF
           node ${RUNNER_TEMP}/gh-aw/actions/generate_safe_outputs_tools.cjs
       - name: Generate Safe Outputs MCP Server Config
         id: safe-outputs-config
@@ -631,7 +631,7 @@ jobs:
           export MCP_GATEWAY_DOCKER_COMMAND='docker run -i --rm --network host -v /var/run/docker.sock:/var/run/docker.sock -e MCP_GATEWAY_PORT -e MCP_GATEWAY_DOMAIN -e MCP_GATEWAY_API_KEY -e MCP_GATEWAY_PAYLOAD_DIR -e MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD -e DEBUG -e MCP_GATEWAY_LOG_DIR -e GH_AW_MCP_LOG_DIR -e GH_AW_SAFE_OUTPUTS -e GH_AW_SAFE_OUTPUTS_CONFIG_PATH -e GH_AW_SAFE_OUTPUTS_TOOLS_PATH -e GH_AW_ASSETS_BRANCH -e GH_AW_ASSETS_MAX_SIZE_KB -e GH_AW_ASSETS_ALLOWED_EXTS -e DEFAULT_BRANCH -e GITHUB_MCP_SERVER_TOKEN -e GITHUB_MCP_GUARD_MIN_INTEGRITY -e GITHUB_MCP_GUARD_REPOS -e GITHUB_REPOSITORY -e GITHUB_SERVER_URL -e GITHUB_SHA -e GITHUB_WORKSPACE -e GITHUB_TOKEN -e GITHUB_RUN_ID -e GITHUB_RUN_NUMBER -e GITHUB_RUN_ATTEMPT -e GITHUB_JOB -e GITHUB_ACTION -e GITHUB_EVENT_NAME -e GITHUB_EVENT_PATH -e GITHUB_ACTOR -e GITHUB_ACTOR_ID -e GITHUB_TRIGGERING_ACTOR -e GITHUB_WORKFLOW -e GITHUB_WORKFLOW_REF -e GITHUB_WORKFLOW_SHA -e GITHUB_REF -e GITHUB_REF_NAME -e GITHUB_REF_TYPE -e GITHUB_HEAD_REF -e GITHUB_BASE_REF -e GH_AW_SAFE_OUTPUTS_PORT -e GH_AW_SAFE_OUTPUTS_API_KEY -v /tmp/gh-aw/mcp-payloads:/tmp/gh-aw/mcp-payloads:rw -v /opt:/opt:ro -v /tmp:/tmp:rw -v '"${GITHUB_WORKSPACE}"':'"${GITHUB_WORKSPACE}"':rw ghcr.io/github/gh-aw-mcpg:v0.2.9'
           
           mkdir -p /home/runner/.copilot
-          cat << GH_AW_MCP_CONFIG_c3a38ec817262fe0_EOF | bash ${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.sh
+          cat << GH_AW_MCP_CONFIG_928b8cb954c8f601_EOF | bash ${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.sh
           {
             "mcpServers": {
               "github": {
@@ -690,7 +690,7 @@ jobs:
               "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
             }
           }
-          GH_AW_MCP_CONFIG_c3a38ec817262fe0_EOF
+          GH_AW_MCP_CONFIG_928b8cb954c8f601_EOF
       - name: Download activation artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -877,6 +877,8 @@ jobs:
             /tmp/gh-aw/sandbox/agent/logs/
             /tmp/gh-aw/redacted-urls.log
             /tmp/gh-aw/mcp-logs/
+            /tmp/gh-aw/proxy-logs/
+            !/tmp/gh-aw/proxy-logs/proxy-tls/
             /tmp/gh-aw/agent-stdio.log
             /tmp/gh-aw/agent/
             /tmp/gh-aw/safeoutputs.jsonl
