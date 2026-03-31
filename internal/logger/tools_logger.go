@@ -84,9 +84,7 @@ func InitToolsLogger(logDir, fileName string) error {
 // withLock acquires tl.mu, executes fn, then releases tl.mu.
 // Use this in methods that return an error to avoid repeating the lock/unlock preamble.
 func (tl *ToolsLogger) withLock(fn func() error) error {
-	tl.mu.Lock()
-	defer tl.mu.Unlock()
-	return fn()
+	return withMutexLock(&tl.mu, fn)
 }
 
 // LogTools logs the tools for a specific server
