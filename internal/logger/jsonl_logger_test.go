@@ -438,12 +438,11 @@ func TestLogRPCMessageJSONLDirectionTypes(t *testing.T) {
 
 			// Read and verify
 			content, err := os.ReadFile(logPath)
-			if err != nil {
-				return // File might not exist yet
-			}
+			require.NoError(err, "Failed to read log file")
 
 			var entry JSONLRPCMessage
-			json.Unmarshal(content, &entry)
+			err = json.Unmarshal(content, &entry)
+			require.NoError(err, "Failed to parse JSONL entry")
 
 			a.Equal(tt.expected["direction"], entry.Direction, "Direction should match")
 			a.Equal(tt.expected["type"], entry.Type, "Type should match")
@@ -620,4 +619,175 @@ func TestLogDifcFilteredItem_MultipleEntriesAuditTrail(t *testing.T) {
 		assert.NotEmpty(line.Timestamp, "entry[%d] must have Timestamp", i)
 		assert.NotEmpty(line.Reason, "entry[%d] must have Reason", i)
 	}
+}
+
+// TestLogRPCMessageJSONLWithTags_AgentSecrecyTags verifies that agent secrecy tags
+// are written into the JSONL entry when provided, and that integrity is omitted.
+func TestLogRPCMessageJSONLWithTags_AgentSecrecyTags(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	err := InitJSONLLogger(logDir, "test.jsonl")
+	require.NoError(err, "InitJSONLLogger failed")
+	defer CloseJSONLLogger()
+
+	payload := []byte(`{"jsonrpc":"2.0","id":1}`)
+	secrecyTags := []string{"private:org/repo", "public"}
+
+	LogRPCMessageJSONLWithTags(RPCDirectionInbound, RPCMessageResponse, "github", "tools/call", payload, nil, secrecyTags, nil)
+	CloseJSONLLogger()
+
+	logPath := filepath.Join(logDir, "test.jsonl")
+	content, err := os.ReadFile(logPath)
+	require.NoError(err, "Failed to read log file")
+
+	var entry JSONLRPCMessage
+	err = json.Unmarshal(content, &entry)
+	require.NoError(err, "Failed to parse JSONL entry")
+
+	assert.Equal(secrecyTags, entry.AgentSecrecy, "AgentSecrecy should match provided tags")
+	assert.Empty(entry.AgentIntegrity, "AgentIntegrity should be absent when not provided")
+}
+
+// TestLogRPCMessageJSONLWithTags_AgentIntegrityTags verifies that agent integrity tags
+// are written into the JSONL entry when provided, and that secrecy is omitted.
+func TestLogRPCMessageJSONLWithTags_AgentIntegrityTags(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	err := InitJSONLLogger(logDir, "test.jsonl")
+	require.NoError(err, "InitJSONLLogger failed")
+	defer CloseJSONLLogger()
+
+	payload := []byte(`{"jsonrpc":"2.0","id":1}`)
+	integrityTags := []string{"approved:org/repo", "merged"}
+
+	LogRPCMessageJSONLWithTags(RPCDirectionOutbound, RPCMessageRequest, "github", "tools/list", payload, nil, nil, integrityTags)
+	CloseJSONLLogger()
+
+	logPath := filepath.Join(logDir, "test.jsonl")
+	content, err := os.ReadFile(logPath)
+	require.NoError(err, "Failed to read log file")
+
+	var entry JSONLRPCMessage
+	err = json.Unmarshal(content, &entry)
+	require.NoError(err, "Failed to parse JSONL entry")
+
+	assert.Empty(entry.AgentSecrecy, "AgentSecrecy should be absent when not provided")
+	assert.Equal(integrityTags, entry.AgentIntegrity, "AgentIntegrity should match provided tags")
+}
+
+// TestLogRPCMessageJSONLWithTags_BothTagTypes verifies that both agent secrecy and
+// integrity tags are correctly written when both are provided in the same call.
+func TestLogRPCMessageJSONLWithTags_BothTagTypes(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	err := InitJSONLLogger(logDir, "test.jsonl")
+	require.NoError(err, "InitJSONLLogger failed")
+	defer CloseJSONLLogger()
+
+	payload := []byte(`{"jsonrpc":"2.0","id":2}`)
+	secrecyTags := []string{"private:org/repo"}
+	integrityTags := []string{"approved:org/repo", "merged:org/repo"}
+
+	LogRPCMessageJSONLWithTags(RPCDirectionInbound, RPCMessageResponse, "github", "tools/call", payload, nil, secrecyTags, integrityTags)
+	CloseJSONLLogger()
+
+	logPath := filepath.Join(logDir, "test.jsonl")
+	content, err := os.ReadFile(logPath)
+	require.NoError(err, "Failed to read log file")
+
+	var entry JSONLRPCMessage
+	err = json.Unmarshal(content, &entry)
+	require.NoError(err, "Failed to parse JSONL entry")
+
+	assert.Equal(secrecyTags, entry.AgentSecrecy, "AgentSecrecy should match")
+	assert.Equal(integrityTags, entry.AgentIntegrity, "AgentIntegrity should match")
+	assert.Equal("github", entry.ServerID)
+	assert.Equal("tools/call", entry.Method)
+}
+
+// TestLogRPCMessageJSONLWithTags_EmptyTagsOmitted verifies that empty (non-nil) tag
+// slices are treated the same as nil — they must NOT appear in the JSON output due to
+// the omitempty struct tag on AgentSecrecy and AgentIntegrity.
+func TestLogRPCMessageJSONLWithTags_EmptyTagsOmitted(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	err := InitJSONLLogger(logDir, "test.jsonl")
+	require.NoError(err, "InitJSONLLogger failed")
+	defer CloseJSONLLogger()
+
+	payload := []byte(`{"jsonrpc":"2.0","id":1}`)
+
+	// Pass explicitly empty (non-nil) slices.
+	LogRPCMessageJSONLWithTags(RPCDirectionOutbound, RPCMessageRequest, "github", "tools/list", payload, nil, []string{}, []string{})
+	CloseJSONLLogger()
+
+	logPath := filepath.Join(logDir, "test.jsonl")
+	content, err := os.ReadFile(logPath)
+	require.NoError(err, "Failed to read log file")
+
+	var entry JSONLRPCMessage
+	err = json.Unmarshal(content, &entry)
+	require.NoError(err, "Failed to parse JSONL entry")
+
+	// Empty slices must not be stored (len == 0 check in implementation).
+	assert.Empty(entry.AgentSecrecy, "AgentSecrecy must be absent for empty slice input")
+	assert.Empty(entry.AgentIntegrity, "AgentIntegrity must be absent for empty slice input")
+
+	// Verify the raw JSON does not contain the tag fields at all.
+	assert.NotContains(string(content), "agent_secrecy", "raw JSON must not contain agent_secrecy key for empty slice")
+	assert.NotContains(string(content), "agent_integrity", "raw JSON must not contain agent_integrity key for empty slice")
+}
+
+// TestLogRPCMessageJSONLWithTags_TagsCopied verifies that the tags stored in the log
+// entry are independent copies of the caller's slice. Mutating the original after the
+// call must not alter the data that was written to disk.
+func TestLogRPCMessageJSONLWithTags_TagsCopied(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	err := InitJSONLLogger(logDir, "test.jsonl")
+	require.NoError(err, "InitJSONLLogger failed")
+	defer CloseJSONLLogger()
+
+	payload := []byte(`{"jsonrpc":"2.0","id":1}`)
+	secrecyTags := []string{"private:org/repo"}
+	integrityTags := []string{"approved:org/repo"}
+
+	LogRPCMessageJSONLWithTags(RPCDirectionInbound, RPCMessageResponse, "github", "tools/call", payload, nil, secrecyTags, integrityTags)
+	CloseJSONLLogger()
+
+	// Mutate the originals after the call.
+	secrecyTags[0] = "MUTATED"
+	integrityTags[0] = "MUTATED"
+
+	logPath := filepath.Join(logDir, "test.jsonl")
+	content, err := os.ReadFile(logPath)
+	require.NoError(err, "Failed to read log file")
+
+	var entry JSONLRPCMessage
+	err = json.Unmarshal(content, &entry)
+	require.NoError(err, "Failed to parse JSONL entry")
+
+	// The logged values must reflect the originals at call time, not the mutation.
+	assert.Equal([]string{"private:org/repo"}, entry.AgentSecrecy, "AgentSecrecy must be an independent copy")
+	assert.Equal([]string{"approved:org/repo"}, entry.AgentIntegrity, "AgentIntegrity must be an independent copy")
 }
