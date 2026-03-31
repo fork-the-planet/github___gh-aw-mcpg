@@ -204,13 +204,30 @@ fn format_integrity_label(prefix: &str, scope: &str, base: &str) -> String {
     }
 }
 
+/// Hierarchical integrity levels, ordered from lowest to highest.
+const INTEGRITY_LEVELS: [(
+    &str, // prefix
+    &str, // base
+); 4] = [
+    (label_constants::NONE_PREFIX, label_constants::NONE),
+    (label_constants::READER_PREFIX, label_constants::READER_BASE),
+    (label_constants::WRITER_PREFIX, label_constants::WRITER_BASE),
+    (label_constants::MERGED_PREFIX, label_constants::MERGED_BASE),
+];
+
+/// Build hierarchical integrity labels up to and including `max_level`.
+///
+/// Level 0 = none, 1 = reader, 2 = writer, 3 = merged.
+/// Each level includes all labels below it (hierarchical subsumption).
+fn build_integrity_labels(normalized_scope: &str, max_level: usize) -> Vec<String> {
+    INTEGRITY_LEVELS[..=max_level]
+        .iter()
+        .map(|(prefix, base)| format_integrity_label(prefix, normalized_scope, base))
+        .collect()
+}
+
 pub fn none_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
-    let normalized_scope = normalize_scope(scope, ctx);
-    vec![format_integrity_label(
-        label_constants::NONE_PREFIX,
-        &normalized_scope,
-        label_constants::NONE,
-    )]
+    build_integrity_labels(&normalize_scope(scope, ctx), 0)
 }
 
 /// Generate blocked-level integrity tags for a scope.
@@ -831,107 +848,32 @@ pub fn extract_number_as_string(tool_args: &Value, field: &str) -> Option<String
 /// These labels represent the lowest integrity levels; higher levels
 /// (such as approved) build on top of them.
 pub fn reader_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
-    let normalized_scope = normalize_scope(scope, ctx);
-    vec![
-        format_integrity_label(
-            label_constants::NONE_PREFIX,
-            &normalized_scope,
-            label_constants::NONE,
-        ),
-        format_integrity_label(
-            label_constants::READER_PREFIX,
-            &normalized_scope,
-            label_constants::READER_BASE,
-        ),
-    ]
+    build_integrity_labels(&normalize_scope(scope, ctx), 1)
 }
 
 /// Generate approved-level integrity tags for a scope.
 /// Includes unapproved level (hierarchical: approved > unapproved)
 pub fn writer_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
-    let normalized_scope = normalize_scope(scope, ctx);
-    vec![
-        format_integrity_label(
-            label_constants::NONE_PREFIX,
-            &normalized_scope,
-            label_constants::NONE,
-        ),
-        format_integrity_label(
-            label_constants::READER_PREFIX,
-            &normalized_scope,
-            label_constants::READER_BASE,
-        ),
-        format_integrity_label(
-            label_constants::WRITER_PREFIX,
-            &normalized_scope,
-            label_constants::WRITER_BASE,
-        ),
-    ]
+    build_integrity_labels(&normalize_scope(scope, ctx), 2)
 }
 
 /// Generate merged-level integrity tags for a scope.
 /// Includes approved and unapproved (hierarchical: merged > approved > unapproved)
 pub fn merged_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
-    let normalized_scope = normalize_scope(scope, ctx);
-    vec![
-        format_integrity_label(
-            label_constants::NONE_PREFIX,
-            &normalized_scope,
-            label_constants::NONE,
-        ),
-        format_integrity_label(
-            label_constants::READER_PREFIX,
-            &normalized_scope,
-            label_constants::READER_BASE,
-        ),
-        format_integrity_label(
-            label_constants::WRITER_PREFIX,
-            &normalized_scope,
-            label_constants::WRITER_BASE,
-        ),
-        format_integrity_label(
-            label_constants::MERGED_PREFIX,
-            &normalized_scope,
-            label_constants::MERGED_BASE,
-        ),
-    ]
+    build_integrity_labels(&normalize_scope(scope, ctx), 3)
 }
 
 fn integrity_rank(scope: &str, labels: &[String], ctx: &PolicyContext) -> u8 {
     let normalized_scope = normalize_scope(scope, ctx);
 
-    let merged = format_integrity_label(
-        label_constants::MERGED_PREFIX,
-        &normalized_scope,
-        label_constants::MERGED_BASE,
-    );
-    let writer = format_integrity_label(
-        label_constants::WRITER_PREFIX,
-        &normalized_scope,
-        label_constants::WRITER_BASE,
-    );
-    let reader = format_integrity_label(
-        label_constants::READER_PREFIX,
-        &normalized_scope,
-        label_constants::READER_BASE,
-    );
-    let none = format_integrity_label(
-        label_constants::NONE_PREFIX,
-        &normalized_scope,
-        label_constants::NONE,
-    );
-
-    if labels.iter().any(|l| l == &merged) {
-        4
-    } else if labels.iter().any(|l| l == &writer) {
-        3
-    } else if labels.iter().any(|l| l == &reader) {
-        2
-    } else if labels.iter().any(|l| l == &none) {
-        1
-    } else {
-        0
+    // Check from highest to lowest, allocating one label at a time.
+    for (rank, (prefix, base)) in INTEGRITY_LEVELS.iter().enumerate().rev() {
+        let tag = format_integrity_label(prefix, &normalized_scope, base);
+        if labels.iter().any(|l| l == &tag) {
+            return (rank + 1) as u8;
+        }
     }
+    0
 }
 
 fn integrity_for_rank(scope: &str, rank: u8, ctx: &PolicyContext) -> Vec<String> {
