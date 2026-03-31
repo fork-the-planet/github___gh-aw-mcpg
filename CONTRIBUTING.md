@@ -234,11 +234,16 @@ awmg/
     ├── difc/                  # Decentralized Information Flow Control
     ├── envutil/               # Environment variable utilities
     ├── guard/                 # Security guards (NoopGuard, WasmGuard, WriteSink)
+    ├── httputil/              # Shared HTTP response helpers
     ├── launcher/              # Backend server management
     ├── logger/                # Debug logging framework
     ├── mcp/                   # MCP protocol types & connection
     ├── middleware/            # HTTP middleware (jq schema processing)
+    ├── oidc/                  # OIDC authentication for HTTP MCP backends
+    ├── proxy/                 # HTTP forward proxy for DIFC filtering
     ├── server/                # HTTP server (routed/unified modes)
+    ├── strutil/               # String utility helpers
+    ├── syncutil/              # Concurrency utility helpers
     ├── sys/                   # System utilities
     ├── testutil/              # Test utilities and helpers
     ├── timeutil/              # Time formatting utilities
@@ -254,11 +259,16 @@ awmg/
 - **`internal/difc/`** - Decentralized Information Flow Control
 - **`internal/envutil/`** - Environment variable utilities
 - **`internal/guard/`** - Guard framework for resource labeling
+- **`internal/httputil/`** - Shared HTTP response helpers (JSON responses, error formatting)
 - **`internal/launcher/`** - Backend process management (Docker, stdio)
 - **`internal/logger/`** - Micro logger for debug output
 - **`internal/mcp/`** - MCP protocol types and JSON-RPC handling
 - **`internal/middleware/`** - HTTP middleware (jq schema processing)
+- **`internal/oidc/`** - OIDC authentication for HTTP MCP backends
+- **`internal/proxy/`** - HTTP forward proxy applying DIFC filtering to `gh` CLI and REST/GraphQL requests
 - **`internal/server/`** - HTTP server with routed and unified modes
+- **`internal/strutil/`** - String utility helpers (deduplication, trimming)
+- **`internal/syncutil/`** - Concurrency utility helpers (get-or-create pattern)
 - **`internal/sys/`** - System utilities
 - **`internal/testutil/`** - Test utilities and helpers
 - **`internal/timeutil/`** - Time formatting utilities
@@ -611,8 +621,10 @@ When the release workflow is triggered, it automatically:
 - Docker container launching
 - Routed mode: Each backend at `/mcp/{serverID}`
 - Unified mode: All backends at `/mcp`
+- HTTP forward proxy mode (`awmg proxy`) with DIFC filtering for `gh` CLI and REST/GraphQL requests
 - Basic request/response proxying
 - WASM-based DIFC guards (`internal/guard/`) with `allow-only` and `write-sink` guard policies
+- OIDC authentication for HTTP MCP backends
 - Large payload handling with configurable size threshold and disk storage
 - Per-server and unified file logging (`.log`, `gateway.md`, `rpc-messages.jsonl`, `tools.json`)
 - Health endpoint at `GET /health` returning structured JSON
