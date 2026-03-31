@@ -17,7 +17,6 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
-//go:embed schema/mcp-gateway-config.schema.json
 // embeddedSchemaBytes holds the bundled MCP Gateway configuration JSON Schema (v0.64.4).
 // Embedding the schema in the binary eliminates the runtime network request that was
 // previously needed to fetch it from GitHub, improving startup reliability and removing
@@ -28,6 +27,8 @@ import (
 //  2. Replace internal/config/schema/mcp-gateway-config.schema.json
 //  3. Update the version comment above
 //  4. Run tests to ensure compatibility: make test
+//
+//go:embed schema/mcp-gateway-config.schema.json
 var embeddedSchemaBytes []byte
 
 const (
