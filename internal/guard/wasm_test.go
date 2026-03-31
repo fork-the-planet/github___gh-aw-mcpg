@@ -6,6 +6,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -15,6 +17,17 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/tetratelabs/wazero"
 )
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if err := globalCompilationCache.Close(context.Background()); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to close global compilation cache: %v\n", err)
+		if code == 0 {
+			code = 1
+		}
+	}
+	os.Exit(code)
+}
 
 type ctxKey string
 
@@ -1079,5 +1092,72 @@ func TestWasmGuardFailedState(t *testing.T) {
 		require.Error(t, err)
 		// The original trap error should be reachable via errors.Is / errors.As
 		assert.ErrorIs(t, err, originalErr)
+	})
+}
+
+func TestWasmGuardCompilationCache(t *testing.T) {
+	t.Run("global compilation cache is not nil", func(t *testing.T) {
+		assert.NotNil(t, globalCompilationCache)
+	})
+
+	t.Run("custom cache is used when provided via options", func(t *testing.T) {
+		ctx := context.Background()
+
+		// Use a disk-backed cache in a temp dir so we can observe that it was used.
+		cacheDir := t.TempDir()
+		customCache, err := wazero.NewCompilationCacheWithDir(cacheDir)
+		require.NoError(t, err)
+		defer customCache.Close(ctx)
+
+		opts := &WasmGuardOptions{
+			CompilationCache: customCache,
+		}
+
+		// Instantiation will fail (minimal WASM), but the code path
+		// that selects the cache runs before module compilation, which
+		// should populate the disk-backed cache.
+		_, err = NewWasmGuardWithOptions(ctx, "cache-test", minimalGuardWasm, &mockBackendCaller{}, opts)
+		require.Error(t, err)
+
+		entries, readErr := os.ReadDir(cacheDir)
+		require.NoError(t, readErr)
+		assert.NotEmpty(t, entries, "expected compilation artifacts in custom cache directory")
+	})
+
+	t.Run("global cache is used when options cache is nil", func(t *testing.T) {
+		ctx := context.Background()
+
+		// Swap in a disk-backed global cache pointing at a temp dir so we can
+		// observe that the global cache path is actually exercised.
+		cacheDir := t.TempDir()
+		tmpCache, err := wazero.NewCompilationCacheWithDir(cacheDir)
+		require.NoError(t, err)
+
+		origCache := globalCompilationCache
+		globalCompilationCache = tmpCache
+		defer func() {
+			globalCompilationCache = origCache
+			tmpCache.Close(ctx)
+		}()
+
+		// nil opts → global cache path
+		_, err = NewWasmGuardWithOptions(ctx, "cache-test", minimalGuardWasm, &mockBackendCaller{}, nil)
+		require.Error(t, err)
+
+		entries, readErr := os.ReadDir(cacheDir)
+		require.NoError(t, readErr)
+		assert.NotEmpty(t, entries, "expected compilation artifacts in global cache directory")
+	})
+
+	t.Run("cache is disabled when DisableCompilationCache is true", func(t *testing.T) {
+		ctx := context.Background()
+
+		opts := &WasmGuardOptions{
+			DisableCompilationCache: true,
+		}
+
+		// Should still work (fail on minimal WASM) but without caching
+		_, err := NewWasmGuardWithOptions(ctx, "no-cache-test", minimalGuardWasm, &mockBackendCaller{}, opts)
+		require.Error(t, err)
 	})
 }
