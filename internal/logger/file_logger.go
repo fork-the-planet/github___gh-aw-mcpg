@@ -59,9 +59,7 @@ func InitFileLogger(logDir, fileName string) error {
 // withLock acquires fl.mu, executes fn, then releases fl.mu.
 // Use this in methods that return an error to avoid repeating the lock/unlock preamble.
 func (fl *FileLogger) withLock(fn func() error) error {
-	fl.mu.Lock()
-	defer fl.mu.Unlock()
-	return fn()
+	return withMutexLock(&fl.mu, fn)
 }
 
 // Close closes the log file

@@ -71,9 +71,7 @@ func (ml *MarkdownLogger) initializeFile() error {
 // withLock acquires ml.mu, executes fn, then releases ml.mu.
 // Use this in methods that return an error to avoid repeating the lock/unlock preamble.
 func (ml *MarkdownLogger) withLock(fn func() error) error {
-	ml.mu.Lock()
-	defer ml.mu.Unlock()
-	return fn()
+	return withMutexLock(&ml.mu, fn)
 }
 
 // Close closes the log file and writes the closing details tag
