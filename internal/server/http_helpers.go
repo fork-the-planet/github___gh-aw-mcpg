@@ -17,17 +17,11 @@ import (
 
 var logHelpers = logger.New("server:helpers")
 
-// writeJSONResponse sets the Content-Type header, writes the status code, and encodes
-// body as JSON. It centralises the three-line pattern used across HTTP handlers.
-func writeJSONResponse(w http.ResponseWriter, statusCode int, body interface{}) {
-	httputil.WriteJSONResponse(w, statusCode, body)
-}
-
 // writeErrorResponse writes a JSON error response with a consistent shape.
 // All HTTP error paths in the server package should use this helper to ensure
 // clients always receive application/json rather than text/plain.
 func writeErrorResponse(w http.ResponseWriter, statusCode int, code, message string) {
-	writeJSONResponse(w, statusCode, map[string]string{
+	httputil.WriteJSONResponse(w, statusCode, map[string]string{
 		"error":   code,
 		"message": message,
 	})

@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -23,7 +24,7 @@ func rejectIfShutdown(unifiedServer *UnifiedServer, next http.Handler, logNamesp
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if unifiedServer.IsShutdown() {
 			logger.LogWarn("shutdown", "Request rejected during shutdown, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
-			writeJSONResponse(w, http.StatusServiceUnavailable, json.RawMessage(shutdownErrorJSON))
+			httputil.WriteJSONResponse(w, http.StatusServiceUnavailable, json.RawMessage(shutdownErrorJSON))
 			return
 		}
 		next.ServeHTTP(w, r)

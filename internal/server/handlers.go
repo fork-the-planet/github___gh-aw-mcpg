@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
@@ -48,7 +49,7 @@ func handleClose(unifiedServer *UnifiedServer) http.Handler {
 		// Check if already closed (idempotency - spec 5.1.3)
 		if unifiedServer.IsShutdown() {
 			logger.LogWarn("shutdown", "Close endpoint called but gateway already closed, remote=%s", r.RemoteAddr)
-			writeJSONResponse(w, http.StatusGone, map[string]interface{}{
+			httputil.WriteJSONResponse(w, http.StatusGone, map[string]interface{}{
 				"error": "Gateway has already been closed",
 			})
 			return
@@ -60,7 +61,7 @@ func handleClose(unifiedServer *UnifiedServer) http.Handler {
 		logHandlers.Printf("Shutdown completed: servers_terminated=%d", serversTerminated)
 
 		// Return success response (spec 5.1.3)
-		writeJSONResponse(w, http.StatusOK, map[string]interface{}{
+		httputil.WriteJSONResponse(w, http.StatusOK, map[string]interface{}{
 			"status":            "closed",
 			"message":           "Gateway shutdown initiated",
 			"serversTerminated": serversTerminated,

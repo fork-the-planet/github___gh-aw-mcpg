@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/version"
 )
@@ -53,6 +54,6 @@ func HandleHealth(unifiedServer *UnifiedServer) http.HandlerFunc {
 
 		response := BuildHealthResponse(unifiedServer)
 		logHealth.Printf("Health response: status=%s, servers=%d", response.Status, len(response.Servers))
-		writeJSONResponse(w, http.StatusOK, response)
+		httputil.WriteJSONResponse(w, http.StatusOK, response)
 	}
 }
