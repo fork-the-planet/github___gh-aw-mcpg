@@ -1,7 +1,6 @@
 package difc
 
 import (
-	"log"
 	"sync"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
@@ -54,7 +53,7 @@ func (a *AgentLabels) modifyTag(labelType, action, pastTense string, tag Tag, fn
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	fn()
-	log.Printf("[DIFC] Agent %s %s %s tag: %s", a.AgentID, pastTense, labelType, tag)
+	logAgent.Printf("Agent %s %s %s tag: %s", a.AgentID, pastTense, labelType, tag)
 }
 
 // modifyTags is a helper for bulk label mutations, analogous to modifyTag.
@@ -72,7 +71,7 @@ func (a *AgentLabels) modifyTags(labelType, action, pastTense string, tags []Tag
 	defer a.mu.Unlock()
 	fn()
 	if len(tags) > 0 {
-		log.Printf("[DIFC] Agent %s %s %s tags: %v", a.AgentID, pastTense, labelType, tags)
+		logAgent.Printf("Agent %s %s %s tags: %v", a.AgentID, pastTense, labelType, tags)
 	}
 }
 
@@ -131,13 +130,13 @@ func (a *AgentLabels) ApplyPropagation(result *EvaluationResult) bool {
 	if len(result.SecrecyToAdd) > 0 {
 		a.AddSecrecyTags(result.SecrecyToAdd)
 		changed = true
-		log.Printf("[DIFC] Propagation: Agent %s tainted with secrecy tags %v", a.AgentID, result.SecrecyToAdd)
+		logAgent.Printf("Propagation: Agent %s tainted with secrecy tags %v", a.AgentID, result.SecrecyToAdd)
 	}
 
 	if len(result.IntegrityToDrop) > 0 {
 		a.DropIntegrityTags(result.IntegrityToDrop)
 		changed = true
-		log.Printf("[DIFC] Propagation: Agent %s lost integrity tags %v", a.AgentID, result.IntegrityToDrop)
+		logAgent.Printf("Propagation: Agent %s lost integrity tags %v", a.AgentID, result.IntegrityToDrop)
 	}
 
 	return changed
@@ -164,7 +163,7 @@ func (a *AgentLabels) AccumulateFromRead(resource *LabeledResource) {
 	if resource.Secrecy.Label != nil && !resource.Secrecy.Label.IsEmpty() {
 		prevTags := a.Secrecy.Label.GetTags()
 		a.Secrecy.Label.Union(resource.Secrecy.Label)
-		log.Printf("[DIFC] Agent %s secrecy UNION: %v + %v = %v",
+		logAgent.Printf("Agent %s secrecy UNION: %v + %v = %v",
 			a.AgentID, prevTags, resource.Secrecy.Label.GetTags(), a.Secrecy.Label.GetTags())
 	}
 
@@ -173,7 +172,7 @@ func (a *AgentLabels) AccumulateFromRead(resource *LabeledResource) {
 	if resource.Integrity.Label != nil {
 		prevTags := a.Integrity.Label.GetTags()
 		a.Integrity.Label.Intersect(resource.Integrity.Label)
-		log.Printf("[DIFC] Agent %s integrity INTERSECT: %v ∩ %v = %v",
+		logAgent.Printf("Agent %s integrity INTERSECT: %v ∩ %v = %v",
 			a.AgentID, prevTags, resource.Integrity.Label.GetTags(), a.Integrity.Label.GetTags())
 	}
 }
@@ -247,7 +246,7 @@ func (r *AgentRegistry) GetOrCreate(agentID string) *AgentLabels {
 
 	labels, _ := syncutil.GetOrCreate(&r.mu, r.agents, agentID, func() (*AgentLabels, error) {
 		labels := NewAgentLabelsWithTags(agentID, r.defaultSecrecy, r.defaultIntegrity)
-		log.Printf("[DIFC] Created new agent: %s with default labels (secrecy: %v, integrity: %v)",
+		logAgent.Printf("Created new agent: %s with default labels (secrecy: %v, integrity: %v)",
 			agentID, r.defaultSecrecy, r.defaultIntegrity)
 		return labels, nil
 	})
@@ -272,7 +271,7 @@ func (r *AgentRegistry) Register(agentID string, secrecyTags []Tag, integrityTag
 	labels := NewAgentLabelsWithTags(agentID, secrecyTags, integrityTags)
 	r.agents[agentID] = labels
 
-	log.Printf("[DIFC] Registered agent: %s with labels (secrecy: %v, integrity: %v)",
+	logAgent.Printf("Registered agent: %s with labels (secrecy: %v, integrity: %v)",
 		agentID, secrecyTags, integrityTags)
 
 	return labels
@@ -284,7 +283,7 @@ func (r *AgentRegistry) Remove(agentID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.agents, agentID)
-	log.Printf("[DIFC] Removed agent: %s", agentID)
+	logAgent.Printf("Removed agent: %s", agentID)
 }
 
 // Count returns the number of registered agents
@@ -313,5 +312,5 @@ func (r *AgentRegistry) SetDefaultLabels(secrecy []Tag, integrity []Tag) {
 	defer r.mu.Unlock()
 	r.defaultSecrecy = secrecy
 	r.defaultIntegrity = integrity
-	log.Printf("[DIFC] Updated default agent labels (secrecy: %v, integrity: %v)", secrecy, integrity)
+	logAgent.Printf("Updated default agent labels (secrecy: %v, integrity: %v)", secrecy, integrity)
 }
