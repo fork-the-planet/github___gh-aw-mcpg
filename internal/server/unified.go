@@ -110,25 +110,14 @@ type UnifiedServer struct {
 // NewUnified creates a new unified MCP server
 func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error) {
 	logUnified.Printf("Creating new unified server: sequentialLaunch=%v, servers=%d", cfg.SequentialLaunch, len(cfg.Servers))
+
 	l := launcher.New(ctx, cfg)
 
-	// Get payload directory from config, with fallback to default
-	payloadDir := config.DefaultPayloadDir
-	if cfg.Gateway != nil && cfg.Gateway.PayloadDir != "" {
-		payloadDir = cfg.Gateway.PayloadDir
-	}
-
-	// Get payload path prefix from config (empty by default)
-	payloadPathPrefix := ""
-	if cfg.Gateway != nil && cfg.Gateway.PayloadPathPrefix != "" {
-		payloadPathPrefix = cfg.Gateway.PayloadPathPrefix
-	}
-
-	// Get payload size threshold from config, with fallback to default
-	payloadSizeThreshold := config.DefaultPayloadSizeThreshold
-	if cfg.Gateway != nil && cfg.Gateway.PayloadSizeThreshold > 0 {
-		payloadSizeThreshold = cfg.Gateway.PayloadSizeThreshold
-	}
+	// Config loading guarantees cfg.Gateway is non-nil and all fields
+	// have defaults applied via applyGatewayDefaults/applyDefaults.
+	payloadDir := cfg.Gateway.PayloadDir
+	payloadPathPrefix := cfg.Gateway.PayloadPathPrefix
+	payloadSizeThreshold := cfg.Gateway.PayloadSizeThreshold
 	logUnified.Printf("Payload configuration: dir=%s, pathPrefix=%s, sizeThreshold=%d bytes (%.2f KB)",
 		payloadDir, payloadPathPrefix, payloadSizeThreshold, float64(payloadSizeThreshold)/1024)
 

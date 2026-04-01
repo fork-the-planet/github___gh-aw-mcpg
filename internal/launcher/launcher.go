@@ -55,14 +55,13 @@ func New(ctx context.Context, cfg *config.Config) *Launcher {
 		log.Println("[LAUNCHER] Detected running inside a container")
 	}
 
-	// Get startup timeout from config, default to config.DefaultStartupTimeout seconds
-	startupTimeout := time.Duration(config.DefaultStartupTimeout) * time.Second
-	if cfg.Gateway != nil && cfg.Gateway.StartupTimeout > 0 {
-		startupTimeout = time.Duration(cfg.Gateway.StartupTimeout) * time.Second
-		logLauncher.Printf("Using configured startup timeout: %v", startupTimeout)
-	} else {
-		logLauncher.Printf("Using default startup timeout: %v", startupTimeout)
-	}
+	// Guarantee cfg.Gateway is non-nil with defaults applied.
+	// LoadFromFile/LoadFromStdin already ensure this, but tests may
+	// construct configs manually without going through the load path.
+	cfg.EnsureGatewayDefaults()
+
+	startupTimeout := time.Duration(cfg.Gateway.StartupTimeout) * time.Second
+	logLauncher.Printf("Using startup timeout: %v", startupTimeout)
 
 	// Initialize OIDC provider from environment if available
 	var oidcProvider *oidc.Provider

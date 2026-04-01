@@ -527,6 +527,7 @@ func TestGetOrLaunchForSession_SessionReuse(t *testing.T) {
 	ctx := context.Background()
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{},
+		Gateway: &config.GatewayConfig{StartupTimeout: config.DefaultStartupTimeout},
 	}
 	l := New(ctx, cfg)
 	defer l.Close()
@@ -606,7 +607,8 @@ func TestLauncher_StartupTimeout(t *testing.T) {
 }
 
 func TestLauncher_TimeoutWithNilGateway(t *testing.T) {
-	// Test that launcher uses default timeout when Gateway config is nil
+	// Test that launcher uses default timeout when Gateway config is nil.
+	// EnsureGatewayDefaults is called by launcher.New, so nil Gateway is safe.
 	ctx := context.Background()
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{
@@ -615,7 +617,7 @@ func TestLauncher_TimeoutWithNilGateway(t *testing.T) {
 				URL:  "http://example.com",
 			},
 		},
-		Gateway: nil, // No gateway config
+		Gateway: nil, // No gateway config — EnsureGatewayDefaults fills defaults
 	}
 
 	l := New(ctx, cfg)
