@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/syncutil"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -31,27 +30,53 @@ func rejectIfShutdown(unifiedServer *UnifiedServer, next http.Handler, logNamesp
 	})
 }
 
-// filteredServerCache caches filtered server instances per (backend, session) key
+// filteredServerCache caches filtered server instances per (backend, session) key.
+// Entries are evicted after the configured TTL to prevent unbounded memory growth
+// in long-running deployments with many sessions.
 type filteredServerCache struct {
-	servers map[string]*sdk.Server
+	servers map[string]*filteredServerEntry
+	ttl     time.Duration
 	mu      sync.RWMutex
 }
 
-// newFilteredServerCache creates a new server cache
-func newFilteredServerCache() *filteredServerCache {
+type filteredServerEntry struct {
+	server   *sdk.Server
+	lastUsed time.Time
+}
+
+// newFilteredServerCache creates a new server cache with the given entry TTL.
+func newFilteredServerCache(ttl time.Duration) *filteredServerCache {
 	return &filteredServerCache{
-		servers: make(map[string]*sdk.Server),
+		servers: make(map[string]*filteredServerEntry),
+		ttl:     ttl,
 	}
 }
 
-// getOrCreate returns a cached server or creates a new one
+// getOrCreate returns a cached server or creates a new one.
+// Expired entries are lazily evicted on each call.
 func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator func() *sdk.Server) *sdk.Server {
 	key := fmt.Sprintf("%s/%s", backendID, sessionID)
+	now := time.Now()
 
-	server, _ := syncutil.GetOrCreate(&c.mu, c.servers, key, func() (*sdk.Server, error) {
-		logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, sessionID)
-		return creator(), nil
-	})
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Lazy eviction of expired entries
+	for k, entry := range c.servers {
+		if now.Sub(entry.lastUsed) > c.ttl {
+			logRouted.Printf("[CACHE] Evicting expired server: key=%s (idle %s)", k, now.Sub(entry.lastUsed).Round(time.Second))
+			delete(c.servers, k)
+		}
+	}
+
+	if entry, ok := c.servers[key]; ok {
+		entry.lastUsed = now
+		return entry.server
+	}
+
+	logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, sessionID)
+	server := creator()
+	c.servers[key] = &filteredServerEntry{server: server, lastUsed: now}
 	return server
 }
 
@@ -71,8 +96,10 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 	allBackends := unifiedServer.GetServerIDs()
 	logRouted.Printf("Registering routes for %d backends: %v", len(allBackends), allBackends)
 
-	// Create server cache for session-aware server instances
-	serverCache := newFilteredServerCache()
+	// Create server cache for session-aware server instances.
+	// TTL matches the SDK SessionTimeout so cache entries expire with sessions.
+	routedSessionTimeout := 30 * time.Minute
+	serverCache := newFilteredServerCache(routedSessionTimeout)
 
 	// Create a proxy for each backend server
 	for _, serverID := range allBackends {
@@ -95,7 +122,7 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 		}, &sdk.StreamableHTTPOptions{
 			Stateless:      false,
 			Logger:         logger.NewSlogLoggerWithHandler(logRouted),
-			SessionTimeout: 30 * time.Minute,
+			SessionTimeout: routedSessionTimeout,
 		})
 
 		// Apply standard middleware stack (SDK logging → shutdown check → auth)

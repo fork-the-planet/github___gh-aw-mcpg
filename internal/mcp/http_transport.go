@@ -48,7 +48,9 @@ type httpRequestResult struct {
 	Header       http.Header
 }
 
-// transportConnector is a function that creates an SDK transport for a given URL and HTTP client
+// transportConnector is a function that creates an SDK transport for a given URL and HTTP client.
+// The returned transport is owned by the SDK client session after Connect() succeeds;
+// callers must not close it directly — it is cleaned up when the session is closed.
 type transportConnector func(url string, httpClient *http.Client) sdk.Transport
 
 // isHTTPConnectionError checks if an error is a network connection error.

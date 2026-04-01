@@ -8,15 +8,6 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// resourceContents mirrors sdk.ResourceContents for JSON unmarshaling of
-// embedded resource content items returned by backend MCP servers.
-type resourceContents struct {
-	URI      string `json:"uri"`
-	MIMEType string `json:"mimeType,omitempty"`
-	Text     string `json:"text,omitempty"`
-	Blob     []byte `json:"blob,omitempty"`
-}
-
 var logToolResult = logger.New("mcp:tool_result")
 
 // ConvertToCallToolResult converts backend result data to SDK CallToolResult format.
@@ -70,11 +61,11 @@ func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 	// Parse the backend result structure (standard MCP CallToolResult format)
 	var backendResult struct {
 		Content []struct {
-			Type     string            `json:"type"`
-			Text     string            `json:"text,omitempty"`
-			Data     []byte            `json:"data,omitempty"`     // image/audio binary data (automatically decoded from base64 JSON)
-			MIMEType string            `json:"mimeType,omitempty"` // image/audio MIME type
-			Resource *resourceContents `json:"resource,omitempty"` // embedded resource
+			Type     string                `json:"type"`
+			Text     string                `json:"text,omitempty"`
+			Data     []byte                `json:"data,omitempty"`     // image/audio binary data (automatically decoded from base64 JSON)
+			MIMEType string                `json:"mimeType,omitempty"` // image/audio MIME type
+			Resource *sdk.ResourceContents `json:"resource,omitempty"` // embedded resource
 		} `json:"content"`
 		IsError bool `json:"isError,omitempty"`
 	}
@@ -114,12 +105,7 @@ func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 		case "resource":
 			if item.Resource != nil {
 				content = append(content, &sdk.EmbeddedResource{
-					Resource: &sdk.ResourceContents{
-						URI:      item.Resource.URI,
-						MIMEType: item.Resource.MIMEType,
-						Text:     item.Resource.Text,
-						Blob:     item.Resource.Blob,
-					},
+					Resource: item.Resource,
 				})
 			} else {
 				logToolResult.Printf("Resource content item missing 'resource' field, skipping")

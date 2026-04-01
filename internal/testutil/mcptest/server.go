@@ -36,7 +36,7 @@ func (s *Server) Start() error {
 		Version: s.config.Version,
 	}
 
-	s.server = sdk.NewServer(impl, nil)
+	s.server = sdk.NewServer(impl, &sdk.ServerOptions{})
 
 	// Register tools
 	for i, toolCfg := range s.config.Tools {
