@@ -20,15 +20,11 @@ func TestInitMarkdownLogger(t *testing.T) {
 	defer CloseMarkdownLogger()
 
 	// Check that the log directory was created
-	if _, err := os.Stat(logDir); os.IsNotExist(err) {
-		t.Errorf("Log directory was not created: %s", logDir)
-	}
+	assert.DirExists(t, logDir, "Log directory was not created: %s", logDir)
 
 	// Check that the log file was created
 	logPath := filepath.Join(logDir, fileName)
-	if _, err := os.Stat(logPath); os.IsNotExist(err) {
-		t.Errorf("Log file was not created: %s", logPath)
-	}
+	assert.FileExists(t, logPath, "Log file was not created: %s", logPath)
 }
 
 func TestMarkdownLoggerFormatting(t *testing.T) {
@@ -55,9 +51,9 @@ func TestMarkdownLoggerFormatting(t *testing.T) {
 	logContent := string(content)
 
 	// Check for HTML details wrapper
-	assert.True(t, strings.Contains(logContent, "<details>"), "Log file does not contain opening <details> tag")
-	assert.True(t, strings.Contains(logContent, "<summary>MCP Gateway</summary>"), "Log file does not contain summary tag")
-	assert.True(t, strings.Contains(logContent, "</details>"), "Log file does not contain closing </details> tag")
+	assert.Contains(t, logContent, "<details>", "Log file does not contain opening <details> tag")
+	assert.Contains(t, logContent, "<summary>MCP Gateway</summary>", "Log file does not contain summary tag")
+	assert.Contains(t, logContent, "</details>", "Log file does not contain closing </details> tag")
 
 	// Check for emoji bullet points
 	expectedEmojis := []struct {
@@ -71,16 +67,12 @@ func TestMarkdownLoggerFormatting(t *testing.T) {
 	}
 
 	for _, expected := range expectedEmojis {
-		if !strings.Contains(logContent, expected.emoji) {
-			t.Errorf("Log file does not contain emoji: %s", expected.emoji)
-		}
-		if !strings.Contains(logContent, expected.message) {
-			t.Errorf("Log file does not contain message: %s", expected.message)
-		}
+		assert.Contains(t, logContent, expected.emoji, "Log file does not contain emoji: %s", expected.emoji)
+		assert.Contains(t, logContent, expected.message, "Log file does not contain message: %s", expected.message)
 	}
 
 	// Check for markdown bullet points
-	assert.True(t, strings.Contains(logContent, "- ✓"), "Log file does not contain markdown bullet points")
+	assert.Contains(t, logContent, "- ✓", "Log file does not contain markdown bullet points")
 }
 
 func TestMarkdownLoggerSecretSanitization(t *testing.T) {
@@ -140,16 +132,14 @@ func TestMarkdownLoggerSecretSanitization(t *testing.T) {
 	}
 
 	for _, secret := range secretStrings {
-		if strings.Contains(logContent, secret) {
-			t.Errorf("Log file contains secret that should be redacted: %s", secret)
-		}
+		assert.NotContains(t, logContent, secret, "Log file contains secret that should be redacted: %s", secret)
 	}
 
 	// Verify redaction marker is present
-	assert.True(t, strings.Contains(logContent, "[REDACTED]"), "Log file does not contain [REDACTED] marker")
+	assert.Contains(t, logContent, "[REDACTED]", "Log file does not contain [REDACTED] marker")
 
 	// Verify normal message is not redacted
-	assert.True(t, strings.Contains(logContent, "Normal log message without secrets"), "Log file does not contain non-secret message")
+	assert.Contains(t, logContent, "Normal log message without secrets", "Log file does not contain non-secret message")
 }
 
 func TestMarkdownLoggerCategories(t *testing.T) {
@@ -177,9 +167,7 @@ func TestMarkdownLoggerCategories(t *testing.T) {
 
 	// Verify all categories are present
 	for _, category := range categories {
-		if !strings.Contains(logContent, category) {
-			t.Errorf("Log file does not contain category: %s", category)
-		}
+		assert.Contains(t, logContent, category, "Log file does not contain category: %s", category)
 	}
 }
 
@@ -248,7 +236,7 @@ func TestMarkdownLoggerCodeBlocks(t *testing.T) {
 
 	// Check for code blocks for technical content
 	codeBlockCount := strings.Count(logContent, "```")
-	assert.False(t, codeBlockCount < 2, "Expected at least 2 code block markers (opening and closing), got %d")
+	assert.GreaterOrEqual(t, codeBlockCount, 2, "Expected at least 2 code block markers (opening and closing), got %d", codeBlockCount)
 }
 
 func TestMarkdownLoggerFallback(t *testing.T) {
@@ -301,28 +289,26 @@ func TestMarkdownLoggerRPCFormatting(t *testing.T) {
 
 	// RPC messages should be on single lines (not wrapped in code blocks)
 	// Check that "- 🔍 rpc **github**→`tools/list`" is on one line
-	assert.True(t, strings.Contains(logContent, "- 🔍 rpc **github**→`tools/list`"), "RPC message should be on single line without extra code block wrapping")
+	assert.Contains(t, logContent, "- 🔍 rpc **github**→`tools/list`", "RPC message should be on single line without extra code block wrapping")
 
 	// Check that RPC messages with JSON blocks are properly formatted
 	// The title should be on one line, followed by the JSON block INDENTED with 2 spaces
-	assert.True(t, strings.Contains(logContent, "- 🔍 rpc **safeoutputs**→`tools/call`"), "RPC message with JSON should have title on single line")
+	assert.Contains(t, logContent, "- 🔍 rpc **safeoutputs**→`tools/call`", "RPC message with JSON should have title on single line")
 
 	// Verify that JSON code block lines are properly indented under the bullet point
 	// The empty line after the first line should be indented
-	assert.True(t, strings.Contains(logContent, "- 🔍 rpc **safeoutputs**→`tools/call`\n  \n  ```json"), "JSON code block should be indented with 2 spaces")
+	assert.Contains(t, logContent, "- 🔍 rpc **safeoutputs**→`tools/call`\n  \n  ```json", "JSON code block should be indented with 2 spaces")
 
 	// Verify the closing code fence is also indented
-	assert.True(t, strings.Contains(logContent, "  ```"), "Closing code fence should be indented")
+	assert.Contains(t, logContent, "  ```", "Closing code fence should be indented")
 
 	// Regular multi-line messages should still use code blocks
-	assert.True(t, strings.Contains(logContent, "- ✓ **backend**\n  ```\n  command="), "Regular multi-line messages should still use code blocks")
+	assert.Contains(t, logContent, "- ✓ **backend**\n  ```\n  command=", "Regular multi-line messages should still use code blocks")
 
 	// Count occurrences of nested code blocks (should not happen)
 	// A nested code block would look like: ``` \n  **server** \n ```
 	nestedPattern := "```\n  **"
-	if strings.Contains(logContent, nestedPattern) {
-		t.Errorf("Found nested code blocks - RPC messages should not be double-wrapped")
-	}
+	assert.NotContains(t, logContent, nestedPattern, "Found nested code blocks - RPC messages should not be double-wrapped")
 }
 
 func TestMarkdownLoggerMultiLineErrors(t *testing.T) {
@@ -331,9 +317,7 @@ func TestMarkdownLoggerMultiLineErrors(t *testing.T) {
 	fileName := "error-test.md"
 
 	err := InitMarkdownLogger(logDir, fileName)
-	if err != nil {
-		t.Fatalf("InitMarkdownLogger failed: %v", err)
-	}
+	require.NoError(t, err, "InitMarkdownLogger failed")
 
 	// Test multi-line error message (like JSON schema validation errors)
 	errorMsg := `Configuration validation error (MCP Gateway version: dev):
@@ -355,33 +339,41 @@ Please check your configuration`
 	// Read the log file
 	logPath := filepath.Join(logDir, fileName)
 	content, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("Failed to read log file: %v", err)
-	}
+	require.NoError(t, err, "Failed to read log file")
 
 	logContent := string(content)
 
 	// Check for error emoji
-	if !strings.Contains(logContent, "✗") {
-		t.Errorf("Log file does not contain error emoji")
-	}
+	assert.Contains(t, logContent, "✗", "Log file does not contain error emoji")
 
 	// Check for startup category
-	if !strings.Contains(logContent, "startup") {
-		t.Errorf("Log file does not contain startup category")
-	}
+	assert.Contains(t, logContent, "startup", "Log file does not contain startup category")
 
 	// Check for code block formatting (multi-line errors should use code blocks)
-	if !strings.Contains(logContent, "```") {
-		t.Errorf("Log file does not contain code block markers for multi-line error")
-	}
+	assert.Contains(t, logContent, "```", "Log file does not contain code block markers for multi-line error")
 
 	// Check that the error message content is present
-	if !strings.Contains(logContent, "Configuration validation error") {
-		t.Errorf("Log file does not contain error message content")
+	assert.Contains(t, logContent, "Configuration validation error", "Log file does not contain error message content")
+	assert.Contains(t, logContent, "missing properties", "Log file does not contain error details")
+}
+
+// TestGetEmojiForLevel covers all branches including the default case.
+func TestGetEmojiForLevel(t *testing.T) {
+	tests := []struct {
+		name     string
+		level    LogLevel
+		expected string
+	}{
+		{name: "info returns checkmark", level: LogLevelInfo, expected: "✓"},
+		{name: "warn returns warning emoji", level: LogLevelWarn, expected: "⚠️"},
+		{name: "error returns cross", level: LogLevelError, expected: "✗"},
+		{name: "debug returns magnifying glass", level: LogLevelDebug, expected: "🔍"},
+		{name: "unknown level returns bullet", level: LogLevel("UNKNOWN"), expected: "•"},
 	}
 
-	if !strings.Contains(logContent, "missing properties") {
-		t.Errorf("Log file does not contain error details")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, getEmojiForLevel(tt.level))
+		})
 	}
 }
