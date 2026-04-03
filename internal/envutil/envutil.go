@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // GetEnvString returns the value of the environment variable specified by envKey.
@@ -23,6 +24,18 @@ func GetEnvInt(envKey string, defaultValue int) int {
 	if envValue := os.Getenv(envKey); envValue != "" {
 		if value, err := strconv.Atoi(envValue); err == nil && value > 0 {
 			return value
+		}
+	}
+	return defaultValue
+}
+
+// GetEnvDuration returns the time.Duration value of the environment variable specified by envKey.
+// If the environment variable is not set, is empty, or cannot be parsed by time.ParseDuration,
+// it returns the defaultValue. Accepts any string valid for time.ParseDuration (e.g. "2h", "30m", "90s").
+func GetEnvDuration(envKey string, defaultValue time.Duration) time.Duration {
+	if envValue := os.Getenv(envKey); envValue != "" {
+		if d, err := time.ParseDuration(envValue); err == nil && d > 0 {
+			return d
 		}
 	}
 	return defaultValue

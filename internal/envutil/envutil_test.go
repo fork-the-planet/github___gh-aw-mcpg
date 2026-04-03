@@ -3,9 +3,129 @@ package envutil
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestGetEnvDuration(t *testing.T) {
+	tests := []struct {
+		name         string
+		envKey       string
+		envValue     string
+		setEnv       bool
+		defaultValue time.Duration
+		expected     time.Duration
+	}{
+		{
+			name:         "env var set to '2h' - returns 2 hours",
+			envKey:       "TEST_DURATION_VAR",
+			envValue:     "2h",
+			setEnv:       true,
+			defaultValue: 30 * time.Minute,
+			expected:     2 * time.Hour,
+		},
+		{
+			name:         "env var set to '30m' - returns 30 minutes",
+			envKey:       "TEST_DURATION_VAR",
+			envValue:     "30m",
+			setEnv:       true,
+			defaultValue: 2 * time.Hour,
+			expected:     30 * time.Minute,
+		},
+		{
+			name:         "env var set to '90s' - returns 90 seconds",
+			envKey:       "TEST_DURATION_VAR",
+			envValue:     "90s",
+			setEnv:       true,
+			defaultValue: 2 * time.Hour,
+			expected:     90 * time.Second,
+		},
+		{
+			name:         "env var not set - returns default",
+			envKey:       "TEST_DURATION_VAR",
+			setEnv:       false,
+			defaultValue: 2 * time.Hour,
+			expected:     2 * time.Hour,
+		},
+		{
+			name:         "env var empty string - returns default",
+			envKey:       "TEST_DURATION_VAR",
+			envValue:     "",
+			setEnv:       true,
+			defaultValue: 2 * time.Hour,
+			expected:     2 * time.Hour,
+		},
+		{
+			name:         "env var with invalid value - returns default",
+			envKey:       "TEST_DURATION_VAR",
+			envValue:     "invalid",
+			setEnv:       true,
+			defaultValue: 2 * time.Hour,
+			expected:     2 * time.Hour,
+		},
+		{
+			name:         "env var with zero duration - returns default",
+			envKey:       "TEST_DURATION_VAR",
+			envValue:     "0s",
+			setEnv:       true,
+			defaultValue: 2 * time.Hour,
+			expected:     2 * time.Hour,
+		},
+		{
+			name:         "env var with negative duration - returns default",
+			envKey:       "TEST_DURATION_VAR",
+			envValue:     "-1h",
+			setEnv:       true,
+			defaultValue: 2 * time.Hour,
+			expected:     2 * time.Hour,
+		},
+		{
+			name:         "env var with mixed units - returns parsed duration",
+			envKey:       "TEST_DURATION_VAR",
+			envValue:     "1h30m",
+			setEnv:       true,
+			defaultValue: 2 * time.Hour,
+			expected:     90 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Unsetenv(tt.envKey)
+			defer os.Unsetenv(tt.envKey)
+
+			if tt.setEnv {
+				os.Setenv(tt.envKey, tt.envValue)
+			}
+
+			result := GetEnvDuration(tt.envKey, tt.defaultValue)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestGetEnvDurationRealWorldScenarios tests realistic usage scenarios
+func TestGetEnvDurationRealWorldScenarios(t *testing.T) {
+	t.Run("session timeout configuration", func(t *testing.T) {
+		os.Unsetenv("MCP_GATEWAY_SESSION_TIMEOUT")
+		defer os.Unsetenv("MCP_GATEWAY_SESSION_TIMEOUT")
+
+		// Default case
+		result := GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 2*time.Hour)
+		assert.Equal(t, 2*time.Hour, result)
+
+		// Override with shorter timeout
+		os.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "30m")
+		result = GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 2*time.Hour)
+		assert.Equal(t, 30*time.Minute, result)
+
+		// Override with longer timeout
+		os.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "4h")
+		result = GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 2*time.Hour)
+		assert.Equal(t, 4*time.Hour, result)
+	})
+}
 
 func TestGetEnvString(t *testing.T) {
 	tests := []struct {

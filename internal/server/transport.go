@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -35,9 +36,9 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey st
 
 		return unifiedServer.server
 	}, &sdk.StreamableHTTPOptions{
-		Stateless:      false,                                         // Support stateful sessions
-		Logger:         logger.NewSlogLoggerWithHandler(logTransport), // Integrate SDK logging with project logger
-		SessionTimeout: 2 * time.Hour,                                 // 2h accommodates long-running workflows with idle periods
+		Stateless:      false,                                                              // Support stateful sessions
+		Logger:         logger.NewSlogLoggerWithHandler(logTransport),                      // Integrate SDK logging with project logger
+		SessionTimeout: envutil.GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 2*time.Hour), // Configurable; 2h default accommodates long-running workflows with idle periods
 	})
 
 	// Apply standard middleware stack (SDK logging → shutdown check → auth)
