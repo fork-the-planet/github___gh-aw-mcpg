@@ -264,75 +264,6 @@ pub fn is_repo_org_owned(owner: &str, repo: &str) -> Option<bool> {
     get_cached_owner_is_org(&repo_id)
 }
 
-/// Determine whether a pull request is from a fork.
-///
-/// This helper calls `pull_request_read` through the provided backend callback,
-/// extracts `base.repo.full_name` and `head.repo.full_name`, and returns:
-/// - `Some(true)` if the PR is from a fork (head repo differs from base repo)
-/// - `Some(false)` if the PR is direct (same repository)
-/// - `None` if the result cannot be determined
-#[allow(dead_code)]
-pub fn is_forked_pull_request_with_callback(
-    callback: GithubMcpCallback,
-    owner: &str,
-    repo: &str,
-    pull_number: &str,
-) -> Option<bool> {
-    if owner.is_empty() || repo.is_empty() || pull_number.is_empty() {
-        return None;
-    }
-
-    let args = serde_json::json!({
-        "owner": owner,
-        "repo": repo,
-        "pullNumber": pull_number,
-        "method": "get",
-    });
-
-    let args_str = args.to_string();
-    let mut result_buffer = vec![0u8; SMALL_BUFFER_SIZE];
-
-    crate::log_debug(&format!(
-        "Checking PR origin for {}/{}#{}",
-        owner, repo, pull_number
-    ));
-
-    let len = match callback("pull_request_read", &args_str, &mut result_buffer) {
-        Ok(len) if len > 0 => len,
-        Ok(_) => return None,
-        Err(code) => {
-            crate::log_warn(&format!(
-                "Failed to check PR origin for {}/{}#{}: error code {}",
-                owner, repo, pull_number, code
-            ));
-            return None;
-        }
-    };
-
-    let response_str = std::str::from_utf8(&result_buffer[..len]).ok()?;
-    let response = serde_json::from_str::<Value>(response_str).ok()?;
-    let pr = super::extract_mcp_response(&response);
-
-    let base_full_name = pr
-        .get("base")
-        .and_then(|b| b.get("repo"))
-        .and_then(|r| r.get("full_name"))
-        .and_then(|v| v.as_str());
-
-    let head_full_name = pr
-        .get("head")
-        .and_then(|h| h.get("repo"))
-        .and_then(|r| r.get("full_name"))
-        .and_then(|v| v.as_str());
-
-    match (base_full_name, head_full_name) {
-        (Some(base), Some(head)) if !base.is_empty() && !head.is_empty() => {
-            Some(!base.eq_ignore_ascii_case(head))
-        }
-        _ => None,
-    }
-}
-
 /// Fetch pull request facts used for integrity derivation.
 pub fn get_pull_request_facts_with_callback(
     callback: GithubMcpCallback,
@@ -676,6 +607,74 @@ fn extract_rate_reset_seconds(error_text: &str) -> Option<u64> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// Determine whether a pull request is from a fork.
+    ///
+    /// This helper calls `pull_request_read` through the provided backend callback,
+    /// extracts `base.repo.full_name` and `head.repo.full_name`, and returns:
+    /// - `Some(true)` if the PR is from a fork (head repo differs from base repo)
+    /// - `Some(false)` if the PR is direct (same repository)
+    /// - `None` if the result cannot be determined
+    fn is_forked_pull_request_with_callback(
+        callback: GithubMcpCallback,
+        owner: &str,
+        repo: &str,
+        pull_number: &str,
+    ) -> Option<bool> {
+        if owner.is_empty() || repo.is_empty() || pull_number.is_empty() {
+            return None;
+        }
+
+        let args = serde_json::json!({
+            "owner": owner,
+            "repo": repo,
+            "pullNumber": pull_number,
+            "method": "get",
+        });
+
+        let args_str = args.to_string();
+        let mut result_buffer = vec![0u8; SMALL_BUFFER_SIZE];
+
+        crate::log_debug(&format!(
+            "Checking PR origin for {}/{}#{}",
+            owner, repo, pull_number
+        ));
+
+        let len = match callback("pull_request_read", &args_str, &mut result_buffer) {
+            Ok(len) if len > 0 => len,
+            Ok(_) => return None,
+            Err(code) => {
+                crate::log_warn(&format!(
+                    "Failed to check PR origin for {}/{}#{}: error code {}",
+                    owner, repo, pull_number, code
+                ));
+                return None;
+            }
+        };
+
+        let response_str = std::str::from_utf8(&result_buffer[..len]).ok()?;
+        let response = serde_json::from_str::<Value>(response_str).ok()?;
+        let pr = crate::labels::extract_mcp_response(&response);
+
+        let base_full_name = pr
+            .get("base")
+            .and_then(|b| b.get("repo"))
+            .and_then(|r| r.get("full_name"))
+            .and_then(|v| v.as_str());
+
+        let head_full_name = pr
+            .get("head")
+            .and_then(|h| h.get("repo"))
+            .and_then(|r| r.get("full_name"))
+            .and_then(|v| v.as_str());
+
+        match (base_full_name, head_full_name) {
+            (Some(base), Some(head)) if !base.is_empty() && !head.is_empty() => {
+                Some(!base.eq_ignore_ascii_case(head))
+            }
+            _ => None,
+        }
+    }
 
     fn copy_payload(payload: Value, buffer: &mut [u8]) -> Result<usize, i32> {
         let serialized = payload.to_string();
