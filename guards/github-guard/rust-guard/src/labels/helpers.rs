@@ -12,7 +12,7 @@ use super::constants::{field_names, label_constants};
 /// number segment from `html_url` or `url` (e.g. `.../issues/123` → `123`).
 /// Returns "unknown" (with a log warning) if no number can be determined.
 pub(crate) fn extract_resource_number(item: &Value, resource_type: &str, repo: &str) -> String {
-    if let Some(n) = item.get("number").and_then(|v| v.as_u64()) {
+    if let Some(n) = item.get(field_names::NUMBER).and_then(|v| v.as_u64()) {
         return n.to_string();
     }
     // Fallback: extract trailing number from html_url or url
@@ -298,7 +298,7 @@ fn apply_approval_label_promotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if let Some(label) = first_matching_approval_label(item, ctx) {
-        let number = item.get("number").and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} promoted to approved (label '{}' in approval-labels)",
             resource_type, repo_full_name, number, label
@@ -603,13 +603,13 @@ pub(crate) fn extract_repo_from_github_url(url: &str) -> Option<String> {
 /// Returns empty string if no repo info found
 pub fn extract_repo_from_item(item: &Value) -> String {
     // Direct full_name (repositories)
-    if let Some(name) = item.get("full_name").and_then(|v| v.as_str()) {
+    if let Some(name) = item.get(field_names::FULL_NAME).and_then(|v| v.as_str()) {
         return name.to_string();
     }
     // repository.full_name (issues, PRs with repo info)
     if let Some(name) = item
         .get("repository")
-        .and_then(|r| r.get("full_name"))
+        .and_then(|r| r.get(field_names::FULL_NAME))
         .and_then(|v| v.as_str())
     {
         return name.to_string();
@@ -618,7 +618,7 @@ pub fn extract_repo_from_item(item: &Value) -> String {
     if let Some(name) = item
         .get("base")
         .and_then(|b| b.get("repo"))
-        .and_then(|r| r.get("full_name"))
+        .and_then(|r| r.get(field_names::FULL_NAME))
         .and_then(|v| v.as_str())
     {
         return name.to_string();
@@ -627,7 +627,7 @@ pub fn extract_repo_from_item(item: &Value) -> String {
     if let Some(name) = item
         .get("head")
         .and_then(|h| h.get("repo"))
-        .and_then(|r| r.get("full_name"))
+        .and_then(|r| r.get(field_names::FULL_NAME))
         .and_then(|v| v.as_str())
     {
         return name.to_string();
@@ -925,12 +925,12 @@ pub fn author_association_floor_from_str(
 /// Returns empty string if no login found.
 fn extract_author_login(item: &Value) -> &str {
     // Issues and PRs use user.login
-    let login = get_nested_str(item, "user", "login");
+    let login = get_nested_str(item, "user", field_names::LOGIN);
     if !login.is_empty() {
         return login;
     }
     // Commits use author.login
-    get_nested_str(item, "author", "login")
+    get_nested_str(item, "author", field_names::LOGIN)
 }
 
 /// Check whether an item contains an `author_association` (or `authorAssociation`) field.
@@ -1036,7 +1036,7 @@ pub fn pr_integrity(
     // Step 1: Check if author is in blocked_users — takes precedence over all other rules.
     let author_login = extract_author_login(item);
     if !author_login.is_empty() && is_blocked_user(author_login, ctx) {
-        let number = item.get("number").and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         crate::log_info(&format!(
             "[integrity] pr:{}#{} → blocked (author '{}' in blocked-users)",
             repo_full_name, number, author_login
@@ -1062,7 +1062,7 @@ pub fn pr_integrity(
     // and merge status.
     if integrity.is_empty() && !has_author_association(item) && !repo_private {
         let number_opt = item
-            .get("number")
+            .get(field_names::NUMBER)
             .and_then(|v| v.as_u64())
             .map(|n| n.to_string())
             .or_else(|| extract_number_from_url(item));
@@ -1176,7 +1176,7 @@ pub fn issue_integrity(
     // Step 1: Check if author is in blocked_users — takes precedence over all other rules.
     let author_login = extract_author_login(item);
     if !author_login.is_empty() && is_blocked_user(author_login, ctx) {
-        let number = item.get("number").and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         crate::log_info(&format!(
             "[integrity] issue:{}#{} → blocked (author '{}' in blocked-users)",
             repo_full_name, number, author_login
@@ -1192,7 +1192,7 @@ pub fn issue_integrity(
     // incorrectly assigning "none" integrity to members/collaborators.
     if integrity.is_empty() && !has_author_association(item) && !repo_private {
         let number_opt = item
-            .get("number")
+            .get(field_names::NUMBER)
             .and_then(|v| v.as_u64())
             .map(|n| n.to_string())
             .or_else(|| extract_number_from_url(item));

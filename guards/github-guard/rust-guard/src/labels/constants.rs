@@ -39,6 +39,11 @@ pub mod field_names {
     pub const SHA: &str = "sha";
     pub const MERGED_AT: &str = "merged_at";
     pub const MERGED: &str = "merged";
+    // Commonly accessed response fields
+    pub const FULL_NAME: &str = "full_name";
+    pub const NUMBER: &str = "number";
+    pub const PRIVATE: &str = "private";
+    pub const LOGIN: &str = "login";
 }
 
 /// Sensitive file patterns for detecting secret-containing files

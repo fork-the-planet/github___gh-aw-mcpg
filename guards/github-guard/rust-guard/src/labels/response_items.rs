@@ -10,6 +10,7 @@
 //! Use path-based labeling (`label_response_paths`) when possible for better
 //! performance with large result sets.
 
+use super::constants::field_names;
 use super::extract_mcp_response;
 use super::helpers::*;
 use crate::{LabeledItem, ResourceLabels};
@@ -53,8 +54,8 @@ pub fn label_response_items(
 
                 let mut private_count = 0;
                 for (i, item) in items_to_process.iter().enumerate() {
-                    let is_private = get_bool_or(item, "private", false);
-                    let full_name = get_str_or(item, "full_name", "unknown");
+                    let is_private = get_bool_or(item, field_names::PRIVATE, false);
+                    let full_name = get_str_or(item, field_names::FULL_NAME, "unknown");
 
                     // Repository metadata has approved-level integrity (endorsed by maintainers)
                     let integrity = writer_integrity(full_name, ctx);
@@ -165,12 +166,12 @@ pub fn label_response_items(
                     let base_head_repo = item
                         .get("base")
                         .and_then(|b| b.get("repo"))
-                        .and_then(|r| r.get("full_name"))
+                        .and_then(|r| r.get(field_names::FULL_NAME))
                         .and_then(|v| v.as_str())
                         .or_else(|| {
                             item.get("head")
                                 .and_then(|h| h.get("repo"))
-                                .and_then(|r| r.get("full_name"))
+                                .and_then(|r| r.get(field_names::FULL_NAME))
                                 .and_then(|v| v.as_str())
                         })
                         .unwrap_or("");
@@ -192,12 +193,12 @@ pub fn label_response_items(
                     let is_forked = item
                         .get("base")
                         .and_then(|b| b.get("repo"))
-                        .and_then(|r| r.get("full_name"))
+                        .and_then(|r| r.get(field_names::FULL_NAME))
                         .and_then(|v| v.as_str())
                         .zip(
                             item.get("head")
                                 .and_then(|h| h.get("repo"))
-                                .and_then(|r| r.get("full_name"))
+                                .and_then(|r| r.get(field_names::FULL_NAME))
                                 .and_then(|v| v.as_str()),
                         )
                         .map(|(base, head)| !base.eq_ignore_ascii_case(head));

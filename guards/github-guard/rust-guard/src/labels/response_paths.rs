@@ -7,6 +7,7 @@
 //! Returns JSON paths like `/items/0`, `/items/1` pointing to labeled objects
 //! in the response, rather than cloning the entire data.
 
+use super::constants::field_names;
 use super::extract_mcp_response;
 use super::helpers::*;
 use serde_json::Value;
@@ -70,8 +71,8 @@ pub fn label_response_paths(
                 let mut labeled_paths = Vec::with_capacity(limited_items.len());
 
                 for (i, item) in limited_items.iter().enumerate() {
-                    let is_private = get_bool_or(item, "private", false);
-                    let full_name = get_str_or(item, "full_name", "unknown");
+                    let is_private = get_bool_or(item, field_names::PRIVATE, false);
+                    let full_name = get_str_or(item, field_names::FULL_NAME, "unknown");
                     let integrity = writer_integrity(full_name, ctx);
 
                     let secrecy = if is_private {
@@ -171,13 +172,13 @@ pub fn label_response_paths(
                     let base_repo = item
                         .get("base")
                         .and_then(|b| b.get("repo"))
-                        .and_then(|r| r.get("full_name"))
+                        .and_then(|r| r.get(field_names::FULL_NAME))
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
                     let head_repo = item
                         .get("head")
                         .and_then(|h| h.get("repo"))
-                        .and_then(|r| r.get("full_name"))
+                        .and_then(|r| r.get(field_names::FULL_NAME))
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
                     let is_forked = if !base_repo.is_empty() && !head_repo.is_empty() {
