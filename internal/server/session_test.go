@@ -139,9 +139,9 @@ func TestNewSession_GuardInitNotShared(t *testing.T) {
 	assert.Empty(t, s2.GuardInit, "s2.GuardInit must not be affected by writes to s1.GuardInit")
 }
 
-// newMinimalUnifiedServer creates a UnifiedServer with an empty config for
+// newMinimalUnifiedServerForSessionTest creates a UnifiedServer with an empty config for
 // use in session-related tests.
-func newMinimalUnifiedServer(t *testing.T) *UnifiedServer {
+func newMinimalUnifiedServerForSessionTest(t *testing.T) *UnifiedServer {
 	t.Helper()
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{},
@@ -155,7 +155,7 @@ func newMinimalUnifiedServer(t *testing.T) *UnifiedServer {
 // TestGetSessionID verifies that getSessionID is a thin wrapper around
 // SessionIDFromContext, returning the same ID (or "default") for all inputs.
 func TestGetSessionID(t *testing.T) {
-	us := newMinimalUnifiedServer(t)
+	us := newMinimalUnifiedServerForSessionTest(t)
 
 	tests := []struct {
 		name   string
@@ -200,7 +200,7 @@ func TestGetSessionID(t *testing.T) {
 // TestEnsureSessionDirectory verifies that ensureSessionDirectory creates the
 // expected per-session subdirectory inside payloadDir.
 func TestEnsureSessionDirectory(t *testing.T) {
-	us := newMinimalUnifiedServer(t)
+	us := newMinimalUnifiedServerForSessionTest(t)
 
 	t.Run("creates session directory under payloadDir", func(t *testing.T) {
 		us.payloadDir = t.TempDir()
@@ -231,9 +231,9 @@ func TestEnsureSessionDirectory(t *testing.T) {
 
 // TestRequireSession verifies that requireSession auto-creates a new Session
 // the first time a session ID is seen and reuses the same Session on subsequent calls.
-func TestRequireSession(t *testing.T) {
+func TestRequireSession_SessionManagement(t *testing.T) {
 	t.Run("auto-creates session for new session ID", func(t *testing.T) {
-		us := newMinimalUnifiedServer(t)
+		us := newMinimalUnifiedServerForSessionTest(t)
 		us.payloadDir = t.TempDir()
 
 		ctx := context.WithValue(context.Background(), SessionIDContextKey, "brand-new-session")
@@ -247,7 +247,7 @@ func TestRequireSession(t *testing.T) {
 	})
 
 	t.Run("uses default session ID when none in context", func(t *testing.T) {
-		us := newMinimalUnifiedServer(t)
+		us := newMinimalUnifiedServerForSessionTest(t)
 		us.payloadDir = t.TempDir()
 
 		require.NoError(t, us.requireSession(context.Background()))
@@ -260,7 +260,7 @@ func TestRequireSession(t *testing.T) {
 	})
 
 	t.Run("returns same session on repeated calls", func(t *testing.T) {
-		us := newMinimalUnifiedServer(t)
+		us := newMinimalUnifiedServerForSessionTest(t)
 		us.payloadDir = t.TempDir()
 
 		ctx := context.WithValue(context.Background(), SessionIDContextKey, "stable-session")
@@ -279,7 +279,7 @@ func TestRequireSession(t *testing.T) {
 	})
 
 	t.Run("concurrent calls create the session exactly once", func(t *testing.T) {
-		us := newMinimalUnifiedServer(t)
+		us := newMinimalUnifiedServerForSessionTest(t)
 		us.payloadDir = t.TempDir()
 
 		ctx := context.WithValue(context.Background(), SessionIDContextKey, "concurrent-session")
@@ -306,12 +306,12 @@ func TestRequireSession(t *testing.T) {
 // session IDs and is consistent with the sessions map.
 func TestGetSessionKeys(t *testing.T) {
 	t.Run("returns empty slice when no sessions exist", func(t *testing.T) {
-		us := newMinimalUnifiedServer(t)
+		us := newMinimalUnifiedServerForSessionTest(t)
 		assert.Empty(t, us.getSessionKeys())
 	})
 
 	t.Run("returns all session IDs after creation", func(t *testing.T) {
-		us := newMinimalUnifiedServer(t)
+		us := newMinimalUnifiedServerForSessionTest(t)
 		us.payloadDir = t.TempDir()
 
 		sessionIDs := []string{"session-a", "session-b", "session-c"}
@@ -326,7 +326,7 @@ func TestGetSessionKeys(t *testing.T) {
 	})
 
 	t.Run("count matches sessions map length", func(t *testing.T) {
-		us := newMinimalUnifiedServer(t)
+		us := newMinimalUnifiedServerForSessionTest(t)
 		us.payloadDir = t.TempDir()
 
 		for _, id := range []string{"x", "y", "z"} {
