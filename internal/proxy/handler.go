@@ -18,6 +18,13 @@ import (
 
 var logHandler = logger.New("proxy:handler")
 
+// writeDIFCForbidden writes a 403 JSON response for DIFC policy violations.
+func writeDIFCForbidden(w http.ResponseWriter, message string) {
+	httputil.WriteJSONResponse(w, http.StatusForbidden, map[string]string{
+		"message": message,
+	})
+}
+
 // proxyHandler implements http.Handler and runs the DIFC pipeline on proxied requests.
 type proxyHandler struct {
 	server *Server
@@ -152,9 +159,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		} else {
 			// Write blocked
 			logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, evalResult.Reason)
-			httputil.WriteJSONResponse(w, http.StatusForbidden, map[string]string{
-				"message": fmt.Sprintf("DIFC policy violation: %s", evalResult.Reason),
-			})
+			writeDIFCForbidden(w, fmt.Sprintf("DIFC policy violation: %s", evalResult.Reason))
 			return
 		}
 	}
@@ -225,10 +230,8 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			// Strict mode: block entire response if any item filtered
 			if s.enforcementMode == difc.EnforcementStrict && filtered.GetFilteredCount() > 0 {
 				logHandler.Printf("[DIFC] STRICT: blocking response — %d filtered items", filtered.GetFilteredCount())
-				httputil.WriteJSONResponse(w, http.StatusForbidden, map[string]string{
-					"message": fmt.Sprintf("DIFC policy violation: %d of %d items not accessible",
-						filtered.GetFilteredCount(), filtered.TotalCount),
-				})
+				writeDIFCForbidden(w, fmt.Sprintf("DIFC policy violation: %d of %d items not accessible",
+					filtered.GetFilteredCount(), filtered.TotalCount))
 				return
 			}
 
