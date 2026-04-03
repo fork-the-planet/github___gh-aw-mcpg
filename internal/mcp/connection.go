@@ -670,7 +670,9 @@ func (c *Connection) getPrompt(params interface{}) (*Response, error) {
 // Close closes the connection
 func (c *Connection) Close() error {
 	logConn.Printf("Closing connection: serverID=%s, isHTTP=%v", c.serverID, c.isHTTP)
-	c.cancel()
+	if c.cancel != nil {
+		c.cancel()
+	}
 	if session := c.getSDKSession(); session != nil {
 		return session.Close()
 	}

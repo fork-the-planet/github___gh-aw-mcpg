@@ -36,11 +36,6 @@ const (
 // MCPProtocolVersion is the MCP protocol version used in initialization requests.
 const MCPProtocolVersion = "2025-11-25"
 
-// DefaultHTTPKeepaliveInterval is the default interval for sending keepalive pings to HTTP backends.
-// This should be less than the backend's session idle timeout (typically 30 minutes for safeoutputs).
-// A value of 25 minutes gives a 5-minute buffer before the session would expire.
-const DefaultHTTPKeepaliveInterval = 25 * time.Minute
-
 // requestIDCounter is used to generate unique request IDs for HTTP requests
 var requestIDCounter uint64
 
@@ -196,7 +191,7 @@ func newHTTPConnection(ctx context.Context, cancel context.CancelFunc, client *s
 	if session != nil {
 		sessionID = session.ID()
 	}
-	logHTTP.Printf("Creating HTTP connection: serverID=%s, url=%s, transport=%s, headers=%d, sessionID=%s, keepAlive=%v", serverID, url, transportType, len(headers), sessionID, keepAlive)
+	logHTTP.Printf("Creating HTTP connection: serverID=%s, url=%s, transport=%s, headers=%d, keepAlive=%v", serverID, url, transportType, len(headers), keepAlive)
 	return &Connection{
 		client:            client,
 		session:           session,

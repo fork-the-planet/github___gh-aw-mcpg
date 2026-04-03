@@ -122,6 +122,9 @@ type GatewayConfig struct {
 // HTTPKeepaliveInterval returns the keepalive interval as a time.Duration.
 // A negative KeepaliveInterval disables keepalive (returns 0).
 func (g *GatewayConfig) HTTPKeepaliveInterval() time.Duration {
+	if g == nil {
+		return time.Duration(DefaultKeepaliveInterval) * time.Second
+	}
 	if g.KeepaliveInterval < 0 {
 		return 0
 	}

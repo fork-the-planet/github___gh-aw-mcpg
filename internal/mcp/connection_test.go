@@ -521,18 +521,20 @@ func TestNewMCPClientWithLogger(t *testing.T) {
 
 // TestNewMCPClientWithKeepalive tests that newMCPClient accepts a keepalive interval
 func TestNewMCPClientWithKeepalive(t *testing.T) {
-	client := newMCPClient(nil, DefaultHTTPKeepaliveInterval)
+	keepAlive := time.Duration(config.DefaultKeepaliveInterval) * time.Second
+	client := newMCPClient(nil, keepAlive)
 	require.NotNil(t, client, "newMCPClient should return a non-nil client with keepalive")
 }
 
-// TestDefaultHTTPKeepaliveInterval verifies the keepalive constant is less than a typical
+// TestDefaultKeepaliveInterval verifies the config keepalive default is less than a typical
 // backend session timeout (30 minutes) to prevent session expiry during long agent runs.
-func TestDefaultHTTPKeepaliveInterval(t *testing.T) {
+func TestDefaultKeepaliveInterval(t *testing.T) {
 	const typicalBackendTimeout = 30 * time.Minute
-	assert.Less(t, DefaultHTTPKeepaliveInterval, typicalBackendTimeout,
-		"DefaultHTTPKeepaliveInterval must be less than the typical backend session timeout to prevent expiry")
-	assert.Greater(t, DefaultHTTPKeepaliveInterval, time.Duration(0),
-		"DefaultHTTPKeepaliveInterval must be positive")
+	keepAlive := time.Duration(config.DefaultKeepaliveInterval) * time.Second
+	assert.Less(t, keepAlive, typicalBackendTimeout,
+		"DefaultKeepaliveInterval must be less than the typical backend session timeout to prevent expiry")
+	assert.Greater(t, keepAlive, time.Duration(0),
+		"DefaultKeepaliveInterval must be positive")
 }
 
 // TestNewHTTPConnectionStoresKeepalive verifies that the keepalive interval is stored on
@@ -541,15 +543,16 @@ func TestNewHTTPConnectionStoresKeepalive(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client := newMCPClient(nil, DefaultHTTPKeepaliveInterval)
+	keepAlive := time.Duration(config.DefaultKeepaliveInterval) * time.Second
+	client := newMCPClient(nil, keepAlive)
 	url := "http://example.com/mcp"
 	headers := map[string]string{}
 	httpClient := &http.Client{}
 
-	conn := newHTTPConnection(ctx, cancel, client, nil, url, headers, httpClient, HTTPTransportStreamable, "test-server", DefaultHTTPKeepaliveInterval)
+	conn := newHTTPConnection(ctx, cancel, client, nil, url, headers, httpClient, HTTPTransportStreamable, "test-server", keepAlive)
 
 	require.NotNil(t, conn)
-	assert.Equal(t, DefaultHTTPKeepaliveInterval, conn.keepAliveInterval,
+	assert.Equal(t, keepAlive, conn.keepAliveInterval,
 		"keepAliveInterval should be stored on the connection for use during reconnection")
 }
 

@@ -42,7 +42,7 @@ const (
 	// DefaultIdleTimeout is the maximum duration a STDIO-backend connection can remain unused
 	// before being removed from the session pool. Set to 6 hours to accommodate long-running
 	// workflow tasks (e.g. ML training, large builds) that may not make MCP calls for extended
-	// periods. Note: this is distinct from HTTP backend keepalive (DefaultHTTPKeepaliveInterval)
+	// periods. Note: this is distinct from HTTP backend keepalive (config.DefaultKeepaliveInterval)
 	// which keeps the remote session alive on the HTTP server side; STDIO connections run as local
 	// child processes whose sessions are bounded only by this pool eviction window.
 	DefaultIdleTimeout     = 6 * time.Hour
@@ -158,10 +158,12 @@ func (p *SessionConnectionPool) cleanupIdleConnections() {
 			logPool.Printf("Cleaning up connection: backend=%s, session=%s, reason=%s, idle=%v, errors=%d",
 				key.BackendID, key.SessionID, reason, now.Sub(metadata.LastUsedAt), metadata.ErrorCount)
 
-			// Close the connection if still active
+			// Close the underlying connection to release resources (cancel context, close SDK session)
 			if metadata.Connection != nil && metadata.State != ConnectionStateClosed {
-				// Note: mcp.Connection doesn't have a Close method in current implementation
-				// but we mark it as closed
+				if err := metadata.Connection.Close(); err != nil {
+					logPool.Printf("Error closing connection during cleanup: backend=%s, session=%s, err=%v",
+						key.BackendID, key.SessionID, err)
+				}
 				metadata.State = ConnectionStateClosed
 			}
 

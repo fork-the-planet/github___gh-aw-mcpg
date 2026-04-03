@@ -32,13 +32,14 @@ type StdinConfig struct {
 // StdinGatewayConfig represents gateway configuration in stdin JSON format.
 // Uses pointers for optional fields to distinguish between unset and zero values.
 type StdinGatewayConfig struct {
-	Port           *int     `json:"port,omitempty"`
-	APIKey         string   `json:"apiKey,omitempty"`
-	Domain         string   `json:"domain,omitempty"`
-	StartupTimeout *int     `json:"startupTimeout,omitempty"`
-	ToolTimeout    *int     `json:"toolTimeout,omitempty"`
-	PayloadDir     string   `json:"payloadDir,omitempty"`
-	TrustedBots    []string `json:"trustedBots,omitempty"`
+	Port              *int     `json:"port,omitempty"`
+	APIKey            string   `json:"apiKey,omitempty"`
+	Domain            string   `json:"domain,omitempty"`
+	StartupTimeout    *int     `json:"startupTimeout,omitempty"`
+	ToolTimeout       *int     `json:"toolTimeout,omitempty"`
+	KeepaliveInterval *int     `json:"keepaliveInterval,omitempty"`
+	PayloadDir        string   `json:"payloadDir,omitempty"`
+	TrustedBots       []string `json:"trustedBots,omitempty"`
 }
 
 // StdinGuardConfig represents a guard configuration in stdin JSON format.
@@ -278,11 +279,12 @@ func convertStdinConfig(stdinCfg *StdinConfig) (*Config, error) {
 	// Convert gateway config with defaults
 	if stdinCfg.Gateway != nil {
 		cfg.Gateway = &GatewayConfig{
-			Port:           intPtrOrDefault(stdinCfg.Gateway.Port, DefaultPort),
-			APIKey:         stdinCfg.Gateway.APIKey,
-			Domain:         stdinCfg.Gateway.Domain,
-			StartupTimeout: intPtrOrDefault(stdinCfg.Gateway.StartupTimeout, DefaultStartupTimeout),
-			ToolTimeout:    intPtrOrDefault(stdinCfg.Gateway.ToolTimeout, DefaultToolTimeout),
+			Port:              intPtrOrDefault(stdinCfg.Gateway.Port, DefaultPort),
+			APIKey:            stdinCfg.Gateway.APIKey,
+			Domain:            stdinCfg.Gateway.Domain,
+			StartupTimeout:    intPtrOrDefault(stdinCfg.Gateway.StartupTimeout, DefaultStartupTimeout),
+			ToolTimeout:       intPtrOrDefault(stdinCfg.Gateway.ToolTimeout, DefaultToolTimeout),
+			KeepaliveInterval: intPtrOrDefault(stdinCfg.Gateway.KeepaliveInterval, DefaultKeepaliveInterval),
 		}
 		if stdinCfg.Gateway.PayloadDir != "" {
 			cfg.Gateway.PayloadDir = stdinCfg.Gateway.PayloadDir
