@@ -605,6 +605,7 @@ fn extract_rate_reset_seconds(error_text: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::constants::field_names;
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -659,13 +660,13 @@ mod tests {
         let base_full_name = pr
             .get("base")
             .and_then(|b| b.get("repo"))
-            .and_then(|r| r.get("full_name"))
+            .and_then(|r| r.get(field_names::FULL_NAME))
             .and_then(|v| v.as_str());
 
         let head_full_name = pr
             .get("head")
             .and_then(|h| h.get("repo"))
-            .and_then(|r| r.get("full_name"))
+            .and_then(|r| r.get(field_names::FULL_NAME))
             .and_then(|v| v.as_str());
 
         match (base_full_name, head_full_name) {
