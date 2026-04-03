@@ -4545,6 +4545,40 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_workflow_run_cancel_rerun_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+        });
+
+        for tool_name in &[
+            "cancel_workflow_run",
+            "force_cancel_workflow_run",
+            "rerun_workflow_run",
+            "rerun_failed_jobs",
+            "rerun_workflow_job",
+        ] {
+            let (_secrecy, integrity, _desc) = apply_tool_labels(
+                tool_name,
+                &tool_args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{} should have writer integrity",
+                tool_name
+            );
+        }
+    }
+
+    #[test]
     fn test_apply_tool_labels_dismiss_notification_private_user() {
         let ctx = default_ctx();
         let tool_args = json!({ "threadId": "123" });

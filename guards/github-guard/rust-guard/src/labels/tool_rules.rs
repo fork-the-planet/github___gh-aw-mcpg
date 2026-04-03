@@ -615,6 +615,18 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
+        // === Actions: Workflow run cancel/rerun ===
+        "cancel_workflow_run"
+        | "force_cancel_workflow_run"
+        | "rerun_workflow_run"
+        | "rerun_failed_jobs"
+        | "rerun_workflow_job" => {
+            // These modify workflow run state; repo-scoped write.
+            // S = S(repo); I = writer
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
         // === Copilot agent operations (repo-scoped) ===
         "assign_copilot_to_issue" | "request_copilot_review" => {
             // Copilot assignment/review requests return repo-scoped content.

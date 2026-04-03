@@ -44,6 +44,13 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "set_variable",         // gh variable set
     "upload_release_asset", // gh release upload
     "sync_fork",            // gh repo sync
+    // gh run cancel / force-cancel
+    "cancel_workflow_run",       // gh run cancel       — cancels an in-progress workflow run
+    "force_cancel_workflow_run", // gh run cancel --force — force-cancels a workflow run
+    // gh run rerun
+    "rerun_workflow_run",  // gh run rerun        — reruns a completed workflow run
+    "rerun_failed_jobs",   // gh run rerun --failed — reruns only failed jobs
+    "rerun_workflow_job",  // gh run rerun --job  — reruns a specific job
 ];
 
 /// Read-write operations that both read and modify data
@@ -185,5 +192,22 @@ mod tests {
             is_write_operation("unpin_issue"),
             "unpin_issue must be classified as a write operation"
         );
+    }
+
+    #[test]
+    fn test_workflow_run_cancel_rerun_are_write_operations() {
+        for op in &[
+            "cancel_workflow_run",
+            "force_cancel_workflow_run",
+            "rerun_workflow_run",
+            "rerun_failed_jobs",
+            "rerun_workflow_job",
+        ] {
+            assert!(
+                is_write_operation(op),
+                "{} must be classified as a write operation",
+                op
+            );
+        }
     }
 }
