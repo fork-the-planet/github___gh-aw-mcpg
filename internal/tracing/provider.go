@@ -84,10 +84,17 @@ func resolveServiceName(cfg *config.TracingConfig) string {
 }
 
 // resolveSampleRate returns the sample rate from config (defaults to 1.0).
+// Valid configured values are in the range [0.0, 1.0], where 0.0 disables sampling.
 func resolveSampleRate(cfg *config.TracingConfig) float64 {
-	if cfg != nil && cfg.SampleRate > 0 {
+	if cfg == nil {
+		return config.DefaultTracingSampleRate
+	}
+
+	if cfg.SampleRate >= 0.0 && cfg.SampleRate <= 1.0 {
 		return cfg.SampleRate
 	}
+
+	logTracing.Warn("invalid tracing sample rate; using default", "sample_rate", cfg.SampleRate, "default", config.DefaultTracingSampleRate)
 	return config.DefaultTracingSampleRate
 }
 
