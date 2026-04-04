@@ -508,18 +508,3 @@ func TestPostRunCleanup(t *testing.T) {
 		assert.NotNil(t, rootCmd.PersistentPostRun, "PersistentPostRun should be set")
 	})
 }
-
-// TestGenerateRandomAPIKey verifies that generateRandomAPIKey produces a
-// non-empty, unique, hex-encoded string per spec §7.3.
-func TestGenerateRandomAPIKey(t *testing.T) {
-	key, err := generateRandomAPIKey()
-	require.NoError(t, err, "generateRandomAPIKey() should not fail")
-	assert.NotEmpty(t, key, "generated key should not be empty")
-	// 32 bytes encoded as hex = 64 characters
-	assert.Len(t, key, 64, "generated key should be 64 hex characters")
-
-	// Verify keys are unique across calls
-	key2, err := generateRandomAPIKey()
-	require.NoError(t, err)
-	assert.NotEqual(t, key, key2, "successive calls should produce unique keys")
-}

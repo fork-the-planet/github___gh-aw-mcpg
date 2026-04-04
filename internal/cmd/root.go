@@ -3,8 +3,6 @@ package cmd
 import (
 	"bufio"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
@@ -304,7 +303,7 @@ func run(cmd *cobra.Command, args []string) error {
 	// The generated key is set in the config so it propagates to both the HTTP
 	// server authentication and the stdout configuration output (spec §5.4).
 	if cfg.GetAPIKey() == "" {
-		randomKey, err := generateRandomAPIKey()
+		randomKey, err := auth.GenerateRandomAPIKey()
 		if err != nil {
 			return fmt.Errorf("failed to generate random API key: %w", err)
 		}
@@ -648,17 +647,6 @@ func loadEnvFile(path string) error {
 	log.Printf("Loaded %d environment variables from %s", loadedVars, path)
 
 	return scanner.Err()
-}
-
-// generateRandomAPIKey generates a cryptographically random API key.
-// Per spec §7.3, the gateway SHOULD generate a random API key on startup
-// if none is provided. Returns a 32-byte hex-encoded string (64 chars).
-func generateRandomAPIKey() (string, error) {
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", fmt.Errorf("failed to generate random API key: %w", err)
-	}
-	return hex.EncodeToString(bytes), nil
 }
 
 // Execute runs the root command
