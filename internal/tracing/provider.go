@@ -14,13 +14,12 @@
 //
 // Once initialized, obtain a tracer with:
 //
-//	tracer := otel.Tracer("mcp-gateway")
+//	tracer := otel.Tracer("github.com/github/gh-aw-mcpg")
 package tracing
 
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -60,23 +59,18 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// resolveEndpoint returns the OTLP endpoint, preferring the standard env var
-// OTEL_EXPORTER_OTLP_ENDPOINT over the config value.
+// resolveEndpoint returns the OTLP endpoint from config.
+// CLI flags set the config value using env vars as defaults, so config already
+// reflects the correct precedence: CLI flag > env var > config file.
 func resolveEndpoint(cfg *config.TracingConfig) string {
-	if ep := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); ep != "" {
-		return ep
-	}
 	if cfg != nil {
 		return cfg.Endpoint
 	}
 	return ""
 }
 
-// resolveServiceName returns the service name, preferring OTEL_SERVICE_NAME env var.
+// resolveServiceName returns the service name from config.
 func resolveServiceName(cfg *config.TracingConfig) string {
-	if sn := os.Getenv("OTEL_SERVICE_NAME"); sn != "" {
-		return sn
-	}
 	if cfg != nil && cfg.ServiceName != "" {
 		return cfg.ServiceName
 	}
@@ -86,15 +80,13 @@ func resolveServiceName(cfg *config.TracingConfig) string {
 // resolveSampleRate returns the sample rate from config (defaults to 1.0).
 // Valid configured values are in the range [0.0, 1.0], where 0.0 disables sampling.
 func resolveSampleRate(cfg *config.TracingConfig) float64 {
-	if cfg == nil {
-		return config.DefaultTracingSampleRate
+	rate := cfg.GetSampleRate()
+
+	if rate >= 0.0 && rate <= 1.0 {
+		return rate
 	}
 
-	if cfg.SampleRate >= 0.0 && cfg.SampleRate <= 1.0 {
-		return cfg.SampleRate
-	}
-
-	logTracing.Warn("invalid tracing sample rate; using default", "sample_rate", cfg.SampleRate, "default", config.DefaultTracingSampleRate)
+	logTracing.Printf("Warning: invalid tracing sample rate %.4f; using default %.2f", rate, config.DefaultTracingSampleRate)
 	return config.DefaultTracingSampleRate
 }
 

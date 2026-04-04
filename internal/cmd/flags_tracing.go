@@ -18,9 +18,9 @@ var (
 func init() {
 	RegisterFlag(func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&otlpEndpoint, "otlp-endpoint", getDefaultOTLPEndpoint(),
-			"OTLP HTTP endpoint for trace export (e.g. http://localhost:4318). Overrides OTEL_EXPORTER_OTLP_ENDPOINT env var. Tracing is disabled when empty.")
+			"OTLP HTTP endpoint for trace export (e.g. http://localhost:4318). Defaults from OTEL_EXPORTER_OTLP_ENDPOINT when set. Tracing is disabled when empty.")
 		cmd.Flags().StringVar(&otlpServiceName, "otlp-service-name", getDefaultOTLPServiceName(),
-			"Service name reported in traces. Overrides OTEL_SERVICE_NAME env var.")
+			"Service name reported in traces. Defaults from OTEL_SERVICE_NAME when set.")
 		cmd.Flags().Float64Var(&otlpSampleRate, "otlp-sample-rate", config.DefaultTracingSampleRate,
 			"Fraction of traces to sample and export (0.0–1.0). Default 1.0 samples everything.")
 	})

@@ -157,7 +157,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		tracingCfg = &config.TracingConfig{
 			Endpoint:    proxyOTLPEndpoint,
 			ServiceName: proxyOTLPService,
-			SampleRate:  proxyOTLPSampleRate,
+			SampleRate:  &proxyOTLPSampleRate,
 		}
 	}
 	tracingProvider, err := tracing.InitProvider(ctx, tracingCfg)

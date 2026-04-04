@@ -34,7 +34,16 @@ type TracingConfig struct {
 	// SampleRate controls the fraction of traces that are sampled and exported.
 	// Valid range: 0.0 (no sampling) to 1.0 (sample everything).
 	// Defaults to 1.0 (100% sampling).
-	SampleRate float64 `toml:"sample_rate" json:"sample_rate,omitempty"`
+	// Uses a pointer so that 0.0 can be distinguished from "unset".
+	SampleRate *float64 `toml:"sample_rate" json:"sample_rate,omitempty"`
+}
+
+// GetSampleRate returns the configured sample rate, defaulting to 1.0 if unset.
+func (c *TracingConfig) GetSampleRate() float64 {
+	if c == nil || c.SampleRate == nil {
+		return DefaultTracingSampleRate
+	}
+	return *c.SampleRate
 }
 
 func init() {
@@ -43,9 +52,6 @@ func init() {
 		if cfg.Gateway != nil && cfg.Gateway.Tracing != nil {
 			if cfg.Gateway.Tracing.ServiceName == "" {
 				cfg.Gateway.Tracing.ServiceName = DefaultTracingServiceName
-			}
-			if cfg.Gateway.Tracing.SampleRate == 0 {
-				cfg.Gateway.Tracing.SampleRate = DefaultTracingSampleRate
 			}
 		}
 	})

@@ -14,6 +14,8 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
+func ptrFloat64(v float64) *float64 { return &v }
+
 func TestInitProvider_NoEndpoint_ReturnsNoopProvider(t *testing.T) {
 	ctx := context.Background()
 
@@ -36,7 +38,7 @@ func TestInitProvider_EmptyEndpoint_ReturnsNoopProvider(t *testing.T) {
 	cfg := &config.TracingConfig{
 		Endpoint:    "", // explicitly empty
 		ServiceName: "test-service",
-		SampleRate:  1.0,
+		SampleRate:  ptrFloat64(1.0),
 	}
 
 	provider, err := tracing.InitProvider(ctx, cfg)
@@ -54,7 +56,7 @@ func TestInitProvider_WithEndpoint_ReturnsSdkProvider(t *testing.T) {
 	cfg := &config.TracingConfig{
 		Endpoint:    "http://localhost:14318", // non-existent, but valid URL
 		ServiceName: "test-service",
-		SampleRate:  1.0,
+		SampleRate:  ptrFloat64(1.0),
 	}
 
 	provider, err := tracing.InitProvider(ctx, cfg)
@@ -89,12 +91,19 @@ func TestInitProvider_SampleRateZero_UsesNeverSampler(t *testing.T) {
 	cfg := &config.TracingConfig{
 		Endpoint:    "http://localhost:14318",
 		ServiceName: "test-service",
-		SampleRate:  0.0, // never sample
+		SampleRate:  ptrFloat64(0.0), // never sample
 	}
 
 	provider, err := tracing.InitProvider(ctx, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, provider)
+
+	// Verify NeverSample behavior: spans should not be sampled
+	tr := provider.Tracer()
+	_, span := tr.Start(ctx, "test-span")
+	assert.False(t, span.SpanContext().IsSampled(), "span should NOT be sampled with rate 0.0")
+	assert.False(t, span.IsRecording(), "span should NOT be recording with rate 0.0")
+	span.End()
 
 	shutdownCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
@@ -107,12 +116,62 @@ func TestInitProvider_SampleRatePartial_UsesRatioSampler(t *testing.T) {
 	cfg := &config.TracingConfig{
 		Endpoint:    "http://localhost:14318",
 		ServiceName: "test-service",
-		SampleRate:  0.5, // 50% sampling
+		SampleRate:  ptrFloat64(0.5), // 50% sampling
 	}
 
 	provider, err := tracing.InitProvider(ctx, cfg)
 	require.NoError(t, err)
 	require.NotNil(t, provider)
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	_ = provider.Shutdown(shutdownCtx)
+}
+
+func TestInitProvider_SampleRateOne_UsesAlwaysSampler(t *testing.T) {
+	ctx := context.Background()
+
+	cfg := &config.TracingConfig{
+		Endpoint:    "http://localhost:14318",
+		ServiceName: "test-service",
+		SampleRate:  ptrFloat64(1.0), // always sample
+	}
+
+	provider, err := tracing.InitProvider(ctx, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+
+	// Verify AlwaysSample behavior: spans should be sampled
+	tr := provider.Tracer()
+	_, span := tr.Start(ctx, "test-span")
+	assert.True(t, span.SpanContext().IsSampled(), "span should be sampled with rate 1.0")
+	assert.True(t, span.IsRecording(), "span should be recording with rate 1.0")
+	span.End()
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	_ = provider.Shutdown(shutdownCtx)
+}
+
+func TestInitProvider_SampleRateNil_DefaultsToAlwaysSample(t *testing.T) {
+	ctx := context.Background()
+
+	cfg := &config.TracingConfig{
+		Endpoint:    "http://localhost:14318",
+		ServiceName: "test-service",
+		// SampleRate is nil (unset) — should default to 1.0
+	}
+
+	provider, err := tracing.InitProvider(ctx, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+
+	// Verify default AlwaysSample behavior
+	tr := provider.Tracer()
+	_, span := tr.Start(ctx, "test-span")
+	assert.True(t, span.SpanContext().IsSampled(), "span should be sampled with default rate")
+	assert.True(t, span.IsRecording(), "span should be recording with default rate")
+	span.End()
 
 	shutdownCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()

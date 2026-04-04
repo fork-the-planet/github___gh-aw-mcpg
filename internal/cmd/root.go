@@ -331,7 +331,7 @@ func run(cmd *cobra.Command, args []string) error {
 		if cfg.Gateway.Tracing == nil {
 			cfg.Gateway.Tracing = &config.TracingConfig{}
 		}
-		cfg.Gateway.Tracing.SampleRate = otlpSampleRate
+		cfg.Gateway.Tracing.SampleRate = &otlpSampleRate
 	}
 
 	// Initialize OpenTelemetry tracer provider.
@@ -355,13 +355,24 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	if tracingCfg != nil && tracingCfg.Endpoint != "" {
-		log.Printf("OpenTelemetry tracing enabled: endpoint=%s, service=%s, sampleRate=%.2f",
-			tracingCfg.Endpoint, tracingCfg.ServiceName, tracingCfg.SampleRate)
-		logger.LogInfoMd("startup", "OpenTelemetry tracing enabled: endpoint=%s, service=%s",
-			tracingCfg.Endpoint, tracingCfg.ServiceName)
-	} else {
-		log.Printf("OpenTelemetry tracing disabled (no OTLP endpoint configured)")
+	if tracingProvider.Tracer() != nil {
+		// Log what InitProvider actually resolved (config already has env var defaults merged via CLI flags)
+		endpoint := ""
+		sampleRate := config.DefaultTracingSampleRate
+		serviceName := config.DefaultTracingServiceName
+		if tracingCfg != nil {
+			endpoint = tracingCfg.Endpoint
+			sampleRate = tracingCfg.GetSampleRate()
+			serviceName = tracingCfg.ServiceName
+		}
+		if endpoint != "" {
+			log.Printf("OpenTelemetry tracing enabled: endpoint=%s, service=%s, sampleRate=%.2f",
+				endpoint, serviceName, sampleRate)
+			logger.LogInfoMd("startup", "OpenTelemetry tracing enabled: endpoint=%s, service=%s",
+				endpoint, serviceName)
+		} else {
+			log.Printf("OpenTelemetry tracing disabled (no OTLP endpoint configured)")
+		}
 	}
 
 	// Create unified MCP server (backend for both modes)

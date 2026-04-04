@@ -201,11 +201,12 @@ func WithOTELTracing(next http.Handler, tag string) http.Handler {
 		)
 		defer span.End()
 
-		// Add session ID to span after context is available
-		sessionID := SessionIDFromContext(ctx)
-		span.SetAttributes(attribute.String("session.id", auth.TruncateSessionID(sessionID)))
+		req := r.WithContext(ctx)
+		next.ServeHTTP(w, req)
 
-		next.ServeHTTP(w, r.WithContext(ctx))
+		// Add session ID after request handling, once the session has been attached
+		sessionID := SessionIDFromContext(req.Context())
+		span.SetAttributes(attribute.String("session.id", auth.TruncateSessionID(sessionID)))
 	})
 }
 
