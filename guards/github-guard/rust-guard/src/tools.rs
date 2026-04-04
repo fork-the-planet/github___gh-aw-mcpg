@@ -62,6 +62,9 @@ pub const READ_WRITE_OPERATIONS: &[&str] = &[
     "issue_write",
     "sub_issue_write",
     "update_gist",
+    // Pre-emptive entries for anticipated future MCP tools (no equivalent tool today)
+    // gh agent-task create — creates a Copilot coding-agent job (branch + PR); blocked as unsupported
+    "create_agent_task",
 ];
 
 /// Check if a tool is a write operation
@@ -121,10 +124,16 @@ pub fn is_unlock_operation(tool_name: &str) -> bool {
 ///   symmetric to `archive_repository` and equally unsupported.
 /// - `rename_repository`: renames a repository, breaking all clone URLs, webhooks, and external
 ///   references; unsupported as an agent operation.
+/// - `create_agent_task`: creates a Copilot coding-agent job that opens a branch and PR;
+///   unsupported as a directly invocable agent operation.
 pub fn is_blocked_tool(tool_name: &str) -> bool {
     matches!(
         tool_name,
-        "transfer_repository" | "archive_repository" | "unarchive_repository" | "rename_repository"
+        "transfer_repository"
+            | "archive_repository"
+            | "unarchive_repository"
+            | "rename_repository"
+            | "create_agent_task"
     )
 }
 
@@ -209,5 +218,21 @@ mod tests {
                 op
             );
         }
+    }
+
+    #[test]
+    fn test_create_agent_task_is_read_write_and_blocked() {
+        assert!(
+            is_read_write_operation("create_agent_task"),
+            "create_agent_task must be classified as a read-write operation"
+        );
+        assert!(
+            is_blocked_tool("create_agent_task"),
+            "create_agent_task must be unconditionally blocked (unsupported agent operation)"
+        );
+        assert!(
+            !is_write_operation("create_agent_task"),
+            "create_agent_task should not be in WRITE_OPERATIONS (it is in READ_WRITE_OPERATIONS)"
+        );
     }
 }

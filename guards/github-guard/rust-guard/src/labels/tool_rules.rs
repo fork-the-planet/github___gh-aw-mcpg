@@ -627,6 +627,15 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
+        // === Copilot coding-agent task (blocked: unsupported agent operation) ===
+        "create_agent_task" => {
+            // Creates a Copilot coding-agent job that modifies repo branches and opens a PR.
+            // Blocked via is_blocked_tool(); secrecy applied so the resource is correctly
+            // classified before the integrity override in label_resource.
+            // S = S(repo); I = blocked (override applied in label_resource)
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+        }
+
         // === Copilot agent operations (repo-scoped) ===
         "assign_copilot_to_issue" | "request_copilot_review" => {
             // Copilot assignment/review requests return repo-scoped content.
