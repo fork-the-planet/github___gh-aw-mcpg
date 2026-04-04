@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
@@ -188,10 +190,19 @@ func setupSessionCallback(r *http.Request, backendID string) (string, bool) {
 // The span covers the full HTTP handler lifecycle and includes session ID, HTTP path,
 // and method as span attributes. The span context is propagated into the request context
 // so that nested spans (e.g. tool call spans) are automatically parented to it.
+//
+// Incoming W3C traceparent/tracestate headers are extracted so that an
+// agent-originated trace is continued; if no such headers are present a fresh
+// root span (and new trace ID) is created automatically.
 func WithOTELTracing(next http.Handler, tag string) http.Handler {
 	t := tracing.Tracer()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx, span := t.Start(r.Context(), "gateway.request",
+		// Extract incoming W3C trace context (traceparent / tracestate).
+		// If the headers are absent the returned ctx is unchanged and OTEL
+		// will generate a fresh trace ID when the span is started.
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+
+		ctx, span := t.Start(ctx, "gateway.request",
 			oteltrace.WithAttributes(
 				attribute.String("http.method", r.Method),
 				attribute.String("http.path", r.URL.Path),

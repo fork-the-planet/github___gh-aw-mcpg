@@ -24,6 +24,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -90,16 +91,34 @@ func resolveSampleRate(cfg *config.TracingConfig) float64 {
 	return config.DefaultTracingSampleRate
 }
 
+// registerPropagator installs the global W3C TraceContext + Baggage propagator.
+// This enables incoming traceparent/tracestate headers to be extracted so that
+// agent-initiated traces are continued rather than fragmented.
+func registerPropagator() {
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+}
+
 // InitProvider initializes the global OpenTelemetry tracer provider.
 // When endpoint is empty, a noop provider is installed (zero overhead).
 // When endpoint is configured, an OTLP/HTTP exporter is created and the SDK
 // tracer provider is registered as the global provider.
+//
+// In both cases a W3C TraceContext propagator is registered globally so that
+// incoming traceparent/tracestate headers are honoured by all HTTP middleware.
 //
 // The returned Provider must be shut down on application exit to flush buffered spans.
 func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, error) {
 	endpoint := resolveEndpoint(cfg)
 	serviceName := resolveServiceName(cfg)
 	sampleRate := resolveSampleRate(cfg)
+
+	// Always register the W3C propagator so that incoming traceparent headers
+	// are extracted, even when tracing is disabled (noop spans are still
+	// parented correctly if propagation is later enabled upstream).
+	registerPropagator()
 
 	if endpoint == "" {
 		logTracing.Printf("Tracing disabled: no OTLP endpoint configured")
