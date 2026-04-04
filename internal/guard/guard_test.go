@@ -405,6 +405,51 @@ func TestGuardRegistryConcurrency(t *testing.T) {
 	})
 }
 
+func TestGuardRegistry_HasNonNoopGuard(t *testing.T) {
+	t.Run("empty registry returns false", func(t *testing.T) {
+		registry := NewRegistry()
+		assert.False(t, registry.HasNonNoopGuard())
+	})
+
+	t.Run("only noop guards returns false", func(t *testing.T) {
+		registry := NewRegistry()
+		registry.Register("server1", NewNoopGuard())
+		registry.Register("server2", NewNoopGuard())
+		assert.False(t, registry.HasNonNoopGuard())
+	})
+
+	t.Run("one non-noop guard returns true", func(t *testing.T) {
+		registry := NewRegistry()
+		registry.Register("server1", &mockGuard{id: "wasm"})
+		assert.True(t, registry.HasNonNoopGuard())
+	})
+
+	t.Run("mix of noop and non-noop returns true", func(t *testing.T) {
+		registry := NewRegistry()
+		registry.Register("server1", NewNoopGuard())
+		registry.Register("server2", &mockGuard{id: "github"})
+		assert.True(t, registry.HasNonNoopGuard())
+	})
+
+	t.Run("removing non-noop guard makes it return false", func(t *testing.T) {
+		registry := NewRegistry()
+		registry.Register("server1", &mockGuard{id: "wasm"})
+		assert.True(t, registry.HasNonNoopGuard())
+
+		registry.Remove("server1")
+		assert.False(t, registry.HasNonNoopGuard())
+	})
+
+	t.Run("replacing non-noop with noop returns false", func(t *testing.T) {
+		registry := NewRegistry()
+		registry.Register("server1", &mockGuard{id: "wasm"})
+		assert.True(t, registry.HasNonNoopGuard())
+
+		registry.Register("server1", NewNoopGuard())
+		assert.False(t, registry.HasNonNoopGuard())
+	})
+}
+
 func TestCreateGuard(t *testing.T) {
 	tests := []struct {
 		name        string
