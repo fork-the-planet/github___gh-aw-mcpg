@@ -672,3 +672,61 @@ func TestWrapWithMiddleware_LogTagVariations(t *testing.T) {
 		})
 	}
 }
+
+// TestLogRuntimeError tests the logRuntimeError function.
+func TestLogRuntimeError(t *testing.T) {
+	tests := []struct {
+		name       string
+		errorType  string
+		detail     string
+		requestID  string
+		serverName *string
+		path       string
+		method     string
+	}{
+		{
+			name:       "BasicError",
+			errorType:  "authentication_failed",
+			detail:     "missing_auth_header",
+			requestID:  "req-123",
+			serverName: nil,
+			path:       "/api/test",
+			method:     "GET",
+		},
+		{
+			name:       "ErrorWithServerName",
+			errorType:  "backend_error",
+			detail:     "connection_failed",
+			requestID:  "req-456",
+			serverName: stringPtr("test-server"),
+			path:       "/mcp/test",
+			method:     "POST",
+		},
+		{
+			name:       "ErrorWithoutRequestID",
+			errorType:  "validation_error",
+			detail:     "invalid_input",
+			requestID:  "",
+			serverName: nil,
+			path:       "/health",
+			method:     "GET",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			if tt.requestID != "" {
+				req.Header.Set("X-Request-ID", tt.requestID)
+			}
+			assert.NotPanics(t, func() {
+				logRuntimeError(tt.errorType, tt.detail, req, tt.serverName)
+			}, "logRuntimeError should not panic")
+		})
+	}
+}
+
+// stringPtr returns a pointer to s. Used as a helper in tests.
+func stringPtr(s string) *string {
+	return &s
+}
