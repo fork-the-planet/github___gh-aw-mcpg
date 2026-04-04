@@ -21,6 +21,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/server"
+	"github.com/github/gh-aw-mcpg/internal/tracing"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -310,6 +311,68 @@ func run(cmd *cobra.Command, args []string) error {
 		cfg.Gateway.APIKey = randomKey
 		log.Printf("No API key configured — generated a temporary random API key for this session")
 		logger.LogInfoMd("startup", "Generated temporary random API key (spec §7.3)")
+	}
+
+	// Apply tracing flags: CLI flags override config values.
+	// Merge CLI/env tracing settings into gateway config.
+	if otlpEndpoint != "" || cmd.Flags().Changed("otlp-endpoint") {
+		if cfg.Gateway.Tracing == nil {
+			cfg.Gateway.Tracing = &config.TracingConfig{}
+		}
+		cfg.Gateway.Tracing.Endpoint = otlpEndpoint
+	}
+	if cmd.Flags().Changed("otlp-service-name") {
+		if cfg.Gateway.Tracing == nil {
+			cfg.Gateway.Tracing = &config.TracingConfig{}
+		}
+		cfg.Gateway.Tracing.ServiceName = otlpServiceName
+	}
+	if cmd.Flags().Changed("otlp-sample-rate") {
+		if cfg.Gateway.Tracing == nil {
+			cfg.Gateway.Tracing = &config.TracingConfig{}
+		}
+		cfg.Gateway.Tracing.SampleRate = &otlpSampleRate
+	}
+
+	// Initialize OpenTelemetry tracer provider.
+	// When no endpoint is configured, a noop provider is used (zero overhead).
+	var tracingCfg *config.TracingConfig
+	if cfg.Gateway != nil {
+		tracingCfg = cfg.Gateway.Tracing
+	}
+	tracingProvider, err := tracing.InitProvider(ctx, tracingCfg)
+	if err != nil {
+		log.Printf("Warning: failed to initialize tracing provider: %v", err)
+		logger.LogWarn("startup", "Failed to initialize tracing provider: %v", err)
+		// Non-fatal: continue without tracing
+		tracingProvider, _ = tracing.InitProvider(ctx, nil)
+	}
+	defer func() {
+		shutdownCtxTracing, cancelTracing := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelTracing()
+		if err := tracingProvider.Shutdown(shutdownCtxTracing); err != nil {
+			log.Printf("Warning: tracing provider shutdown error: %v", err)
+		}
+	}()
+
+	if tracingProvider.Tracer() != nil {
+		// Log what InitProvider actually resolved (config already has env var defaults merged via CLI flags)
+		endpoint := ""
+		sampleRate := config.DefaultTracingSampleRate
+		serviceName := config.DefaultTracingServiceName
+		if tracingCfg != nil {
+			endpoint = tracingCfg.Endpoint
+			sampleRate = tracingCfg.GetSampleRate()
+			serviceName = tracingCfg.ServiceName
+		}
+		if endpoint != "" {
+			log.Printf("OpenTelemetry tracing enabled: endpoint=%s, service=%s, sampleRate=%.2f",
+				endpoint, serviceName, sampleRate)
+			logger.LogInfoMd("startup", "OpenTelemetry tracing enabled: endpoint=%s, service=%s",
+				endpoint, serviceName)
+		} else {
+			log.Printf("OpenTelemetry tracing disabled (no OTLP endpoint configured)")
+		}
 	}
 
 	// Create unified MCP server (backend for both modes)

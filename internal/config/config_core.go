@@ -117,6 +117,11 @@ type GatewayConfig struct {
 	// bot list and is purely additive (it cannot remove built-in trusted bots).
 	// Example values: "copilot-swe-agent[bot]", "my-org-bot[bot]"
 	TrustedBots []string `toml:"trusted_bots" json:"trusted_bots,omitempty"`
+
+	// Tracing holds OpenTelemetry OTLP tracing configuration.
+	// When Endpoint is set, traces are exported to the specified OTLP endpoint.
+	// When omitted or Endpoint is empty, a noop tracer is used (zero overhead).
+	Tracing *TracingConfig `toml:"tracing" json:"tracing,omitempty"`
 }
 
 // HTTPKeepaliveInterval returns the keepalive interval as a time.Duration.

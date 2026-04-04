@@ -21,6 +21,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
 var logProxy = logger.New("proxy:proxy")
@@ -264,8 +265,10 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trusted
 }
 
 // Handler returns an http.Handler for the proxy server.
+// Every request is wrapped with an OTEL "proxy.request" span so the full
+// proxy lifecycle (DIFC pipeline + GitHub API round-trip) appears in traces.
 func (s *Server) Handler() http.Handler {
-	return &proxyHandler{server: s}
+	return tracing.WrapHTTPHandler(&proxyHandler{server: s}, "proxy.request")
 }
 
 // restBackendCaller translates guard CallTool requests into GitHub REST API

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"log"
@@ -10,10 +11,13 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/proxy"
+	"github.com/github/gh-aw-mcpg/internal/tracing"
 	"github.com/spf13/cobra"
 )
 
@@ -21,17 +25,20 @@ var logProxyCmd = logger.New("cmd:proxy")
 
 // Proxy subcommand flag variables
 var (
-	proxyGuardWasm    string
-	proxyPolicy       string
-	proxyToken        string
-	proxyListen       string
-	proxyLogDir       string
-	proxyDIFCMode     string
-	proxyAPIURL       string
-	proxyTLS          bool
-	proxyTLSDir       string
-	proxyTrustedBots  []string
-	proxyTrustedUsers []string
+	proxyGuardWasm      string
+	proxyPolicy         string
+	proxyToken          string
+	proxyListen         string
+	proxyLogDir         string
+	proxyDIFCMode       string
+	proxyAPIURL         string
+	proxyTLS            bool
+	proxyTLSDir         string
+	proxyTrustedBots    []string
+	proxyTrustedUsers   []string
+	proxyOTLPEndpoint   string
+	proxyOTLPService    string
+	proxyOTLPSampleRate float64
 )
 
 func init() {
@@ -104,6 +111,12 @@ Local usage:
 	cmd.Flags().StringVar(&proxyTLSDir, "tls-dir", "", "Directory for TLS certificates (default: <log-dir>/proxy-tls)")
 	cmd.Flags().StringSliceVar(&proxyTrustedBots, "trusted-bots", nil, "Additional trusted bot usernames (comma-separated, extends built-in list)")
 	cmd.Flags().StringSliceVar(&proxyTrustedUsers, "trusted-users", nil, "User logins that receive approved integrity (comma-separated)")
+	cmd.Flags().StringVar(&proxyOTLPEndpoint, "otlp-endpoint", getDefaultOTLPEndpoint(),
+		"OTLP HTTP endpoint for trace export (e.g. http://localhost:4318). Tracing is disabled when empty.")
+	cmd.Flags().StringVar(&proxyOTLPService, "otlp-service-name", getDefaultOTLPServiceName(),
+		"Service name reported in traces.")
+	cmd.Flags().Float64Var(&proxyOTLPSampleRate, "otlp-sample-rate", config.DefaultTracingSampleRate,
+		"Fraction of traces to sample and export (0.0–1.0).")
 
 	// Only require --guard-wasm when no baked-in guard is available
 	if defaultGuard == "" {
@@ -136,6 +149,35 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	}
 
 	logger.LogInfo("startup", "MCPG Proxy starting: listen=%s, guard=%s, mode=%s, tls=%v", proxyListen, proxyGuardWasm, proxyDIFCMode, proxyTLS)
+
+	// Initialize OpenTelemetry tracer provider for the proxy server.
+	// When no endpoint is configured, a noop provider is used (zero overhead).
+	var tracingCfg *config.TracingConfig
+	if proxyOTLPEndpoint != "" {
+		tracingCfg = &config.TracingConfig{
+			Endpoint:    proxyOTLPEndpoint,
+			ServiceName: proxyOTLPService,
+			SampleRate:  &proxyOTLPSampleRate,
+		}
+	}
+	tracingProvider, err := tracing.InitProvider(ctx, tracingCfg)
+	if err != nil {
+		log.Printf("Warning: failed to initialize tracing provider: %v", err)
+		tracingProvider, _ = tracing.InitProvider(ctx, nil)
+	}
+	defer func() {
+		shutdownCtx, cancelTracing := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelTracing()
+		if err := tracingProvider.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Warning: tracing provider shutdown error: %v", err)
+		}
+	}()
+	if tracingCfg != nil {
+		log.Printf("OpenTelemetry tracing enabled for proxy: endpoint=%s, service=%s", proxyOTLPEndpoint, proxyOTLPService)
+		logger.LogInfo("startup", "OpenTelemetry tracing enabled for proxy: endpoint=%s, service=%s", proxyOTLPEndpoint, proxyOTLPService)
+	} else {
+		log.Printf("OpenTelemetry tracing disabled for proxy (no --otlp-endpoint configured)")
+	}
 
 	// Resolve GitHub token (optional — proxy forwards client auth by default)
 	token := proxyToken

@@ -12,12 +12,17 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/launcher"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	"github.com/github/gh-aw-mcpg/internal/tracing"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -372,6 +377,16 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	log.Printf("Calling tool on %s: %s with DIFC enforcement", serverID, toolName)
 	logUnified.Printf("callBackendTool: serverID=%s, toolName=%s, args=%+v", serverID, toolName, args)
 
+	// Start an OTEL span for the full tool call lifecycle (spans all phases 0–6)
+	ctx, toolSpan := tracing.Tracer().Start(ctx, "gateway.tool_call",
+		oteltrace.WithAttributes(
+			attribute.String("tool.name", toolName),
+			attribute.String("server.id", serverID),
+		),
+		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
+	)
+	defer toolSpan.End()
+
 	// Get guard for this backend
 	g := us.guardRegistry.Get(serverID)
 	sessionID := us.getSessionID(ctx)
@@ -435,6 +450,8 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			// Non-read operation - block the request
 			log.Printf("[DIFC] Access DENIED for agent %s to %s: %s", agentID, resource.Description, result.Reason)
 			detailedErr := difc.FormatViolationError(result, agentLabels.Secrecy, agentLabels.Integrity, resource)
+			toolSpan.RecordError(detailedErr)
+			toolSpan.SetStatus(codes.Error, "access denied: "+result.Reason)
 			return &sdk.CallToolResult{
 				Content: []sdk.Content{
 					&sdk.TextContent{
@@ -449,8 +466,18 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	}
 
 	// **Phase 3: Execute the backend call**
-	backendResult, err := executeBackendToolCall(ctx, us.launcher, serverID, sessionID, toolName, args)
+	execCtx, execSpan := tracing.Tracer().Start(ctx, "gateway.backend.execute",
+		oteltrace.WithAttributes(
+			attribute.String("tool.name", toolName),
+			attribute.String("server.id", serverID),
+		),
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer execSpan.End()
+	backendResult, err := executeBackendToolCall(execCtx, us.launcher, serverID, sessionID, toolName, args)
 	if err != nil {
+		execSpan.RecordError(err)
+		execSpan.SetStatus(codes.Error, err.Error())
 		return newErrorCallToolResult(err)
 	}
 

@@ -9,11 +9,16 @@ import (
 	"log"
 	"net/http"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
 var logHandler = logger.New("proxy:handler")
@@ -125,6 +130,16 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	s := h.server
 	backend := &restBackendCaller{server: s, clientAuth: r.Header.Get("Authorization")}
 
+	// Start a DIFC pipeline span covering all phases for this request
+	ctx, difcSpan := tracing.Tracer().Start(ctx, "proxy.difc_pipeline",
+		oteltrace.WithAttributes(
+			attribute.String("tool.name", toolName),
+			attribute.String("http.path", path),
+		),
+		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
+	)
+	defer difcSpan.End()
+
 	if !s.guardInitialized {
 		log.Printf("[proxy] WARNING: guard not initialized, blocking request")
 		http.Error(w, "proxy enforcement not configured", http.StatusServiceUnavailable)
@@ -159,6 +174,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		} else {
 			// Write blocked
 			logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, evalResult.Reason)
+			difcSpan.SetStatus(codes.Error, "access denied: "+evalResult.Reason)
 			writeDIFCForbidden(w, fmt.Sprintf("DIFC policy violation: %s", evalResult.Reason))
 			return
 		}
@@ -168,11 +184,23 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	clientAuth := r.Header.Get("Authorization")
 	var resp *http.Response
 	var respBody []byte
+
+	fwdCtx, fwdSpan := tracing.Tracer().Start(ctx, "proxy.backend.forward",
+		oteltrace.WithAttributes(
+			attribute.String("http.path", path),
+			attribute.String("tool.name", toolName),
+		),
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
 	if graphQLBody != nil {
-		resp, respBody = h.forwardAndReadBody(w, ctx, http.MethodPost, "/graphql", bytes.NewReader(graphQLBody), "application/json", clientAuth)
+		resp, respBody = h.forwardAndReadBody(w, fwdCtx, http.MethodPost, "/graphql", bytes.NewReader(graphQLBody), "application/json", clientAuth)
 	} else {
-		resp, respBody = h.forwardAndReadBody(w, ctx, r.Method, path, nil, "", clientAuth)
+		resp, respBody = h.forwardAndReadBody(w, fwdCtx, r.Method, path, nil, "", clientAuth)
 	}
+	if resp != nil {
+		fwdSpan.SetAttributes(attribute.Int("http.status_code", resp.StatusCode))
+	}
+	fwdSpan.End()
 	if resp == nil {
 		return
 	}

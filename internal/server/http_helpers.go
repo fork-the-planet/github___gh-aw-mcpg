@@ -8,12 +8,18 @@ import (
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
+	oteltrace "go.opentelemetry.io/otel/trace"
+
 	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
 var logHelpers = logger.New("server:helpers")
@@ -180,11 +186,47 @@ func setupSessionCallback(r *http.Request, backendID string) (string, bool) {
 	return sessionID, true
 }
 
+// WithOTELTracing wraps an http.Handler with an OpenTelemetry span for each request.
+// The span covers the full HTTP handler lifecycle and includes session ID, HTTP path,
+// and method as span attributes. The span context is propagated into the request context
+// so that nested spans (e.g. tool call spans) are automatically parented to it.
+//
+// Incoming W3C traceparent/tracestate headers are extracted so that an
+// agent-originated trace is continued; if no such headers are present a fresh
+// root span (and new trace ID) is created automatically.
+func WithOTELTracing(next http.Handler, tag string) http.Handler {
+	t := tracing.Tracer()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract incoming W3C trace context (traceparent / tracestate).
+		// If the headers are absent the returned ctx is unchanged and OTEL
+		// will generate a fresh trace ID when the span is started.
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+
+		ctx, span := t.Start(ctx, "gateway.request",
+			oteltrace.WithAttributes(
+				attribute.String("http.method", r.Method),
+				attribute.String("http.path", r.URL.Path),
+				attribute.String("gateway.tag", tag),
+			),
+			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		)
+		defer span.End()
+
+		req := r.WithContext(ctx)
+		next.ServeHTTP(w, req)
+
+		// Add session ID after request handling, once the session has been attached
+		sessionID := SessionIDFromContext(req.Context())
+		span.SetAttributes(attribute.String("session.id", auth.TruncateSessionID(sessionID)))
+	})
+}
+
 // wrapWithMiddleware applies the standard middleware stack to an SDK handler.
 // The middleware is applied in the following order (per spec):
-// 1. SDK logging (WithSDKLogging) - Detailed JSON-RPC translation debugging
-// 2. Shutdown check (rejectIfShutdown) - Spec 5.1.3: Reject requests during shutdown
-// 3. Auth (applyAuthIfConfigured) - Spec 7.1: API key authentication if configured
+// 1. OTEL tracing (WithOTELTracing) - OpenTelemetry span for the request
+// 2. SDK logging (WithSDKLogging) - Detailed JSON-RPC translation debugging
+// 3. Shutdown check (rejectIfShutdown) - Spec 5.1.3: Reject requests during shutdown
+// 4. Auth (applyAuthIfConfigured) - Spec 7.1: API key authentication if configured
 //
 // This ensures consistent middleware ordering across both routed and unified server modes.
 func wrapWithMiddleware(handler http.Handler, logTag string, unifiedServer *UnifiedServer, apiKey string) http.HandlerFunc {
@@ -198,8 +240,11 @@ func wrapWithMiddleware(handler http.Handler, logTag string, unifiedServer *Unif
 	shutdownHandler := rejectIfShutdown(unifiedServer, loggedHandler, "server:"+logTag)
 
 	// Apply auth middleware if API key is configured (spec 7.1)
-	finalHandler := applyAuthIfConfigured(apiKey, shutdownHandler.ServeHTTP)
+	authedHandler := applyAuthIfConfigured(apiKey, shutdownHandler.ServeHTTP)
+
+	// Wrap with OTEL tracing span (outermost, so it covers auth + shutdown + logging)
+	tracingHandler := WithOTELTracing(authedHandler, logTag)
 
 	logHelpers.Printf("Middleware wrapping complete: logTag=%s", logTag)
-	return finalHandler
+	return tracingHandler.ServeHTTP
 }
