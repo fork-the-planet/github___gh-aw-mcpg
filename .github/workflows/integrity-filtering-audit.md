@@ -39,6 +39,8 @@ safe-outputs:
 timeout-minutes: 20
 features:
   difc-proxy: true
+imports:
+  - shared/mcp-api-routing.md
 ---
 
 # Integrity Filtering Audit
@@ -60,6 +62,9 @@ Common problems to look for:
 - **Unscoped integrity tags** (e.g., `approved` instead of `approved:owner/repo`)
 - **Empty responses** where data was expected (over-filtering)
 - **Search result leaks** where out-of-scope items appear in filtered results
+- **Direct API bypass attempts** where an agent contacts `api.github.com`, `github.com`,
+  or external AI services (e.g., `chatgpt.com`, `openai.com`) without going through
+  the MCP Gateway — these show up as network firewall blocks in the job logs
 
 ## Procedure
 
@@ -110,6 +115,17 @@ For each downloaded artifact set, check:
 5. **Scope violations**: Check if any response contains data from repositories
    NOT in the workflow's `allowed-repos` policy.
 
+6. **Direct API bypass attempts**: Search job logs and stderr for network firewall
+   blocks that reveal the agent trying to reach external domains directly instead
+   of through the MCP Gateway. Key domains to flag:
+   - `api.github.com` — GitHub API (must go through MCP Gateway, not curl/fetch)
+   - `github.com` — GitHub web (should not be contacted directly)
+   - `chatgpt.com`, `openai.com`, `api.openai.com` — external AI services
+   - Any other non-allowlisted HTTP endpoint
+
+   For each block, record: the blocked domain, the number of block events, which
+   workflow run, and what step appears to have triggered it.
+
 ```bash
 # Example: Count DIFC events in JSONL
 grep -c 'difc_integrity' "$TMPDIR"/*/mcp-logs/rpc-messages.jsonl 2>/dev/null || echo "0"
@@ -119,6 +135,16 @@ grep -iE 'error|failed|blocked|unknown|wasm error:|WASM guard trap' "$TMPDIR"/*/
 
 # Example: Specifically search for WASM guard panics
 grep -iE 'wasm error:|WASM guard trap|unreachable' "$TMPDIR"/*/mcp-logs/mcp-gateway.log 2>/dev/null
+
+# Example: Detect direct API bypass attempts in job logs
+# The network firewall logs blocked connections; search agent stderr/stdout for clues
+grep -iE 'api\.github\.com|chatgpt\.com|openai\.com|curl.*https?://[^ ]*github|fetch.*https?://[^ ]*github' \
+  "$TMPDIR"/*/mcp-logs/*.log 2>/dev/null | head -30
+
+# Example: Summarize firewall blocks by domain from network-firewall logs (if present)
+grep -iE 'BLOCK|DENY|firewall' "$TMPDIR"/*/mcp-logs/*.log 2>/dev/null \
+  | grep -oE '(api\.github\.com|github\.com|chatgpt\.com|openai\.com|[a-z0-9.-]+\.[a-z]{2,})' \
+  | sort | uniq -c | sort -rn | head -20
 ```
 
 ### Step 4: Classify Findings
@@ -127,8 +153,19 @@ Classify each finding by severity:
 - 🔴 **Critical**: Data leak (out-of-scope data returned), guard bypass, or
   labeling failure that could expose unauthorized data
 - 🟡 **Warning**: Over-filtering (legitimate data blocked), unscoped tags,
-  zero DIFC events in a run that should have filtering, or WASM guard trap
+  zero DIFC events in a run that should have filtering, WASM guard trap, or
+  **direct API bypass attempt** (agent contacted `api.github.com`, `github.com`,
+  or an external AI service such as `chatgpt.com` / `openai.com` directly instead
+  of routing through the MCP Gateway — visible as network firewall blocks)
 - 🟢 **Info**: Normal filtering behavior, expected blocks, or configuration notes
+
+When classifying a **direct API bypass** warning (W-1), record:
+- The blocked domain(s) and block count
+- The workflow name and run ID
+- The likely cause: misconfigured `network.allowed` list, agent prompt not
+  restricting tool use, or the workflow missing `features.difc-proxy: true`
+- Recommended fix: strengthen agent system prompt to use MCP Gateway tools
+  exclusively; see `shared/mcp-api-routing.md` for reusable constraint language
 
 ### Step 5: Create Summary Issue
 
@@ -159,7 +196,8 @@ Create an issue with the audit results using the following structure:
 <details>
 <summary><b>Warnings</b></summary>
 
-[Details of each warning]
+[Details of each warning — for direct API bypass (W-1) warnings include: blocked
+domain(s), block count, workflow name, likely cause, and recommended fix]
 
 </details>
 
@@ -172,13 +210,17 @@ Create an issue with the audit results using the following structure:
 
 ### Runs Analyzed
 
-| Run | Workflow | Branch | DIFC Events | Filtered | Status |
-|-----|----------|--------|-------------|----------|--------|
-| [§ID](run_url) | name | branch | N | N | ✅/⚠️/❌ |
+| Run | Workflow | Branch | Agent Invoked | DIFC Events | Firewall Blocks | Status |
+|-----|----------|--------|---------------|-------------|-----------------|--------|
+| [§ID](run_url) | name | branch | ✅/❌ early-exit | N | N/total | ✅/⚠️/❌ |
 
 ### Recommendations
 
-[Actionable suggestions based on findings]
+[Actionable suggestions based on findings. For direct API bypass (W-1) findings,
+always include: 1) which workflow to investigate, 2) whether it has
+`features.difc-proxy: true`, 3) whether the agent prompt restricts tool use to
+MCP Gateway tools, and 4) a pointer to `shared/mcp-api-routing.md` for reusable
+constraint language to add to the workflow prompt.]
 ```
 
 If there are no findings (all runs look healthy), still create the issue with
