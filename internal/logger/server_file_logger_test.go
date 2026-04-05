@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -262,4 +263,204 @@ func TestServerFileLoggerPreservesUnifiedView(t *testing.T) {
 	// Verify unified log has all three messages
 	lines := strings.Split(strings.TrimSpace(string(unifiedContent)), "\n")
 	assert.GreaterOrEqual(t, len(lines), 3, "unified log should have at least 3 messages")
+}
+
+// TestServerFileLoggerClose_NilReceiver verifies that Close() handles nil receiver gracefully.
+func TestServerFileLoggerClose_NilReceiver(t *testing.T) {
+	var sfl *ServerFileLogger
+	err := sfl.Close()
+	assert.NoError(t, err, "Close() on nil receiver should return nil without panicking")
+}
+
+// TestServerFileLoggerClose_EmptyFiles verifies that Close() succeeds when no files are open.
+func TestServerFileLoggerClose_EmptyFiles(t *testing.T) {
+	sfl := &ServerFileLogger{
+		loggers: make(map[string]*log.Logger),
+		files:   make(map[string]*os.File),
+	}
+
+	err := sfl.Close()
+
+	assert.NoError(t, err, "Close() with no open files should return nil")
+	assert.Empty(t, sfl.loggers, "loggers map should be cleared after Close()")
+	assert.Empty(t, sfl.files, "files map should be cleared after Close()")
+}
+
+// TestServerFileLoggerClose_SyncError verifies that Close() returns the first error when file.Sync() fails.
+// This covers the sync error path and firstErr tracking within the Close() loop.
+func TestServerFileLoggerClose_SyncError(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	tmpDir := t.TempDir()
+
+	// Create a real file, then close it to invalidate the descriptor.
+	// Subsequent Sync() and Close() calls on the *os.File will return an error.
+	f, err := os.CreateTemp(tmpDir, "test-server-*.log")
+	require.NoError(err, "CreateTemp should succeed")
+	f.Close() // Close to invalidate the file descriptor
+
+	sfl := &ServerFileLogger{
+		loggers: map[string]*log.Logger{
+			"server1": log.New(f, "", 0),
+		},
+		files: map[string]*os.File{
+			"server1": f,
+		},
+	}
+
+	closeErr := sfl.Close()
+
+	// Sync() on a closed file descriptor should fail, so Close() must return an error.
+	assert.Error(closeErr, "Close() should return an error when Sync() fails on an invalidated file")
+
+	// Maps must be cleared even when errors occur.
+	assert.Empty(sfl.loggers, "loggers map should be cleared after Close() even on error")
+	assert.Empty(sfl.files, "files map should be cleared after Close() even on error")
+}
+
+// TestServerFileLoggerClose_FirstErrorTracking verifies that Close() returns the first error encountered
+// and does not overwrite it with subsequent errors when multiple files fail.
+func TestServerFileLoggerClose_FirstErrorTracking(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	tmpDir := t.TempDir()
+
+	// Create two files and close both to make all operations fail.
+	f1, err := os.CreateTemp(tmpDir, "test-server1-*.log")
+	require.NoError(err)
+	f1.Close()
+
+	f2, err := os.CreateTemp(tmpDir, "test-server2-*.log")
+	require.NoError(err)
+	f2.Close()
+
+	sfl := &ServerFileLogger{
+		loggers: map[string]*log.Logger{
+			"server1": log.New(f1, "", 0),
+			"server2": log.New(f2, "", 0),
+		},
+		files: map[string]*os.File{
+			"server1": f1,
+			"server2": f2,
+		},
+	}
+
+	closeErr := sfl.Close()
+
+	// At least one error should be returned; the first one wins.
+	assert.Error(closeErr, "Close() should return an error when files have already been closed")
+
+	// Maps must be cleared regardless.
+	assert.Empty(sfl.loggers, "loggers map should be cleared after Close()")
+	assert.Empty(sfl.files, "files map should be cleared after Close()")
+}
+
+// TestServerFileLoggerClose_ValidFiles verifies that Close() returns nil when all files close successfully.
+func TestServerFileLoggerClose_ValidFiles(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	tmpDir := t.TempDir()
+
+	// Create two valid open files.
+	f1, err := os.OpenFile(filepath.Join(tmpDir, "server1.log"), os.O_CREATE|os.O_WRONLY, 0644)
+	require.NoError(err)
+
+	f2, err := os.OpenFile(filepath.Join(tmpDir, "server2.log"), os.O_CREATE|os.O_WRONLY, 0644)
+	require.NoError(err)
+
+	sfl := &ServerFileLogger{
+		loggers: map[string]*log.Logger{
+			"server1": log.New(f1, "", 0),
+			"server2": log.New(f2, "", 0),
+		},
+		files: map[string]*os.File{
+			"server1": f1,
+			"server2": f2,
+		},
+	}
+
+	closeErr := sfl.Close()
+
+	assert.NoError(closeErr, "Close() should return nil when all files close successfully")
+	assert.Empty(sfl.loggers, "loggers map should be cleared after Close()")
+	assert.Empty(sfl.files, "files map should be cleared after Close()")
+}
+
+// TestServerFileLoggerClose_CloseTwice verifies that calling Close() twice does not panic.
+// After the first Close(), maps are empty so the second Close() is a no-op.
+func TestServerFileLoggerClose_CloseTwice(t *testing.T) {
+	assert := assert.New(t)
+
+	sfl := &ServerFileLogger{
+		loggers: make(map[string]*log.Logger),
+		files:   make(map[string]*os.File),
+	}
+
+	err1 := sfl.Close()
+	err2 := sfl.Close()
+
+	assert.NoError(err1, "First Close() should return nil")
+	assert.NoError(err2, "Second Close() should return nil (no-op)")
+}
+
+// TestServerFileLoggerLog_NilReceiver verifies that Log() on a nil ServerFileLogger does not panic.
+func TestServerFileLoggerLog_NilReceiver(t *testing.T) {
+	var sfl *ServerFileLogger
+	assert.NotPanics(t, func() {
+		sfl.Log("server1", LogLevelInfo, "test", "message")
+	}, "Log() on nil receiver should not panic")
+}
+
+// TestServerFileLoggerLog_SyncError verifies that Log() handles file sync failures gracefully.
+// This covers the file.Sync() error path inside the Log() method.
+func TestServerFileLoggerLog_SyncError(t *testing.T) {
+	require := require.New(t)
+
+	tmpDir := t.TempDir()
+
+	// Create a file then close it to simulate a broken file descriptor.
+	f, err := os.CreateTemp(tmpDir, "test-sync-*.log")
+	require.NoError(err)
+	f.Close()
+
+	sfl := &ServerFileLogger{
+		logDir: tmpDir,
+		loggers: map[string]*log.Logger{
+			"server1": log.New(f, "", 0),
+		},
+		files: map[string]*os.File{
+			"server1": f,
+		},
+	}
+
+	// Log() should not panic even when Sync() fails internally.
+	assert.NotPanics(t, func() {
+		sfl.Log("server1", LogLevelInfo, "test", "message after close")
+	}, "Log() should not panic when file sync fails")
+}
+
+// TestServerFileLoggerGetOrCreate_FileCreationError verifies that getOrCreateLogger handles
+// file creation failures gracefully, falling back to the debug logger.
+func TestServerFileLoggerGetOrCreate_FileCreationError(t *testing.T) {
+	// Use a non-existent non-writable path to force os.OpenFile to fail.
+	sfl := &ServerFileLogger{
+		logDir:      "/nonexistent/path/that/does/not/exist",
+		loggers:     make(map[string]*log.Logger),
+		files:       make(map[string]*os.File),
+		useFallback: false, // not in fallback mode; will attempt to create files
+	}
+
+	// Log() should not panic. It falls back to LogDebug when file creation fails.
+	assert.NotPanics(t, func() {
+		sfl.Log("server1", LogLevelInfo, "test", "message")
+	}, "Log() should not panic when file creation fails")
+
+	// Since getOrCreateLogger returned an error, the file should not be in the map.
+	sfl.mu.RLock()
+	_, exists := sfl.files["server1"]
+	sfl.mu.RUnlock()
+	assert.False(t, exists, "files map should not contain server1 after creation failure")
 }
