@@ -360,6 +360,10 @@ func LoadFromFile(path string) (*Config, error) {
 	if cfg.Gateway.Opentelemetry != nil {
 		cfg.Gateway.Tracing = cfg.Gateway.Opentelemetry
 		cfg.Gateway.Opentelemetry = nil
+		// Expand ${VAR} expressions in tracing fields before validation.
+		if err := expandTracingVariables(cfg.Gateway.Tracing); err != nil {
+			return nil, err
+		}
 		// Validate HTTPS endpoint requirement for the opentelemetry section
 		if err := validateOpenTelemetryConfig(cfg.Gateway.Tracing, true); err != nil {
 			return nil, err

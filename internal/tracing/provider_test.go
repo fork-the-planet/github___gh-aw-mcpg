@@ -313,16 +313,19 @@ func TestWrapHTTPHandler_GeneratesRootSpan(t *testing.T) {
 	assert.False(t, capturedSpanCtx.IsRemote(), "span should not be marked remote — it is a local root span")
 }
 
-// TestInitProvider_WithHeaders verifies that OTLP export headers are accepted.
-// The headers are applied to the exporter but cannot easily be verified without
-// intercepting the network; this test confirms provider initialization succeeds.
+// TestInitProvider_WithHeaders verifies that OTLP export headers are forwarded
+// to the collector. A channel synchronises with the test HTTP server so the
+// assertion is deterministic rather than timing-dependent.
 func TestInitProvider_WithHeaders(t *testing.T) {
 	ctx := context.Background()
 
-	// Spin up a test server to receive OTLP export requests and capture headers.
-	var capturedAuth string
+	// Channel signals when the test server receives an export request.
+	received := make(chan string, 1)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedAuth = r.Header.Get("Authorization")
+		select {
+		case received <- r.Header.Get("Authorization"):
+		default:
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
@@ -341,16 +344,18 @@ func TestInitProvider_WithHeaders(t *testing.T) {
 	_, span := tr.Start(ctx, "header-test-span")
 	span.End()
 
-	// Shutdown with a brief timeout to flush pending spans.
-	shutdownCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	// Shutdown flushes the batch processor, ensuring the export is sent.
+	shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	_ = provider.Shutdown(shutdownCtx)
 
-	// The test server may or may not have received the export within the timeout.
-	// If it did, verify the Authorization header was forwarded correctly.
-	if capturedAuth != "" {
-		assert.Equal(t, "Bearer test-token", capturedAuth,
+	// Wait for the export request with a timeout.
+	select {
+	case auth := <-received:
+		assert.Equal(t, "Bearer test-token", auth,
 			"Authorization header must be forwarded to the OTLP collector")
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for OTLP export request — headers test is non-deterministic")
 	}
 }
 

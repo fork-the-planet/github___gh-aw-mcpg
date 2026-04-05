@@ -32,17 +32,19 @@ type TracingConfig struct {
 	Endpoint string `toml:"endpoint" json:"endpoint,omitempty"`
 
 	// Headers are HTTP headers sent with every OTLP export request (e.g. auth tokens).
-	// Values support ${VAR} variable expansion.
+	// Header values support ${VAR} variable expansion (expanded at config load time).
 	Headers map[string]string `toml:"headers" json:"headers,omitempty"`
 
 	// TraceID is an optional W3C trace ID (32-char lowercase hex) used to construct the
 	// parent traceparent header, linking gateway spans into a pre-existing trace.
-	// Supports ${VAR} variable expansion. Must be 32 lowercase hex characters.
+	// Supports ${VAR} variable expansion (expanded at config load time).
+	// Must be 32 lowercase hex characters and must not be all zeros.
 	TraceID string `toml:"trace_id" json:"traceId,omitempty"`
 
 	// SpanID is an optional W3C span ID (16-char lowercase hex) paired with TraceID
 	// to construct the parent traceparent header. Ignored when TraceID is absent.
-	// Supports ${VAR} variable expansion. Must be 16 lowercase hex characters.
+	// Supports ${VAR} variable expansion (expanded at config load time).
+	// Must be 16 lowercase hex characters and must not be all zeros.
 	SpanID string `toml:"span_id" json:"spanId,omitempty"`
 
 	// ServiceName is the service name reported in traces.

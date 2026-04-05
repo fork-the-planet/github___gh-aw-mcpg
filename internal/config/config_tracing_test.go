@@ -180,17 +180,81 @@ func TestOTEL010_ServiceNameDefaults(t *testing.T) {
 		"T-OTEL-010: default serviceName must be 'mcp-gateway' after applyDefaults")
 }
 
-// TestValidateOpenTelemetryConfig_VarExpressions verifies that ${VAR} expressions
-// are accepted in traceId/spanId fields (they pass the regex check as whole-string var refs).
-func TestValidateOpenTelemetryConfig_VarExpressions(t *testing.T) {
+// TestValidateOpenTelemetryConfig_UnexpandedVarExpressions verifies that unexpanded
+// ${VAR} expressions are rejected by validation. In practice, expandTracingVariables
+// (TOML path) or ExpandRawJSONVariables (stdin JSON path) expand vars before validation,
+// so unexpanded expressions should never reach the validator in normal flow.
+func TestValidateOpenTelemetryConfig_UnexpandedVarExpressions(t *testing.T) {
 	cfg := &TracingConfig{
 		Endpoint: "https://otel-collector.example.com",
 		TraceID:  "${TRACE_ID}",
-		SpanID:   "${SPAN_ID}",
 	}
-	// Variable expressions should not be validated as hex (they haven't been expanded yet)
 	err := validateOpenTelemetryConfig(cfg, true)
-	require.NoError(t, err, "Variable expressions in traceId/spanId must pass validation before expansion")
+	require.Error(t, err, "Unexpanded variable expressions must fail hex validation")
+	assert.Contains(t, err.Error(), "traceId")
+}
+
+// TestExpandTracingVariables verifies that ${VAR} expressions in tracing config
+// fields are expanded from environment variables.
+func TestExpandTracingVariables(t *testing.T) {
+	t.Setenv("TEST_OTEL_ENDPOINT", "https://otel.example.com")
+	t.Setenv("TEST_TRACE_ID", "4bf92f3577b34da6a3ce929d0e0e4736")
+	t.Setenv("TEST_SPAN_ID", "00f067aa0ba902b7")
+	t.Setenv("TEST_AUTH_TOKEN", "Bearer secret-token")
+
+	cfg := &TracingConfig{
+		Endpoint: "${TEST_OTEL_ENDPOINT}",
+		TraceID:  "${TEST_TRACE_ID}",
+		SpanID:   "${TEST_SPAN_ID}",
+		Headers:  map[string]string{"Authorization": "${TEST_AUTH_TOKEN}"},
+	}
+
+	err := expandTracingVariables(cfg)
+	require.NoError(t, err)
+
+	assert.Equal(t, "https://otel.example.com", cfg.Endpoint)
+	assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", cfg.TraceID)
+	assert.Equal(t, "00f067aa0ba902b7", cfg.SpanID)
+	assert.Equal(t, "Bearer secret-token", cfg.Headers["Authorization"])
+
+	// After expansion, validation should pass
+	err = validateOpenTelemetryConfig(cfg, true)
+	require.NoError(t, err, "Expanded config should pass validation")
+}
+
+// TestExpandTracingVariables_UndefinedVar verifies that an undefined variable
+// in tracing config causes an error during expansion.
+func TestExpandTracingVariables_UndefinedVar(t *testing.T) {
+	cfg := &TracingConfig{
+		Endpoint: "${UNDEFINED_OTEL_ENDPOINT_XYZZY}",
+	}
+	err := expandTracingVariables(cfg)
+	require.Error(t, err, "Undefined variable must cause expansion error")
+}
+
+// TestValidateOpenTelemetryConfig_AllZeroTraceID verifies that an all-zero traceId
+// is rejected per W3C Trace Context specification.
+func TestValidateOpenTelemetryConfig_AllZeroTraceID(t *testing.T) {
+	cfg := &TracingConfig{
+		Endpoint: "https://otel-collector.example.com",
+		TraceID:  "00000000000000000000000000000000",
+	}
+	err := validateOpenTelemetryConfig(cfg, true)
+	require.Error(t, err, "All-zero traceId must be rejected per W3C Trace Context")
+	assert.Contains(t, err.Error(), "all zeros")
+}
+
+// TestValidateOpenTelemetryConfig_AllZeroSpanID verifies that an all-zero spanId
+// is rejected per W3C Trace Context specification.
+func TestValidateOpenTelemetryConfig_AllZeroSpanID(t *testing.T) {
+	cfg := &TracingConfig{
+		Endpoint: "https://otel-collector.example.com",
+		TraceID:  "4bf92f3577b34da6a3ce929d0e0e4736",
+		SpanID:   "0000000000000000",
+	}
+	err := validateOpenTelemetryConfig(cfg, true)
+	require.Error(t, err, "All-zero spanId must be rejected per W3C Trace Context")
+	assert.Contains(t, err.Error(), "all zeros")
 }
 
 // TestGetSampleRate_NewFields verifies that the new fields don't affect GetSampleRate.
