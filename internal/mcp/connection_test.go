@@ -13,6 +13,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -258,7 +259,7 @@ func TestExpandDockerEnvArgs(t *testing.T) {
 				}
 			})
 
-			result := config.ExpandEnvArgs(tt.args)
+			result := envutil.ExpandEnvArgs(tt.args)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

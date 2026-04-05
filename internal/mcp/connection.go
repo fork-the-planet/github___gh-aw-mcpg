@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/oidc"
@@ -104,7 +104,7 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 
 	// Expand Docker -e flags that reference environment variables
 	// Docker's `-e VAR_NAME` expects VAR_NAME to be in the environment
-	expandedArgs := config.ExpandEnvArgs(args)
+	expandedArgs := envutil.ExpandEnvArgs(args)
 	logConn.Printf("Expanded args for Docker env: %v", sanitize.SanitizeArgs(expandedArgs))
 
 	// Create command transport
