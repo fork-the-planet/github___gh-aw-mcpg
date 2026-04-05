@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -289,11 +291,10 @@ func TestInitLogFile_InvalidDirectory(t *testing.T) {
 	fileName := "test.log"
 
 	file, err := initLogFile(logDir, fileName, os.O_APPEND)
-	if err == nil {
+	if file != nil {
 		file.Close()
-		t.Fatal("initLogFile should fail when directory can't be created")
 	}
-
+	require.Error(err, "initLogFile should fail when directory can't be created")
 	assert.Contains(err.Error(), "failed to create log directory", "Error should mention directory creation failure")
 }
 
@@ -319,16 +320,16 @@ func TestInitLogFile_UnwritableDirectory(t *testing.T) {
 
 func TestInitLogFile_EmptyFileName(t *testing.T) {
 	assert := assert.New(t)
+	require := require.New(t)
 	tmpDir := t.TempDir()
 	logDir := filepath.Join(tmpDir, "logs")
 	fileName := ""
 
 	file, err := initLogFile(logDir, fileName, os.O_APPEND)
-	if err == nil {
+	if file != nil {
 		file.Close()
-		t.Fatal("initLogFile should fail with empty fileName")
 	}
-
+	require.Error(err, "initLogFile should fail with empty fileName")
 	assert.Contains(err.Error(), "failed to open log file", "Error should mention file opening failure")
 }
 
@@ -388,6 +389,7 @@ func TestInitLogger_FileLogger(t *testing.T) {
 	fileName := "test.log"
 
 	// Test successful initialization
+	errorHandlerCalled := false
 	logger, err := initLogger(
 		logDir, fileName, os.O_APPEND,
 		func(file *os.File, logDir, fileName string) (*FileLogger, error) {
@@ -399,11 +401,12 @@ func TestInitLogger_FileLogger(t *testing.T) {
 			return fl, nil
 		},
 		func(err error, logDir, fileName string) (*FileLogger, error) {
-			// Should not be called on success
-			t.Errorf("Error handler should not be called on successful initialization")
+			errorHandlerCalled = true
 			return nil, err
 		},
 	)
+
+	assert.False(errorHandlerCalled, "Error handler should not be called on successful initialization")
 
 	require.NoError(err, "initLogger should not return error")
 	require.NotNil(logger, "logger should not be nil")
@@ -429,12 +432,12 @@ func TestInitLogger_FileLoggerFallback(t *testing.T) {
 	fileName := "test.log"
 
 	errorHandlerCalled := false
+	setupHandlerCalled := false
 
 	logger, err := initLogger(
 		logDir, fileName, os.O_APPEND,
 		func(file *os.File, logDir, fileName string) (*FileLogger, error) {
-			// Should not be called on error
-			t.Errorf("Setup handler should not be called on error")
+			setupHandlerCalled = true
 			return nil, nil
 		},
 		func(err error, logDir, fileName string) (*FileLogger, error) {
@@ -449,6 +452,8 @@ func TestInitLogger_FileLoggerFallback(t *testing.T) {
 			return fl, nil
 		},
 	)
+
+	assert.False(setupHandlerCalled, "Setup handler should not be called on error")
 
 	assert.True(errorHandlerCalled, "Error handler should be called")
 	require.NoError(err, "initLogger should not return error for fallback")
@@ -465,6 +470,7 @@ func TestInitLogger_JSONLLogger(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 	fileName := "test.jsonl"
 
+	errorHandlerCalled := false
 	logger, err := initLogger(
 		logDir, fileName, os.O_APPEND,
 		func(file *os.File, logDir, fileName string) (*JSONLLogger, error) {
@@ -476,11 +482,12 @@ func TestInitLogger_JSONLLogger(t *testing.T) {
 			return jl, nil
 		},
 		func(err error, logDir, fileName string) (*JSONLLogger, error) {
-			// Should not be called on success
-			t.Errorf("Error handler should not be called on successful initialization")
+			errorHandlerCalled = true
 			return nil, err
 		},
 	)
+
+	assert.False(errorHandlerCalled, "Error handler should not be called on successful initialization")
 
 	require.NoError(err, "initLogger should not return error")
 	require.NotNil(logger, "logger should not be nil")
@@ -505,12 +512,12 @@ func TestInitLogger_JSONLLoggerError(t *testing.T) {
 	fileName := "test.jsonl"
 
 	errorHandlerCalled := false
+	setupHandlerCalled := false
 
 	logger, err := initLogger(
 		logDir, fileName, os.O_APPEND,
 		func(file *os.File, logDir, fileName string) (*JSONLLogger, error) {
-			// Should not be called on error
-			t.Errorf("Setup handler should not be called on error")
+			setupHandlerCalled = true
 			return nil, nil
 		},
 		func(err error, logDir, fileName string) (*JSONLLogger, error) {
@@ -520,6 +527,8 @@ func TestInitLogger_JSONLLoggerError(t *testing.T) {
 			return nil, err
 		},
 	)
+
+	assert.False(setupHandlerCalled, "Setup handler should not be called on error")
 
 	assert.True(errorHandlerCalled, "Error handler should be called")
 	assert.Error(err, "initLogger should return error")
@@ -534,6 +543,7 @@ func TestInitLogger_MarkdownLogger(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 	fileName := "test.md"
 
+	errorHandlerCalled := false
 	logger, err := initLogger(
 		logDir, fileName, os.O_TRUNC,
 		func(file *os.File, logDir, fileName string) (*MarkdownLogger, error) {
@@ -546,11 +556,12 @@ func TestInitLogger_MarkdownLogger(t *testing.T) {
 			return ml, nil
 		},
 		func(err error, logDir, fileName string) (*MarkdownLogger, error) {
-			// Should not be called on success
-			t.Errorf("Error handler should not be called on successful initialization")
+			errorHandlerCalled = true
 			return nil, err
 		},
 	)
+
+	assert.False(errorHandlerCalled, "Error handler should not be called on successful initialization")
 
 	require.NoError(err, "initLogger should not return error")
 	require.NotNil(logger, "logger should not be nil")
@@ -577,12 +588,12 @@ func TestInitLogger_MarkdownLoggerFallback(t *testing.T) {
 	fileName := "test.md"
 
 	errorHandlerCalled := false
+	setupHandlerCalled := false
 
 	logger, err := initLogger(
 		logDir, fileName, os.O_TRUNC,
 		func(file *os.File, logDir, fileName string) (*MarkdownLogger, error) {
-			// Should not be called on error
-			t.Errorf("Setup handler should not be called on error")
+			setupHandlerCalled = true
 			return nil, nil
 		},
 		func(err error, logDir, fileName string) (*MarkdownLogger, error) {
@@ -598,6 +609,8 @@ func TestInitLogger_MarkdownLoggerFallback(t *testing.T) {
 		},
 	)
 
+	assert.False(setupHandlerCalled, "Setup handler should not be called on error")
+
 	assert.True(errorHandlerCalled, "Error handler should be called")
 	require.NoError(err, "initLogger should not return error for fallback")
 	require.NotNil(logger, "logger should not be nil")
@@ -611,6 +624,7 @@ func TestInitLogger_SetupError(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 	fileName := "test.log"
 
+	errorHandlerCalled := false
 	logger, err := initLogger(
 		logDir, fileName, os.O_APPEND,
 		func(file *os.File, logDir, fileName string) (*FileLogger, error) {
@@ -618,11 +632,12 @@ func TestInitLogger_SetupError(t *testing.T) {
 			return nil, assert.AnError
 		},
 		func(err error, logDir, fileName string) (*FileLogger, error) {
-			// Should not be called for setup errors
-			t.Errorf("Error handler should not be called for setup errors")
+			errorHandlerCalled = true
 			return nil, err
 		},
 	)
+
+	a.False(errorHandlerCalled, "Error handler should not be called for setup errors")
 
 	a.Error(err, "initLogger should return error on setup failure")
 	a.Equal(assert.AnError, err, "Error should match setup error")
@@ -693,4 +708,63 @@ func TestInitLogger_FileFlags(t *testing.T) {
 	assert.NotContains(string(content), "initial content", "File should not contain initial content")
 	assert.NotContains(string(content), "appended content", "File should not contain appended content")
 	assert.Contains(string(content), "new content", "File should contain new content")
+}
+
+// TestFormatLogLine tests the formatLogLine helper that builds standard log lines.
+func TestFormatLogLine(t *testing.T) {
+	t.Run("output contains level bracket", func(t *testing.T) {
+		levels := []LogLevel{LogLevelInfo, LogLevelWarn, LogLevelError, LogLevelDebug}
+		for _, level := range levels {
+			t.Run(string(level), func(t *testing.T) {
+				result := formatLogLine(level, "test", "msg")
+				assert.Contains(t, result, "["+string(level)+"]",
+					"Log line should contain level in brackets")
+			})
+		}
+	})
+
+	t.Run("output contains category in brackets", func(t *testing.T) {
+		result := formatLogLine(LogLevelInfo, "startup", "message")
+		assert.Contains(t, result, "[startup]", "Log line should contain the category")
+	})
+
+	t.Run("output contains formatted message", func(t *testing.T) {
+		result := formatLogLine(LogLevelInfo, "test", "count=%d name=%s", 42, "alice")
+		assert.Contains(t, result, "count=42 name=alice", "Log line should contain formatted message")
+	})
+
+	t.Run("output follows bracket structure", func(t *testing.T) {
+		result := formatLogLine(LogLevelInfo, "auth", "event occurred")
+		// Expected format: [timestamp] [INFO] [auth] event occurred
+		assert.Regexp(t, `^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\] \[INFO\] \[auth\] event occurred$`, result)
+	})
+
+	t.Run("timestamp is RFC3339 UTC within test window", func(t *testing.T) {
+		before := time.Now().UTC().Truncate(time.Second)
+		result := formatLogLine(LogLevelDebug, "test", "msg")
+		after := time.Now().UTC().Add(time.Second)
+
+		// Extract the timestamp between the first pair of brackets
+		assert.Regexp(t, `^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\]`, result,
+			"Should start with RFC3339 UTC timestamp in brackets")
+
+		parts := strings.SplitN(result, "]", 2)
+		require.Len(t, parts, 2, "Output should contain at least one closing bracket")
+		tsStr := strings.TrimPrefix(parts[0], "[")
+
+		ts, err := time.Parse(time.RFC3339, tsStr)
+		require.NoError(t, err, "Extracted timestamp should parse as RFC3339")
+		assert.False(t, ts.Before(before), "Timestamp should not be before test start")
+		assert.False(t, ts.After(after), "Timestamp should not be after test end")
+	})
+
+	t.Run("format string used as-is when no args provided", func(t *testing.T) {
+		result := formatLogLine(LogLevelWarn, "net", "plain message")
+		assert.Contains(t, result, "plain message", "Should include the literal format string")
+	})
+
+	t.Run("empty category produces empty bracket", func(t *testing.T) {
+		result := formatLogLine(LogLevelInfo, "", "message")
+		assert.Contains(t, result, "[]", "Empty category should produce empty bracket pair")
+	})
 }
