@@ -112,17 +112,17 @@ func TestGetEnvDurationRealWorldScenarios(t *testing.T) {
 		defer os.Unsetenv("MCP_GATEWAY_SESSION_TIMEOUT")
 
 		// Default case
-		result := GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 2*time.Hour)
-		assert.Equal(t, 2*time.Hour, result)
+		result := GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour)
+		assert.Equal(t, 6*time.Hour, result)
 
 		// Override with shorter timeout
 		os.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "30m")
-		result = GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 2*time.Hour)
+		result = GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour)
 		assert.Equal(t, 30*time.Minute, result)
 
 		// Override with longer timeout
 		os.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "4h")
-		result = GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 2*time.Hour)
+		result = GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour)
 		assert.Equal(t, 4*time.Hour, result)
 	})
 }
