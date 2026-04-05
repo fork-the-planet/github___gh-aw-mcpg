@@ -23,12 +23,16 @@ import (
 // GitHub API proxy. Callers that need session-level attributes (e.g. session.id)
 // should add them as extra attrs or extend the context themselves.
 func WrapHTTPHandler(next http.Handler, spanName string, extraAttrs ...attribute.KeyValue) http.Handler {
+	logTracing.Printf("Registering HTTP handler with OTel span: span=%s, extraAttrs=%d", spanName, len(extraAttrs))
 	t := Tracer()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Extract incoming W3C trace context (traceparent / tracestate).
 		// If the headers are absent the returned ctx is unchanged and OTEL
 		// will generate a fresh trace ID when the span is started.
 		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+
+		hasRemoteParent := oteltrace.SpanContextFromContext(ctx).IsRemote()
+		logTracing.Printf("Handling request: span=%s, method=%s, path=%s, remoteParent=%v", spanName, r.Method, r.URL.Path, hasRemoteParent)
 
 		attrs := append([]attribute.KeyValue{
 			attribute.String("http.method", r.Method),
@@ -40,6 +44,8 @@ func WrapHTTPHandler(next http.Handler, spanName string, extraAttrs ...attribute
 			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		)
 		defer span.End()
+
+		logTracing.Printf("Span started: span=%s, traceID=%s", spanName, span.SpanContext().TraceID())
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
