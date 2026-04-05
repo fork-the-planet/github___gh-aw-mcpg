@@ -24,6 +24,20 @@ type launchResult struct {
 	duration time.Duration
 }
 
+// registerToolWithoutValidation registers a tool with the SDK server using the Server.AddTool
+// method (not the sdk.AddTool function) to bypass JSON Schema validation. This allows including
+// InputSchema from backends that use different JSON Schema versions (e.g., draft-07) without
+// validation errors, which is critical for clients to understand tool parameters.
+//
+// The handler's third parameter (pre-validated input) is passed as nil since argument
+// unmarshaling is handled inside the handler itself.
+func registerToolWithoutValidation(server *sdk.Server, tool *sdk.Tool, handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error)) {
+	server.AddTool(tool, func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+		result, _, err := handler(ctx, req, nil)
+		return result, err
+	})
+}
+
 // registerAllTools fetches and registers tools from all backend servers
 func (us *UnifiedServer) registerAllTools() error {
 	log.Println("Registering tools from all backends...")
@@ -235,28 +249,12 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 		us.tools[prefixedName].Handler = finalHandler
 		us.toolsMu.Unlock()
 
-		// Register the tool with the SDK using the Server.AddTool method (not sdk.AddTool function)
-		// The method version does NOT perform schema validation, allowing us to include
-		// InputSchema from backends that use different JSON Schema versions (e.g., draft-07)
-		// without validation errors. This is critical for clients to understand tool parameters.
-		//
-		// We need to wrap our typed handler to match the simpler ToolHandler signature.
-		// The typed handler signature: func(context.Context, *CallToolRequest, interface{}) (*CallToolResult, interface{}, error)
-		// The simple handler signature: func(context.Context, *CallToolRequest) (*CallToolResult, error)
-		wrappedHandler := func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
-			// Call the final handler (which may include middleware wrapping)
-			// The third parameter would be the pre-unmarshaled/validated input if using sdk.AddTool,
-			// but we handle unmarshaling ourselves in the handler, so we pass nil
-			result, _, err := finalHandler(ctx, req, nil)
-			return result, err
-		}
-
-		us.server.AddTool(&sdk.Tool{
+		registerToolWithoutValidation(us.server, &sdk.Tool{
 			Name:        prefixedName,
 			Description: toolDesc,
 			InputSchema: normalizedSchema, // Include the schema for clients to understand parameters
 			Annotations: tool.Annotations,
-		}, wrappedHandler)
+		}, finalHandler)
 
 		log.Printf("Registered tool: %s", logName)
 	}

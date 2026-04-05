@@ -2,10 +2,10 @@ package mcptest
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 
+	"github.com/github/gh-aw-mcpg/internal/mcp"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -48,18 +48,16 @@ func (s *Server) Start() error {
 			Description: tool.Description,
 			InputSchema: tool.InputSchema,
 		}, func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
-			var args map[string]interface{}
-			if len(req.Params.Arguments) > 0 {
-				if err := json.Unmarshal(req.Params.Arguments, &args); err != nil {
-					return &sdk.CallToolResult{
-						IsError: true,
-						Content: []sdk.Content{
-							&sdk.TextContent{
-								Text: fmt.Sprintf("Failed to parse arguments: %v", err),
-							},
+			args, err := mcp.ParseToolArguments(req)
+			if err != nil {
+				return &sdk.CallToolResult{
+					IsError: true,
+					Content: []sdk.Content{
+						&sdk.TextContent{
+							Text: fmt.Sprintf("Failed to parse arguments: %v", err),
 						},
-					}, nil
-				}
+					},
+				}, nil
 			}
 
 			content, err := tool.Handler(args)

@@ -31,12 +31,18 @@ func rejectIfShutdown(unifiedServer *UnifiedServer, next http.Handler, logNamesp
 	})
 }
 
+// filteredServerCacheMaxSize is the maximum number of entries the filteredServerCache
+// will hold. When the cache is full, the least-recently-used entry is evicted to make room.
+const filteredServerCacheMaxSize = 1000
+
 // filteredServerCache caches filtered server instances per (backend, session) key.
 // Entries are evicted after the configured TTL to prevent unbounded memory growth
-// in long-running deployments with many sessions.
+// in long-running deployments with many sessions. A max-size cap provides an additional
+// safety guard against an unbounded number of unique sessions.
 type filteredServerCache struct {
 	servers map[string]*filteredServerEntry
 	ttl     time.Duration
+	maxSize int
 	mu      sync.RWMutex
 }
 
@@ -50,11 +56,13 @@ func newFilteredServerCache(ttl time.Duration) *filteredServerCache {
 	return &filteredServerCache{
 		servers: make(map[string]*filteredServerEntry),
 		ttl:     ttl,
+		maxSize: filteredServerCacheMaxSize,
 	}
 }
 
 // getOrCreate returns a cached server or creates a new one.
-// Expired entries are lazily evicted on each call.
+// Expired entries are lazily evicted on each call. When the cache has reached its
+// maximum size, the least-recently-used entry is evicted to make room.
 func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator func() *sdk.Server) *sdk.Server {
 	key := fmt.Sprintf("%s/%s", backendID, sessionID)
 	now := time.Now()
@@ -73,6 +81,20 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 	if entry, ok := c.servers[key]; ok {
 		entry.lastUsed = now
 		return entry.server
+	}
+
+	// Enforce max-size limit: evict the least-recently-used entry when at capacity.
+	if len(c.servers) >= c.maxSize {
+		var lruKey string
+		var lruTime time.Time
+		for k, entry := range c.servers {
+			if lruKey == "" || entry.lastUsed.Before(lruTime) {
+				lruKey = k
+				lruTime = entry.lastUsed
+			}
+		}
+		logRouted.Printf("[CACHE] Max size reached (%d), evicting LRU entry: key=%s", c.maxSize, lruKey)
+		delete(c.servers, lruKey)
 	}
 
 	logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, sessionID)
@@ -172,22 +194,16 @@ func createFilteredServer(unifiedServer *UnifiedServer, backendID string) *sdk.S
 			continue
 		}
 
-		// Use Server.AddTool method (not sdk.AddTool function) to avoid schema validation
-		// This allows including InputSchema from backends using different JSON Schema versions
-		// Wrap the typed handler to match the simple ToolHandler signature
-		wrappedHandler := func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
-			// Call the unified server's handler directly
-			// This ensures we go through the same session and connection pool
-			log.Printf("[ROUTED] Calling unified handler for: %s", toolNameCopy)
-			result, _, err := handler(ctx, req, nil)
-			return result, err
-		}
-
-		server.AddTool(&sdk.Tool{
+		// Use registerToolWithoutValidation to bypass JSON Schema validation, allowing
+		// InputSchema from backends using different JSON Schema versions (e.g., draft-07).
+		registerToolWithoutValidation(server, &sdk.Tool{
 			Name:        toolInfo.Name, // Without prefix for the client
 			Description: toolInfo.Description,
 			InputSchema: toolInfo.InputSchema, // Include schema for clients
-		}, wrappedHandler)
+		}, func(ctx context.Context, req *sdk.CallToolRequest, _ interface{}) (*sdk.CallToolResult, interface{}, error) {
+			log.Printf("[ROUTED] Calling unified handler for: %s", toolNameCopy)
+			return handler(ctx, req, nil)
+		})
 	}
 
 	return server

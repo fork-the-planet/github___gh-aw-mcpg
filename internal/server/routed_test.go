@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -554,6 +555,128 @@ func TestCreateFilteredServer_EdgeCases(t *testing.T) {
 		assert.Len(t, backend2Tools, 1, "Backend2 should have 1 tool")
 		assert.Equal(t, "tool2", backend2Tools[0].Name)
 	})
+}
+
+// TestFilteredServerCache_MaxSize verifies that the cache enforces its max-size limit
+// by evicting the least-recently-used entry when the cache is full.
+func TestFilteredServerCache_MaxSize(t *testing.T) {
+	assert := assert.New(t)
+
+	ttl := time.Hour
+	cache := newFilteredServerCache(ttl)
+	cache.maxSize = 3 // Use a small max for the test
+
+	callCount := 0
+	creator := func() *sdk.Server {
+		callCount++
+		return sdk.NewServer(&sdk.Implementation{Name: "test", Version: "1.0"}, &sdk.ServerOptions{})
+	}
+
+	// Fill the cache to max capacity
+	s1 := cache.getOrCreate("backend", "session1", creator)
+	s2 := cache.getOrCreate("backend", "session2", creator)
+	s3 := cache.getOrCreate("backend", "session3", creator)
+	assert.Equal(3, callCount, "Should have created 3 servers")
+	assert.NotNil(s1)
+	assert.NotNil(s2)
+	assert.NotNil(s3)
+	assert.Equal(3, len(cache.servers), "Cache should have 3 entries")
+
+	// Touch session1 and session3 so session2 becomes the LRU
+	cache.getOrCreate("backend", "session1", creator)
+	cache.getOrCreate("backend", "session3", creator)
+	assert.Equal(3, callCount, "Cache hits should not create new servers")
+
+	// Adding a fourth entry should evict the LRU (session2)
+	s4 := cache.getOrCreate("backend", "session4", creator)
+	assert.Equal(4, callCount, "Should have created a 4th server")
+	assert.NotNil(s4)
+	assert.Equal(3, len(cache.servers), "Cache should still be at max size (3)")
+
+	// session2 should have been evicted
+	_, session2Exists := cache.servers["backend/session2"]
+	assert.False(session2Exists, "session2 should have been evicted as LRU")
+
+	// session1, session3, and session4 should still be present
+	_, session1Exists := cache.servers["backend/session1"]
+	assert.True(session1Exists, "session1 should still be cached")
+	_, session3Exists := cache.servers["backend/session3"]
+	assert.True(session3Exists, "session3 should still be cached")
+	_, session4Exists := cache.servers["backend/session4"]
+	assert.True(session4Exists, "session4 should still be cached")
+}
+
+// TestFilteredServerCache_TTLEviction verifies that expired entries are evicted.
+func TestFilteredServerCache_TTLEviction(t *testing.T) {
+	assert := assert.New(t)
+
+	ttl := 10 * time.Millisecond
+	cache := newFilteredServerCache(ttl)
+
+	callCount := 0
+	creator := func() *sdk.Server {
+		callCount++
+		return sdk.NewServer(&sdk.Implementation{Name: "test", Version: "1.0"}, &sdk.ServerOptions{})
+	}
+
+	// Add an entry
+	cache.getOrCreate("backend", "session1", creator)
+	assert.Equal(1, callCount)
+	assert.Equal(1, len(cache.servers))
+
+	// Wait for TTL to expire
+	time.Sleep(20 * time.Millisecond)
+
+	// Next call should evict the expired entry and create a new one
+	cache.getOrCreate("backend", "session2", creator)
+	assert.Equal(2, callCount, "Should have created a new server after TTL eviction")
+
+	// session1 should have been evicted during the lazy eviction scan
+	_, session1Exists := cache.servers["backend/session1"]
+	assert.False(session1Exists, "Expired session1 should have been evicted")
+}
+
+// TestRegisterToolWithoutValidation verifies that tools are registered on the server
+// and that the wrapped handler forwards calls correctly via in-memory transport.
+func TestRegisterToolWithoutValidation(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	server := sdk.NewServer(&sdk.Implementation{Name: "test", Version: "1.0"}, &sdk.ServerOptions{})
+
+	var handlerCalled bool
+	handler := func(ctx context.Context, req *sdk.CallToolRequest, state interface{}) (*sdk.CallToolResult, interface{}, error) {
+		handlerCalled = true
+		return &sdk.CallToolResult{IsError: false}, nil, nil
+	}
+
+	registerToolWithoutValidation(server, &sdk.Tool{
+		Name:        "test_tool",
+		Description: "A test tool",
+		InputSchema: map[string]interface{}{
+			"type":       "object",
+			"properties": map[string]interface{}{},
+		},
+	}, handler)
+
+	// Use in-memory transports to connect a client to the server and invoke the tool
+	serverTransport, clientTransport := sdk.NewInMemoryTransports()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	go func() {
+		_ = server.Run(ctx, serverTransport)
+	}()
+
+	client := sdk.NewClient(&sdk.Implementation{Name: "test-client", Version: "1.0"}, &sdk.ClientOptions{})
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(err)
+	defer clientSession.Close()
+
+	result, err := clientSession.CallTool(ctx, &sdk.CallToolParams{Name: "test_tool"})
+	require.NoError(err)
+	assert.False(result.IsError)
+	assert.True(handlerCalled, "Handler should have been called")
 }
 
 // TestCreateHTTPServerForRoutedMode_OAuth tests OAuth discovery endpoint in routed mode
