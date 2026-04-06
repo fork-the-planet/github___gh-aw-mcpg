@@ -104,14 +104,26 @@ func extractAndValidateSession(r *http.Request) string {
 // so downstream handlers can read it again.
 // Returns nil, nil for non-POST requests or requests with no body.
 func peekRequestBody(r *http.Request) ([]byte, error) {
-	if r.Method != http.MethodPost || r.Body == nil {
+	if r.Method != http.MethodPost || r.Body == nil || r.Body == http.NoBody {
 		return nil, nil
 	}
-	b, err := io.ReadAll(r.Body)
+
+	origBody := r.Body
+	b, err := io.ReadAll(origBody)
+	closeErr := origBody.Close()
 	if err != nil {
 		return nil, err
 	}
-	r.Body = io.NopCloser(bytes.NewBuffer(b))
+	if closeErr != nil {
+		return nil, closeErr
+	}
+
+	if len(b) == 0 {
+		r.Body = http.NoBody
+		return b, nil
+	}
+
+	r.Body = io.NopCloser(bytes.NewReader(b))
 	return b, nil
 }
 
