@@ -29,8 +29,25 @@ type launchResult struct {
 // InputSchema from backends that use different JSON Schema versions (e.g., draft-07) without
 // validation errors, which is critical for clients to understand tool parameters.
 //
-// The handler's third parameter (pre-validated input) is passed as nil since argument
-// unmarshaling is handled inside the handler itself.
+// # Three-argument handler convention
+//
+// Throughout this package, tool handlers use a three-argument form:
+//
+//	func(ctx context.Context, req *sdk.CallToolRequest, state interface{}) (*sdk.CallToolResult, interface{}, error)
+//
+// This differs from the SDK's native two-argument form. The extra parameters serve
+// two internal purposes:
+//   - state interface{}: reserved for the jq middleware pipeline (currently always nil at
+//     the call site; middleware may propagate state between pre- and post-processing steps).
+//   - second return value interface{}: carries intermediate data for the DIFC write-sink
+//     logger so it can record the raw backend result alongside the final tool result.
+//
+// The wrapper in this function adapts the three-argument form back to the SDK's two-argument
+// form when registering with the SDK server.
+//
+// NOTE: The Server.AddTool method (used here) skips JSON Schema validation whereas the
+// sdk.AddTool function validates the schema. This distinction relies on internal SDK
+// behaviour and must be re-verified on every SDK upgrade.
 func registerToolWithoutValidation(server *sdk.Server, tool *sdk.Tool, handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error)) {
 	server.AddTool(tool, func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
 		result, _, err := handler(ctx, req, nil)

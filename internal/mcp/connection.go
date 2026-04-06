@@ -544,7 +544,14 @@ type paginatedPage[T any] struct {
 	NextCursor string
 }
 
+// paginateAllMaxPages is the maximum number of pages that paginateAll will fetch.
+// This guards against misbehaving or adversarial backends that return an unbounded
+// sequence of pages, which would otherwise consume unbounded memory and time.
+const paginateAllMaxPages = 100
+
 // paginateAll collects all items across paginated SDK list calls.
+// It returns an error if the backend returns more than paginateAllMaxPages pages,
+// protecting against runaway backends.
 func paginateAll[T any](
 	serverID string,
 	itemKind string,
@@ -559,7 +566,10 @@ func paginateAll[T any](
 	logConn.Printf("list%s: received page of %d %s from serverID=%s", itemKind, len(first.Items), itemKind, serverID)
 
 	cursor := first.NextCursor
-	for cursor != "" {
+	for pageCount := 1; cursor != ""; pageCount++ {
+		if pageCount >= paginateAllMaxPages {
+			return nil, fmt.Errorf("list%s: backend serverID=%s returned more than %d pages; aborting to prevent unbounded memory growth", itemKind, serverID, paginateAllMaxPages)
+		}
 		page, err := fetch(cursor)
 		if err != nil {
 			return nil, err

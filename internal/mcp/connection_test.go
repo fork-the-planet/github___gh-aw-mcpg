@@ -977,3 +977,44 @@ data:   {"jsonrpc":"2.0","id":2,"result":{}}
 		assert.JSONEq(t, originalBody, string(resp.Error.Data))
 	})
 }
+
+// TestPaginateAll tests the paginateAll generic helper.
+func TestPaginateAll(t *testing.T) {
+	t.Run("single page with no cursor returns all items", func(t *testing.T) {
+		items, err := paginateAll("server1", "tools", func(cursor string) (paginatedPage[string], error) {
+			return paginatedPage[string]{Items: []string{"a", "b", "c"}, NextCursor: ""}, nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a", "b", "c"}, items)
+	})
+
+	t.Run("multiple pages are collected", func(t *testing.T) {
+		pages := []paginatedPage[string]{
+			{Items: []string{"a"}, NextCursor: "page2"},
+			{Items: []string{"b"}, NextCursor: "page3"},
+			{Items: []string{"c"}, NextCursor: ""},
+		}
+		call := 0
+		items, err := paginateAll("server1", "tools", func(cursor string) (paginatedPage[string], error) {
+			page := pages[call]
+			call++
+			return page, nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a", "b", "c"}, items)
+	})
+
+	t.Run("exceeding max pages returns error", func(t *testing.T) {
+		// Each call returns a cursor so the loop never ends naturally.
+		callCount := 0
+		_, err := paginateAll("server1", "tools", func(cursor string) (paginatedPage[string], error) {
+			callCount++
+			return paginatedPage[string]{Items: []string{"x"}, NextCursor: "next"}, nil
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "more than")
+		assert.Contains(t, err.Error(), "pages")
+		// Must stop at the page limit, not run forever.
+		assert.Equal(t, paginateAllMaxPages, callCount)
+	})
+}

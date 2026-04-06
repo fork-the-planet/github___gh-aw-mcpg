@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -36,7 +37,9 @@ func (s *Server) Start() error {
 		Version: s.config.Version,
 	}
 
-	s.server = sdk.NewServer(impl, &sdk.ServerOptions{})
+	s.server = sdk.NewServer(impl, &sdk.ServerOptions{
+		Logger: logger.Discard(),
+	})
 
 	// Register tools
 	for i, toolCfg := range s.config.Tools {

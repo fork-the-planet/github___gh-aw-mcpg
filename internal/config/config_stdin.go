@@ -32,16 +32,16 @@ type StdinConfig struct {
 // StdinGatewayConfig represents gateway configuration in stdin JSON format.
 // Uses pointers for optional fields to distinguish between unset and zero values.
 type StdinGatewayConfig struct {
-	Port              *int                      `json:"port,omitempty"`
-	APIKey            string                    `json:"apiKey,omitempty"`
-	Domain            string                    `json:"domain,omitempty"`
-	StartupTimeout    *int                      `json:"startupTimeout,omitempty"`
-	ToolTimeout       *int                      `json:"toolTimeout,omitempty"`
+	Port                 *int                      `json:"port,omitempty"`
+	APIKey               string                    `json:"apiKey,omitempty"`
+	Domain               string                    `json:"domain,omitempty"`
+	StartupTimeout       *int                      `json:"startupTimeout,omitempty"`
+	ToolTimeout          *int                      `json:"toolTimeout,omitempty"`
 	KeepaliveInterval    *int                      `json:"keepaliveInterval,omitempty"`
 	PayloadDir           string                    `json:"payloadDir,omitempty"`
 	PayloadSizeThreshold *int                      `json:"payloadSizeThreshold,omitempty"`
 	TrustedBots          []string                  `json:"trustedBots,omitempty"`
-	OpenTelemetry     *StdinOpenTelemetryConfig `json:"opentelemetry,omitempty"`
+	OpenTelemetry        *StdinOpenTelemetryConfig `json:"opentelemetry,omitempty"`
 }
 
 // StdinOpenTelemetryConfig represents the OpenTelemetry configuration in stdin JSON format (spec §4.1.3.6).
