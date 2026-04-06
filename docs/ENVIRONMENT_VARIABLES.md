@@ -81,3 +81,12 @@ These environment variables configure guard policies (e.g., AllowOnly policies f
 | `MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER` | AllowOnly owner scope value (sets default for `--allowonly-scope-owner`) | (disabled) |
 | `MCP_GATEWAY_ALLOWONLY_SCOPE_REPO` | AllowOnly repo name (requires owner) (sets default for `--allowonly-scope-repo`) | (disabled) |
 | `MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY` | AllowOnly integrity level: `none`, `unapproved`, `approved`, `merged` (sets default for `--allowonly-min-integrity`) | (disabled) |
+
+## OpenTelemetry / Tracing Variables
+
+These standard OpenTelemetry environment variables set defaults for the corresponding `--otlp-*` CLI flags:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP endpoint for trace export (e.g., `http://localhost:4318`). Tracing is disabled when empty. Sets default for `--otlp-endpoint`. | (disabled) |
+| `OTEL_SERVICE_NAME` | Service name reported in traces. Sets default for `--otlp-service-name`. | `mcp-gateway` |

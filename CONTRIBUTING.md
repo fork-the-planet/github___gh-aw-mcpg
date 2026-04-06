@@ -462,12 +462,27 @@ make test-integration
 # Run all tests (unit + integration)
 make test-all
 
+# Run unit tests with race detection
+make test-race
+
 # Run unit tests with coverage
 make coverage
 
 # Run specific package tests
 go test ./internal/server/...
 ```
+
+#### Race Detection Tests
+
+The MCP Gateway is a concurrent HTTP server, so race detection is especially
+important when modifying server, launcher, or guard code:
+
+```bash
+make test-race
+```
+
+This runs `go test -race` across all internal packages to catch data races in
+concurrent code paths.
 
 ### Writing Tests
 
