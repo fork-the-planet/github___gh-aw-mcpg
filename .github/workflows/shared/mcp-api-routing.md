@@ -51,5 +51,5 @@ APIs directly. Do NOT attempt to contact external AI services:
 Before making any API call, verify:
 1. ✅ Am I using a GitHub MCP server tool (not `curl`, `gh`, or HTTP fetch)?
 2. ✅ Is the target repository in the workflow's `allowed-repos` list?
-3. ✅ Is `features.difc-proxy: true` enabled in this workflow's configuration?
+3. ✅ Is `tools.github` configured in this workflow (integrity proxy is built-in since v0.67.0)?
 4. ✅ Am I NOT trying to contact any external AI service API?

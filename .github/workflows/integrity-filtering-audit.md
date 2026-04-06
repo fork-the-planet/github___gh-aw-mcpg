@@ -161,7 +161,7 @@ When classifying a **direct API bypass** warning (W-1), record:
 - The blocked domain(s) and block count
 - The workflow name and run ID
 - The likely cause: misconfigured `network.allowed` list, agent prompt not
-  restricting tool use, or the workflow missing `features.difc-proxy: true`
+  restricting tool use, or the workflow not using `tools.github` for API access
 - Recommended fix: strengthen agent system prompt to use MCP Gateway tools
   exclusively; see `shared/mcp-api-routing.md` for reusable constraint language
 
@@ -215,8 +215,9 @@ domain(s), block count, workflow name, likely cause, and recommended fix]
 ### Recommendations
 
 [Actionable suggestions based on findings. For direct API bypass (W-1) findings,
-always include: 1) which workflow to investigate, 2) whether it has
-`features.difc-proxy: true`, 3) whether the agent prompt restricts tool use to
+always include: 1) which workflow to investigate, 2) whether it uses
+`tools.github` for API access (integrity proxy is built-in since v0.67.0),
+3) whether the agent prompt restricts tool use to
 MCP Gateway tools, and 4) a pointer to `shared/mcp-api-routing.md` for reusable
 constraint language to add to the workflow prompt.]
 ```
