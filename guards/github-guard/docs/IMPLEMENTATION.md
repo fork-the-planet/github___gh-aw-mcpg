@@ -111,20 +111,6 @@ pub fn is_verified_contributor(username: &str, owner: &str, repo: &str) -> bool 
 
 Uses `search_pull_requests` with query: `author:X repo:Y is:merged`
 
-### Bot Detection
-
-Known bots receive approved-level integrity (with unapproved floor):
-
-```rust
-pub fn is_bot(username: &str) -> bool {
-    lower.ends_with("[bot]")
-        || lower.ends_with("-bot")
-        || lower == "dependabot"
-        || lower == "renovate"
-        || lower == "github-actions"
-        || lower == "copilot"
-}
-```
 
 ## Project Structure
 

@@ -47,7 +47,7 @@ pub use helpers::{
     extract_graphql_single_object, extract_items_array,
     extract_number_as_string, extract_repo_from_item, extract_repo_info,
     extract_repo_info_from_search_query, get_bool_or, get_nested_str, get_str_or,
-    has_author_association, is_blocked_user, is_bot, is_graphql_wrapper, is_mcp_text_wrapper,
+    has_author_association, is_blocked_user, is_graphql_wrapper, is_mcp_text_wrapper,
     is_search_result_wrapper, issue_integrity, limit_items_with_log, make_item_path,
     merged_integrity, none_integrity, pr_integrity, private_scope_label, private_user_label,
     project_github_label, reader_integrity, search_result_total_count,

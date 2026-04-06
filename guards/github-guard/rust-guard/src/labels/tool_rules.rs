@@ -682,7 +682,7 @@ fn check_file_secrecy(
 
     // Check for sensitive file extensions/names
     for pattern in SENSITIVE_FILE_PATTERNS {
-        if path_lower.ends_with(pattern) || path_lower.contains(&format!("/{}", pattern)) {
+        if path_lower.ends_with(pattern) || path_lower.split('/').any(|seg| seg.starts_with(*pattern)) {
             return policy_private_scope_label(owner, repo, repo_id, ctx);
         }
     }

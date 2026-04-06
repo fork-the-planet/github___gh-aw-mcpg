@@ -1323,20 +1323,6 @@ pub fn is_trusted_user(username: &str, ctx: &PolicyContext) -> bool {
     username_in_list(username, &ctx.trusted_users)
 }
 
-/// Check if a user appears to be a bot (broad detection).
-///
-/// This is a broader check that includes third-party bots.
-/// For integrity elevation, use is_trusted_first_party_bot() instead.
-#[allow(dead_code)]
-pub fn is_bot(username: &str) -> bool {
-    let lower = username.to_lowercase();
-    lower.ends_with("[bot]")
-        || lower.ends_with("-bot")
-        || lower == "dependabot"
-        || lower == "renovate"
-        || lower == "github-actions"
-        || lower == "copilot"
-}
 
 #[cfg(test)]
 mod tests {

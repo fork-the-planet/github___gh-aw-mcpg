@@ -29,7 +29,8 @@ Common utility functions including:
 - Label generation helpers (secret_label, writer_integrity, etc.)
 - JSON extraction functions (get_string_field, extract_repo_info, etc.)
 - Integrity determination (pr_integrity, issue_integrity)
-- User classification (is_bot)
+- User classification helpers (`is_blocked_user`, `is_trusted_user`)
+- Note: the current helpers API does not include a separate `is_bot` helper
 
 ### backend.rs (92 lines)
 Backend API calls for verifying user status:
