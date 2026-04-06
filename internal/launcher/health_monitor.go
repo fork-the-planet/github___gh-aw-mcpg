@@ -35,6 +35,7 @@ func NewHealthMonitor(l *Launcher, interval time.Duration) *HealthMonitor {
 	if interval <= 0 {
 		interval = DefaultHealthCheckInterval
 	}
+	logHealth.Printf("Creating health monitor: interval=%v, maxRestartFailures=%d", interval, maxConsecutiveRestartFailures)
 	return &HealthMonitor{
 		launcher:            l,
 		interval:            interval,
@@ -53,6 +54,7 @@ func (hm *HealthMonitor) Start() {
 
 // Stop signals the health monitor to stop and waits for it to finish.
 func (hm *HealthMonitor) Stop() {
+	logHealth.Print("Stopping health monitor, waiting for background goroutine to finish")
 	close(hm.stopCh)
 	<-hm.doneCh
 	logHealth.Print("Health monitor stopped")
@@ -61,6 +63,7 @@ func (hm *HealthMonitor) Stop() {
 
 func (hm *HealthMonitor) run() {
 	defer close(hm.doneCh)
+	logHealth.Printf("Health monitor goroutine started: interval=%v", hm.interval)
 
 	ticker := time.NewTicker(hm.interval)
 	defer ticker.Stop()
@@ -80,7 +83,9 @@ func (hm *HealthMonitor) run() {
 // checkAll iterates over every configured backend and attempts to restart
 // any server that is in an error state.
 func (hm *HealthMonitor) checkAll() {
-	for _, serverID := range hm.launcher.ServerIDs() {
+	serverIDs := hm.launcher.ServerIDs()
+	logHealth.Printf("Running health check: checking %d servers", len(serverIDs))
+	for _, serverID := range serverIDs {
 		state := hm.launcher.GetServerState(serverID)
 
 		switch state.Status {
@@ -89,6 +94,7 @@ func (hm *HealthMonitor) checkAll() {
 		case "running":
 			// Reset consecutive failure counter on healthy server.
 			if hm.consecutiveFailures[serverID] > 0 {
+				logHealth.Printf("Server recovered: resetting failure counter for serverID=%s (was %d)", serverID, hm.consecutiveFailures[serverID])
 				hm.consecutiveFailures[serverID] = 0
 			}
 		}
@@ -99,6 +105,7 @@ func (hm *HealthMonitor) handleErrorState(serverID string, state ServerState) {
 	failures := hm.consecutiveFailures[serverID]
 	if failures >= maxConsecutiveRestartFailures {
 		// Already logged when the threshold was reached; stay silent.
+		logHealth.Printf("Skipping restart for serverID=%s: max failures reached (%d/%d)", serverID, failures, maxConsecutiveRestartFailures)
 		return
 	}
 
