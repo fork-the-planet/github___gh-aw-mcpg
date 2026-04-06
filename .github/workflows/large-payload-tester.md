@@ -133,8 +133,6 @@ post-steps:
 
 
 timeout-minutes: 10
-features:
-  difc-proxy: true
 strict: false
 ---
 

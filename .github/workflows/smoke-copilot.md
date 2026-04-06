@@ -16,8 +16,6 @@ permissions:
 name: Smoke Copilot
 engine:
   id: copilot
-features:
-  difc-proxy: true
 strict: false
 imports:
   - shared/mcp-pagination.md

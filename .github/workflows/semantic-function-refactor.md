@@ -38,8 +38,6 @@ tools:
     - "*"
 
 timeout-minutes: 20
-features:
-  difc-proxy: true
 strict: true
 ---
 

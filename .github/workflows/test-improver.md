@@ -51,8 +51,6 @@ tools:
     - "wc -l internal/**/*_test.go"
 
 timeout-minutes: 30
-features:
-  difc-proxy: true
 strict: true
 ---
 

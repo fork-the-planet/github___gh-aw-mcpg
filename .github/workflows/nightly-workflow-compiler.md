@@ -26,8 +26,6 @@ safe-outputs:
   missing-tool:
     create-issue: true
 timeout-minutes: 25
-features:
-  difc-proxy: true
 ---
 
 <!-- Edit the file linked below to modify the agent without recompilation. Feel free to move the entire markdown body to that file. -->

@@ -37,8 +37,6 @@ safe-outputs:
     max: 1
 
 timeout-minutes: 20
-features:
-  difc-proxy: true
 imports:
   - shared/mcp-api-routing.md
 ---

@@ -32,8 +32,6 @@ safe-outputs:
     pull-requests: false
 
 timeout-minutes: 20
-features:
-  difc-proxy: true
 ---
 
 # Gateway Issue Dispatcher

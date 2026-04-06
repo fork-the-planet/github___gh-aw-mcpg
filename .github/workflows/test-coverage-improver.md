@@ -47,8 +47,6 @@ tools:
   bash: ["*"]
 
 timeout-minutes: 45
-features:
-  difc-proxy: true
 strict: true
 ---
 
