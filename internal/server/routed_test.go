@@ -557,8 +557,8 @@ func TestCreateFilteredServer_EdgeCases(t *testing.T) {
 	})
 }
 
-// TestFilteredServerCache_MaxSize verifies that the cache enforces its max-size limit
-// by evicting the least-recently-used entry when the cache is full.
+// TestFilteredServerCache_MaxSize verifies that the cache allows growth beyond maxSize
+// when all entries are still active (non-expired), to avoid disrupting sessions.
 func TestFilteredServerCache_MaxSize(t *testing.T) {
 	assert := assert.New(t)
 
@@ -582,24 +582,17 @@ func TestFilteredServerCache_MaxSize(t *testing.T) {
 	assert.NotNil(s3)
 	assert.Equal(3, len(cache.servers), "Cache should have 3 entries")
 
-	// Touch session1 and session3 so session2 becomes the LRU
-	cache.getOrCreate("backend", "session1", creator)
-	cache.getOrCreate("backend", "session3", creator)
-	assert.Equal(3, callCount, "Cache hits should not create new servers")
-
-	// Adding a fourth entry should evict the LRU (session2)
+	// Adding a fourth entry should be allowed (no LRU eviction of active sessions)
 	s4 := cache.getOrCreate("backend", "session4", creator)
 	assert.Equal(4, callCount, "Should have created a 4th server")
 	assert.NotNil(s4)
-	assert.Equal(3, len(cache.servers), "Cache should still be at max size (3)")
+	assert.Equal(4, len(cache.servers), "Cache should grow beyond maxSize for active sessions")
 
-	// session2 should have been evicted
-	_, session2Exists := cache.servers["backend/session2"]
-	assert.False(session2Exists, "session2 should have been evicted as LRU")
-
-	// session1, session3, and session4 should still be present
+	// All sessions should still be present
 	_, session1Exists := cache.servers["backend/session1"]
 	assert.True(session1Exists, "session1 should still be cached")
+	_, session2Exists := cache.servers["backend/session2"]
+	assert.True(session2Exists, "session2 should still be cached")
 	_, session3Exists := cache.servers["backend/session3"]
 	assert.True(session3Exists, "session3 should still be cached")
 	_, session4Exists := cache.servers["backend/session4"]
@@ -610,7 +603,7 @@ func TestFilteredServerCache_MaxSize(t *testing.T) {
 func TestFilteredServerCache_TTLEviction(t *testing.T) {
 	assert := assert.New(t)
 
-	ttl := 10 * time.Millisecond
+	ttl := 100 * time.Millisecond
 	cache := newFilteredServerCache(ttl)
 
 	callCount := 0
@@ -624,8 +617,8 @@ func TestFilteredServerCache_TTLEviction(t *testing.T) {
 	assert.Equal(1, callCount)
 	assert.Equal(1, len(cache.servers))
 
-	// Wait for TTL to expire
-	time.Sleep(20 * time.Millisecond)
+	// Wait for TTL to expire (use generous margin to avoid CI flakiness)
+	time.Sleep(200 * time.Millisecond)
 
 	// Next call should evict the expired entry and create a new one
 	cache.getOrCreate("backend", "session2", creator)

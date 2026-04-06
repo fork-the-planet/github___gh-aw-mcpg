@@ -54,7 +54,7 @@ func (s *Server) Start() error {
 					IsError: true,
 					Content: []sdk.Content{
 						&sdk.TextContent{
-							Text: fmt.Sprintf("Failed to parse arguments: %v", err),
+							Text: fmt.Sprintf("Failed to parse tool arguments: %v", err),
 						},
 					},
 				}, nil

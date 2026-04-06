@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/version"
@@ -73,7 +74,7 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 	// Lazy eviction of expired entries
 	for k, entry := range c.servers {
 		if now.Sub(entry.lastUsed) > c.ttl {
-			logRouted.Printf("[CACHE] Evicting expired server: key=%s (idle %s)", k, now.Sub(entry.lastUsed).Round(time.Second))
+			logRouted.Printf("[CACHE] Evicting expired server: key=%s (idle %s)", auth.TruncateSessionID(k), now.Sub(entry.lastUsed).Round(time.Second))
 			delete(c.servers, k)
 		}
 	}
@@ -83,21 +84,15 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 		return entry.server
 	}
 
-	// Enforce max-size limit: evict the least-recently-used entry when at capacity.
+	// Safety bound: if at capacity after TTL eviction, log a warning but do not
+	// evict non-expired entries. Routed mode relies on reusing the same filtered
+	// server instance for a given (backend, session), and evicting an active entry
+	// would recreate that server mid-session, breaking StreamableHTTP semantics.
 	if len(c.servers) >= c.maxSize {
-		var lruKey string
-		var lruTime time.Time
-		for k, entry := range c.servers {
-			if lruKey == "" || entry.lastUsed.Before(lruTime) {
-				lruKey = k
-				lruTime = entry.lastUsed
-			}
-		}
-		logRouted.Printf("[CACHE] Max size reached (%d), evicting LRU entry: key=%s", c.maxSize, lruKey)
-		delete(c.servers, lruKey)
+		logRouted.Printf("[CACHE] Max size reached (%d), retaining active entries until TTL eviction", c.maxSize)
 	}
 
-	logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, sessionID)
+	logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, auth.TruncateSessionID(sessionID))
 	server := creator()
 	c.servers[key] = &filteredServerEntry{server: server, lastUsed: now}
 	return server

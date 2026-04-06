@@ -324,7 +324,7 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 		if pp, ok := argsMap["perPage"].(float64); ok {
 			perPage = fmt.Sprintf("%d", int(pp))
 		}
-		apiPath = fmt.Sprintf("/search/repositories?q=%s&per_page=%s", query, perPage)
+		apiPath = fmt.Sprintf("/search/repositories?q=%s&per_page=%s", url.QueryEscape(query), perPage)
 
 	case "get_collaborator_permission":
 		owner, _ := argsMap["owner"].(string)
