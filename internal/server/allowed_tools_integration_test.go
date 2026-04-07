@@ -33,7 +33,7 @@ import (
 // newMockMCPBackendWithTools creates an httptest.Server that speaks the
 // minimal JSON-RPC subset the gateway needs (initialize, tools/list, tools/call).
 // Every tool returned by tools/call responds with `{"text":"ok"}`.
-func newMockMCPBackendWithTools(t *testing.T, serverName string, toolNames []string) *httptest.Server {
+func newMockMCPBackendWithTools(t *testing.T, serverID string, toolNames []string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req map[string]interface{}
@@ -52,7 +52,7 @@ func newMockMCPBackendWithTools(t *testing.T, serverName string, toolNames []str
 				"result": map[string]interface{}{
 					"protocolVersion": "2024-11-05",
 					"capabilities":    map[string]interface{}{},
-					"serverInfo":      map[string]interface{}{"name": serverName, "version": "1.0"},
+					"serverInfo":      map[string]interface{}{"name": serverID, "version": "1.0"},
 				},
 			})
 		case "notifications/initialized":
@@ -101,12 +101,13 @@ func sendUnifiedMCPRequest(t *testing.T, serverURL string, payload map[string]in
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
+	bodyStr := string(body)
 	ct := resp.Header.Get("Content-Type")
 	if strings.Contains(ct, "text/event-stream") {
-		return parseSSEBody(t, string(body))
+		return parseSSEBody(t, bodyStr)
 	}
 	var result map[string]interface{}
-	require.NoError(t, json.Unmarshal(body, &result), "failed to parse response: %s", string(body))
+	require.NoError(t, json.Unmarshal(body, &result), "failed to parse response: %s", bodyStr)
 	return result
 }
 
