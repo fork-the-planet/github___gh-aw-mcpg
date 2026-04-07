@@ -329,7 +329,7 @@ func TestHTTPRequest_ErrorResponses(t *testing.T) {
 				var reqBody map[string]interface{}
 				bodyBytes, err := io.ReadAll(r.Body)
 				if err != nil {
-					t.Errorf("Failed to read request body: %v", err)
+					assert.NoError(t, err, "Failed to read request body")
 					http.Error(w, "Internal error", http.StatusInternalServerError)
 					return
 				}
@@ -378,30 +378,24 @@ func TestHTTPRequest_ErrorResponses(t *testing.T) {
 			conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 				"Authorization": "test-token",
 			}, nil, "", 0)
-			if err != nil && tt.expectError {
-				// Error during initialization is expected for some error conditions
-				if tt.errorSubstring != "" && !containsSubstring(err.Error(), tt.errorSubstring) {
-					t.Errorf("Expected error to contain '%s', got: %v", tt.errorSubstring, err)
+			if err != nil {
+				require.True(t, tt.expectError, "Unexpected error creating connection: %v", err)
+				if tt.errorSubstring != "" {
+					assert.Contains(t, err.Error(), tt.errorSubstring, "Error should contain expected substring")
 				}
 				return
-			}
-			if err != nil {
-				t.Fatalf("Failed to create connection: %v", err)
 			}
 
 			// Send request
 			_, err = conn.SendRequestWithServerID(context.Background(), "tools/list", nil, "test-server")
 
 			if tt.expectError {
-				if err == nil {
-					t.Error("Expected error but got none")
-				} else if tt.errorSubstring != "" && !containsSubstring(err.Error(), tt.errorSubstring) {
-					t.Errorf("Expected error to contain '%s', got: %v", tt.errorSubstring, err)
+				require.Error(t, err, "Expected an error but got none")
+				if tt.errorSubstring != "" {
+					assert.Contains(t, err.Error(), tt.errorSubstring, "Error should contain expected substring")
 				}
 			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -437,17 +431,13 @@ func TestConnection_IsHTTP(t *testing.T) {
 	assert.True(t, conn.IsHTTP(), "Expected IsHTTP() to return true for HTTP connection")
 
 	// Test GetHTTPURL
-	if conn.GetHTTPURL() != testServer.URL {
-		t.Errorf("Expected URL '%s', got '%s'", testServer.URL, conn.GetHTTPURL())
-	}
+	assert.Equal(t, testServer.URL, conn.GetHTTPURL(), "GetHTTPURL should return the configured URL")
 
 	// Test GetHTTPHeaders
 	returnedHeaders := conn.GetHTTPHeaders()
 	assert.Equal(t, len(headers), len(returnedHeaders))
 	for k, v := range headers {
-		if returnedHeaders[k] != v {
-			t.Errorf("Expected header '%s' to be '%s', got '%s'", k, v, returnedHeaders[k])
-		}
+		assert.Equal(t, v, returnedHeaders[k], "Header %s should match the configured value", k)
 	}
 }
 
@@ -479,32 +469,15 @@ func TestHTTPConnection_InvalidURL(t *testing.T) {
 			_, err := NewHTTPConnection(context.Background(), "test-server", tt.url, tt.headers, nil, "", 0)
 
 			if tt.expectError {
-				if err == nil {
-					t.Error("Expected error but got none")
-				} else if tt.errorSubstring != "" && !containsSubstring(err.Error(), tt.errorSubstring) {
-					t.Errorf("Expected error to contain '%s', got: %v", tt.errorSubstring, err)
+				require.Error(t, err, "Expected an error but got none")
+				if tt.errorSubstring != "" {
+					assert.Contains(t, err.Error(), tt.errorSubstring, "Error should contain expected substring")
 				}
 			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
+				assert.NoError(t, err)
 			}
 		})
 	}
-}
-
-// containsSubstring is a helper to check if a string contains a substring
-func containsSubstring(s, substr string) bool {
-	return len(substr) > 0 && len(s) >= len(substr) && stringContains(s, substr)
-}
-
-func stringContains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // TestNewMCPClient tests the newMCPClient helper function
