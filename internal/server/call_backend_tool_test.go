@@ -401,12 +401,13 @@ func TestIsToolAllowed(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			us := &UnifiedServer{
-				cfg: &config.Config{
-					Servers: map[string]*config.ServerConfig{
-						"s": {Tools: tc.tools},
-					},
+			cfg := &config.Config{
+				Servers: map[string]*config.ServerConfig{
+					"s": {Tools: tc.tools},
 				},
+			}
+			us := &UnifiedServer{
+				allowedToolSets: buildAllowedToolSets(cfg),
 			}
 			got := us.isToolAllowed("s", tc.toolName)
 			assert.Equal(t, tc.wantAllow, got)
@@ -416,17 +417,14 @@ func TestIsToolAllowed(t *testing.T) {
 
 // TestIsToolAllowed_NilConfig verifies that a nil config allows all tools.
 func TestIsToolAllowed_NilConfig(t *testing.T) {
-	us := &UnifiedServer{cfg: nil}
+	us := &UnifiedServer{allowedToolSets: buildAllowedToolSets(nil)}
 	assert.True(t, us.isToolAllowed("s", "anything"), "nil cfg should allow all tools")
 }
 
 // TestIsToolAllowed_UnknownServer verifies that an unknown server ID allows all tools.
 func TestIsToolAllowed_UnknownServer(t *testing.T) {
-	us := &UnifiedServer{
-		cfg: &config.Config{
-			Servers: map[string]*config.ServerConfig{},
-		},
-	}
+	cfg := &config.Config{Servers: map[string]*config.ServerConfig{}}
+	us := &UnifiedServer{allowedToolSets: buildAllowedToolSets(cfg)}
 	assert.True(t, us.isToolAllowed("unknown", "tool"), "unknown server should allow all tools")
 }
 
