@@ -314,48 +314,92 @@ func TestWrapHTTPHandler_GeneratesRootSpan(t *testing.T) {
 }
 
 // TestInitProvider_WithHeaders verifies that OTLP export headers are forwarded
-// to the collector. A channel synchronises with the test HTTP server so the
-// assertion is deterministic rather than timing-dependent.
+// to the collector. Table-driven sub-tests cover single headers, multiple
+// headers with whitespace trimming, and malformed/empty-key cases that must be
+// skipped. A channel synchronises with the test HTTP server so assertions are
+// deterministic rather than timing-dependent.
 func TestInitProvider_WithHeaders(t *testing.T) {
 	ctx := context.Background()
 
-	// Channel signals when the test server receives an export request.
-	received := make(chan string, 1)
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		select {
-		case received <- r.Header.Get("Authorization"):
-		default:
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ts.Close()
-
-	cfg := &config.TracingConfig{
-		Endpoint: ts.URL,
-		Headers:  map[string]string{"Authorization": "Bearer test-token"},
+	tests := []struct {
+		name           string
+		headers        string
+		expectedValues map[string]string // canonical HTTP header name → expected value
+		notExpectedSet []string          // canonical HTTP header names that must NOT be present
+	}{
+		{
+			name:    "single well-formed header",
+			headers: "Authorization=Bearer test-token",
+			expectedValues: map[string]string{
+				"Authorization": "Bearer test-token",
+			},
+		},
+		{
+			name:    "multiple headers with whitespace trimmed",
+			headers: " Authorization = Bearer test-token , X-Request-Id = req-123 ",
+			expectedValues: map[string]string{
+				"Authorization": "Bearer test-token",
+				"X-Request-Id":  "req-123",
+			},
+		},
+		{
+			name:    "malformed and empty-key headers are skipped",
+			headers: "Authorization=Bearer test-token, malformed, =empty-key, X-Trace-Id=trace-123",
+			expectedValues: map[string]string{
+				"Authorization": "Bearer test-token",
+				"X-Trace-Id":    "trace-123",
+			},
+			notExpectedSet: []string{"Malformed"},
+		},
 	}
 
-	provider, err := tracing.InitProvider(ctx, cfg)
-	require.NoError(t, err)
-	require.NotNil(t, provider)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Channel signals when the test server receives an export request.
+			received := make(chan http.Header, 1)
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				select {
+				case received <- r.Header.Clone():
+				default:
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer ts.Close()
 
-	// Create and end a span to trigger an export attempt.
-	tr := provider.Tracer()
-	_, span := tr.Start(ctx, "header-test-span")
-	span.End()
+			cfg := &config.TracingConfig{
+				Endpoint: ts.URL,
+				Headers:  tt.headers,
+			}
 
-	// Shutdown flushes the batch processor, ensuring the export is sent.
-	shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	_ = provider.Shutdown(shutdownCtx)
+			provider, err := tracing.InitProvider(ctx, cfg)
+			require.NoError(t, err)
+			require.NotNil(t, provider)
 
-	// Wait for the export request with a timeout.
-	select {
-	case auth := <-received:
-		assert.Equal(t, "Bearer test-token", auth,
-			"Authorization header must be forwarded to the OTLP collector")
-	case <-time.After(3 * time.Second):
-		t.Fatal("timed out waiting for OTLP export request — headers test is non-deterministic")
+			// Create and end a span to trigger an export attempt.
+			tr := provider.Tracer()
+			_, span := tr.Start(ctx, "header-test-span")
+			span.End()
+
+			// Shutdown flushes the batch processor, ensuring the export is sent.
+			shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			_ = provider.Shutdown(shutdownCtx)
+
+			// Wait for the export request with a timeout.
+			select {
+			case headers := <-received:
+				for key, expectedValue := range tt.expectedValues {
+					assert.Equal(t, expectedValue, headers.Get(key),
+						fmt.Sprintf("%s header must be forwarded to the OTLP collector", key))
+				}
+				for _, key := range tt.notExpectedSet {
+					assert.Empty(t, headers.Get(key),
+						fmt.Sprintf("%s header must not be sent when pair is malformed", key))
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("timed out waiting for OTLP export request — headers test is non-deterministic")
+			}
+		})
 	}
 }
 

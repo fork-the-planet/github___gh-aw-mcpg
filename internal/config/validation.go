@@ -149,12 +149,12 @@ func expandTracingVariables(cfg *TracingConfig) error {
 		cfg.SpanID = expanded
 	}
 
-	for key, value := range cfg.Headers {
-		expanded, err := expandVariables(value, fmt.Sprintf("gateway.opentelemetry.headers.%s", key))
+	if cfg.Headers != "" {
+		expanded, err := expandVariables(cfg.Headers, "gateway.opentelemetry.headers")
 		if err != nil {
 			return err
 		}
-		cfg.Headers[key] = expanded
+		cfg.Headers = expanded
 	}
 
 	return nil
