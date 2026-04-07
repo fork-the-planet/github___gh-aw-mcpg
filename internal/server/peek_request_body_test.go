@@ -73,7 +73,9 @@ func TestPeekRequestBody(t *testing.T) {
 		{
 			name: "POST with nil body returns nil",
 			buildReq: func() *http.Request {
-				return httptest.NewRequest(http.MethodPost, "/", nil)
+				req := httptest.NewRequest(http.MethodPost, "/", nil)
+				req.Body = nil
+				return req
 			},
 			wantBytes: nil,
 			wantErr:   nil,
