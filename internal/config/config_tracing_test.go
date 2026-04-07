@@ -62,7 +62,7 @@ func TestOTEL004_NonHTTPSEndpoint_Error(t *testing.T) {
 
 // T-OTEL-005: TracingConfig struct carries all required spec §4.1.3.6 fields.
 func TestOTEL005_TracingConfigFields(t *testing.T) {
-	headers := map[string]string{"Authorization": "Bearer token"}
+	headers := "Authorization=Bearer token"
 	cfg := &TracingConfig{
 		Endpoint:    "https://otel-collector.example.com",
 		Headers:     headers,
@@ -80,10 +80,7 @@ func TestOTEL005_TracingConfigFields(t *testing.T) {
 
 // T-OTEL-006: Headers are preserved in TracingConfig when configured.
 func TestOTEL006_HeadersPreserved(t *testing.T) {
-	headers := map[string]string{
-		"Authorization": "Bearer my-token",
-		"X-Custom":      "value",
-	}
+	headers := "Authorization=Bearer my-token,X-Custom=value"
 	cfg := &TracingConfig{
 		Endpoint: "https://otel-collector.example.com",
 		Headers:  headers,
@@ -206,7 +203,7 @@ func TestExpandTracingVariables(t *testing.T) {
 		Endpoint: "${TEST_OTEL_ENDPOINT}",
 		TraceID:  "${TEST_TRACE_ID}",
 		SpanID:   "${TEST_SPAN_ID}",
-		Headers:  map[string]string{"Authorization": "${TEST_AUTH_TOKEN}"},
+		Headers:  "Authorization=${TEST_AUTH_TOKEN}",
 	}
 
 	err := expandTracingVariables(cfg)
@@ -215,7 +212,7 @@ func TestExpandTracingVariables(t *testing.T) {
 	assert.Equal(t, "https://otel.example.com", cfg.Endpoint)
 	assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", cfg.TraceID)
 	assert.Equal(t, "00f067aa0ba902b7", cfg.SpanID)
-	assert.Equal(t, "Bearer secret-token", cfg.Headers["Authorization"])
+	assert.Equal(t, "Authorization=Bearer secret-token", cfg.Headers)
 
 	// After expansion, validation should pass
 	err = validateOpenTelemetryConfig(cfg, true)
@@ -262,7 +259,7 @@ func TestGetSampleRate_NewFields(t *testing.T) {
 	rate := 0.5
 	cfg := &TracingConfig{
 		Endpoint:    "https://otel-collector.example.com",
-		Headers:     map[string]string{"Authorization": "Bearer tok"},
+		Headers:     "Authorization=Bearer tok",
 		TraceID:     "4bf92f3577b34da6a3ce929d0e0e4736",
 		SpanID:      "00f067aa0ba902b7",
 		ServiceName: "my-service",

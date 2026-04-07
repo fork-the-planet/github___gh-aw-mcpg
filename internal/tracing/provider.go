@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -93,12 +94,32 @@ func resolveSampleRate(cfg *config.TracingConfig) float64 {
 	return config.DefaultTracingSampleRate
 }
 
-// resolveHeaders returns the configured OTLP export headers (or nil).
-func resolveHeaders(cfg *config.TracingConfig) map[string]string {
-	if cfg != nil && len(cfg.Headers) > 0 {
-		return cfg.Headers
+// parseOTLPHeaders parses a comma-separated "key=value" string into a map.
+// Empty pairs and pairs without "=" are logged as warnings and skipped.
+// Leading/trailing whitespace around keys and values is trimmed.
+func parseOTLPHeaders(raw string) map[string]string {
+	headers := make(map[string]string)
+	for _, pair := range strings.Split(raw, ",") {
+		trimmed := strings.TrimSpace(pair)
+		if trimmed == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(trimmed, "=")
+		if !ok {
+			logTracing.Printf("Warning: skipping malformed OTLP header pair (missing '='): %q", trimmed)
+			continue
+		}
+		headers[strings.TrimSpace(k)] = strings.TrimSpace(v)
 	}
-	return nil
+	return headers
+}
+
+// resolveHeaders parses the configured OTLP export headers string (or returns nil).
+func resolveHeaders(cfg *config.TracingConfig) map[string]string {
+	if cfg == nil || cfg.Headers == "" {
+		return nil
+	}
+	return parseOTLPHeaders(cfg.Headers)
 }
 
 // resolveParentContext builds a context carrying the W3C remote parent span context

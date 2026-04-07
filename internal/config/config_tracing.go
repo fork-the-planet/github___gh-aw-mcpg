@@ -22,18 +22,17 @@ const DefaultTracingServiceName = "mcp-gateway"
 //	service_name = "mcp-gateway"
 //	trace_id = "4bf92f3577b34da6a3ce929d0e0e4736"
 //	span_id = "00f067aa0ba902b7"
-//
-//	[gateway.opentelemetry.headers]
-//	Authorization = "Bearer ${OTEL_TOKEN}"
+//	headers = "Authorization=Bearer ${OTEL_TOKEN}"
 type TracingConfig struct {
 	// Endpoint is the OTLP HTTP endpoint to export traces to.
 	// When using the opentelemetry section (spec §4.1.3.6), this MUST be an HTTPS URL.
 	// If empty, tracing is disabled and a noop tracer is used.
 	Endpoint string `toml:"endpoint" json:"endpoint,omitempty"`
 
-	// Headers are HTTP headers sent with every OTLP export request (e.g. auth tokens).
-	// Header values support ${VAR} variable expansion (expanded at config load time).
-	Headers map[string]string `toml:"headers" json:"headers,omitempty"`
+	// Headers is a comma-separated list of key=value HTTP headers sent with every OTLP
+	// export request (e.g. "Authorization=Bearer ${OTEL_TOKEN},X-Custom=value").
+	// Supports ${VAR} variable expansion (expanded at config load time).
+	Headers string `toml:"headers" json:"headers,omitempty"`
 
 	// TraceID is an optional W3C trace ID (32-char lowercase hex) used to construct the
 	// parent traceparent header, linking gateway spans into a pre-existing trace.

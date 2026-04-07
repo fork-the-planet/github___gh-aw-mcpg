@@ -332,7 +332,7 @@ func TestInitProvider_WithHeaders(t *testing.T) {
 
 	cfg := &config.TracingConfig{
 		Endpoint: ts.URL,
-		Headers:  map[string]string{"Authorization": "Bearer test-token"},
+		Headers:  "Authorization=Bearer test-token",
 	}
 
 	provider, err := tracing.InitProvider(ctx, cfg)
