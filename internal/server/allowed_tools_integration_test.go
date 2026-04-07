@@ -10,13 +10,10 @@ package server
 //   - No restriction when Tools list is absent
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -78,52 +75,6 @@ func newMockMCPBackendWithTools(t *testing.T, serverID string, toolNames []strin
 			})
 		}
 	}))
-}
-
-// sendUnifiedMCPRequest sends a JSON-RPC request to the unified /mcp endpoint
-// and returns the parsed JSON response. It follows the SSE envelope if present.
-func sendUnifiedMCPRequest(t *testing.T, serverURL string, payload map[string]interface{}) map[string]interface{} {
-	t.Helper()
-	data, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	req, err := http.NewRequest("POST", serverURL+"/mcp", bytes.NewBuffer(data))
-	require.NoError(t, err)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json, text/event-stream")
-	req.Header.Set("Authorization", "test-token")
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	bodyStr := string(body)
-	ct := resp.Header.Get("Content-Type")
-	if strings.Contains(ct, "text/event-stream") {
-		return parseSSEBody(t, bodyStr)
-	}
-	var result map[string]interface{}
-	require.NoError(t, json.Unmarshal(body, &result), "failed to parse response: %s", bodyStr)
-	return result
-}
-
-// parseSSEBody extracts the first JSON payload from an SSE-encoded response body.
-func parseSSEBody(t *testing.T, body string) map[string]interface{} {
-	t.Helper()
-	for _, line := range strings.Split(body, "\n") {
-		if strings.HasPrefix(line, "data: ") {
-			var result map[string]interface{}
-			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &result); err == nil {
-				return result
-			}
-		}
-	}
-	t.Fatalf("no JSON data line found in SSE body: %s", body)
-	return nil
 }
 
 // ----- tools/list filtering integration tests -----------------------------
