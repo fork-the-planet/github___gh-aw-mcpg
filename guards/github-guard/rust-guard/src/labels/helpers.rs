@@ -1292,16 +1292,15 @@ pub fn commit_integrity(
 /// - copilot-swe-agent: GitHub Copilot SWE agent (without [bot] suffix)
 /// - app/copilot-swe-agent: GitHub Copilot SWE agent (with app/ prefix, as returned by gh CLI)
 pub fn is_trusted_first_party_bot(username: &str) -> bool {
-    let lower = username.to_lowercase();
-    lower == "dependabot[bot]"
-        || lower == "github-actions[bot]"
-        || lower == "github-actions"
-        || lower == "app/github-actions"
-        || lower == "github-merge-queue[bot]"
-        || lower == "copilot"
-        || lower == "copilot-swe-agent[bot]"
-        || lower == "copilot-swe-agent"
-        || lower == "app/copilot-swe-agent"
+    username.eq_ignore_ascii_case("dependabot[bot]")
+        || username.eq_ignore_ascii_case("github-actions[bot]")
+        || username.eq_ignore_ascii_case("github-actions")
+        || username.eq_ignore_ascii_case("app/github-actions")
+        || username.eq_ignore_ascii_case("github-merge-queue[bot]")
+        || username.eq_ignore_ascii_case("copilot")
+        || username.eq_ignore_ascii_case("copilot-swe-agent[bot]")
+        || username.eq_ignore_ascii_case("copilot-swe-agent")
+        || username.eq_ignore_ascii_case("app/copilot-swe-agent")
 }
 
 /// Check if a user is in the gateway-configured trusted bot list.
