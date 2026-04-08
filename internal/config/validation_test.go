@@ -956,6 +956,7 @@ func TestValidateAuthConfig(t *testing.T) {
 		server    *StdinServerConfig
 		shouldErr bool
 		errMsg    string
+		clearEnv  bool // when true, ensure ACTIONS_ID_TOKEN_REQUEST_URL is unset
 	}{
 		{
 			name: "valid github-oidc auth on http server",
@@ -1016,10 +1017,30 @@ func TestValidateAuthConfig(t *testing.T) {
 			shouldErr: true,
 			errMsg:    "type",
 		},
+		{
+			name: "github-oidc rejected when ACTIONS_ID_TOKEN_REQUEST_URL is not set",
+			server: &StdinServerConfig{
+				Type: "http",
+				URL:  "https://example.com/mcp",
+				Auth: &AuthConfig{
+					Type:     "github-oidc",
+					Audience: "https://example.com",
+				},
+			},
+			shouldErr: true,
+			errMsg:    "ACTIONS_ID_TOKEN_REQUEST_URL",
+			clearEnv:  true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.clearEnv {
+				t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+			} else {
+				// Ensure OIDC env var is set for tests that expect valid config
+				t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "https://token.actions.example.com")
+			}
 			err := validateStandardServerConfig("test-server", tt.server, "mcpServers.test-server")
 			if tt.shouldErr {
 				require.Error(t, err)

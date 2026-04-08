@@ -72,13 +72,18 @@ func New(ctx context.Context, cfg *config.Config) *Launcher {
 		logger.LogInfo("startup", "GitHub Actions OIDC provider initialized")
 	}
 
-	// Validate that all servers requiring OIDC have the provider available
+	// Pre-populate serverErrors for OIDC-misconfigured servers so /health
+	// reports them as "error" immediately at startup, not only after the
+	// first failed request.
+	serverErrors := make(map[string]string)
 	for serverID, serverCfg := range cfg.Servers {
 		if serverCfg.Auth != nil && serverCfg.Auth.Type == "github-oidc" && oidcProvider == nil {
-			logger.LogError("startup",
+			errMsg := fmt.Sprintf(
 				"Server %q requires OIDC authentication but ACTIONS_ID_TOKEN_REQUEST_URL is not set. "+
 					"OIDC auth is only available when running in GitHub Actions with `permissions: { id-token: write }`.",
 				serverID)
+			logger.LogError("startup", "%s", errMsg)
+			serverErrors[serverID] = errMsg
 		}
 	}
 
@@ -91,7 +96,7 @@ func New(ctx context.Context, cfg *config.Config) *Launcher {
 		startupTimeout:     startupTimeout,
 		oidcProvider:       oidcProvider,
 		serverStartTimes:   make(map[string]time.Time),
-		serverErrors:       make(map[string]string),
+		serverErrors:       serverErrors,
 	}
 }
 

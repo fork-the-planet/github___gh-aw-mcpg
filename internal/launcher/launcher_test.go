@@ -776,6 +776,32 @@ func TestLauncher_MixedAuthTypes(t *testing.T) {
 	assert.Nil(t, l.oidcProvider, "OIDC provider should be nil without env vars")
 }
 
+func TestLauncher_OIDCMissingEnvRecordsErrorAtStartup(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"oidc-http": {
+				Type: "http",
+				URL:  "https://secure.example.com/mcp",
+				Auth: &config.AuthConfig{
+					Type:     "github-oidc",
+					Audience: "https://secure.example.com",
+				},
+			},
+		},
+	}
+
+	l := New(ctx, cfg)
+	defer l.Close()
+
+	// The launcher should record an error for the OIDC server at startup
+	state := l.GetServerState("oidc-http")
+	assert.Equal(t, "error", state.Status, "OIDC server with missing env should be in error state at startup")
+	assert.Contains(t, state.LastError, "ACTIONS_ID_TOKEN_REQUEST_URL")
+}
+
 func TestGetServerState_StoppedByDefault(t *testing.T) {
 	cfg := newTestConfig(map[string]*config.ServerConfig{
 		"test-server": {Type: "stdio", Command: "echo"},

@@ -258,6 +258,17 @@ func validateAuthConfig(auth *AuthConfig, serverName, jsonPath string) error {
 		return rules.UnsupportedType("type", auth.Type, authPath, fmt.Sprintf("Unsupported auth type %q. Currently only \"github-oidc\" is supported", auth.Type))
 	}
 
+	// Fail-fast: check that required OIDC environment variables are present.
+	// This catches misconfigurations at config-load time rather than deferring
+	// the error to the first request against this server.
+	if os.Getenv("ACTIONS_ID_TOKEN_REQUEST_URL") == "" {
+		logValidateServerFailed(serverName, "ACTIONS_ID_TOKEN_REQUEST_URL is not set")
+		return rules.MissingRequired(
+			"ACTIONS_ID_TOKEN_REQUEST_URL", "environment", authPath,
+			"Server requires OIDC authentication but ACTIONS_ID_TOKEN_REQUEST_URL is not set. "+
+				"OIDC auth requires running in GitHub Actions with `permissions: { id-token: write }`")
+	}
+
 	logValidation.Printf("Auth config validated: server=%s, type=%s", serverName, auth.Type)
 	return nil
 }

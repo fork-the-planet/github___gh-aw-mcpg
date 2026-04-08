@@ -1027,6 +1027,9 @@ func TestConvertStdinConfig_TrustedBots(t *testing.T) {
 
 // TestConvertStdinServerConfig_HTTPWithAuth tests that auth config is properly converted.
 func TestConvertStdinServerConfig_HTTPWithAuth(t *testing.T) {
+	// OIDC validation now checks that ACTIONS_ID_TOKEN_REQUEST_URL is set
+	t.Setenv("ACTIONS_ID_TOKEN_REQUEST_URL", "https://token.actions.example.com")
+
 	t.Run("auth with explicit audience", func(t *testing.T) {
 		server := &StdinServerConfig{
 			Type: "http",
