@@ -64,6 +64,19 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 				serverType:  "",
 				shouldError: false,
 			},
+			// Valid container patterns with SHA-256 digest
+			{
+				name:        "valid container with tag and sha256 digest",
+				container:   "ghcr.io/github/github-mcp-server:v0.32.0@sha256:2763823c67a0adca3fce6e3bdfee41a674e3bf22f0e6b2eee94ed3a72ebcd519",
+				serverType:  "stdio",
+				shouldError: false,
+			},
+			{
+				name:        "valid container with sha256 digest only",
+				container:   "ghcr.io/github/github-mcp-server@sha256:2763823c67a0adca3fce6e3bdfee41a674e3bf22f0e6b2eee94ed3a72ebcd519",
+				serverType:  "stdio",
+				shouldError: false,
+			},
 			// Invalid container patterns
 			{
 				name:        "invalid container starts with special char",
@@ -82,6 +95,20 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 			{
 				name:        "invalid container with double colon",
 				container:   "owner/image::tag",
+				serverType:  "stdio",
+				shouldError: true,
+				errorField:  "container",
+			},
+			{
+				name:        "invalid container sha256 digest too short",
+				container:   "ghcr.io/github/github-mcp-server@sha256:short",
+				serverType:  "stdio",
+				shouldError: true,
+				errorField:  "container",
+			},
+			{
+				name:        "invalid container wrong digest algorithm",
+				container:   "ghcr.io/github/github-mcp-server@md5:2763823c67a0adca3fce6e3bdfee41a674e3bf22f0e6b2eee94ed3a72ebcd519",
 				serverType:  "stdio",
 				shouldError: true,
 				errorField:  "container",

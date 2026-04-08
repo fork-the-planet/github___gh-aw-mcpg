@@ -59,7 +59,7 @@ func isTransientHTTPError(statusCode int) bool {
 
 var (
 	// Compile regex patterns from schema for additional validation
-	containerPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9./_-]*(:([a-zA-Z0-9._-]+|latest))?$`)
+	containerPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9./_-]*(:([a-zA-Z0-9._-]+|latest))?(@sha256:[a-fA-F0-9]{64})?$`)
 	urlPattern       = regexp.MustCompile(`^https?://.+`)
 	mountPattern     = regexp.MustCompile(`^[^:]+:[^:]+:(ro|rw)$`)
 	domainVarPattern = regexp.MustCompile(`^\$\{[A-Z_][A-Z0-9_]*\}$`)
@@ -506,7 +506,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 			if server.Container != "" && !containerPattern.MatchString(server.Container) {
 				return rules.InvalidPattern("container", server.Container,
 					fmt.Sprintf("%s.container", jsonPath),
-					"Use a valid container image format (e.g., 'ghcr.io/owner/image:tag' or 'owner/image:latest')")
+					"Use a valid container image format (e.g., 'ghcr.io/owner/image:tag', 'owner/image:latest', or 'ghcr.io/owner/image:tag@sha256:<digest>')")
 			}
 
 			// Validate mount patterns

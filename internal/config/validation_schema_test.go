@@ -366,6 +366,30 @@ func TestValidateStringPatterns(t *testing.T) {
 			shouldErr: false,
 		},
 		{
+			name: "valid container pattern - tag with sha256 digest",
+			config: &StdinConfig{
+				MCPServers: map[string]*StdinServerConfig{
+					"test": {
+						Type:      "stdio",
+						Container: "ghcr.io/owner/image:v1.2.3@sha256:2763823c67a0adca3fce6e3bdfee41a674e3bf22f0e6b2eee94ed3a72ebcd519",
+					},
+				},
+			},
+			shouldErr: false,
+		},
+		{
+			name: "valid container pattern - sha256 digest only",
+			config: &StdinConfig{
+				MCPServers: map[string]*StdinServerConfig{
+					"test": {
+						Type:      "stdio",
+						Container: "ghcr.io/owner/image@sha256:2763823c67a0adca3fce6e3bdfee41a674e3bf22f0e6b2eee94ed3a72ebcd519",
+					},
+				},
+			},
+			shouldErr: false,
+		},
+		{
 			name: "invalid container pattern - starts with special char",
 			config: &StdinConfig{
 				MCPServers: map[string]*StdinServerConfig{
