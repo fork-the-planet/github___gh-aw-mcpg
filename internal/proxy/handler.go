@@ -140,8 +140,9 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	defer difcSpan.End()
 
 	if !s.guardInitialized {
-		logHandler.Printf("returning 503: proxy enforcement not configured (no --policy flag provided)")
-		logger.LogError("proxy", "returning 503: proxy enforcement not configured (no --policy flag provided)")
+		errMsg := "returning 503: proxy enforcement not configured (no --policy flag provided)"
+		logHandler.Printf(errMsg)
+		logger.LogError("proxy", errMsg)
 		http.Error(w, "proxy enforcement not configured", http.StatusServiceUnavailable)
 		return
 	}
