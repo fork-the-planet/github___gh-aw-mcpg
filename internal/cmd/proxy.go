@@ -141,12 +141,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	}
 
 	// Initialize loggers
-	if err := logger.InitFileLogger(proxyLogDir, "proxy.log"); err != nil {
-		log.Printf("Warning: Failed to initialize file logger: %v", err)
-	}
-	if err := logger.InitJSONLLogger(proxyLogDir, "rpc-messages.jsonl"); err != nil {
-		log.Printf("Warning: Failed to initialize JSONL logger: %v", err)
-	}
+	logger.InitProxyLoggers(proxyLogDir)
 
 	logger.LogInfo("startup", "MCPG Proxy starting: listen=%s, guard=%s, mode=%s, tls=%v", proxyListen, proxyGuardWasm, proxyDIFCMode, proxyTLS)
 

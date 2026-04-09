@@ -125,30 +125,7 @@ func run(cmd *cobra.Command, args []string) error {
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Initialize file logger early
-	if err := logger.InitFileLogger(logDir, "mcp-gateway.log"); err != nil {
-		log.Printf("Warning: Failed to initialize file logger: %v", err)
-	}
-
-	// Initialize per-serverID logger
-	if err := logger.InitServerFileLogger(logDir); err != nil {
-		log.Printf("Warning: Failed to initialize server file logger: %v", err)
-	}
-
-	// Initialize markdown logger for GitHub workflow preview
-	if err := logger.InitMarkdownLogger(logDir, "gateway.md"); err != nil {
-		log.Printf("Warning: Failed to initialize markdown logger: %v", err)
-	}
-
-	// Initialize JSONL logger for RPC message logging
-	if err := logger.InitJSONLLogger(logDir, "rpc-messages.jsonl"); err != nil {
-		log.Printf("Warning: Failed to initialize JSONL logger: %v", err)
-	}
-
-	// Initialize tools logger for tracking available tools
-	if err := logger.InitToolsLogger(logDir, "tools.json"); err != nil {
-		log.Printf("Warning: Failed to initialize tools logger: %v", err)
-	}
+	logger.InitGatewayLoggers(logDir)
 
 	logger.LogInfoMd("startup", "MCPG Gateway version: %s", cliVersion)
 
