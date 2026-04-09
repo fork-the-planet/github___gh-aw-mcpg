@@ -42,7 +42,7 @@ tools:
   edit:
   cache-memory:
 
-timeout-minutes: 30
+timeout-minutes: 45
 strict: true
 ---
 
