@@ -109,7 +109,7 @@ func init() {
 		return
 	}
 
-	logMiddleware.Printf("Successfully compiled jq schema filter at init (gojq v0.12.19)")
+	logMiddleware.Printf("Successfully compiled jq schema filter at init")
 	logger.LogInfo("startup", "jq schema filter compiled successfully - array limit: 2^29 elements, timeout: %v", DefaultJqTimeout)
 }
 
@@ -217,13 +217,21 @@ func savePayload(baseDir, pathPrefix, sessionID, queryID string, payload []byte)
 		return "", fmt.Errorf("failed to write payload file: %w", err)
 	}
 
-	logger.LogInfo("payload", "Successfully saved large payload to filesystem: path=%s, size=%d bytes, permissions=0600",
-		filePath, payloadSize)
+	// Enforce permissions even if the file already existed (WriteFile only sets mode on create)
+	if err := os.Chmod(filePath, 0600); err != nil {
+		logger.LogError("payload", "Failed to enforce payload file permissions: path=%s, size=%d bytes, error=%v",
+			filePath, payloadSize, err)
+		return "", fmt.Errorf("failed to set payload file permissions: %w", err)
+	}
 
-	// Verify file was written correctly
+	// Verify file was written correctly and log actual resulting mode
 	if stat, err := os.Stat(filePath); err != nil {
 		logger.LogWarn("payload", "Could not verify payload file after write: path=%s, error=%v", filePath, err)
+		logger.LogInfo("payload", "Successfully saved large payload to filesystem: path=%s, size=%d bytes",
+			filePath, payloadSize)
 	} else {
+		logger.LogInfo("payload", "Successfully saved large payload to filesystem: path=%s, size=%d bytes, permissions=%#o",
+			filePath, payloadSize, stat.Mode().Perm())
 		logger.LogDebug("payload", "Payload file verified: path=%s, size=%d bytes, mode=%s",
 			filePath, stat.Size(), stat.Mode())
 	}

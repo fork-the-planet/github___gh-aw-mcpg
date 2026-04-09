@@ -114,6 +114,9 @@ func TestApplyJqSchema(t *testing.T) {
 func TestApplyJqSchema_SingleOutputContract(t *testing.T) {
 	require := require.New(t)
 
+	require.Nil(jqSchemaCompileErr, "jq schema filter must compile without error")
+	require.NotNil(jqSchemaCode, "jq schema compiled code must not be nil")
+
 	inputs := []interface{}{
 		map[string]interface{}{"name": "test", "count": 42},
 		[]interface{}{map[string]interface{}{"id": 1}},
