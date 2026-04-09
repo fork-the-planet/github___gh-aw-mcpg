@@ -195,26 +195,21 @@ func findParentField(query string, nodesIdx int) string {
 	// Walk backward from nodesIdx to find the enclosing `{`
 	depth := 0
 	i := nodesIdx - 1
-	braceFound := false
 	for i >= 0 {
 		switch query[i] {
 		case '{':
 			if depth == 0 {
-				braceFound = true
-			} else {
-				depth--
+				goto foundBrace
 			}
+			depth--
 		case '}':
 			depth++
 		}
-		if braceFound {
-			break
-		}
 		i--
 	}
-	if !braceFound {
-		return ""
-	}
+	return "" // no enclosing brace found
+
+foundBrace:
 
 	// i now points to the `{` of the enclosing block.
 	// Walk backward past whitespace.
