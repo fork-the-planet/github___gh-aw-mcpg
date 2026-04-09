@@ -2,8 +2,6 @@ package middleware
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -13,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/itchyny/gojq"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -114,12 +113,12 @@ func init() {
 
 // generateRandomID generates a random ID for payload storage
 func generateRandomID() string {
-	bytes := make([]byte, 16)
-	if _, err := rand.Read(bytes); err != nil {
-		// Fallback to timestamp-based ID if random fails
-		return fmt.Sprintf("fallback-%d", os.Getpid())
+	id, err := strutil.RandomHex(16)
+	if err != nil {
+		// Fallback to a process- and time-based ID if random generation fails.
+		return fmt.Sprintf("fallback-%d-%d", os.Getpid(), time.Now().UnixNano())
 	}
-	return hex.EncodeToString(bytes)
+	return id
 }
 
 // applyJqSchema applies the jq schema transformation to JSON data
