@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -57,18 +56,17 @@ func registerToolWithoutValidation(server *sdk.Server, tool *sdk.Tool, handler f
 
 // registerAllTools fetches and registers tools from all backend servers
 func (us *UnifiedServer) registerAllTools() error {
-	log.Println("Registering tools from all backends...")
 	logUnified.Printf("Starting tool registration for %d backends", len(us.launcher.ServerIDs()))
 
 	// Only register sys tools if DIFC is enabled
 	// When DIFC is disabled (default), sys tools are not needed
 	if us.enableDIFC {
-		log.Println("DIFC enabled: registering sys tools...")
+		logUnified.Printf("DIFC enabled: registering sys tools...")
 		if err := us.registerSysTools(); err != nil {
-			log.Printf("Warning: failed to register sys tools: %v", err)
+			logger.LogWarn("backend", "Failed to register sys tools: %v", err)
 		}
 	} else {
-		log.Println("DIFC disabled: skipping sys tools registration")
+		logUnified.Printf("DIFC disabled: skipping sys tools registration")
 	}
 
 	serverIDs := us.launcher.ServerIDs()
@@ -89,7 +87,7 @@ func (us *UnifiedServer) registerAllToolsSequential(serverIDs []string) error {
 	for _, serverID := range serverIDs {
 		logUnified.Printf("Registering tools from backend: %s", serverID)
 		if err := us.registerToolsFromBackend(serverID); err != nil {
-			log.Printf("Warning: failed to register tools from %s: %v", serverID, err)
+			logger.LogWarn("backend", "Failed to register tools from %s: %v", serverID, err)
 			// Continue with other backends
 		}
 	}
@@ -132,7 +130,6 @@ func (us *UnifiedServer) registerAllToolsParallel(serverIDs []string) error {
 	failureCount := 0
 	for result := range results {
 		if result.err != nil {
-			log.Printf("Warning: failed to register tools from %s (took %v): %v", result.serverID, result.duration, result.err)
 			logger.LogWarnWithServer(result.serverID, "backend", "Failed to register tools from %s (took %v): %v", result.serverID, result.duration, result.err)
 			failureCount++
 		} else {
@@ -142,14 +139,13 @@ func (us *UnifiedServer) registerAllToolsParallel(serverIDs []string) error {
 		}
 	}
 
-	log.Printf("Parallel tool registration complete: %d succeeded, %d failed, total tools=%d", successCount, failureCount, len(us.tools))
 	logUnified.Printf("Tool registration complete: %d succeeded, %d failed, total tools=%d", successCount, failureCount, len(us.tools))
 	return nil
 }
 
 // registerToolsFromBackend registers tools from a specific backend with <server>___<tool> naming
 func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
-	log.Printf("Registering tools from backend: %s", serverID)
+	logUnified.Printf("Registering tools from backend: %s", serverID)
 
 	// Get connection to backend
 	conn, err := launcher.GetOrLaunch(us.launcher, serverID)
@@ -291,10 +287,10 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 			Annotations: tool.Annotations,
 		}, finalHandler)
 
-		log.Printf("Registered tool: %s", logName)
+		logUnified.Printf("Registered tool: %s", logName)
 	}
 
-	log.Printf("Registered %d tools from %s: %s", len(listResult.Tools), serverID, strings.Join(toolNames, ", "))
+	logUnified.Printf("Registered %d tools from %s: %s", len(listResult.Tools), serverID, strings.Join(toolNames, ", "))
 	return nil
 }
 
@@ -370,7 +366,6 @@ func (us *UnifiedServer) registerSysTools() error {
 		}
 
 		logger.LogInfo("client", "MCP session initialized successfully, session=%s, available_servers=%v", sessionID, us.launcher.ServerIDs())
-		log.Printf("Initialized session: %s", sessionID)
 
 		// Call sys_init
 		result, err := us.callSysServer("sys_init")
@@ -434,6 +429,6 @@ func (us *UnifiedServer) registerSysTools() error {
 		sysListHandler,
 	)
 
-	log.Println("Registered 2 sys tools")
+	logUnified.Printf("Registered 2 sys tools")
 	return nil
 }
