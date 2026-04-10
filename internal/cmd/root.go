@@ -341,7 +341,7 @@ func run(cmd *cobra.Command, args []string) error {
 			logger.StartupInfo("OpenTelemetry tracing enabled: endpoint=%s, service=%s, sampleRate=%.2f",
 				endpoint, serviceName, sampleRate)
 		} else {
-			log.Printf("OpenTelemetry tracing disabled (no OTLP endpoint configured)")
+			logger.StartupInfo("OpenTelemetry tracing disabled (no OTLP endpoint configured)")
 		}
 	}
 
