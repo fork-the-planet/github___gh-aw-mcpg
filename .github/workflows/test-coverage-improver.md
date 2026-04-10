@@ -37,7 +37,6 @@ safe-outputs:
     draft: true
 
 tools:
-  serena: ["go"]
   cache-memory: true
   github:
     toolsets: [default]

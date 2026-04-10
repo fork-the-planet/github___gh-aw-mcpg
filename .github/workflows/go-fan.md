@@ -35,7 +35,6 @@ safe-outputs:
   noop:
 
 tools:
-  serena: ["go"]
   cache-memory: true
   github:
     toolsets: [default]
@@ -318,12 +317,6 @@ Create an issue summarizing your findings:
 The Serena MCP server is configured for Go analysis with:
 - **Project Root**: ${{ github.workspace }}
 - **Language**: Go
-- **Memory**: `/tmp/gh-aw/cache-memory/serena/`
-
-Use Serena for:
-- Semantic code analysis
-- Finding all usages of a module
-- Understanding code patterns
 - Identifying refactoring opportunities
 
 ## Output

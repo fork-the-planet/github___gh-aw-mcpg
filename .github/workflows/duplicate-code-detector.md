@@ -14,7 +14,7 @@ network:
     - defaults
     - containers
 tools:
-  serena: ["go"]
+  bash: true
 safe-outputs:
   create-issue:
     title-prefix: "[duplicate-code] "

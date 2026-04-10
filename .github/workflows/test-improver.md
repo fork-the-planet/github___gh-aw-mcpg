@@ -31,7 +31,6 @@ safe-outputs:
     max: 1
 
 tools:
-  serena: ["go"]
   cache-memory: true
   github:
     toolsets: [default]
