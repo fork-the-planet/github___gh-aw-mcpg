@@ -56,17 +56,17 @@ func registerToolWithoutValidation(server *sdk.Server, tool *sdk.Tool, handler f
 
 // registerAllTools fetches and registers tools from all backend servers
 func (us *UnifiedServer) registerAllTools() error {
-	logUnified.Printf("Starting tool registration for %d backends", len(us.launcher.ServerIDs()))
+	logger.LogInfo("backend", "Starting tool registration for %d backends", len(us.launcher.ServerIDs()))
 
 	// Only register sys tools if DIFC is enabled
 	// When DIFC is disabled (default), sys tools are not needed
 	if us.enableDIFC {
-		logUnified.Printf("DIFC enabled: registering sys tools...")
+		logger.LogInfo("backend", "DIFC enabled: registering sys tools...")
 		if err := us.registerSysTools(); err != nil {
 			logger.LogWarn("backend", "Failed to register sys tools: %v", err)
 		}
 	} else {
-		logUnified.Printf("DIFC disabled: skipping sys tools registration")
+		logger.LogInfo("backend", "DIFC disabled: skipping sys tools registration")
 	}
 
 	serverIDs := us.launcher.ServerIDs()
@@ -139,7 +139,7 @@ func (us *UnifiedServer) registerAllToolsParallel(serverIDs []string) error {
 		}
 	}
 
-	logUnified.Printf("Tool registration complete: %d succeeded, %d failed, total tools=%d", successCount, failureCount, len(us.tools))
+	logger.LogInfo("backend", "Tool registration complete: %d succeeded, %d failed, total tools=%d", successCount, failureCount, len(us.tools))
 	return nil
 }
 

@@ -183,9 +183,9 @@ func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error)
 
 	// Log guards status early (before backend launch which may take time)
 	if us.enableDIFC {
-		logUnified.Printf("Guards enforcement enabled with mode: %s", cfg.DIFCMode)
+		logger.LogInfo("startup", "Guards enforcement enabled with mode: %s", cfg.DIFCMode)
 	} else {
-		logUnified.Printf("Guards enforcement disabled (sessions auto-created for standard MCP client compatibility)")
+		logger.LogInfo("startup", "Guards enforcement disabled (sessions auto-created for standard MCP client compatibility)")
 	}
 
 	// Register aggregated tools from all backends
@@ -485,7 +485,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// **Phase 1: Guard labels the resource**
 	resource, operation, err := g.LabelResource(ctx, toolName, args, backendCaller, us.capabilities)
 	if err != nil {
-		logUnified.Printf("[DIFC] Guard labeling failed: %v", err)
+		logger.LogWarn("difc", "Guard labeling failed: %v", err)
 		httpStatusCode = 500
 		return newErrorCallToolResult(fmt.Errorf("guard labeling failed: %w", err))
 	}
@@ -508,7 +508,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			logUnified.Printf("[DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()")
 		} else {
 			// Non-read operation - block the request
-			logUnified.Printf("[DIFC] Access DENIED for agent %s to %s: %s", agentID, resource.Description, result.Reason)
+			logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s", agentID, resource.Description, result.Reason)
 			detailedErr := difc.FormatViolationError(result, agentLabels.Secrecy, agentLabels.Integrity, resource)
 			toolSpan.RecordError(detailedErr)
 			toolSpan.SetStatus(codes.Error, "access denied: "+result.Reason)
@@ -547,7 +547,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	if shouldCallLabelResponse {
 		labeledData, err = g.LabelResponse(ctx, toolName, backendResult, backendCaller, us.capabilities)
 		if err != nil {
-			logUnified.Printf("[DIFC] Response labeling failed: %v", err)
+			logger.LogWarn("difc", "Response labeling failed: %v", err)
 			httpStatusCode = 500
 			return newErrorCallToolResult(fmt.Errorf("response labeling failed: %w", err))
 		}
@@ -569,7 +569,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 
 			// **Strict mode: block entire response if ANY item is filtered**
 			if enforcementMode == difc.EnforcementStrict && filtered.GetFilteredCount() > 0 {
-				logUnified.Printf("[DIFC] STRICT MODE: Blocking entire response - %d/%d items violate DIFC policy",
+				logger.LogWarn("difc", "STRICT MODE: Blocking entire response - %d/%d items violate DIFC policy",
 					filtered.GetFilteredCount(), filtered.TotalCount)
 				blockErr := fmt.Errorf("DIFC policy violation: %d of %d items in response are not accessible to agent %s",
 					filtered.GetFilteredCount(), filtered.TotalCount, agentID)
@@ -641,7 +641,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 
 // Run starts the unified MCP server on the specified transport
 func (us *UnifiedServer) Run(transport sdk.Transport) error {
-	logUnified.Printf("Starting unified MCP server...")
+	logger.LogInfo("startup", "Starting unified MCP server...")
 	return us.server.Run(us.ctx, transport)
 }
 
