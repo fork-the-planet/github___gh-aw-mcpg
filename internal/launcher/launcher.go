@@ -79,10 +79,7 @@ func New(ctx context.Context, cfg *config.Config) *Launcher {
 	serverErrors := make(map[string]string)
 	for serverID, serverCfg := range cfg.Servers {
 		if serverCfg.Auth != nil && serverCfg.Auth.Type == "github-oidc" && oidcProvider == nil {
-			errMsg := fmt.Sprintf(
-				"Server %q requires OIDC authentication but ACTIONS_ID_TOKEN_REQUEST_URL is not set. "+
-					"OIDC auth is only available when running in GitHub Actions with `permissions: { id-token: write }`.",
-				serverID)
+			errMsg := oidc.ErrMissingOIDCEnvVar(serverID).Error()
 			logger.LogError("startup", "%s", errMsg)
 			serverErrors[serverID] = errMsg
 		}
@@ -130,13 +127,10 @@ func GetOrLaunch(l *Launcher, serverID string) (*mcp.Connection, error) {
 					oidcAudience = serverCfg.URL
 				}
 				if oidcProvider == nil {
-					logger.LogErrorWithServer(serverID, "backend",
-						"Server %q requires OIDC auth but ACTIONS_ID_TOKEN_REQUEST_URL is not set", serverID)
+					oidcErr := oidc.ErrMissingOIDCEnvVar(serverID)
+					logger.LogErrorWithServer(serverID, "backend", "%s", oidcErr)
 					l.recordError(serverID, "OIDC provider not available")
-					return nil, fmt.Errorf(
-						"server %q requires OIDC authentication but ACTIONS_ID_TOKEN_REQUEST_URL is not set; "+
-							"OIDC auth is only available in GitHub Actions with `permissions: { id-token: write }`",
-						serverID)
+					return nil, oidcErr
 				}
 			}
 
