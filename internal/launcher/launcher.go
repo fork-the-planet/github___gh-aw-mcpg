@@ -143,6 +143,7 @@ func GetOrLaunch(l *Launcher, serverID string) (*mcp.Connection, error) {
 			// Create an HTTP connection
 			conn, err := mcp.NewHTTPConnection(l.ctx, serverID, serverCfg.URL, serverCfg.Headers, oidcProvider, oidcAudience, l.config.Gateway.HTTPKeepaliveInterval())
 			if err != nil {
+				log.Printf("FAILED to create HTTP connection for server %q: %v", serverID, err)
 				logger.LogErrorWithServer(serverID, "backend", "Failed to create HTTP connection: %s, error=%v", serverID, err)
 				l.recordError(serverID, err.Error())
 				return nil, fmt.Errorf("failed to create HTTP connection: %w", err)
