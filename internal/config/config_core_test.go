@@ -381,6 +381,25 @@ audience = "https://example.com"
 	assert.Equal(t, "https://example.com", server.Auth.Audience)
 }
 
+// TestLoadFromFile_AuthOnNonHTTPServerRejected verifies that TOML configs reject
+// auth blocks on non-HTTP servers so TOML validation stays aligned with stdin rules.
+func TestLoadFromFile_AuthOnNonHTTPServerRejected(t *testing.T) {
+	path := writeTempTOML(t, `
+[servers.local]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+
+[servers.local.auth]
+type = "github-oidc"
+audience = "https://example.com"
+`)
+	cfg, err := LoadFromFile(path)
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "auth")
+	assert.Contains(t, err.Error(), "HTTP")
+}
+
 // TestLoadFromFile_NegativePayloadSizeThresholdRejected verifies that TOML configs with
 // a negative payload_size_threshold are rejected per spec §4.1.3.3.
 func TestLoadFromFile_NegativePayloadSizeThresholdRejected(t *testing.T) {

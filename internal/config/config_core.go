@@ -350,6 +350,10 @@ func LoadFromFile(path string) (*Config, error) {
 	// via convertStdinServerConfig → validateServerConfigWithCustomSchemas.
 	for name, serverCfg := range cfg.Servers {
 		if serverCfg.Auth != nil {
+			// Auth is only supported on HTTP servers, matching validateStandardServerConfig behavior.
+			if serverCfg.Type != "http" {
+				return nil, fmt.Errorf("server '%s': auth is only supported for HTTP servers (type: \"http\")", name)
+			}
 			jsonPath := fmt.Sprintf("servers.%s", name)
 			if err := validateAuthConfig(serverCfg.Auth, name, jsonPath); err != nil {
 				return nil, err
