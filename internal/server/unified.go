@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -184,9 +183,9 @@ func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error)
 
 	// Log guards status early (before backend launch which may take time)
 	if us.enableDIFC {
-		log.Printf("Guards enforcement enabled with mode: %s", cfg.DIFCMode)
+		logger.LogInfo("startup", "Guards enforcement enabled with mode: %s", cfg.DIFCMode)
 	} else {
-		log.Println("Guards enforcement disabled (sessions auto-created for standard MCP client compatibility)")
+		logger.LogInfo("startup", "Guards enforcement disabled (sessions auto-created for standard MCP client compatibility)")
 	}
 
 	// Register aggregated tools from all backends
@@ -254,7 +253,7 @@ func (g *guardBackendCaller) CallTool(ctx context.Context, toolName string, args
 
 	// Make a read-only call to the backend for metadata
 	// This bypasses DIFC checks since it's internal to the guard
-	log.Printf("[DIFC] Guard calling backend %s tool %s for metadata", g.serverID, toolName)
+	logUnified.Printf("[DIFC] Guard calling backend %s tool %s for metadata", g.serverID, toolName)
 
 	sessionID := SessionIDFromContext(g.ctx)
 
@@ -413,7 +412,6 @@ func (us *UnifiedServer) isToolAllowed(serverID, toolName string) bool {
 func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName string, args interface{}) (*sdk.CallToolResult, interface{}, error) {
 	// Note: Session validation happens at the tool registration level via closures
 	// The closure captures the request and validates before calling this method
-	log.Printf("Calling tool on %s: %s with DIFC enforcement", serverID, toolName)
 	logUnified.Printf("callBackendTool: serverID=%s, toolName=%s, args=%+v", serverID, toolName, args)
 
 	// Start an OTEL span for the full tool call lifecycle (spans all phases 0–6)
@@ -470,7 +468,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// **Phase 0: Extract agent ID and get/create agent labels**
 	agentID := guard.GetAgentIDFromContext(ctx)
 	agentLabels := us.agentRegistry.GetOrCreate(agentID)
-	log.Printf("[DIFC] Agent %s | Secrecy: %v | Integrity: %v",
+	logUnified.Printf("[DIFC] Agent %s | Secrecy: %v | Integrity: %v",
 		agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
 
 	ctx = context.WithValue(ctx, mcp.AgentTagsSnapshotContextKey, &mcp.AgentTagsSnapshot{
@@ -487,12 +485,12 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// **Phase 1: Guard labels the resource**
 	resource, operation, err := g.LabelResource(ctx, toolName, args, backendCaller, us.capabilities)
 	if err != nil {
-		log.Printf("[DIFC] Guard labeling failed: %v", err)
+		logger.LogWarn("difc", "Guard labeling failed: %v", err)
 		httpStatusCode = 500
 		return newErrorCallToolResult(fmt.Errorf("guard labeling failed: %w", err))
 	}
 
-	log.Printf("[DIFC] Resource: %s | Operation: %s | Secrecy: %v | Integrity: %v",
+	logUnified.Printf("[DIFC] Resource: %s | Operation: %s | Secrecy: %v | Integrity: %v",
 		resource.Description, operation, resource.Secrecy.Label.GetTags(), resource.Integrity.Label.GetTags())
 
 	// **Phase 2: Reference Monitor performs coarse-grained access check**
@@ -506,11 +504,11 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		if isReadOperation {
 			// Read operation in any mode - skip coarse-grained block
 			// The guard will label response items and Phase 5 will enforce per-item policy
-			log.Printf("[DIFC] Coarse-grained check failed for read in %s mode - proceeding to backend for response labeling", enforcementMode)
-			log.Printf("[DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()")
+			logUnified.Printf("[DIFC] Coarse-grained check failed for read in %s mode - proceeding to backend for response labeling", enforcementMode)
+			logUnified.Printf("[DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()")
 		} else {
 			// Non-read operation - block the request
-			log.Printf("[DIFC] Access DENIED for agent %s to %s: %s", agentID, resource.Description, result.Reason)
+			logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s", agentID, resource.Description, result.Reason)
 			detailedErr := difc.FormatViolationError(result, agentLabels.Secrecy, agentLabels.Integrity, resource)
 			toolSpan.RecordError(detailedErr)
 			toolSpan.SetStatus(codes.Error, "access denied: "+result.Reason)
@@ -518,7 +516,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			return newErrorCallToolResult(detailedErr)
 		}
 	} else {
-		log.Printf("[DIFC] Access ALLOWED for agent %s to %s", agentID, resource.Description)
+		logUnified.Printf("[DIFC] Access ALLOWED for agent %s to %s", agentID, resource.Description)
 	}
 
 	// **Phase 3: Execute the backend call**
@@ -549,12 +547,12 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	if shouldCallLabelResponse {
 		labeledData, err = g.LabelResponse(ctx, toolName, backendResult, backendCaller, us.capabilities)
 		if err != nil {
-			log.Printf("[DIFC] Response labeling failed: %v", err)
+			logger.LogWarn("difc", "Response labeling failed: %v", err)
 			httpStatusCode = 500
 			return newErrorCallToolResult(fmt.Errorf("response labeling failed: %w", err))
 		}
 	} else {
-		log.Printf("[DIFC] Skipping LabelResponse() for %s operation in %s mode", operation, enforcementMode)
+		logUnified.Printf("[DIFC] Skipping LabelResponse() for %s operation in %s mode", operation, enforcementMode)
 	}
 
 	// **Phase 5: Reference Monitor performs fine-grained filtering (if applicable)**
@@ -566,12 +564,12 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			// Filter collection based on agent labels
 			filtered := requestEvaluator.FilterCollection(agentLabels.Secrecy, agentLabels.Integrity, collection, operation)
 
-			log.Printf("[DIFC] Filtered collection: %d/%d items accessible",
+			logUnified.Printf("[DIFC] Filtered collection: %d/%d items accessible",
 				filtered.GetAccessibleCount(), filtered.TotalCount)
 
 			// **Strict mode: block entire response if ANY item is filtered**
 			if enforcementMode == difc.EnforcementStrict && filtered.GetFilteredCount() > 0 {
-				log.Printf("[DIFC] STRICT MODE: Blocking entire response - %d/%d items violate DIFC policy",
+				logger.LogWarn("difc", "STRICT MODE: Blocking entire response - %d/%d items violate DIFC policy",
 					filtered.GetFilteredCount(), filtered.TotalCount)
 				blockErr := fmt.Errorf("DIFC policy violation: %d of %d items in response are not accessible to agent %s",
 					filtered.GetFilteredCount(), filtered.TotalCount, agentID)
@@ -580,7 +578,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			}
 
 			if filtered.GetFilteredCount() > 0 {
-				log.Printf("[DIFC] Filtered out %d items due to DIFC policy", filtered.GetFilteredCount())
+				logUnified.Printf("[DIFC] Filtered out %d items due to DIFC policy", filtered.GetFilteredCount())
 				logFilteredItems(serverID, toolName, filtered)
 				difcFiltered = filtered
 			}
@@ -606,7 +604,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		if !isPureWrite && enforcementMode == difc.EnforcementPropagate {
 			overall := labeledData.Overall()
 			agentLabels.AccumulateFromRead(overall)
-			log.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
+			logUnified.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
 				agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
 		}
 	} else {
@@ -616,7 +614,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		// **Phase 6: Accumulate labels from resource (for reads in PROPAGATE mode only)**
 		if !isPureWrite && enforcementMode == difc.EnforcementPropagate {
 			agentLabels.AccumulateFromRead(resource)
-			log.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
+			logUnified.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
 				agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
 		}
 	}
@@ -643,7 +641,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 
 // Run starts the unified MCP server on the specified transport
 func (us *UnifiedServer) Run(transport sdk.Transport) error {
-	log.Println("Starting unified MCP server...")
+	logger.LogInfo("startup", "Starting unified MCP server...")
 	return us.server.Run(us.ctx, transport)
 }
 
@@ -736,7 +734,6 @@ func (us *UnifiedServer) InitiateShutdown() int {
 		us.isShutdown = true
 		us.shutdownMu.Unlock()
 
-		log.Println("Initiating gateway shutdown...")
 		logger.LogInfo("shutdown", "Gateway shutdown initiated")
 
 		// Stop health monitor before closing connections
@@ -748,11 +745,9 @@ func (us *UnifiedServer) InitiateShutdown() int {
 		serversTerminated = len(us.launcher.ServerIDs())
 
 		// Terminate all backend servers
-		log.Printf("Terminating %d backend server(s)...", serversTerminated)
 		logger.LogInfo("shutdown", "Terminating %d backend servers", serversTerminated)
 		us.launcher.Close()
 
-		log.Println("Backend servers terminated")
 		logger.LogInfo("shutdown", "Backend servers terminated successfully")
 	})
 	return serversTerminated
