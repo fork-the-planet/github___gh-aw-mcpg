@@ -129,7 +129,7 @@ func GetOrLaunch(l *Launcher, serverID string) (*mcp.Connection, error) {
 				if oidcProvider == nil {
 					oidcErr := oidc.ErrMissingOIDCEnvVar(serverID)
 					logger.LogErrorWithServer(serverID, "backend", "%v", oidcErr)
-					l.recordError(serverID, "OIDC provider not available")
+					l.recordError(serverID, oidcErr.Error())
 					return nil, oidcErr
 				}
 			}
