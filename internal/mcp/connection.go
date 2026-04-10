@@ -287,6 +287,20 @@ func (c *Connection) GetHTTPHeaders() map[string]string {
 	return c.headers
 }
 
+// ServerInfo returns the backend's name and version from the MCP initialize handshake.
+// Returns ("", "") when no SDK session is available (plain JSON-RPC transport).
+func (c *Connection) ServerInfo() (name, version string) {
+	sess := c.getSDKSession()
+	if sess == nil {
+		return "", ""
+	}
+	initResult := sess.InitializeResult()
+	if initResult == nil || initResult.ServerInfo == nil {
+		return "", ""
+	}
+	return initResult.ServerInfo.Name, initResult.ServerInfo.Version
+}
+
 // reconnectPlainJSON re-initialises the plain JSON-RPC session with the HTTP backend.
 // It is safe for concurrent callers: only one reconnect runs at a time, and the updated
 // session ID is available to all callers once the lock is released.
@@ -482,6 +496,11 @@ func (c *Connection) callSDKMethod(method string, params interface{}) (*Response
 
 // marshalToResponse marshals an SDK result into a Response object.
 // This helper reduces code duplication across all MCP method wrappers.
+//
+// The ID field is set to a static placeholder (1) because this Response is only
+// constructed after the SDK's session.XXX() call has already resolved the
+// request–response correlation internally. The gateway never uses this ID for
+// matching; it is present solely to satisfy the JSON-RPC 2.0 structure.
 func marshalToResponse(result interface{}) (*Response, error) {
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
@@ -490,7 +509,7 @@ func marshalToResponse(result interface{}) (*Response, error) {
 
 	return &Response{
 		JSONRPC: "2.0",
-		ID:      1, // Placeholder ID
+		ID:      1, // Placeholder – see function comment for safety rationale
 		Result:  resultJSON,
 	}, nil
 }

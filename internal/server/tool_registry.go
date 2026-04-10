@@ -153,6 +153,14 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
+	// Surface backend server info from the MCP initialize handshake for diagnostics.
+	// This helps debug compatibility issues between the gateway and specific backends.
+	if name, version := conn.ServerInfo(); name != "" {
+		logger.LogInfoWithServer(serverID, "backend", "Backend server info: name=%s, version=%s", name, version)
+	} else {
+		logger.LogInfoWithServer(serverID, "backend", "Backend server info unavailable (no SDK session or server omitted serverInfo)")
+	}
+
 	// List tools from backend
 	result, err := conn.SendRequestWithServerID(context.Background(), "tools/list", nil, serverID)
 	if err != nil {
