@@ -7,8 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +16,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/launcher"
 	"github.com/github/gh-aw-mcpg/internal/logger"
@@ -343,26 +342,13 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 // lookupEnrichmentToken searches environment variables for a GitHub token
 // suitable for enrichment API calls.
 func lookupEnrichmentToken() string {
-	for _, key := range []string{
-		"GITHUB_MCP_SERVER_TOKEN",
-		"GITHUB_TOKEN",
-		"GITHUB_PERSONAL_ACCESS_TOKEN",
-		"GH_TOKEN",
-	} {
-		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
-			return v
-		}
-	}
-	return ""
+	return envutil.LookupGitHubToken()
 }
 
 // lookupGitHubAPIBaseURL returns the GitHub API base URL from environment
 // or defaults to https://api.github.com.
 func lookupGitHubAPIBaseURL() string {
-	if v := os.Getenv("GITHUB_API_URL"); v != "" {
-		return strings.TrimRight(v, "/")
-	}
-	return "https://api.github.com"
+	return envutil.LookupGitHubAPIURL("https://api.github.com")
 }
 
 // newErrorCallToolResult creates a standard error CallToolResult with the error message
@@ -462,12 +448,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		deniedErr := fmt.Errorf("tool %q is not in the allowed-tools list for this server", toolName)
 		toolSpan.RecordError(deniedErr)
 		toolSpan.SetStatus(codes.Error, "tool not allowed")
-		return &sdk.CallToolResult{
-			IsError: true,
-			Content: []sdk.Content{
-				&sdk.TextContent{Text: deniedErr.Error()},
-			},
-		}, nil, deniedErr
+		return newErrorCallToolResult(deniedErr)
 	}
 
 	// Create backend caller for the guard
@@ -534,14 +515,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			toolSpan.RecordError(detailedErr)
 			toolSpan.SetStatus(codes.Error, "access denied: "+result.Reason)
 			httpStatusCode = 403
-			return &sdk.CallToolResult{
-				Content: []sdk.Content{
-					&sdk.TextContent{
-						Text: detailedErr.Error(),
-					},
-				},
-				IsError: true,
-			}, nil, detailedErr
+			return newErrorCallToolResult(detailedErr)
 		}
 	} else {
 		log.Printf("[DIFC] Access ALLOWED for agent %s to %s", agentID, resource.Description)
@@ -602,14 +576,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 				blockErr := fmt.Errorf("DIFC policy violation: %d of %d items in response are not accessible to agent %s",
 					filtered.GetFilteredCount(), filtered.TotalCount, agentID)
 				httpStatusCode = 403
-				return &sdk.CallToolResult{
-					Content: []sdk.Content{
-						&sdk.TextContent{
-							Text: blockErr.Error(),
-						},
-					},
-					IsError: true,
-				}, nil, blockErr
+				return newErrorCallToolResult(blockErr)
 			}
 
 			if filtered.GetFilteredCount() > 0 {

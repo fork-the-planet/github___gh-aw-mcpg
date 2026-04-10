@@ -15,6 +15,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/proxy"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
@@ -177,13 +178,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	// Resolve GitHub token (optional — proxy forwards client auth by default)
 	token := proxyToken
 	if token == "" {
-		token = os.Getenv("GH_TOKEN")
-	}
-	if token == "" {
-		token = os.Getenv("GITHUB_TOKEN")
-	}
-	if token == "" {
-		token = os.Getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
+		token = envutil.LookupGitHubToken()
 	}
 	if token != "" {
 		logger.LogInfo("startup", "Fallback GitHub token configured from flag/env")
