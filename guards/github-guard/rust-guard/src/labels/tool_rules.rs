@@ -663,7 +663,7 @@ pub fn apply_tool_labels(
         // === Deploy key management (SSH key with optional write access) ===
         "add_deploy_key" | "delete_deploy_key" => {
             // Manages SSH deploy keys — `add_deploy_key` may grant persistent write access.
-            // S = private:owner/repo (deploy key secrets should be restricted)
+            // S = at least private; scope is policy-dependent (may be unscoped, owner-scoped, or repo-scoped)
             // I = writer (requires admin access)
             secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
             integrity = writer_integrity(repo_id, ctx);
