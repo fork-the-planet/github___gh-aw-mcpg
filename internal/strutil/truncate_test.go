@@ -149,10 +149,10 @@ func TestTruncateWithSuffix(t *testing.T) {
 
 func TestTruncateRunes(t *testing.T) {
 	tests := []struct {
-		name      string
-		input     string
-		maxRunes  int
-		expected  string
+		name     string
+		input    string
+		maxRunes int
+		expected string
 	}{
 		{
 			name:     "ASCII string within limit",
