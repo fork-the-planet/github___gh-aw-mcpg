@@ -27,6 +27,8 @@ imports:
   - shared/reporting.md
 
 safe-outputs:
+  threat-detection:
+    enabled: false
   create-issue:
     title-prefix: "[go-fan] "
     labels: [go-fan, module-review]

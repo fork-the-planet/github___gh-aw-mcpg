@@ -18,6 +18,8 @@ network:
     - containers
 
 safe-outputs:
+  threat-detection:
+    enabled: false
   create-issue:
     title-prefix: "[compliance] "
     labels: [compliance, automation, specification]

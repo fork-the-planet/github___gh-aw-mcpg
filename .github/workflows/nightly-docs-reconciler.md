@@ -18,6 +18,8 @@ tools:
     min-integrity: unapproved
   bash: true
 safe-outputs:
+  threat-detection:
+    enabled: false
   create-issue:
     title-prefix: "📚 "
     labels: [documentation, maintenance, automated]

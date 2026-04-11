@@ -23,6 +23,8 @@ steps:
       cache: true
 
 safe-outputs:
+  threat-detection:
+    enabled: false
   create-pull-request:
     title-prefix: "[test-improver] "
     labels: [testing, improvement, automation]

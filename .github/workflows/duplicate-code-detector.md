@@ -16,6 +16,8 @@ network:
 tools:
   bash: true
 safe-outputs:
+  threat-detection:
+    enabled: false
   create-issue:
     title-prefix: "[duplicate-code] "
     labels: [code-quality, automated-analysis]
