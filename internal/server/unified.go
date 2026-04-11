@@ -279,7 +279,7 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 		return nil, fmt.Errorf("get_collaborator_permission: missing owner/repo/username")
 	}
 
-	token := lookupEnrichmentToken()
+	token := envutil.LookupGitHubToken()
 	if token == "" {
 		logUnified.Printf("get_collaborator_permission: no GitHub token available for %s/%s user %s, skipping", owner, repo, username)
 		return nil, fmt.Errorf("get_collaborator_permission: no GitHub token available")
@@ -336,12 +336,6 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 		},
 	}
 	return mcpResp, nil
-}
-
-// lookupEnrichmentToken searches environment variables for a GitHub token
-// suitable for enrichment API calls.
-func lookupEnrichmentToken() string {
-	return envutil.LookupGitHubToken()
 }
 
 // lookupGitHubAPIBaseURL returns the GitHub API base URL from environment
