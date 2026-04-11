@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -279,7 +281,7 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 		return nil, fmt.Errorf("get_collaborator_permission: missing owner/repo/username")
 	}
 
-	token := lookupEnrichmentToken()
+	token := envutil.LookupGitHubToken()
 	if token == "" {
 		logUnified.Printf("get_collaborator_permission: no GitHub token available for %s/%s user %s, skipping", owner, repo, username)
 		return nil, fmt.Errorf("get_collaborator_permission: no GitHub token available")
@@ -338,16 +340,16 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 	return mcpResp, nil
 }
 
-// lookupEnrichmentToken searches environment variables for a GitHub token
-// suitable for enrichment API calls.
-func lookupEnrichmentToken() string {
-	return envutil.LookupGitHubToken()
-}
-
 // lookupGitHubAPIBaseURL returns the GitHub API base URL from environment
 // or defaults to https://api.github.com.
 func lookupGitHubAPIBaseURL() string {
-	return envutil.LookupGitHubAPIURL("https://api.github.com")
+	url := envutil.LookupGitHubAPIURL("https://api.github.com")
+	if v := strings.TrimSpace(os.Getenv("GITHUB_API_URL")); v != "" {
+		logUnified.Printf("Using GITHUB_API_URL: %s", url)
+	} else {
+		logUnified.Printf("Using default GitHub API URL: %s", url)
+	}
+	return url
 }
 
 // newErrorCallToolResult creates a standard error CallToolResult with the error message
@@ -382,8 +384,10 @@ func buildAllowedToolSets(cfg *config.Config) map[string]map[string]bool {
 				set[t] = true
 			}
 			sets[serverID] = set
+			logUnified.Printf("Built allowed tool set for server %s: %d tool(s) permitted", serverID, len(set))
 		}
 	}
+	logUnified.Printf("Built allowed tool sets: %d server(s) with tool restrictions", len(sets))
 	return sets
 }
 
@@ -695,6 +699,7 @@ func (us *UnifiedServer) GetToolsForBackend(backendID string) []ToolInfo {
 		}
 	}
 
+	logUnified.Printf("GetToolsForBackend: backendID=%s, found=%d tools", backendID, len(filtered))
 	return filtered
 }
 

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -470,6 +471,140 @@ func TestHTTPKeepaliveInterval(t *testing.T) {
 	}
 }
 
+// TestIsDynamicTOMLPath verifies the branching logic of isDynamicTOMLPath,
+// which guards the unknown-field check by exempting map-valued sections
+// whose keys are not known at decode time.
+func TestIsDynamicTOMLPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		key      toml.Key
+		expected bool
+	}{
+		// ── servers.<name>.guard_policies.<policy>.<key>  (len ≥ 5) ─────────
+		{
+			name:     "servers guard_policies at minimum length 5",
+			key:      toml.Key{"servers", "github", "guard_policies", "mypolicy", "repos"},
+			expected: true,
+		},
+		{
+			name:     "servers guard_policies longer than minimum",
+			key:      toml.Key{"servers", "github", "guard_policies", "mypolicy", "nested", "key"},
+			expected: true,
+		},
+		{
+			name:     "servers guard_policies different server name still true",
+			key:      toml.Key{"servers", "slack", "guard_policies", "p1", "field"},
+			expected: true,
+		},
+		{
+			name:     "servers guard_policies exactly 4 elements is too short",
+			key:      toml.Key{"servers", "github", "guard_policies", "mypolicy"},
+			expected: false,
+		},
+		{
+			name:     "servers guard_policies 3 elements is too short",
+			key:      toml.Key{"servers", "github", "guard_policies"},
+			expected: false,
+		},
+		{
+			name:     "servers with wrong key[2] (not guard_policies)",
+			key:      toml.Key{"servers", "github", "command", "whatever", "extra"},
+			expected: false,
+		},
+		{
+			name:     "wrong key[0] for servers path (guards instead)",
+			key:      toml.Key{"guards", "github", "guard_policies", "mypolicy", "repos"},
+			expected: false,
+		},
+		{
+			name:     "gateway prefix with guard_policies shape",
+			key:      toml.Key{"gateway", "x", "guard_policies", "p", "k"},
+			expected: false,
+		},
+
+		// ── guards.<name>.config.<key>  (len ≥ 4) ───────────────────────────
+		{
+			name:     "guards config at minimum length 4",
+			key:      toml.Key{"guards", "myfence", "config", "somekey"},
+			expected: true,
+		},
+		{
+			name:     "guards config longer than minimum",
+			key:      toml.Key{"guards", "myfence", "config", "somekey", "nested"},
+			expected: true,
+		},
+		{
+			name:     "guards config different guard name still true",
+			key:      toml.Key{"guards", "allowonly", "config", "level"},
+			expected: true,
+		},
+		{
+			name:     "guards config exactly 3 elements is too short",
+			key:      toml.Key{"guards", "myfence", "config"},
+			expected: false,
+		},
+		{
+			name:     "guards config 2 elements is too short",
+			key:      toml.Key{"guards", "myfence"},
+			expected: false,
+		},
+		{
+			name:     "guards with wrong key[2] (not config)",
+			key:      toml.Key{"guards", "myfence", "command", "somekey"},
+			expected: false,
+		},
+		{
+			name:     "wrong key[0] for guards path (servers instead)",
+			key:      toml.Key{"servers", "myfence", "config", "somekey"},
+			expected: false,
+		},
+
+		// ── Non-dynamic / ordinary TOML paths ────────────────────────────────
+		{
+			name:     "nil key",
+			key:      nil,
+			expected: false,
+		},
+		{
+			name:     "empty key",
+			key:      toml.Key{},
+			expected: false,
+		},
+		{
+			name:     "single element key",
+			key:      toml.Key{"servers"},
+			expected: false,
+		},
+		{
+			name:     "gateway port path",
+			key:      toml.Key{"gateway", "port"},
+			expected: false,
+		},
+		{
+			name:     "servers command path",
+			key:      toml.Key{"servers", "github", "command"},
+			expected: false,
+		},
+		{
+			name:     "servers args path",
+			key:      toml.Key{"servers", "github", "args"},
+			expected: false,
+		},
+		{
+			name:     "servers env path",
+			key:      toml.Key{"servers", "github", "env", "TOKEN"},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isDynamicTOMLPath(tt.key)
+			assert.Equal(t, tt.expected, got, "isDynamicTOMLPath(%v)", tt.key)
+		})
+	}
+}
+
 // TestEnsureGatewayDefaults tests the EnsureGatewayDefaults method.
 func TestEnsureGatewayDefaults(t *testing.T) {
 	t.Run("nil gateway gets created with defaults", func(t *testing.T) {
@@ -529,38 +664,5 @@ func TestEnsureGatewayDefaults(t *testing.T) {
 
 		cfg.EnsureGatewayDefaults()
 		assert.Equal(t, firstPort, cfg.Gateway.Port, "Second call should not change already-defaulted values")
-	})
-}
-
-// TestSetDebug tests the SetDebug function for enabling and disabling config debug logging.
-func TestSetDebug(t *testing.T) {
-	// Save the original logConfig so we can restore it after the test.
-	originalLogConfig := logConfig
-	t.Cleanup(func() {
-		logConfig = originalLogConfig
-	})
-
-	t.Run("SetDebug(true) enables logging to stderr", func(t *testing.T) {
-		SetDebug(true)
-		// After enabling, logConfig should write to stderr (not discard).
-		// We verify this indirectly by ensuring the config package still works correctly.
-		require.NotNil(t, logConfig, "logConfig should not be nil after SetDebug(true)")
-		// Trigger a log write to exercise the enabled path (should not panic).
-		logConfig.Printf("test debug message: SetDebug(true) is working")
-	})
-
-	t.Run("SetDebug(false) disables logging to discard", func(t *testing.T) {
-		SetDebug(false)
-		require.NotNil(t, logConfig, "logConfig should not be nil after SetDebug(false)")
-		// Trigger a log write to exercise the disabled path (should not panic).
-		logConfig.Printf("test debug message: SetDebug(false) is working - this should be discarded")
-	})
-
-	t.Run("toggle SetDebug multiple times does not panic", func(t *testing.T) {
-		for i := 0; i < 5; i++ {
-			SetDebug(true)
-			SetDebug(false)
-		}
-		require.NotNil(t, logConfig, "logConfig should remain non-nil after toggling")
 	})
 }

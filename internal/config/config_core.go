@@ -26,20 +26,20 @@ package config
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
 // Core constants for configuration defaults
 const (
 	DefaultPort              = 3000
-	DefaultStartupTimeout    = 60   // seconds
-	DefaultToolTimeout       = 120  // seconds
+	DefaultStartupTimeout    = 30   // seconds (per spec §4.1.3)
+	DefaultToolTimeout       = 60   // seconds (per spec §4.1.3)
 	DefaultKeepaliveInterval = 1500 // seconds (25 minutes) — keeps HTTP backend sessions alive
 )
 
@@ -406,14 +406,6 @@ func LoadFromFile(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// logger for config package
-var logConfig = log.New(io.Discard, "[CONFIG] ", log.LstdFlags)
-
-// SetDebug enables debug logging for config package
-func SetDebug(enabled bool) {
-	if enabled {
-		logConfig = log.New(os.Stderr, "[CONFIG] ", log.LstdFlags)
-	} else {
-		logConfig = log.New(io.Discard, "[CONFIG] ", log.LstdFlags)
-	}
-}
+// logConfig is the debug logger for the config package.
+// Enable with DEBUG=config:* or DEBUG=*.
+var logConfig = logger.New("config:config")

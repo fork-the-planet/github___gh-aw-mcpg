@@ -214,6 +214,134 @@ func TestToolsLoggerFallback(t *testing.T) {
 	assert.NoError(err, "CloseToolsLogger failed")
 }
 
+// TestWriteToFile_Success verifies writeToFile writes valid JSON atomically.
+func TestWriteToFile_Success(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	tmpDir := t.TempDir()
+	tl := &ToolsLogger{
+		logDir:   tmpDir,
+		fileName: "tools.json",
+		data: &ToolsData{
+			Servers: map[string][]ToolInfo{
+				"server1": {
+					{Name: "tool1", Description: "desc1"},
+				},
+			},
+		},
+	}
+
+	err := tl.writeToFile()
+	require.NoError(err, "writeToFile should succeed")
+
+	// Verify file was written
+	data, err := os.ReadFile(filepath.Join(tmpDir, "tools.json"))
+	require.NoError(err)
+	var result ToolsData
+	require.NoError(json.Unmarshal(data, &result))
+	assert.Equal("tool1", result.Servers["server1"][0].Name)
+
+	// Verify temp file was cleaned up
+	_, err = os.Stat(filepath.Join(tmpDir, "tools.json.tmp"))
+	assert.True(os.IsNotExist(err), "temp file should be removed after rename")
+}
+
+// TestWriteToFile_WriteFileFails verifies the error path when os.WriteFile fails.
+func TestWriteToFile_WriteFileFails(t *testing.T) {
+	assert := assert.New(t)
+
+	tl := &ToolsLogger{
+		logDir:   "/nonexistent/dir/that/does/not/exist",
+		fileName: "tools.json",
+		data:     &ToolsData{Servers: make(map[string][]ToolInfo)},
+	}
+
+	err := tl.writeToFile()
+	assert.Error(err, "writeToFile should fail when logDir does not exist")
+	assert.Contains(err.Error(), "failed to write temp file")
+}
+
+// TestWriteToFile_RenameFails verifies the error and cleanup path when os.Rename fails.
+// On Linux, renaming a regular file to a path occupied by a directory returns EISDIR.
+func TestWriteToFile_RenameFails(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	tmpDir := t.TempDir()
+
+	// Create a directory at the target file path so that Rename fails (EISDIR on Linux).
+	targetPath := filepath.Join(tmpDir, "tools.json")
+	require.NoError(os.MkdirAll(targetPath, 0755))
+
+	tl := &ToolsLogger{
+		logDir:   tmpDir,
+		fileName: "tools.json",
+		data:     &ToolsData{Servers: make(map[string][]ToolInfo)},
+	}
+
+	err := tl.writeToFile()
+	assert.Error(err, "writeToFile should fail when rename target is a directory")
+	assert.Contains(err.Error(), "failed to rename temp file")
+
+	// Verify that the cleanup removed the temp file.
+	_, statErr := os.Stat(filepath.Join(tmpDir, "tools.json.tmp"))
+	assert.True(os.IsNotExist(statErr), "temp file should be removed on rename failure")
+}
+
+// TestLogToolsForServer_ErrorIsLogged verifies the warning log path inside
+// LogToolsForServer when LogTools returns an error.
+func TestLogToolsForServer_ErrorIsLogged(t *testing.T) {
+	assert := assert.New(t)
+
+	// Save and restore the global tools logger.
+	globalToolsMu.Lock()
+	oldLogger := globalToolsLogger
+	// Point the global logger at a nonexistent directory so writeToFile fails.
+	globalToolsLogger = &ToolsLogger{
+		logDir:   "/nonexistent/path/for/test",
+		fileName: "tools.json",
+		data:     &ToolsData{Servers: make(map[string][]ToolInfo)},
+	}
+	globalToolsMu.Unlock()
+	t.Cleanup(func() {
+		globalToolsMu.Lock()
+		globalToolsLogger = oldLogger
+		globalToolsMu.Unlock()
+	})
+
+	// LogToolsForServer should not panic, and should log the warning internally.
+	// The call exercises the log.Printf("WARNING: ...") path.
+	assert.NotPanics(func() {
+		LogToolsForServer("server1", []ToolInfo{{Name: "t", Description: "d"}})
+	})
+}
+
+// TestLogToolsForServer_FallbackSkipsErrors verifies that a logger in fallback
+// mode silently discards errors without reaching the warning log branch.
+func TestLogToolsForServer_FallbackSkipsErrors(t *testing.T) {
+	assert := assert.New(t)
+
+	globalToolsMu.Lock()
+	oldLogger := globalToolsLogger
+	globalToolsLogger = &ToolsLogger{
+		logDir:      "/nonexistent/path",
+		fileName:    "tools.json",
+		useFallback: true,
+		data:        &ToolsData{Servers: make(map[string][]ToolInfo)},
+	}
+	globalToolsMu.Unlock()
+	t.Cleanup(func() {
+		globalToolsMu.Lock()
+		globalToolsLogger = oldLogger
+		globalToolsMu.Unlock()
+	})
+
+	assert.NotPanics(func() {
+		LogToolsForServer("server1", []ToolInfo{{Name: "t", Description: "d"}})
+	})
+}
+
 func TestToolsLoggerJSONFormat(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)

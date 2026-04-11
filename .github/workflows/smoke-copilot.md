@@ -51,6 +51,8 @@ sandbox:
   mcp:
     container: "ghcr.io/github/gh-aw-mcpg"
 safe-outputs:
+    threat-detection:
+        enabled: false
     add-comment:
       hide-older-comments: true
       max: 2

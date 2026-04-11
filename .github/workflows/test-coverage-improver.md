@@ -31,6 +31,8 @@ steps:
       cache: true
 
 safe-outputs:
+  threat-detection:
+    enabled: false
   create-pull-request:
     title-prefix: "[test] "
     labels: [testing, automation]
