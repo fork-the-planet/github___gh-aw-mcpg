@@ -67,11 +67,16 @@ func isHTTPConnectionError(err error) bool {
 	return false
 }
 
-// isSessionNotFoundError checks if an error message indicates a backend MCP session has expired
+// isSessionNotFoundError checks if an error indicates a backend MCP session has expired
 // or is not found. This is used to detect when automatic reconnection to the backend is needed.
+// It uses errors.Is to check for sdk.ErrSessionMissing (the typed sentinel introduced in v1.5.0),
+// and also falls back to string-matching for non-SDK transports that return plain error messages.
 func isSessionNotFoundError(err error) bool {
 	if err == nil {
 		return false
+	}
+	if errors.Is(err, sdk.ErrSessionMissing) {
+		return true
 	}
 	return strings.Contains(strings.ToLower(err.Error()), "session not found")
 }

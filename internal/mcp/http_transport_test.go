@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/oidc"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -875,6 +876,8 @@ func TestIsSessionNotFoundError(t *testing.T) {
 		{name: "uppercase returns true", err: fmt.Errorf("Session Not Found"), want: true},
 		{name: "embedded in longer message returns true", err: fmt.Errorf("Streamable HTTP error: Error POSTing to endpoint: session not found"), want: true},
 		{name: "session expired message returns false", err: fmt.Errorf("session expired"), want: false},
+		{name: "sdk ErrSessionMissing sentinel returns true", err: sdk.ErrSessionMissing, want: true},
+		{name: "wrapped sdk ErrSessionMissing returns true", err: fmt.Errorf("transport failure: %w", sdk.ErrSessionMissing), want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
