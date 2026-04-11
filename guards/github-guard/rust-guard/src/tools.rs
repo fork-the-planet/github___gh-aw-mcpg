@@ -51,6 +51,13 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "rerun_workflow_run",  // gh run rerun        — reruns a completed workflow run
     "rerun_failed_jobs",   // gh run rerun --failed — reruns only failed jobs
     "rerun_workflow_job",  // gh run rerun --job  — reruns a specific job
+    // Pre-emptive: gh repo edit (PATCH /repos/{owner}/{repo}) — can change visibility, security settings
+    "edit_repository",
+    // Pre-emptive: gh pr revert (GraphQL revertPullRequest) — creates revert branch + PR
+    "revert_pull_request",
+    // Pre-emptive: gh repo deploy-key add/delete — SSH key with optional write access
+    "add_deploy_key",
+    "delete_deploy_key",
 ];
 
 /// Read-write operations that both read and modify data
@@ -201,6 +208,22 @@ mod tests {
             "rerun_workflow_run",
             "rerun_failed_jobs",
             "rerun_workflow_job",
+        ] {
+            assert!(
+                is_write_operation(op),
+                "{} must be classified as a write operation",
+                op
+            );
+        }
+    }
+
+    #[test]
+    fn test_cli_gap_operations_are_write_operations() {
+        for op in &[
+            "edit_repository",
+            "revert_pull_request",
+            "add_deploy_key",
+            "delete_deploy_key",
         ] {
             assert!(
                 is_write_operation(op),

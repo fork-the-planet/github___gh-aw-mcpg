@@ -644,6 +644,31 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
+        // === Repository settings edit (can change visibility) ===
+        "edit_repository" => {
+            // Can change repo visibility, security settings, default branch.
+            // S = S(repo); I = writer (requires admin access)
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === PR revert (creates revert branch + PR) ===
+        "revert_pull_request" => {
+            // Creates a new branch + PR reverting a merged PR.
+            // S = S(repo); I = writer
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Deploy key management (SSH key with optional write access) ===
+        "add_deploy_key" | "delete_deploy_key" => {
+            // Manages SSH deploy keys — `add_deploy_key` may grant persistent write access.
+            // S = private:owner/repo (deploy key secrets should be restricted)
+            // I = writer (requires admin access)
+            secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
         // === Star/unstar operations (public metadata) ===
         "star_repository" | "unstar_repository" => {
             // Starring is a public action; response is minimal metadata.

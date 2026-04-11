@@ -4712,4 +4712,84 @@ mod tests {
 
         assert_eq!(integrity, writer_integrity(repo_id, &ctx), "fork_repository should have writer integrity");
     }
+
+    #[test]
+    fn test_apply_tool_labels_edit_repository_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "edit_repository",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "edit_repository should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_revert_pull_request_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "pullNumber": 42,
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "revert_pull_request",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "revert_pull_request should have writer integrity");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_deploy_key_operations_private_secrecy() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+        });
+
+        for tool_name in &["add_deploy_key", "delete_deploy_key"] {
+            let (secrecy, integrity, _desc) = apply_tool_labels(
+                tool_name,
+                &tool_args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+
+            assert_eq!(
+                secrecy,
+                super::helpers::policy_private_scope_label("github", "copilot", repo_id, &ctx),
+                "{} should have private-scoped secrecy",
+                tool_name
+            );
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{} should have writer integrity",
+                tool_name
+            );
+        }
+    }
 }
