@@ -559,9 +559,9 @@ func TestLauncher_StartupTimeout(t *testing.T) {
 		expectedTimeout string
 	}{
 		{
-			name:            "default timeout (60 seconds)",
+			name:            "default timeout (30 seconds)",
 			configTimeout:   0, // 0 means use default
-			expectedTimeout: "1m0s",
+			expectedTimeout: "30s",
 		},
 		{
 			name:            "custom timeout (30 seconds)",
@@ -623,8 +623,8 @@ func TestLauncher_TimeoutWithNilGateway(t *testing.T) {
 	l := New(ctx, cfg)
 	defer l.Close()
 
-	// Should use default timeout (60 seconds)
-	assert.Equal(t, "1m0s", l.startupTimeout.String())
+	// Should use default timeout (30 seconds)
+	assert.Equal(t, "30s", l.startupTimeout.String())
 }
 
 func TestLauncher_OIDCProviderInitialization(t *testing.T) {
