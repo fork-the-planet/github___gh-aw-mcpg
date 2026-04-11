@@ -92,11 +92,10 @@ func TestGetEnvDuration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			os.Unsetenv(tt.envKey)
-			defer os.Unsetenv(tt.envKey)
-
 			if tt.setEnv {
-				os.Setenv(tt.envKey, tt.envValue)
+				t.Setenv(tt.envKey, tt.envValue)
+			} else {
+				os.Unsetenv(tt.envKey)
 			}
 
 			result := GetEnvDuration(tt.envKey, tt.defaultValue)
@@ -108,20 +107,19 @@ func TestGetEnvDuration(t *testing.T) {
 // TestGetEnvDurationRealWorldScenarios tests realistic usage scenarios
 func TestGetEnvDurationRealWorldScenarios(t *testing.T) {
 	t.Run("session timeout configuration", func(t *testing.T) {
-		os.Unsetenv("MCP_GATEWAY_SESSION_TIMEOUT")
-		defer os.Unsetenv("MCP_GATEWAY_SESSION_TIMEOUT")
+		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "")
 
-		// Default case
+		// Default case (empty = not configured)
 		result := GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour)
 		assert.Equal(t, 6*time.Hour, result)
 
 		// Override with shorter timeout
-		os.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "30m")
+		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "30m")
 		result = GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour)
 		assert.Equal(t, 30*time.Minute, result)
 
 		// Override with longer timeout
-		os.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "4h")
+		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "4h")
 		result = GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour)
 		assert.Equal(t, 4*time.Hour, result)
 	})
@@ -171,12 +169,10 @@ func TestGetEnvString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clean up before and after test
-			os.Unsetenv(tt.envKey)
-			defer os.Unsetenv(tt.envKey)
-
 			if tt.setEnv {
-				os.Setenv(tt.envKey, tt.envValue)
+				t.Setenv(tt.envKey, tt.envValue)
+			} else {
+				os.Unsetenv(tt.envKey)
 			}
 
 			result := GetEnvString(tt.envKey, tt.defaultValue)
@@ -269,12 +265,10 @@ func TestGetEnvInt(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clean up before and after test
-			os.Unsetenv(tt.envKey)
-			defer os.Unsetenv(tt.envKey)
-
 			if tt.setEnv {
-				os.Setenv(tt.envKey, tt.envValue)
+				t.Setenv(tt.envKey, tt.envValue)
+			} else {
+				os.Unsetenv(tt.envKey)
 			}
 
 			result := GetEnvInt(tt.envKey, tt.defaultValue)
@@ -466,12 +460,10 @@ func TestGetEnvBool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clean up before and after test
-			os.Unsetenv(tt.envKey)
-			defer os.Unsetenv(tt.envKey)
-
 			if tt.setEnv {
-				os.Setenv(tt.envKey, tt.envValue)
+				t.Setenv(tt.envKey, tt.envValue)
+			} else {
+				os.Unsetenv(tt.envKey)
 			}
 
 			result := GetEnvBool(tt.envKey, tt.defaultValue)
@@ -483,29 +475,27 @@ func TestGetEnvBool(t *testing.T) {
 // TestGetEnvStringRealWorldScenarios tests realistic usage scenarios
 func TestGetEnvStringRealWorldScenarios(t *testing.T) {
 	t.Run("log directory configuration", func(t *testing.T) {
-		os.Unsetenv("MCP_GATEWAY_LOG_DIR")
-		defer os.Unsetenv("MCP_GATEWAY_LOG_DIR")
+		t.Setenv("MCP_GATEWAY_LOG_DIR", "")
 
-		// Default case
+		// Default case (empty = not configured)
 		result := GetEnvString("MCP_GATEWAY_LOG_DIR", "/tmp/gh-aw/mcp-logs")
 		assert.Equal(t, "/tmp/gh-aw/mcp-logs", result)
 
 		// Override case
-		os.Setenv("MCP_GATEWAY_LOG_DIR", "/custom/logs")
+		t.Setenv("MCP_GATEWAY_LOG_DIR", "/custom/logs")
 		result = GetEnvString("MCP_GATEWAY_LOG_DIR", "/tmp/gh-aw/mcp-logs")
 		assert.Equal(t, "/custom/logs", result)
 	})
 
 	t.Run("payload directory configuration", func(t *testing.T) {
-		os.Unsetenv("MCP_GATEWAY_PAYLOAD_DIR")
-		defer os.Unsetenv("MCP_GATEWAY_PAYLOAD_DIR")
+		t.Setenv("MCP_GATEWAY_PAYLOAD_DIR", "")
 
-		// Default case
+		// Default case (empty = not configured)
 		result := GetEnvString("MCP_GATEWAY_PAYLOAD_DIR", "/tmp/jq-payloads")
 		assert.Equal(t, "/tmp/jq-payloads", result)
 
 		// Override case
-		os.Setenv("MCP_GATEWAY_PAYLOAD_DIR", "/var/payloads")
+		t.Setenv("MCP_GATEWAY_PAYLOAD_DIR", "/var/payloads")
 		result = GetEnvString("MCP_GATEWAY_PAYLOAD_DIR", "/tmp/jq-payloads")
 		assert.Equal(t, "/var/payloads", result)
 	})
@@ -514,25 +504,24 @@ func TestGetEnvStringRealWorldScenarios(t *testing.T) {
 // TestGetEnvIntRealWorldScenarios tests realistic usage scenarios
 func TestGetEnvIntRealWorldScenarios(t *testing.T) {
 	t.Run("payload size threshold configuration", func(t *testing.T) {
-		os.Unsetenv("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD")
-		defer os.Unsetenv("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD")
+		t.Setenv("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", "")
 
-		// Default case
+		// Default case (empty = not configured)
 		result := GetEnvInt("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", 10240)
 		assert.Equal(t, 10240, result)
 
 		// Override with valid value
-		os.Setenv("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", "4096")
+		t.Setenv("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", "4096")
 		result = GetEnvInt("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", 10240)
 		assert.Equal(t, 4096, result)
 
 		// Override with invalid value - falls back to default
-		os.Setenv("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", "invalid")
+		t.Setenv("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", "invalid")
 		result = GetEnvInt("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", 10240)
 		assert.Equal(t, 10240, result)
 
 		// Override with negative value - falls back to default
-		os.Setenv("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", "-100")
+		t.Setenv("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", "-100")
 		result = GetEnvInt("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", 10240)
 		assert.Equal(t, 10240, result)
 	})
@@ -541,30 +530,29 @@ func TestGetEnvIntRealWorldScenarios(t *testing.T) {
 // TestGetEnvBoolRealWorldScenarios tests realistic usage scenarios
 func TestGetEnvBoolRealWorldScenarios(t *testing.T) {
 	t.Run("AllowOnly scope public configuration", func(t *testing.T) {
-		os.Unsetenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC")
-		defer os.Unsetenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC")
+		t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "")
 
-		// Default case (disabled)
+		// Default case (empty = not configured, disabled)
 		result := GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false)
 		assert.False(t, result)
 
 		// Enable with "1"
-		os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "1")
+		t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "1")
 		result = GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false)
 		assert.True(t, result)
 
 		// Enable with "true"
-		os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "true")
+		t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "true")
 		result = GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false)
 		assert.True(t, result)
 
 		// Disable with "0"
-		os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "0")
+		t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "0")
 		result = GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", true)
 		assert.False(t, result)
 
 		// Invalid value - uses default
-		os.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "maybe")
+		t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "maybe")
 		result = GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false)
 		assert.False(t, result)
 	})
