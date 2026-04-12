@@ -917,8 +917,7 @@ pub fn author_association_floor_from_str(
     match normalized.as_str() {
         "OWNER" | "MEMBER" | "COLLABORATOR" => writer_integrity(scope, ctx),
         "CONTRIBUTOR" | "FIRST_TIME_CONTRIBUTOR" => reader_integrity(scope, ctx),
-        "FIRST_TIMER" | "NONE" => vec![],
-        _ => vec![],
+        _ => vec![], // FIRST_TIMER, NONE, or any unrecognised value
     }
 }
 
