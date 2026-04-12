@@ -24,9 +24,11 @@ fn repo_owner_type_cache() -> &'static Mutex<HashMap<String, bool>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Cache for collaborator permission lookups keyed by "owner/repo:username".
-/// Caches the raw permission string so it can be reused across multiple items
-/// that share the same reactor within a single gateway request.
+/// Cache for collaborator permission lookups keyed by "owner/repo:username" (all lowercase).
+/// This is a process-wide static cache that persists across requests. Because the WASM guard
+/// is instantiated per-request in the gateway, entries accumulate over the process lifetime.
+/// All key components (owner, repo, username) are lowercased since GitHub treats them as
+/// case-insensitive.
 fn collaborator_permission_cache() -> &'static Mutex<HashMap<String, Option<String>>> {
     static CACHE: OnceLock<Mutex<HashMap<String, Option<String>>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
@@ -487,10 +489,15 @@ pub fn get_collaborator_permission_with_callback(
         return None;
     }
 
-    // Cache key uses lowercase username because GitHub usernames are case-insensitive.
-    // The original case-sensitive username is preserved in the returned CollaboratorPermission
-    // struct (via `username.to_string()`) so callers see the canonical display form.
-    let cache_key = format!("{}/{}:{}", owner, repo, username.to_ascii_lowercase());
+    // Cache key lowercases owner, repo, and username since GitHub treats all three
+    // as case-insensitive. This ensures "Org/Repo:Alice" and "org/repo:alice" share
+    // the same cache entry.
+    let cache_key = format!(
+        "{}/{}:{}",
+        owner.to_ascii_lowercase(),
+        repo.to_ascii_lowercase(),
+        username.to_ascii_lowercase()
+    );
 
     // Return cached permission if available.
     if let Some(cached) = get_cached_collaborator_permission(&cache_key) {

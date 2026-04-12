@@ -367,7 +367,9 @@ fn effective_endorser_min_integrity<'a>(ctx: &'a PolicyContext) -> &'a str {
     if v.is_empty() { "approved" } else { v }
 }
 
-/// Convert an integrity level name to its rank (0 = unknown, 1 = none, 2 = reader, 3 = writer, 4 = merged).
+/// Convert an integrity level name to its rank for comparison.
+/// Returns: 1 = none, 2 = unapproved, 3 = approved, 4 = merged.
+/// Unrecognised levels default to rank 3 (approved) with a warning log.
 fn integrity_level_rank(level: &str) -> u8 {
     match level.trim().to_ascii_lowercase().as_str() {
         "none" => 1,
