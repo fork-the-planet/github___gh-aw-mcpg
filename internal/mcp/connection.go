@@ -243,11 +243,8 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 	logConn.Printf("Attempting SSE transport for %s", url)
 	conn, err = trySSETransport(ctx, cancel, serverID, url, headers, headerClient, keepAlive)
 	if err == nil {
-		logger.LogWarn("backend", "⚠️  MCP over SSE has been deprecated. Connected using SSE transport for url=%s. Please migrate to streamable HTTP transport (2025-03-26 spec).", url)
-		logger.LogWarn("backend", "⚠️  WARNING: MCP over SSE (2024-11-05 spec) has been DEPRECATED")
-		logger.LogWarn("backend", "⚠️  The server at %s is using the deprecated SSE transport", url)
-		logger.LogWarn("backend", "⚠️  Please migrate to streamable HTTP transport (2025-03-26 spec)")
-		logger.LogWarn("backend", "Configured HTTP MCP server with SSE transport: %s", url)
+		logger.LogWarn("backend", "⚠️  MCP over SSE (2024-11-05 spec) is DEPRECATED for url=%s. Please migrate to streamable HTTP transport (2025-03-26 spec).", url)
+		logger.LogInfo("backend", "Configured HTTP MCP server with SSE transport: %s", url)
 		return conn, nil
 	}
 	logConn.Printf("SSE transport failed: %v", err)
@@ -296,6 +293,21 @@ func (c *Connection) ServerInfo() (name, version string) {
 	return initResult.ServerInfo.Name, initResult.ServerInfo.Version
 }
 
+// logReconnectStart emits the structured log warning that is common to all reconnect paths.
+func (c *Connection) logReconnectStart() {
+	logger.LogWarn("backend", "MCP session expired for %s, attempting to reconnect...", c.serverID)
+}
+
+// logReconnectResult emits the structured log entry that signals whether the reconnect
+// succeeded or failed. It is the common success/failure telemetry shared by all reconnect paths.
+func (c *Connection) logReconnectResult(err error) {
+	if err != nil {
+		logger.LogError("backend", "Session reconnect failed for %s: %v", c.serverID, err)
+	} else {
+		logger.LogInfo("backend", "Session successfully reconnected for %s", c.serverID)
+	}
+}
+
 // reconnectPlainJSON re-initialises the plain JSON-RPC session with the HTTP backend.
 // It is safe for concurrent callers: only one reconnect runs at a time, and the updated
 // session ID is available to all callers once the lock is released.
@@ -304,17 +316,16 @@ func (c *Connection) reconnectPlainJSON() error {
 	defer c.sessionMu.Unlock()
 
 	logConn.Printf("Session expired, reconnecting plain JSON-RPC for serverID=%s", c.serverID)
-	logger.LogWarn("backend", "MCP session expired for %s, attempting to reconnect...", c.serverID)
+	c.logReconnectStart()
 
 	sessionID, err := c.initializeHTTPSession()
+	c.logReconnectResult(err)
 	if err != nil {
-		logger.LogError("backend", "Session reconnect failed for %s: %v", c.serverID, err)
 		return fmt.Errorf("session reconnect failed: %w", err)
 	}
 
 	c.httpSessionID = sessionID
 	logConn.Printf("Reconnected plain JSON-RPC session for serverID=%s, new sessionID=%s", c.serverID, sessionID)
-	logger.LogInfo("backend", "Session successfully reconnected for %s", c.serverID)
 	return nil
 }
 
@@ -325,7 +336,7 @@ func (c *Connection) reconnectSDKTransport() error {
 	defer c.sessionMu.Unlock()
 
 	logConn.Printf("Session expired, reconnecting SDK transport for serverID=%s, type=%s", c.serverID, c.httpTransportType)
-	logger.LogWarn("backend", "MCP session expired for %s, attempting to reconnect...", c.serverID)
+	c.logReconnectStart()
 
 	// Close the existing session gracefully (ignore error – it's already dead).
 	if c.session != nil {
@@ -359,8 +370,8 @@ func (c *Connection) reconnectSDKTransport() error {
 	defer cancel()
 
 	session, err := client.Connect(connectCtx, transport, nil)
+	c.logReconnectResult(err)
 	if err != nil {
-		logger.LogError("backend", "Session reconnect failed for %s: %v", c.serverID, err)
 		return fmt.Errorf("session reconnect failed: %w", err)
 	}
 
@@ -368,7 +379,6 @@ func (c *Connection) reconnectSDKTransport() error {
 	c.session = session
 
 	logConn.Printf("Reconnected SDK session for serverID=%s", c.serverID)
-	logger.LogInfo("backend", "Session successfully reconnected for %s", c.serverID)
 	return nil
 }
 
