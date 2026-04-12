@@ -4382,6 +4382,31 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_create_pull_request_with_copilot_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "title": "test PR",
+            "head": "feature",
+            "base": "main"
+        });
+
+        let (_secrecy, integrity, _desc) = apply_tool_labels(
+            "create_pull_request_with_copilot",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "create_pull_request_with_copilot should have writer integrity");
+    }
+
+    #[test]
     fn test_apply_tool_labels_merge_pull_request_writer_integrity() {
         let ctx = default_ctx();
         let repo_id = "github/copilot";
