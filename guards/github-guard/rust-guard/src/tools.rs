@@ -12,6 +12,7 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "delete_file",
     "fork_repository",
     "create_pull_request",
+    "create_pull_request_with_copilot",
     "add_comment_to_pending_review",
     "add_reply_to_pull_request_comment",
     "request_copilot_review",
