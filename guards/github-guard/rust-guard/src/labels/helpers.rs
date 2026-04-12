@@ -1936,4 +1936,79 @@ mod tests {
         let ctx = PolicyContext::default();
         assert_eq!(effective_endorser_min_integrity(&ctx), "approved");
     }
+
+    #[test]
+    fn test_disapproval_overrides_endorsement_on_same_item() {
+        // The core precedence rule: when the same item has both an endorsement
+        // and a disapproval reaction from qualified maintainers, disapproval wins
+        // because it runs last in the chain.
+        let repo = "owner/repo";
+        let ctx = PolicyContext {
+            endorsement_reactions: vec!["THUMBS_UP".to_string()],
+            disapproval_reactions: vec!["THUMBS_DOWN".to_string()],
+            disapproval_integrity: "none".to_string(),
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 42,
+            "reactions": {"nodes": [
+                {"user": {"login": "alice"}, "content": "THUMBS_UP"},
+                {"user": {"login": "bob"}, "content": "THUMBS_DOWN"}
+            ]}
+        });
+
+        // Both endorsement and disapproval should match with admin callback
+        assert!(has_maintainer_reaction_with_callback(
+            &item, repo, &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
+        ));
+        assert!(has_maintainer_reaction_with_callback(
+            &item, repo, &ctx.disapproval_reactions, "approved", &ctx,
+            admin_permission_callback, "disapproval"
+        ));
+
+        // Simulate the integrity chain: start with none (external contributor),
+        // apply endorsement (promotes to approved), then apply disapproval (caps to none).
+        let base = none_integrity(repo, &ctx);
+        let after_endorsement = max_integrity(repo, base, writer_integrity(repo, &ctx), &ctx);
+        assert_eq!(after_endorsement, writer_integrity(repo, &ctx), "endorsement should promote to approved");
+
+        let demote_cap = integrity_for_level("none", repo, &ctx);
+        let after_disapproval = cap_integrity(repo, after_endorsement, demote_cap, &ctx);
+        assert_eq!(after_disapproval, none_integrity(repo, &ctx), "disapproval should override endorsement back to none");
+    }
+
+    #[test]
+    fn test_disapproval_reaction_with_admin_callback() {
+        // Verify has_maintainer_reaction_with_callback works for disapproval reaction kind
+        let ctx = PolicyContext {
+            disapproval_reactions: vec!["THUMBS_DOWN".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 42,
+            "reactions": {"nodes": [{"user": {"login": "alice"}, "content": "THUMBS_DOWN"}]}
+        });
+        assert!(has_maintainer_reaction_with_callback(
+            &item, "owner/repo", &ctx.disapproval_reactions, "approved", &ctx,
+            admin_permission_callback, "disapproval"
+        ));
+    }
+
+    #[test]
+    fn test_disapproval_reaction_below_threshold() {
+        // Reactor with read permission should not count for disapproval
+        let ctx = PolicyContext {
+            disapproval_reactions: vec!["THUMBS_DOWN".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 42,
+            "reactions": {"nodes": [{"user": {"login": "external"}, "content": "THUMBS_DOWN"}]}
+        });
+        assert!(!has_maintainer_reaction_with_callback(
+            &item, "owner/repo", &ctx.disapproval_reactions, "approved", &ctx,
+            read_permission_callback, "disapproval"
+        ));
+    }
 }

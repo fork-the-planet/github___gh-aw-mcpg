@@ -1084,6 +1084,29 @@ func TestNormalizeGuardPolicyReactionEndorsement(t *testing.T) {
 		assert.Contains(t, err.Error(), "endorsement-reactions entries must not be empty")
 	})
 
+	t.Run("empty disapproval-reactions entry rejected", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:                "public",
+			MinIntegrity:         "approved",
+			DisapprovalReactions: []string{"THUMBS_DOWN", ""},
+		}}
+		_, err := NormalizeGuardPolicy(policy)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "disapproval-reactions entries must not be empty")
+	})
+
+	t.Run("disapproval-reactions deduplication (case-insensitive)", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:                "public",
+			MinIntegrity:         "approved",
+			DisapprovalReactions: []string{"THUMBS_DOWN", "thumbs_down", "THUMBS_DOWN"},
+		}}
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Len(t, got.DisapprovalReactions, 1)
+		assert.Equal(t, "THUMBS_DOWN", got.DisapprovalReactions[0])
+	})
+
 	t.Run("reaction fields absent → normalized fields empty", func(t *testing.T) {
 		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
 			Repos:        "public",

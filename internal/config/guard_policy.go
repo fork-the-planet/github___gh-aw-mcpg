@@ -416,7 +416,8 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 		}
 	}
 
-	// Validate and normalize disapproval-integrity (optional, defaults to "none").
+	// Validate and normalize disapproval-integrity (optional; empty means feature
+	// uses Rust-side default of "none" when endorsement/disapproval is evaluated).
 	if v := strings.ToLower(strings.TrimSpace(policy.AllowOnly.DisapprovalIntegrity)); v != "" {
 		if _, ok := validMinIntegrityValues[v]; !ok {
 			return nil, fmt.Errorf("allow-only.disapproval-integrity must be one of: none, unapproved, approved, merged")
@@ -424,7 +425,8 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 		normalized.DisapprovalIntegrity = v
 	}
 
-	// Validate and normalize endorser-min-integrity (optional, defaults to "approved").
+	// Validate and normalize endorser-min-integrity (optional; empty means feature
+	// uses Rust-side default of "approved" when evaluating reactor eligibility).
 	if v := strings.ToLower(strings.TrimSpace(policy.AllowOnly.EndorserMinIntegrity)); v != "" {
 		if _, ok := validMinIntegrityValues[v]; !ok {
 			return nil, fmt.Errorf("allow-only.endorser-min-integrity must be one of: none, unapproved, approved, merged")
