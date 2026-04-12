@@ -569,7 +569,8 @@ pub fn apply_tool_labels(
 
         // === Issue/PR write operations (repo-scoped) ===
         "create_issue" | "issue_write" | "sub_issue_write" | "add_issue_comment"
-        | "create_pull_request" | "update_pull_request" | "merge_pull_request"
+        | "create_pull_request" | "create_pull_request_with_copilot"
+        | "update_pull_request" | "merge_pull_request"
         | "pull_request_review_write" | "add_comment_to_pending_review"
         | "add_reply_to_pull_request_comment" => {
             // Write operations that return the created/modified resource.
