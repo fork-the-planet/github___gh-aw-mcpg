@@ -1750,13 +1750,6 @@ mod tests {
         }
     }
 
-    fn ctx_with_disapproval_reactions(reactions: Vec<&str>) -> PolicyContext {
-        PolicyContext {
-            disapproval_reactions: reactions.into_iter().map(|s| s.to_string()).collect(),
-            ..Default::default()
-        }
-    }
-
     /// Mock callback that returns admin permission for any user.
     fn admin_permission_callback(_tool: &str, _args: &str, buf: &mut [u8]) -> Result<usize, i32> {
         let response = r#"{"permission":"admin","user":{"login":"maintainer"}}"#;
