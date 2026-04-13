@@ -761,9 +761,22 @@ pub extern "C" fn label_response(
     // Read input bytes
     let input_bytes = unsafe { slice::from_raw_parts(input_ptr as *const u8, input_len as usize) };
 
-    // Log first 500 bytes of input to debug structure (safe on char boundary)
-    if let Ok(full_str) = std::str::from_utf8(input_bytes) {
-        let preview = safe_preview(full_str, PREVIEW_MAX_BYTES);
+    // Log a bounded preview of the input for debugging.
+    // Only decode up to PREVIEW_MAX_BYTES so logging stays cheap, and
+    // if the prefix ends mid-codepoint, fall back to the valid UTF-8 prefix.
+    let preview_bytes = &input_bytes[..input_bytes.len().min(PREVIEW_MAX_BYTES)];
+    let preview = match std::str::from_utf8(preview_bytes) {
+        Ok(s) => s,
+        Err(e) => {
+            let valid_up_to = e.valid_up_to();
+            if valid_up_to == 0 {
+                ""
+            } else {
+                std::str::from_utf8(&preview_bytes[..valid_up_to]).unwrap_or("")
+            }
+        }
+    };
+    if !preview.is_empty() {
         log_info(&format!("    input_preview={}", preview));
     }
 
