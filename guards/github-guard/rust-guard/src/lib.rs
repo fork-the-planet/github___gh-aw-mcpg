@@ -133,7 +133,7 @@ pub fn invoke_backend(
 
 /// Log levels matching the gateway's expectations
 #[repr(u32)]
-pub enum LogLevel {
+enum LogLevel {
     Debug = 0,
     Info = 1,
     Warn = 2,
