@@ -1236,9 +1236,9 @@ mod tests {
         // {"body":"<padding>中中中..."}
         let prefix = "{\"body\":\"";      // 9 bytes
         let padding = "x".repeat(489);    // 489 bytes — total so far: 498
-        let cjk_tail = "中中中中中";       // 5 × 3 = 15 bytes — total: 513
+        let cjk_tail = "中中中中中";       // 5 × 3 = 15 bytes — subtotal: 513
 
-        let json = format!("{}{}{}\"}}",  prefix, padding, cjk_tail);
+        let json = format!("{}{}{}\"}}",  prefix, padding, cjk_tail); // +3 bytes for "\"}}" => 516 total
         assert!(json.len() > 500);
 
         let preview = safe_preview(&json, 500);
