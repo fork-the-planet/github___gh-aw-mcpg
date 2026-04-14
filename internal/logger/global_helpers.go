@@ -10,8 +10,10 @@
 // - init*: Initialize a global logger with proper locking and cleanup of any existing logger
 // - close*: Close and clear a global logger with proper locking
 //
-// These helpers are used internally by the logger package and should not be called
-// directly by external code. Use the public Init* and Close* functions instead.
+// The unexported helpers (withMutexLock, withGlobalLogger, initGlobalLogger,
+// closeGlobalLogger) are used internally by the logger package and should not be
+// called directly by external code. Use the public Init* and Close* functions instead.
+// CloseAllLoggers is the public entry point for closing all global loggers at once.
 package logger
 
 import "sync"
