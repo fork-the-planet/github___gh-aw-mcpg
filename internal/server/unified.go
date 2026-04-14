@@ -94,6 +94,9 @@ type UnifiedServer struct {
 	// means all tools are permitted for that server.
 	allowedToolSets map[string]map[string]bool
 
+	// circuitBreakers holds a per-backend rate-limit circuit breaker keyed by server ID.
+	circuitBreakers map[string]*circuitBreaker
+
 	// DIFC components
 	guardRegistry *guard.Registry
 	agentRegistry *difc.AgentRegistry
@@ -149,6 +152,7 @@ func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error)
 		payloadPathPrefix:    payloadPathPrefix,
 		payloadSizeThreshold: payloadSizeThreshold,
 		allowedToolSets:      buildAllowedToolSets(cfg),
+		circuitBreakers:      buildCircuitBreakers(cfg),
 
 		// Initialize DIFC components
 		guardRegistry: guard.NewRegistry(),
@@ -363,7 +367,36 @@ func newErrorCallToolResult(err error) (*sdk.CallToolResult, interface{}, error)
 	}, nil, err
 }
 
-// buildAllowedToolSets converts the per-server Tools lists from the config into pre-computed
+// buildCircuitBreakers creates per-backend circuit breakers from the configuration.
+func buildCircuitBreakers(cfg *config.Config) map[string]*circuitBreaker {
+	cbs := make(map[string]*circuitBreaker)
+	if cfg == nil {
+		return cbs
+	}
+	for serverID, serverCfg := range cfg.Servers {
+		threshold := serverCfg.RateLimitThreshold
+		cooldown := time.Duration(serverCfg.RateLimitCooldown) * time.Second
+		cbs[serverID] = newCircuitBreaker(serverID, threshold, cooldown)
+		logUnified.Printf("Created circuit breaker for server %s: threshold=%d, cooldown=%s",
+			serverID, threshold, cooldown)
+	}
+	return cbs
+}
+
+// getCircuitBreaker returns the circuit breaker for serverID, creating one with
+// defaults if none exists (e.g., when called from tests that bypass NewUnified).
+func (us *UnifiedServer) getCircuitBreaker(serverID string) *circuitBreaker {
+	if us.circuitBreakers == nil {
+		us.circuitBreakers = make(map[string]*circuitBreaker)
+	}
+	if cb, ok := us.circuitBreakers[serverID]; ok {
+		return cb
+	}
+	cb := newCircuitBreaker(serverID, DefaultRateLimitThreshold, DefaultRateLimitCooldown)
+	us.circuitBreakers[serverID] = cb
+	return cb
+}
+
 // map[string]bool sets for O(1) lookup. Servers with no Tools list are not added to the map,
 // which signals that all tools are permitted. If the Tools list contains a "*" entry anywhere,
 // the server is treated the same as having no list (all tools allowed).
@@ -532,13 +565,42 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer execSpan.End()
+
+	// Check the circuit breaker before calling the backend.
+	cb := us.getCircuitBreaker(serverID)
+	if err := cb.Allow(); err != nil {
+		execSpan.RecordError(err)
+		execSpan.SetStatus(codes.Error, "circuit breaker open")
+		httpStatusCode = 429
+		return newErrorCallToolResult(err)
+	}
+
 	backendResult, err := executeBackendToolCall(execCtx, us.launcher, serverID, sessionID, toolName, args)
 	if err != nil {
+		// Transport errors (connection failure, JSON parse error, etc.) are not rate-limit
+		// events and must not affect the consecutive rate-limit counter. Leave the circuit
+		// breaker state unchanged so genuine rate-limit history is preserved.
 		execSpan.RecordError(err)
 		execSpan.SetStatus(codes.Error, err.Error())
 		httpStatusCode = 500
 		return newErrorCallToolResult(err)
 	}
+
+	// Inspect the tool result for rate-limit indicators from the GitHub MCP server.
+	if rateLimited, resetAt := isRateLimitToolResult(backendResult); rateLimited {
+		cb.RecordRateLimit(resetAt)
+		execSpan.SetAttributes(attribute.Bool("rate_limit.hit", true))
+		httpStatusCode = 429
+		// Preserve the original backend error text so the agent sees the actual upstream
+		// rate-limit details. ErrCircuitOpen is only returned when cb.Allow() rejects
+		// the call before contacting the backend.
+		errText := extractRateLimitErrorText(backendResult)
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: errText}},
+			IsError: true,
+		}, backendResult, nil
+	}
+	cb.RecordSuccess()
 
 	// **Phase 4: Guard labels the response data (for fine-grained filtering)**
 	// Per spec: LabelResponse() is only called for read operations in all modes,

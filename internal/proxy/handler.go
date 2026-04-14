@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -350,8 +352,11 @@ func (h *proxyHandler) passthrough(w http.ResponseWriter, r *http.Request, path 
 }
 
 // writeResponse writes an upstream response to the client.
+// When the upstream signals rate-limiting (HTTP 429 or X-RateLimit-Remaining == 0),
+// it injects a Retry-After header and logs the event at ERROR level.
 func (h *proxyHandler) writeResponse(w http.ResponseWriter, resp *http.Response, body []byte) {
 	copyResponseHeaders(w, resp)
+	injectRetryAfterIfRateLimited(w, resp)
 	w.WriteHeader(resp.StatusCode)
 	w.Write(body)
 }
@@ -414,6 +419,66 @@ func copyResponseHeaders(w http.ResponseWriter, resp *http.Response) {
 			w.Header().Set(h, v)
 		}
 	}
+}
+
+// injectRetryAfterIfRateLimited inspects the upstream response for rate-limit signals
+// (HTTP 429 or X-Ratelimit-Remaining == 0). When detected it:
+//  1. Injects a Retry-After header so the client knows when to retry.
+//  2. Logs the event at ERROR level so operators can monitor rate-limit incidents.
+func injectRetryAfterIfRateLimited(w http.ResponseWriter, resp *http.Response) {
+	is429 := resp.StatusCode == http.StatusTooManyRequests
+	// Use Go's canonical header key form (textproto.CanonicalMIMEHeaderKey produces
+	// "X-Ratelimit-Remaining", matching GitHub's actual response headers).
+	remaining := resp.Header.Get("X-Ratelimit-Remaining")
+	resetHeader := resp.Header.Get("X-Ratelimit-Reset")
+
+	isRateLimited := is429 || remaining == "0"
+	if !isRateLimited {
+		return
+	}
+
+	resetAt := parseRateLimitReset(resetHeader)
+	retryAfter := computeRetryAfter(resetAt)
+
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
+
+	logger.LogError("client",
+		"upstream rate limit hit: status=%d X-Ratelimit-Remaining=%s X-Ratelimit-Reset=%s retry-after=%ds",
+		resp.StatusCode, remaining, resetHeader, retryAfter)
+}
+
+// parseRateLimitReset parses the X-RateLimit-Reset Unix-timestamp header.
+// Returns zero time when absent or malformed.
+func parseRateLimitReset(value string) time.Time {
+	if value == "" {
+		return time.Time{}
+	}
+	unix, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return time.Time{}
+	}
+	return time.Unix(unix, 0)
+}
+
+// computeRetryAfter returns the number of seconds to wait before retrying.
+// When resetAt is in the future the delay is clamped to [1, 3600] seconds.
+// When resetAt is zero or in the past a default of 60 seconds is returned.
+func computeRetryAfter(resetAt time.Time) int {
+	const (
+		defaultDelay = 60
+		maxDelay     = 3600
+	)
+	if resetAt.IsZero() {
+		return defaultDelay
+	}
+	secs := int(time.Until(resetAt).Seconds()) + 1 // add 1s buffer
+	if secs < 1 {
+		return defaultDelay
+	}
+	if secs > maxDelay {
+		return maxDelay
+	}
+	return secs
 }
 
 // rewrapSearchResponse re-wraps filtered items into the original search response
