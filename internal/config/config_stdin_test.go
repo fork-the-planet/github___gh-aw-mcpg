@@ -1,9 +1,11 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/config/rules"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -276,6 +278,17 @@ func TestConvertStdinServerConfig_ValidationError(t *testing.T) {
 			},
 			errorContains: "url",
 		},
+		{
+			name: "stdio with auth block",
+			server: &StdinServerConfig{
+				Type:      "stdio",
+				Container: "ghcr.io/owner/image:latest",
+				Auth: &AuthConfig{
+					Type: "github-oidc",
+				},
+			},
+			errorContains: "auth is only supported for HTTP servers",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -286,6 +299,30 @@ func TestConvertStdinServerConfig_ValidationError(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.errorContains)
 		})
 	}
+}
+
+// TestConvertStdinServerConfig_StdioWithAuth verifies that a stdio server with an auth block
+// returns a structured rules.ValidationError with the correct JSONPath and suggestion,
+// guarding against regressions in error type or message.
+func TestConvertStdinServerConfig_StdioWithAuth(t *testing.T) {
+	server := &StdinServerConfig{
+		Type:      "stdio",
+		Container: "ghcr.io/owner/image:latest",
+		Auth: &AuthConfig{
+			Type: "github-oidc",
+		},
+	}
+
+	result, err := convertStdinServerConfig("my-server", server, nil)
+	require.Error(t, err)
+	assert.Nil(t, result)
+
+	var valErr *rules.ValidationError
+	require.True(t, errors.As(err, &valErr), "expected a *rules.ValidationError, got %T: %v", err, err)
+	assert.Equal(t, "auth", valErr.Field)
+	assert.Contains(t, valErr.Message, "auth is only supported for HTTP servers")
+	assert.Contains(t, valErr.JSONPath, "mcpServers.my-server")
+	assert.NotEmpty(t, valErr.Suggestion)
 }
 
 // TestConvertStdinServerConfig_EmptyEnvAndHeaders tests handling of empty env and headers.
