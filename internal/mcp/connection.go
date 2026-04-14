@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -203,13 +204,21 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 	logger.LogInfo("backend", "Creating HTTP MCP connection with transport fallback, url=%s, connectTimeout=%v", url, connectTimeout)
 	ctx, cancel := context.WithCancel(ctx)
 
-	// Create an HTTP client with appropriate timeouts
+	// Create an HTTP client with appropriate timeouts.
+	// Keep the existing overall request timeout, but also apply connectTimeout to
+	// the underlying HTTP transport so plain JSON-RPC fallback attempts honor the
+	// configured per-attempt connection timeout instead of waiting for the full
+	// client timeout.
 	httpClient := &http.Client{
 		Timeout: 120 * time.Second, // Overall request timeout
 		Transport: &http.Transport{
-			MaxIdleConns:        10,
-			IdleConnTimeout:     90 * time.Second,
-			TLSHandshakeTimeout: 10 * time.Second,
+			DialContext: (&net.Dialer{
+				Timeout: connectTimeout,
+			}).DialContext,
+			MaxIdleConns:          10,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: connectTimeout,
 		},
 	}
 
