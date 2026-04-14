@@ -27,8 +27,9 @@ import "sync"
 //	    // other fields...
 //	}
 //
-// The embedded mu field and withLock method are promoted, so callers can write
-// myLogger.mu.Lock() and myLogger.withLock(fn) directly.
+// The embedded withLock method is promoted, so code in this package can write
+// myLogger.withLock(fn) directly. The embedded mu field is also promoted, but
+// because it is unexported it is only directly accessible within the logger package.
 type lockable struct {
 	mu sync.Mutex
 }
