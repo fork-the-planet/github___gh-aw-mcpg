@@ -215,9 +215,8 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 		}
 
 		// auth is only valid on HTTP servers
-		if server.Auth != nil {
-			logValidateServerFailed(name, "auth field is not supported for stdio servers")
-			return rules.UnsupportedField("auth", "auth is only supported for HTTP servers (type: \"http\")", jsonPath, "Remove the 'auth' field from the stdio server configuration, or change the server type to 'http'")
+		if err := validateServerAuth(server.Auth, server.Type, name, jsonPath); err != nil {
+			return err
 		}
 	}
 
@@ -232,16 +231,33 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 			return rules.UnsupportedField("mounts", "mounts are only supported for stdio (containerized) servers", jsonPath, "Remove the 'mounts' field from HTTP server configuration; mounts only apply to stdio servers")
 		}
 
-		// Validate auth field if present
-		if server.Auth != nil {
-			if err := validateAuthConfig(server.Auth, name, jsonPath); err != nil {
-				return err
-			}
+		// Validate auth config if present
+		if err := validateServerAuth(server.Auth, server.Type, name, jsonPath); err != nil {
+			return err
 		}
 	}
 
 	logValidateServerPassed(name)
 	return nil
+}
+
+// validateServerAuth validates the auth configuration on any server type,
+// rejecting auth on non-HTTP servers and delegating to validateAuthConfig
+// for HTTP servers. This is shared by both the TOML (LoadFromFile) and
+// JSON stdin (validateStandardServerConfig) paths.
+func validateServerAuth(auth *AuthConfig, serverType, name, jsonPath string) error {
+	if auth == nil {
+		return nil
+	}
+	if serverType != "http" {
+		logValidateServerFailed(name, fmt.Sprintf("auth is set on non-HTTP server type: %s", serverType))
+		return rules.UnsupportedField(
+			"auth",
+			fmt.Sprintf("server type %q", serverType),
+			jsonPath,
+			"Remove the auth configuration or change the server type to \"http\"")
+	}
+	return validateAuthConfig(auth, name, jsonPath)
 }
 
 // validateAuthConfig validates the auth configuration for an HTTP server.

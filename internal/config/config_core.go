@@ -346,18 +346,12 @@ func LoadFromFile(path string) (*Config, error) {
 	}
 
 	// Validate auth configs (e.g. fail-fast for missing OIDC env vars).
-	// This ensures parity with the JSON stdin path which calls validateAuthConfig
+	// This ensures parity with the JSON stdin path which calls validateServerAuth
 	// via convertStdinServerConfig → validateServerConfigWithCustomSchemas.
 	for name, serverCfg := range cfg.Servers {
-		if serverCfg.Auth != nil {
-			// Auth is only supported on HTTP servers, matching validateStandardServerConfig behavior.
-			if serverCfg.Type != "http" {
-				return nil, fmt.Errorf("server '%s': auth is only supported for HTTP servers (type: \"http\")", name)
-			}
-			jsonPath := fmt.Sprintf("servers.%s", name)
-			if err := validateAuthConfig(serverCfg.Auth, name, jsonPath); err != nil {
-				return nil, err
-			}
+		jsonPath := fmt.Sprintf("servers.%s", name)
+		if err := validateServerAuth(serverCfg.Auth, serverCfg.Type, name, jsonPath); err != nil {
+			return nil, err
 		}
 	}
 
