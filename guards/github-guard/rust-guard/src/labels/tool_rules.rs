@@ -712,9 +712,12 @@ pub fn apply_tool_labels(
         // === Gist deletion (pre-emptive) ===
         "delete_gist" => {
             // Gist deletion is a write on user-scoped content.
-            // S = public (gists can be public/secret); I = writer (global)
-            baseline_scope = "github".to_string();
-            integrity = writer_integrity("github", ctx);
+            // Conservatively treat gists as private/user-scoped, consistent with
+            // other gist operations that may target secret gists.
+            // S = private_user; I = writer(user)
+            secrecy = private_user_label();
+            baseline_scope = "user".to_string();
+            integrity = writer_integrity("user", ctx);
         }
 
         _ => {
