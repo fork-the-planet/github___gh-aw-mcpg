@@ -69,6 +69,7 @@ func (p *GuardPolicy) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	logGuardPolicy.Printf("UnmarshalJSON: parsing guard policy, keys=%d", len(raw))
 
 	var allowOnlyRaw json.RawMessage
 	var writeSinkRaw json.RawMessage
@@ -106,6 +107,11 @@ func (p *GuardPolicy) UnmarshalJSON(data []byte) error {
 		p.WriteSink = &writeSink
 	}
 
+	if len(allowOnlyRaw) > 0 {
+		logGuardPolicy.Print("UnmarshalJSON: guard policy type is allow-only")
+	} else {
+		logGuardPolicy.Print("UnmarshalJSON: guard policy type is write-sink")
+	}
 	return nil
 }
 
@@ -123,6 +129,7 @@ func (p *AllowOnlyPolicy) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
+	logGuardPolicy.Printf("UnmarshalJSON: parsing allow-only policy, fields=%d", len(raw))
 
 	for key, value := range raw {
 		switch strings.ToLower(key) {
@@ -174,6 +181,7 @@ func (p *AllowOnlyPolicy) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("allow-only must include min-integrity")
 	}
 
+	logGuardPolicy.Printf("UnmarshalJSON: allow-only policy parsed, repos=%T, minIntegrity=%s", p.Repos, p.MinIntegrity)
 	return nil
 }
 
@@ -477,6 +485,7 @@ func normalizeAndValidateScopeArray(scopes []interface{}) ([]string, error) {
 	if len(scopes) == 0 {
 		return nil, fmt.Errorf("allow-only.repos array must contain at least one scope")
 	}
+	logGuardPolicy.Printf("normalizeAndValidateScopeArray: validating %d repo scope entries", len(scopes))
 
 	seen := make(map[string]struct{}, len(scopes))
 	normalized := make([]string, 0, len(scopes))
