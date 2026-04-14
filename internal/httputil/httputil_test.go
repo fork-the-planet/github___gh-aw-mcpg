@@ -137,4 +137,17 @@ func TestWriteJSONResponse(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "こんにちは 🌍", got["greeting"])
 	})
+
+	t.Run("marshal failure writes headers but no body", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		// Channels cannot be marshaled to JSON; json.Marshal returns an error.
+		WriteJSONResponse(rec, http.StatusInternalServerError, make(chan int))
+
+		// Content-Type and status code are committed before the marshal attempt,
+		// so they are still present even when encoding fails.
+		assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		// No body is written when encoding fails.
+		assert.Empty(t, rec.Body.String())
+	})
 }
