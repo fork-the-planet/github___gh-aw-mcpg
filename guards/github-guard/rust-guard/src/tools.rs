@@ -59,6 +59,20 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     // Pre-emptive: gh repo deploy-key add/delete — SSH key with optional write access
     "add_deploy_key",
     "delete_deploy_key",
+    // Deprecated alias coverage (guard sees alias name before backend resolves it)
+    "run_workflow",             // deprecated alias for actions_run_trigger (POST workflow dispatch)
+    "delete_workflow_run_logs", // deprecated alias for actions_run_trigger (DELETE run logs)
+    "add_project_item",        // deprecated alias for projects_write (addProjectV2ItemById)
+    "delete_project_item",     // deprecated alias for projects_write (deleteProjectV2Item)
+    // Pre-emptive: issue/PR comment editing/deletion (gh issue/pr comment --edit/--delete)
+    "update_issue_comment", // PATCH /repos/.../issues/comments/{id}
+    "delete_issue_comment", // DELETE /repos/.../issues/comments/{id}
+    // Pre-emptive: release management (gh release create/edit/delete)
+    "create_release", // POST /repos/.../releases
+    "edit_release",   // PATCH /repos/.../releases/{id}
+    "delete_release", // DELETE /repos/.../releases/{id}
+    // Pre-emptive: gist deletion (gh gist delete)
+    "delete_gist", // DELETE /gists/{gist_id}
 ];
 
 /// Read-write operations that both read and modify data
@@ -73,6 +87,8 @@ pub const READ_WRITE_OPERATIONS: &[&str] = &[
     // Pre-emptive entries for anticipated future MCP tools (no equivalent tool today)
     // gh agent-task create — creates a Copilot coding-agent job (branch + PR); blocked as unsupported
     "create_agent_task",
+    // Deprecated alias coverage
+    "update_project_item", // deprecated alias for projects_write (updateProjectV2ItemFieldValue)
 ];
 
 /// Check if a tool is a write operation
@@ -248,5 +264,47 @@ mod tests {
             !is_write_operation("create_agent_task"),
             "create_agent_task should not be in WRITE_OPERATIONS (it is in READ_WRITE_OPERATIONS)"
         );
+    }
+
+    #[test]
+    fn test_deprecated_alias_write_operations() {
+        for op in &[
+            "run_workflow",
+            "delete_workflow_run_logs",
+            "add_project_item",
+            "delete_project_item",
+        ] {
+            assert!(
+                is_write_operation(op),
+                "{} (deprecated alias) must be classified as a write operation",
+                op
+            );
+        }
+    }
+
+    #[test]
+    fn test_deprecated_alias_read_write_operations() {
+        assert!(
+            is_read_write_operation("update_project_item"),
+            "update_project_item (deprecated alias) must be classified as a read-write operation"
+        );
+    }
+
+    #[test]
+    fn test_preemptive_cli_write_operations() {
+        for op in &[
+            "update_issue_comment",
+            "delete_issue_comment",
+            "create_release",
+            "edit_release",
+            "delete_release",
+            "delete_gist",
+        ] {
+            assert!(
+                is_write_operation(op),
+                "{} (pre-emptive CLI) must be classified as a write operation",
+                op
+            );
+        }
     }
 }
