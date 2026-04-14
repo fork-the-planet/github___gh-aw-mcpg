@@ -4641,6 +4641,29 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_enable_toolset_public_secrecy_writer_integrity() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "toolset": "advanced" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "enable_toolset",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert!(secrecy.is_empty(), "enable_toolset should have empty (public) secrecy");
+        assert_eq!(
+            integrity,
+            writer_integrity("github", &ctx),
+            "enable_toolset should have writer-level integrity on github scope"
+        );
+    }
+
+    #[test]
     fn test_apply_tool_labels_assign_copilot_to_issue_writer_integrity() {
         let ctx = default_ctx();
         let repo_id = "github/copilot";
