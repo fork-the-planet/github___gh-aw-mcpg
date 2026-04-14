@@ -61,11 +61,16 @@ type circuitBreaker struct {
 	openedAt          time.Time
 	// resetAt is the time when the upstream rate limit resets, parsed from
 	// the X-RateLimit-Reset header or the tool response message.
-	resetAt  time.Time
-	serverID string
+	resetAt       time.Time
+	probeInFlight bool
+	serverID      string
 
 	threshold int
 	cooldown  time.Duration
+
+	// nowFunc returns the current time. Defaults to time.Now; overridden in tests
+	// to avoid flaky time.Sleep-based assertions.
+	nowFunc func() time.Time
 }
 
 // newCircuitBreaker creates a circuit breaker for the given server ID.
@@ -83,6 +88,7 @@ func newCircuitBreaker(serverID string, threshold int, cooldown time.Duration) *
 		state:     circuitClosed,
 		threshold: threshold,
 		cooldown:  cooldown,
+		nowFunc:   time.Now,
 	}
 }
 
@@ -114,7 +120,7 @@ func (cb *circuitBreaker) Allow() error {
 	case circuitOpen:
 		// Check whether we should transition to HALF-OPEN.
 		// We use the upstream reset time when available, otherwise the cooldown.
-		now := time.Now()
+		now := cb.nowFunc()
 		var openUntil time.Time
 		if !cb.resetAt.IsZero() && cb.resetAt.After(cb.openedAt) {
 			openUntil = cb.resetAt
@@ -125,12 +131,18 @@ func (cb *circuitBreaker) Allow() error {
 			logCircuitBreaker.Printf("server %q circuit breaker OPEN → HALF-OPEN after cooldown", cb.serverID)
 			logger.LogInfo("backend", "circuit breaker for server %q transitioning OPEN → HALF-OPEN", cb.serverID)
 			cb.state = circuitHalfOpen
-			return nil // allow the probe
+			cb.probeInFlight = true
+			return nil // allow the single probe
 		}
 		return &ErrCircuitOpen{ServerID: cb.serverID, ResetAt: cb.resetAt}
 
 	case circuitHalfOpen:
-		// One probe is allowed through; further requests are blocked.
+		// Only one probe is allowed; further requests are blocked until the probe resolves.
+		if cb.probeInFlight {
+			return &ErrCircuitOpen{ServerID: cb.serverID, ResetAt: cb.resetAt}
+		}
+		// This shouldn't normally happen (probe resolved but state wasn't updated),
+		// but allow through defensively.
 		return nil
 	}
 
@@ -145,6 +157,7 @@ func (cb *circuitBreaker) RecordSuccess() {
 
 	prev := cb.state
 	cb.consecutiveErrors = 0
+	cb.probeInFlight = false
 	if cb.state == circuitHalfOpen {
 		cb.state = circuitClosed
 		cb.resetAt = time.Time{}
@@ -163,6 +176,7 @@ func (cb *circuitBreaker) RecordRateLimit(resetAt time.Time) {
 	defer cb.mu.Unlock()
 
 	cb.consecutiveErrors++
+	cb.probeInFlight = false
 	if !resetAt.IsZero() {
 		cb.resetAt = resetAt
 	}
@@ -171,7 +185,7 @@ func (cb *circuitBreaker) RecordRateLimit(resetAt time.Time) {
 	case circuitClosed:
 		if cb.consecutiveErrors >= cb.threshold {
 			cb.state = circuitOpen
-			cb.openedAt = time.Now()
+			cb.openedAt = cb.nowFunc()
 			logger.LogError("backend",
 				"circuit breaker for server %q OPENED after %d consecutive rate-limit errors; resets at %s",
 				cb.serverID, cb.consecutiveErrors, formatResetAt(cb.resetAt))
@@ -185,7 +199,7 @@ func (cb *circuitBreaker) RecordRateLimit(resetAt time.Time) {
 	case circuitHalfOpen:
 		// Probe failed — re-open the circuit.
 		cb.state = circuitOpen
-		cb.openedAt = time.Now()
+		cb.openedAt = cb.nowFunc()
 		logger.LogError("backend",
 			"circuit breaker for server %q re-OPENED after probe was rate-limited; resets at %s",
 			cb.serverID, formatResetAt(cb.resetAt))
@@ -211,6 +225,27 @@ func formatResetAt(t time.Time) string {
 		return "unknown"
 	}
 	return fmt.Sprintf("%s (in %s)", t.UTC().Format(time.RFC3339), time.Until(t).Round(time.Second))
+}
+
+// extractRateLimitErrorText extracts the text content from a raw tool result
+// that has been identified as a rate-limit error. Returns the original backend
+// message so agents see the actual upstream error rather than a synthetic one.
+func extractRateLimitErrorText(result interface{}) string {
+	m, ok := result.(map[string]interface{})
+	if !ok {
+		return "rate limit exceeded"
+	}
+	contents, _ := m["content"].([]interface{})
+	for _, c := range contents {
+		cm, ok := c.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if text, ok := cm["text"].(string); ok && text != "" {
+			return text
+		}
+	}
+	return "rate limit exceeded"
 }
 
 // isRateLimitToolResult reports whether a raw tool call result indicates
@@ -251,7 +286,7 @@ func isRateLimitToolResult(result interface{}) (bool, time.Time) {
 func isRateLimitText(text string) bool {
 	lower := strings.ToLower(text)
 	return strings.Contains(lower, "rate limit exceeded") ||
-		strings.Contains(lower, "rate limit") && strings.Contains(lower, "403") ||
+		(strings.Contains(lower, "rate limit") && strings.Contains(lower, "403")) ||
 		strings.Contains(lower, "api rate limit") ||
 		strings.Contains(lower, "secondary rate limit") ||
 		strings.Contains(lower, "too many requests")

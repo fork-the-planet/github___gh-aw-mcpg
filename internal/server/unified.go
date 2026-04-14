@@ -386,6 +386,9 @@ func buildCircuitBreakers(cfg *config.Config) map[string]*circuitBreaker {
 // getCircuitBreaker returns the circuit breaker for serverID, creating one with
 // defaults if none exists (e.g., when called from tests that bypass NewUnified).
 func (us *UnifiedServer) getCircuitBreaker(serverID string) *circuitBreaker {
+	if us.circuitBreakers == nil {
+		us.circuitBreakers = make(map[string]*circuitBreaker)
+	}
 	if cb, ok := us.circuitBreakers[serverID]; ok {
 		return cb
 	}
@@ -588,9 +591,14 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		cb.RecordRateLimit(resetAt)
 		execSpan.SetAttributes(attribute.Bool("rate_limit.hit", true))
 		httpStatusCode = 429
-		// Return the original error message so the agent can see it.
-		return newErrorCallToolResult(fmt.Errorf("backend server %q rate-limited: %w",
-			serverID, &ErrCircuitOpen{ServerID: serverID, ResetAt: resetAt}))
+		// Preserve the original backend error text so the agent sees the actual upstream
+		// rate-limit details. ErrCircuitOpen is only returned when cb.Allow() rejects
+		// the call before contacting the backend.
+		errText := extractRateLimitErrorText(backendResult)
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: errText}},
+			IsError: true,
+		}, backendResult, nil
 	}
 	cb.RecordSuccess()
 

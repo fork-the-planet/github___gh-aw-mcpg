@@ -61,15 +61,19 @@ func TestCircuitBreaker_SuccessResetsCounter(t *testing.T) {
 // TestCircuitBreaker_HalfOpenAfterCooldown verifies OPEN → HALF-OPEN transition.
 func TestCircuitBreaker_HalfOpenAfterCooldown(t *testing.T) {
 	t.Parallel()
-	// Use a very short cooldown so the test doesn't sleep long.
-	cb := newCircuitBreaker("test", 1, 10*time.Millisecond)
+	fakeNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cb := newCircuitBreaker("test", 1, time.Minute)
+	cb.nowFunc = func() time.Time { return fakeNow }
 
 	cb.RecordRateLimit(time.Time{})
 	require.Equal(t, circuitOpen, cb.State(), "should be OPEN after 1 error")
 
-	// Wait for cooldown.
-	time.Sleep(20 * time.Millisecond)
+	// Before cooldown: still OPEN.
+	fakeNow = fakeNow.Add(30 * time.Second)
+	require.Error(t, cb.Allow(), "should reject before cooldown elapses")
 
+	// After cooldown: transitions to HALF-OPEN.
+	fakeNow = fakeNow.Add(31 * time.Second)
 	err := cb.Allow()
 	assert.NoError(t, err, "should allow probe after cooldown")
 	assert.Equal(t, circuitHalfOpen, cb.State(), "should be HALF-OPEN after cooldown")
@@ -78,12 +82,14 @@ func TestCircuitBreaker_HalfOpenAfterCooldown(t *testing.T) {
 // TestCircuitBreaker_HalfOpenClosesOnSuccess verifies HALF-OPEN → CLOSED on probe success.
 func TestCircuitBreaker_HalfOpenClosesOnSuccess(t *testing.T) {
 	t.Parallel()
-	cb := newCircuitBreaker("test", 1, 10*time.Millisecond)
+	fakeNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cb := newCircuitBreaker("test", 1, time.Minute)
+	cb.nowFunc = func() time.Time { return fakeNow }
 
 	cb.RecordRateLimit(time.Time{})
 	require.Equal(t, circuitOpen, cb.State())
 
-	time.Sleep(20 * time.Millisecond)
+	fakeNow = fakeNow.Add(2 * time.Minute)
 	require.NoError(t, cb.Allow()) // probe allowed
 
 	cb.RecordSuccess()
@@ -94,12 +100,14 @@ func TestCircuitBreaker_HalfOpenClosesOnSuccess(t *testing.T) {
 // TestCircuitBreaker_HalfOpenReOpensOnRateLimit verifies HALF-OPEN → OPEN on probe failure.
 func TestCircuitBreaker_HalfOpenReOpensOnRateLimit(t *testing.T) {
 	t.Parallel()
-	cb := newCircuitBreaker("test", 1, 10*time.Millisecond)
+	fakeNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cb := newCircuitBreaker("test", 1, time.Minute)
+	cb.nowFunc = func() time.Time { return fakeNow }
 
 	cb.RecordRateLimit(time.Time{})
 	require.Equal(t, circuitOpen, cb.State())
 
-	time.Sleep(20 * time.Millisecond)
+	fakeNow = fakeNow.Add(2 * time.Minute)
 	require.NoError(t, cb.Allow()) // probe allowed
 
 	cb.RecordRateLimit(time.Time{})
@@ -114,19 +122,52 @@ func TestCircuitBreaker_HalfOpenReOpensOnRateLimit(t *testing.T) {
 // TestCircuitBreaker_ResetAtFromHeader verifies the reset time from upstream is used.
 func TestCircuitBreaker_ResetAtFromHeader(t *testing.T) {
 	t.Parallel()
-	cb := newCircuitBreaker("test", 1, 60*time.Second)
-	future := time.Now().Add(5 * time.Millisecond)
-	cb.RecordRateLimit(future)
+	fakeNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cb := newCircuitBreaker("test", 1, time.Hour)
+	cb.nowFunc = func() time.Time { return fakeNow }
+
+	resetAt := fakeNow.Add(30 * time.Second)
+	cb.RecordRateLimit(resetAt)
 	require.Equal(t, circuitOpen, cb.State())
 
 	// Before the reset time: still OPEN.
+	fakeNow = fakeNow.Add(15 * time.Second)
 	require.Error(t, cb.Allow())
 
-	// After the reset time: transitions to HALF-OPEN.
-	time.Sleep(10 * time.Millisecond)
+	// After the reset time: transitions to HALF-OPEN (before cooldown would elapse).
+	fakeNow = fakeNow.Add(20 * time.Second)
 	err := cb.Allow()
 	assert.NoError(t, err, "should allow probe after reset time")
 	assert.Equal(t, circuitHalfOpen, cb.State())
+}
+
+// TestCircuitBreaker_HalfOpenBlocksConcurrentProbes verifies that only one probe is allowed in HALF-OPEN.
+func TestCircuitBreaker_HalfOpenBlocksConcurrentProbes(t *testing.T) {
+	t.Parallel()
+	fakeNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cb := newCircuitBreaker("test", 1, time.Minute)
+	cb.nowFunc = func() time.Time { return fakeNow }
+
+	cb.RecordRateLimit(time.Time{})
+	require.Equal(t, circuitOpen, cb.State())
+
+	// Advance past cooldown to trigger HALF-OPEN.
+	fakeNow = fakeNow.Add(2 * time.Minute)
+
+	// First Allow() should succeed (the probe).
+	require.NoError(t, cb.Allow())
+	assert.Equal(t, circuitHalfOpen, cb.State())
+
+	// Second Allow() should be rejected — probe is already in flight.
+	err := cb.Allow()
+	require.Error(t, err, "concurrent requests in HALF-OPEN should be rejected")
+	var openErr *ErrCircuitOpen
+	require.ErrorAs(t, err, &openErr)
+
+	// After the probe succeeds, requests should be allowed again.
+	cb.RecordSuccess()
+	assert.Equal(t, circuitClosed, cb.State())
+	assert.NoError(t, cb.Allow())
 }
 
 // TestCircuitBreaker_DefaultsApplied verifies zero-value config gets sensible defaults.
@@ -361,4 +402,34 @@ func TestParseRateLimitResetHeader(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestExtractRateLimitErrorText verifies extraction of error text from backend results.
+func TestExtractRateLimitErrorText(t *testing.T) {
+	t.Parallel()
+
+	t.Run("extracts text from standard rate-limit result", func(t *testing.T) {
+		t.Parallel()
+		result := map[string]interface{}{
+			"isError": true,
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": "failed to search: 403 API rate limit exceeded [rate reset in 42s]",
+				},
+			},
+		}
+		assert.Equal(t, "failed to search: 403 API rate limit exceeded [rate reset in 42s]", extractRateLimitErrorText(result))
+	})
+
+	t.Run("returns fallback for nil result", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, "rate limit exceeded", extractRateLimitErrorText(nil))
+	})
+
+	t.Run("returns fallback for empty content", func(t *testing.T) {
+		t.Parallel()
+		result := map[string]interface{}{"isError": true, "content": []interface{}{}}
+		assert.Equal(t, "rate limit exceeded", extractRateLimitErrorText(result))
+	})
 }
