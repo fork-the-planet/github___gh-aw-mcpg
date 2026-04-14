@@ -591,7 +591,9 @@ pub fn apply_tool_labels(
         }
 
         // === Projects write operations (org-scoped) ===
-        "projects_write" => {
+        "projects_write"
+        // Deprecated aliases that map to projects_write
+        | "add_project_item" | "update_project_item" | "delete_project_item" => {
             // Projects are org-scoped; write responses carry the same labels as reads.
             // I = approved:<owner>
             if !owner.is_empty() {
@@ -609,7 +611,9 @@ pub fn apply_tool_labels(
         }
 
         // === Actions: Workflow run triggers ===
-        "actions_run_trigger" => {
+        "actions_run_trigger"
+        // Deprecated aliases that map to actions_run_trigger
+        | "run_workflow" | "delete_workflow_run_logs" => {
             // Triggering a workflow run returns repo-scoped metadata.
             // S = S(repo); I = writer
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
@@ -670,6 +674,16 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
+        // === Dynamic toolset enablement (capability expansion) ===
+        "enable_toolset" => {
+            // Enabling a toolset expands the agent's runtime capability set.
+            // Requires writer-level integrity to prevent low-trust agents from
+            // self-escalating by enabling additional tool groups.
+            // S = public (empty — no repository-scoped data); I = writer (global)
+            baseline_scope = "github".to_string();
+            integrity = writer_integrity("github", ctx);
+        }
+
         // === Star/unstar operations (public metadata) ===
         "star_repository" | "unstar_repository" => {
             // Starring is a public action; response is minimal metadata.
@@ -677,6 +691,33 @@ pub fn apply_tool_labels(
             secrecy = vec![];
             baseline_scope = "github".to_string();
             integrity = project_github_label(ctx);
+        }
+
+        // === Issue/PR comment editing/deletion (pre-emptive) ===
+        "update_issue_comment" | "delete_issue_comment" => {
+            // Editing or deleting an issue/PR comment is a repo-scoped write.
+            // S = S(repo); I = writer
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Release management (pre-emptive) ===
+        "create_release" | "edit_release" | "delete_release" => {
+            // Release operations are repo-scoped writes.
+            // S = S(repo); I = writer
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === Gist deletion (pre-emptive) ===
+        "delete_gist" => {
+            // Gist deletion is a write on user-scoped content.
+            // Conservatively treat gists as private/user-scoped, consistent with
+            // other gist operations that may target secret gists.
+            // S = private_user; I = writer(user)
+            secrecy = private_user_label();
+            baseline_scope = "user".to_string();
+            integrity = writer_integrity("user", ctx);
         }
 
         _ => {
