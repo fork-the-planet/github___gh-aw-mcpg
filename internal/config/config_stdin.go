@@ -155,20 +155,21 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 
 	// Known fields in the struct
 	knownFields := map[string]bool{
-		"type":           true,
-		"container":      true,
-		"entrypoint":     true,
-		"entrypointArgs": true,
-		"args":           true,
-		"mounts":         true,
-		"env":            true,
-		"url":            true,
-		"headers":        true,
-		"tools":          true,
-		"registry":       true,
-		"guard-policies": true,
-		"guard":          true,
-		"auth":           true,
+		"type":            true,
+		"container":       true,
+		"entrypoint":      true,
+		"entrypointArgs":  true,
+		"args":            true,
+		"mounts":          true,
+		"env":             true,
+		"url":             true,
+		"headers":         true,
+		"tools":           true,
+		"registry":        true,
+		"guard-policies":  true,
+		"guard":           true,
+		"auth":            true,
+		"connect_timeout": true,
 	}
 
 	// Store additional properties (fields not in the struct)
