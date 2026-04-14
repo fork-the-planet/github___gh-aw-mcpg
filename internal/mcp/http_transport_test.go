@@ -687,7 +687,7 @@ func TestSendHTTPRequest_EnsuresToolCallArguments(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	}, nil, "", 0)
+	}, nil, "", 0, 0)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()
@@ -739,7 +739,7 @@ func TestSendHTTPRequest_SessionIDFromContext(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	}, nil, "", 0)
+	}, nil, "", 0, 0)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()
@@ -844,7 +844,7 @@ func TestSendHTTPRequest_NonToolsCallMethodDoesNotAddArguments(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	}, nil, "", 0)
+	}, nil, "", 0, 0)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()
@@ -968,7 +968,7 @@ func TestSendHTTPRequest_ReconnectsOnSessionNotFound(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	}, nil, "", 0)
+	}, nil, "", 0, 0)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()
@@ -1029,7 +1029,7 @@ func TestSendHTTPRequest_ReconnectFailure(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	}, nil, "", 0)
+	}, nil, "", 0, 0)
 	require.NoError(t, err)
 	require.NotNil(t, conn)
 	defer conn.Close()

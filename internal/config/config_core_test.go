@@ -114,6 +114,24 @@ func TestLoadFromFile_HTTPServerValid(t *testing.T) {
 	assert.Equal(t, "http://localhost:9090/mcp", server.URL)
 }
 
+// TestLoadFromFile_HTTPServerWithConnectTimeout verifies that connect_timeout
+// is parsed from TOML and returned correctly via HTTPConnectTimeout().
+func TestLoadFromFile_HTTPServerWithConnectTimeout(t *testing.T) {
+	path := writeTempTOML(t, `
+[servers.slowservice]
+type = "http"
+url = "http://localhost:9090/mcp"
+connect_timeout = 60
+`)
+	cfg, err := LoadFromFile(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	server, ok := cfg.Servers["slowservice"]
+	require.True(t, ok)
+	assert.Equal(t, 60, server.ConnectTimeout)
+	assert.Equal(t, 60*time.Second, server.HTTPConnectTimeout())
+}
+
 // TestLoadFromFile_AppliesGatewayDefaults verifies that when no [gateway] section
 // is present, default values are applied for port, startup timeout, and tool timeout.
 func TestLoadFromFile_AppliesGatewayDefaults(t *testing.T) {
@@ -466,6 +484,48 @@ func TestHTTPKeepaliveInterval(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.gateway.HTTPKeepaliveInterval()
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+// TestHTTPConnectTimeout tests all branches of the ServerConfig.HTTPConnectTimeout method.
+func TestHTTPConnectTimeout(t *testing.T) {
+	tests := []struct {
+		name     string
+		server   *ServerConfig
+		expected time.Duration
+	}{
+		{
+			name:     "nil receiver returns default",
+			server:   nil,
+			expected: time.Duration(DefaultConnectTimeout) * time.Second,
+		},
+		{
+			name:     "zero value returns default",
+			server:   &ServerConfig{},
+			expected: time.Duration(DefaultConnectTimeout) * time.Second,
+		},
+		{
+			name:     "negative value returns default",
+			server:   &ServerConfig{ConnectTimeout: -5},
+			expected: time.Duration(DefaultConnectTimeout) * time.Second,
+		},
+		{
+			name:     "positive value returns correct duration",
+			server:   &ServerConfig{ConnectTimeout: 60},
+			expected: 60 * time.Second,
+		},
+		{
+			name:     "default value returns 30 seconds",
+			server:   &ServerConfig{ConnectTimeout: DefaultConnectTimeout},
+			expected: time.Duration(DefaultConnectTimeout) * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.server.HTTPConnectTimeout()
 			assert.Equal(t, tt.expected, got)
 		})
 	}

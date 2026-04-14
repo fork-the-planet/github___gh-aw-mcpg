@@ -43,7 +43,7 @@ func TestHTTPRequest_SessionIDHeader(t *testing.T) {
 	// Create an HTTP connection
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-auth-token",
-	}, nil, "", 0)
+	}, nil, "", 0, 0)
 	require.NoError(t, err, "Failed to create HTTP connection")
 
 	// Create a context with session ID
@@ -80,7 +80,7 @@ func TestHTTPRequest_NoSessionID(t *testing.T) {
 	// Create an HTTP connection
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-auth-token",
-	}, nil, "", 0)
+	}, nil, "", 0, 0)
 	require.NoError(t, err, "Failed to create HTTP connection")
 
 	// Send a request without session ID in context
@@ -118,7 +118,7 @@ func TestHTTPRequest_ConfiguredHeaders(t *testing.T) {
 	authToken := "configured-auth-token"
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": authToken,
-	}, nil, "", 0)
+	}, nil, "", 0, 0)
 	require.NoError(t, err, "Failed to create HTTP connection")
 
 	// Create a context with session ID
@@ -377,7 +377,7 @@ func TestHTTPRequest_ErrorResponses(t *testing.T) {
 			// Create connection with custom headers to use plain JSON transport
 			conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 				"Authorization": "test-token",
-			}, nil, "", 0)
+			}, nil, "", 0, 0)
 			if err != nil {
 				require.True(t, tt.expectError, "Unexpected error creating connection: %v", err)
 				if tt.errorSubstring != "" {
@@ -423,7 +423,7 @@ func TestConnection_IsHTTP(t *testing.T) {
 		"X-Custom":      "custom-value",
 	}
 
-	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, headers, nil, "", 0)
+	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, headers, nil, "", 0, 0)
 	require.NoError(t, err, "Failed to create HTTP connection")
 	defer conn.Close()
 
@@ -466,7 +466,7 @@ func TestHTTPConnection_InvalidURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewHTTPConnection(context.Background(), "test-server", tt.url, tt.headers, nil, "", 0)
+			_, err := NewHTTPConnection(context.Background(), "test-server", tt.url, tt.headers, nil, "", 0, 0)
 
 			if tt.expectError {
 				require.Error(t, err, "Expected an error but got none")
@@ -523,7 +523,7 @@ func TestNewHTTPConnectionStoresKeepalive(t *testing.T) {
 	headers := map[string]string{}
 	httpClient := &http.Client{}
 
-	conn := newHTTPConnection(ctx, cancel, client, nil, url, headers, httpClient, HTTPTransportStreamable, "test-server", keepAlive)
+	conn := newHTTPConnection(ctx, cancel, client, nil, url, headers, httpClient, HTTPTransportStreamable, "test-server", keepAlive, 0)
 
 	require.NotNil(t, conn)
 	assert.Equal(t, keepAlive, conn.keepAliveInterval,
@@ -610,7 +610,7 @@ func TestNewHTTPConnection(t *testing.T) {
 	headers := map[string]string{"Authorization": "test"}
 	httpClient := &http.Client{}
 
-	conn := newHTTPConnection(ctx, cancel, client, nil, url, headers, httpClient, HTTPTransportStreamable, "test-server", 0)
+	conn := newHTTPConnection(ctx, cancel, client, nil, url, headers, httpClient, HTTPTransportStreamable, "test-server", 0, 0)
 
 	require.NotNil(t, conn, "Connection should not be nil")
 	assert.Equal(t, client, conn.client, "Client should match")

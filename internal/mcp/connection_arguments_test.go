@@ -159,7 +159,7 @@ func TestCallTool_ArgumentsPassed(t *testing.T) {
 			// Create connection
 			conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 				"Authorization": "test-token",
-			}, nil, "", 0)
+			}, nil, "", 0, 0)
 			require.NoError(t, err, "Failed to create HTTP connection")
 			defer conn.Close()
 
@@ -224,7 +224,7 @@ func TestCallTool_MissingArguments(t *testing.T) {
 
 	conn, err := NewHTTPConnection(context.Background(), "test-server", testServer.URL, map[string]string{
 		"Authorization": "test-token",
-	}, nil, "", 0)
+	}, nil, "", 0, 0)
 	require.NoError(t, err)
 	defer conn.Close()
 

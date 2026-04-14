@@ -190,13 +190,13 @@ func newMCPClient(log *logger.Logger, keepAlive time.Duration) *sdk.Client {
 // newHTTPConnection creates a new HTTP Connection struct with common fields.
 // keepAlive is passed through to store on the connection so that reconnectSDKTransport
 // can re-create the SDK client with the same keepalive setting.
-func newHTTPConnection(ctx context.Context, cancel context.CancelFunc, client *sdk.Client, session *sdk.ClientSession, url string, headers map[string]string, httpClient *http.Client, transportType HTTPTransportType, serverID string, keepAlive time.Duration) *Connection {
+func newHTTPConnection(ctx context.Context, cancel context.CancelFunc, client *sdk.Client, session *sdk.ClientSession, url string, headers map[string]string, httpClient *http.Client, transportType HTTPTransportType, serverID string, keepAlive time.Duration, connectTimeout time.Duration) *Connection {
 	// Extract session ID from SDK session if available
 	var sessionID string
 	if session != nil {
 		sessionID = session.ID()
 	}
-	logHTTP.Printf("Creating HTTP connection: serverID=%s, url=%s, transport=%s, headers=%d, keepAlive=%v", serverID, url, transportType, len(headers), keepAlive)
+	logHTTP.Printf("Creating HTTP connection: serverID=%s, url=%s, transport=%s, headers=%d, keepAlive=%v, connectTimeout=%v", serverID, url, transportType, len(headers), keepAlive, connectTimeout)
 	return &Connection{
 		client:            client,
 		session:           session,
@@ -210,6 +210,7 @@ func newHTTPConnection(ctx context.Context, cancel context.CancelFunc, client *s
 		httpTransportType: transportType,
 		httpSessionID:     sessionID,
 		keepAliveInterval: keepAlive,
+		connectTimeout:    connectTimeout,
 	}
 }
 
@@ -404,6 +405,7 @@ func trySDKTransport(
 	transportName string,
 	createTransport transportConnector,
 	keepAlive time.Duration,
+	connectTimeout time.Duration,
 ) (*Connection, error) {
 	// Create MCP client with logger and optional keepalive.
 	// When keepAlive > 0, periodic pings prevent session expiry on backends
@@ -413,9 +415,8 @@ func trySDKTransport(
 	// Create transport using the provided connector
 	transport := createTransport(url, httpClient)
 
-	// Try to connect with a timeout - this will fail if the server doesn't support this transport
-	// Use a short timeout to fail fast and try other transports
-	connectCtx, connectCancel := context.WithTimeout(ctx, 5*time.Second)
+	// Try to connect with the configured timeout
+	connectCtx, connectCancel := context.WithTimeout(ctx, connectTimeout)
 	defer connectCancel()
 
 	session, err := client.Connect(connectCtx, transport, nil)
@@ -423,7 +424,7 @@ func trySDKTransport(
 		return nil, fmt.Errorf("%s transport connect failed: %w", transportName, err)
 	}
 
-	conn := newHTTPConnection(ctx, cancel, client, session, url, headers, httpClient, transportType, serverID, keepAlive)
+	conn := newHTTPConnection(ctx, cancel, client, session, url, headers, httpClient, transportType, serverID, keepAlive, connectTimeout)
 
 	logger.LogInfo("backend", "%s transport connected successfully", transportName)
 	logConn.Printf("Connected with %s transport", transportName)
@@ -431,7 +432,7 @@ func trySDKTransport(
 }
 
 // tryStreamableHTTPTransport attempts to connect using the streamable HTTP transport (2025-03-26 spec)
-func tryStreamableHTTPTransport(ctx context.Context, cancel context.CancelFunc, serverID, url string, headers map[string]string, httpClient *http.Client, keepAlive time.Duration) (*Connection, error) {
+func tryStreamableHTTPTransport(ctx context.Context, cancel context.CancelFunc, serverID, url string, headers map[string]string, httpClient *http.Client, keepAlive time.Duration, connectTimeout time.Duration) (*Connection, error) {
 	return trySDKTransport(
 		ctx, cancel, serverID, url, headers, httpClient,
 		HTTPTransportStreamable,
@@ -444,11 +445,12 @@ func tryStreamableHTTPTransport(ctx context.Context, cancel context.CancelFunc, 
 			}
 		},
 		keepAlive,
+		connectTimeout,
 	)
 }
 
 // trySSETransport attempts to connect using the SSE transport (2024-11-05 spec)
-func trySSETransport(ctx context.Context, cancel context.CancelFunc, serverID, url string, headers map[string]string, httpClient *http.Client, keepAlive time.Duration) (*Connection, error) {
+func trySSETransport(ctx context.Context, cancel context.CancelFunc, serverID, url string, headers map[string]string, httpClient *http.Client, keepAlive time.Duration, connectTimeout time.Duration) (*Connection, error) {
 	return trySDKTransport(
 		ctx, cancel, serverID, url, headers, httpClient,
 		HTTPTransportSSE,
@@ -460,6 +462,7 @@ func trySSETransport(ctx context.Context, cancel context.CancelFunc, serverID, u
 			}
 		},
 		keepAlive,
+		connectTimeout,
 	)
 }
 

@@ -87,12 +87,18 @@ func (us *UnifiedServer) registerAllTools() error {
 func (us *UnifiedServer) registerAllToolsSequential(serverIDs []string) error {
 	logUnified.Printf("Registering tools sequentially from %d backends", len(serverIDs))
 
+	var failedServers []string
 	for _, serverID := range serverIDs {
 		logUnified.Printf("Registering tools from backend: %s", serverID)
 		if err := us.registerToolsFromBackend(serverID); err != nil {
-			logger.LogWarn("backend", "Failed to register tools from %s: %v", serverID, err)
-			// Continue with other backends
+			logger.LogError("backend", "Failed to register tools from %s: %v", serverID, err)
+			failedServers = append(failedServers, serverID)
 		}
+	}
+
+	if len(failedServers) > 0 {
+		logger.LogError("backend", "Tool registration incomplete: %d of %d backends failed: %v — agents will not see tools from these servers",
+			len(failedServers), len(serverIDs), failedServers)
 	}
 
 	logUnified.Printf("Tool registration complete: total tools=%d", len(us.tools))
@@ -131,15 +137,22 @@ func (us *UnifiedServer) registerAllToolsParallel(serverIDs []string) error {
 	// Collect and log results
 	successCount := 0
 	failureCount := 0
+	var failedServers []string
 	for result := range results {
 		if result.err != nil {
-			logger.LogWarnWithServer(result.serverID, "backend", "Failed to register tools from %s (took %v): %v", result.serverID, result.duration, result.err)
+			logger.LogErrorWithServer(result.serverID, "backend", "Failed to register tools from %s (took %v): %v", result.serverID, result.duration, result.err)
 			failureCount++
+			failedServers = append(failedServers, result.serverID)
 		} else {
 			logUnified.Printf("Successfully registered tools from %s (took %v)", result.serverID, result.duration)
 			logger.LogInfoWithServer(result.serverID, "backend", "Successfully registered tools from %s (took %v)", result.serverID, result.duration)
 			successCount++
 		}
+	}
+
+	if failureCount > 0 {
+		logger.LogError("backend", "Tool registration incomplete: %d of %d backends failed: %v — agents will not see tools from these servers",
+			failureCount, len(serverIDs), failedServers)
 	}
 
 	logger.LogInfo("backend", "Tool registration complete: %d succeeded, %d failed, total tools=%d", successCount, failureCount, len(us.tools))

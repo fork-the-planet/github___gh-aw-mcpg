@@ -41,6 +41,7 @@ const (
 	DefaultStartupTimeout    = 30   // seconds (per spec §4.1.3)
 	DefaultToolTimeout       = 60   // seconds (per spec §4.1.3)
 	DefaultKeepaliveInterval = 1500 // seconds (25 minutes) — keeps HTTP backend sessions alive
+	DefaultConnectTimeout    = 30   // seconds — per-transport timeout for HTTP backend connect
 )
 
 // Config represents the internal gateway configuration.
@@ -150,6 +151,15 @@ func (c *Config) GetAPIKey() string {
 	return c.Gateway.APIKey
 }
 
+// HTTPConnectTimeout returns the per-transport connect timeout as a Duration.
+// Returns DefaultConnectTimeout when the field is zero or negative.
+func (s *ServerConfig) HTTPConnectTimeout() time.Duration {
+	if s == nil || s.ConnectTimeout <= 0 {
+		return time.Duration(DefaultConnectTimeout) * time.Second
+	}
+	return time.Duration(s.ConnectTimeout) * time.Second
+}
+
 // AuthConfig configures upstream authentication for HTTP MCP servers.
 type AuthConfig struct {
 	// Type is the authentication type. Currently only "github-oidc" is supported.
@@ -198,6 +208,12 @@ type ServerConfig struct {
 
 	// Guard is the name of the guard to use for this server (requires DIFC)
 	Guard string `toml:"guard" json:"guard,omitempty"`
+
+	// ConnectTimeout is the per-transport timeout (in seconds) for connecting to HTTP backends.
+	// The gateway tries multiple transports in sequence (streamable HTTP → SSE → plain JSON-RPC);
+	// each attempt uses this timeout. Increase this for backends that are slow to initialize.
+	// Only applies to HTTP server types. Default: 30 seconds.
+	ConnectTimeout int `toml:"connect_timeout" json:"connect_timeout,omitempty"`
 }
 
 // GuardConfig represents a guard configuration for DIFC enforcement.

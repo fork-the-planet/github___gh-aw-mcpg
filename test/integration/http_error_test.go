@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
-	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/launcher"
@@ -35,7 +35,7 @@ func TestHTTPError_ServerError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0)
+	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0, 0)
 	if err == nil {
 		conn.Close()
 		t.Fatal("Expected connection to fail due to 500 error, but it succeeded")
@@ -66,7 +66,7 @@ func TestHTTPError_ClientError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0)
+	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0, 0)
 	if err == nil {
 		conn.Close()
 		t.Fatal("Expected connection to fail due to 401 error, but it succeeded")
@@ -108,7 +108,7 @@ func TestHTTPError_ConnectionTimeout(t *testing.T) {
 	defer cancel()
 
 	startTime := time.Now()
-	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0)
+	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0, 0)
 	elapsed := time.Since(startTime)
 
 	if err == nil {
@@ -143,7 +143,7 @@ func TestHTTPError_ConnectionRefused(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conn, err := mcp.NewHTTPConnection(ctx, "test-server", "http://"+addr, nil, nil, "", 0)
+	conn, err := mcp.NewHTTPConnection(ctx, "test-server", "http://"+addr, nil, nil, "", 0, 0)
 	if err == nil {
 		conn.Close()
 		t.Fatal("Expected connection to fail due to connection refused, but it succeeded")
@@ -178,7 +178,7 @@ func TestHTTPError_DroppedConnection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0)
+	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0, 0)
 	if err == nil {
 		conn.Close()
 		t.Fatal("Expected connection to fail due to dropped connection, but it succeeded")
@@ -210,7 +210,7 @@ func TestHTTPError_FirewallBlocking(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0)
+	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0, 0)
 	if err == nil {
 		conn.Close()
 		t.Fatal("Expected connection to fail due to firewall blocking, but it succeeded")
@@ -265,10 +265,11 @@ func TestHTTPError_IntermittentFailure(t *testing.T) {
 	defer mockServer.Close()
 
 	// First connection attempt should fail (all transports fail)
+	// Use short connect timeout so transport fallback happens quickly
 	ctx1, cancel1 := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel1()
 
-	conn1, err1 := mcp.NewHTTPConnection(ctx1, "test-server", mockServer.URL, nil, nil, "", 0)
+	conn1, err1 := mcp.NewHTTPConnection(ctx1, "test-server", mockServer.URL, nil, nil, "", 0, 2*time.Second)
 	if err1 == nil {
 		conn1.Close()
 		t.Fatal("Expected first connection to fail, but it succeeded")
@@ -279,7 +280,7 @@ func TestHTTPError_IntermittentFailure(t *testing.T) {
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel2()
 
-	conn2, err2 := mcp.NewHTTPConnection(ctx2, "test-server", mockServer.URL, nil, nil, "", 0)
+	conn2, err2 := mcp.NewHTTPConnection(ctx2, "test-server", mockServer.URL, nil, nil, "", 0, 2*time.Second)
 	if err2 != nil {
 		t.Fatalf("Expected second connection to succeed, but it failed: %v (after %d requests total)", err2, requestCount)
 	}
@@ -370,7 +371,7 @@ func TestHTTPError_RequestFailure(t *testing.T) {
 
 	// Connect successfully
 	ctx := context.Background()
-	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, map[string]string{"X-Test": "test"}, nil, "", 0)
+	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, map[string]string{"X-Test": "test"}, nil, "", 0, 0)
 	require.NoError(t, err, "Connection failed")
 	defer conn.Close()
 
@@ -410,7 +411,7 @@ func TestHTTPError_MalformedResponse(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0)
+	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0, 0)
 	if err == nil {
 		conn.Close()
 		t.Fatal("Expected connection to fail due to malformed response, but it succeeded")
@@ -453,7 +454,7 @@ func TestHTTPError_NetworkPartition(t *testing.T) {
 	defer cancel()
 
 	startTime := time.Now()
-	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0)
+	conn, err := mcp.NewHTTPConnection(ctx, "test-server", mockServer.URL, nil, nil, "", 0, 0)
 	elapsed := time.Since(startTime)
 
 	if err == nil {
