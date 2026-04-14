@@ -12,8 +12,8 @@ import (
 
 // JSONLLogger manages logging RPC messages to a JSONL file (one JSON object per line)
 type JSONLLogger struct {
+	lockable
 	logFile  *os.File
-	mu       sync.Mutex
 	logDir   string
 	fileName string
 	encoder  *json.Encoder
@@ -65,12 +65,6 @@ func InitJSONLLogger(logDir, fileName string) error {
 		initGlobalLogger(&globalJSONLMu, &globalJSONLLogger, logger)
 	}
 	return err
-}
-
-// withLock acquires jl.mu, executes fn, then releases jl.mu.
-// Use this in methods that return an error to avoid repeating the lock/unlock preamble.
-func (jl *JSONLLogger) withLock(fn func() error) error {
-	return withMutexLock(&jl.mu, fn)
 }
 
 // Close closes the JSONL log file

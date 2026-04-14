@@ -11,8 +11,8 @@ import (
 
 // MarkdownLogger manages logging to a markdown file for GitHub workflow previews
 type MarkdownLogger struct {
+	lockable
 	logFile     *os.File
-	mu          sync.Mutex
 	logDir      string
 	fileName    string
 	useFallback bool
@@ -66,12 +66,6 @@ func (ml *MarkdownLogger) initializeFile() error {
 		ml.initialized = true
 	}
 	return nil
-}
-
-// withLock acquires ml.mu, executes fn, then releases ml.mu.
-// Use this in methods that return an error to avoid repeating the lock/unlock preamble.
-func (ml *MarkdownLogger) withLock(fn func() error) error {
-	return withMutexLock(&ml.mu, fn)
 }
 
 // Close closes the log file and writes the closing details tag

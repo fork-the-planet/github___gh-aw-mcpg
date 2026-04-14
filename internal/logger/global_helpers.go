@@ -16,9 +16,29 @@ package logger
 
 import "sync"
 
+// lockable provides a mutex and a withLock helper method. Embed this struct
+// in logger types that need a sync.Mutex plus a withLock convenience method
+// to eliminate the repeated per-type withLock boilerplate.
+//
+// Usage:
+//
+//	type MyLogger struct {
+//	    lockable
+//	    // other fields...
+//	}
+//
+// The embedded mu field and withLock method are promoted, so callers can write
+// myLogger.mu.Lock() and myLogger.withLock(fn) directly.
+type lockable struct {
+	mu sync.Mutex
+}
+
+// withLock acquires l.mu, executes fn, then releases l.mu.
+func (l *lockable) withLock(fn func() error) error {
+	return withMutexLock(&l.mu, fn)
+}
+
 // withMutexLock acquires mu, calls fn, and releases mu.
-// This is the single implementation of the per-type withLock pattern
-// used by FileLogger, JSONLLogger, MarkdownLogger, and ToolsLogger.
 func withMutexLock(mu *sync.Mutex, fn func() error) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -121,4 +141,23 @@ func closeGlobalLogger[T closableLogger](mu *sync.RWMutex, logger *T) error {
 		return err
 	}
 	return nil
+}
+
+// CloseAllLoggers closes all global loggers in a single call.
+// Returns the first error encountered, but attempts to close every logger.
+func CloseAllLoggers() error {
+	closers := []func() error{
+		CloseGlobalLogger,
+		CloseJSONLLogger,
+		CloseMarkdownLogger,
+		CloseToolsLogger,
+		CloseServerFileLogger,
+	}
+	var firstErr error
+	for _, fn := range closers {
+		if err := fn(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }

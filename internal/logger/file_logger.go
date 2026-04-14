@@ -10,9 +10,9 @@ import (
 
 // FileLogger manages logging to a file with fallback to stdout
 type FileLogger struct {
+	lockable
 	logFile     *os.File
 	logger      *log.Logger
-	mu          sync.Mutex
 	logDir      string
 	fileName    string
 	useFallback bool
@@ -54,12 +54,6 @@ func InitFileLogger(logDir, fileName string) error {
 	logger, err := initLogger(logDir, fileName, os.O_APPEND, setupFileLogger, handleFileLoggerError)
 	initGlobalLogger(&globalLoggerMu, &globalFileLogger, logger)
 	return err
-}
-
-// withLock acquires fl.mu, executes fn, then releases fl.mu.
-// Use this in methods that return an error to avoid repeating the lock/unlock preamble.
-func (fl *FileLogger) withLock(fn func() error) error {
-	return withMutexLock(&fl.mu, fn)
 }
 
 // Close closes the log file

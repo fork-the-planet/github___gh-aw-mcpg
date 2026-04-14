@@ -27,10 +27,10 @@ type ToolsData struct {
 
 // ToolsLogger manages logging of MCP server tools to a JSON file
 type ToolsLogger struct {
+	lockable
 	logDir      string
 	fileName    string
 	data        *ToolsData
-	mu          sync.Mutex
 	useFallback bool
 }
 
@@ -79,12 +79,6 @@ func InitToolsLogger(logDir, fileName string) error {
 	logger, err := initLogger(logDir, fileName, os.O_TRUNC, setupToolsLogger, handleToolsLoggerError)
 	initGlobalLogger(&globalToolsMu, &globalToolsLogger, logger)
 	return err
-}
-
-// withLock acquires tl.mu, executes fn, then releases tl.mu.
-// Use this in methods that return an error to avoid repeating the lock/unlock preamble.
-func (tl *ToolsLogger) withLock(fn func() error) error {
-	return withMutexLock(&tl.mu, fn)
 }
 
 // LogTools logs the tools for a specific server
