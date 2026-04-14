@@ -865,6 +865,24 @@ pub fn extract_repo_info_from_search_query(query: &str) -> (String, String, Stri
     (String::new(), String::new(), String::new())
 }
 
+/// Extract (owner, repo, repo_id) from tool_args, falling back to the
+/// `query` field's `repo:` qualifier when the explicit fields are absent.
+/// This is the canonical resolution for tools that accept either explicit
+/// owner/repo args OR a free-text search query with a `repo:` scope.
+pub(crate) fn extract_repo_scope_with_query_fallback(
+    tool_args: &Value,
+) -> (String, String, String) {
+    let (owner, repo, repo_id) = extract_repo_info(tool_args);
+    if owner.is_empty() || repo.is_empty() {
+        let query = tool_args.get("query").and_then(|v| v.as_str()).unwrap_or("");
+        let (q_owner, q_repo, q_repo_id) = extract_repo_info_from_search_query(query);
+        if !q_repo_id.is_empty() {
+            return (q_owner, q_repo, q_repo_id);
+        }
+    }
+    (owner, repo, repo_id)
+}
+
 pub(crate) fn extract_repo_from_github_url(url: &str) -> Option<String> {
     let parse_owner_repo = |path: &str| {
         let mut parts = path.split('/').filter(|segment| !segment.is_empty());

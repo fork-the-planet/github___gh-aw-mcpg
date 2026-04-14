@@ -136,17 +136,7 @@ pub fn label_response_items(
 
             if !items.is_empty() {
                 let items_to_process = limit_items_with_log(items, "list_pull_requests");
-                let (mut arg_owner, mut arg_repo, mut arg_repo_full) = extract_repo_info(tool_args);
-                // For search operations, extract repo from query when tool_args lacks owner/repo
-                if arg_owner.is_empty() || arg_repo.is_empty() {
-                    let query = tool_args.get("query").and_then(|v| v.as_str()).unwrap_or("");
-                    let (q_owner, q_repo, q_repo_id) = extract_repo_info_from_search_query(query);
-                    if !q_repo_id.is_empty() {
-                        arg_owner = q_owner;
-                        arg_repo = q_repo;
-                        arg_repo_full = q_repo_id;
-                    }
-                }
+                let (arg_owner, arg_repo, arg_repo_full) = extract_repo_scope_with_query_fallback(tool_args);
                 let default_repo_private = if !arg_owner.is_empty() && !arg_repo.is_empty() {
                     super::backend::is_repo_private(&arg_owner, &arg_repo).unwrap_or(false)
                 } else {
@@ -259,17 +249,7 @@ pub fn label_response_items(
             let items_limited = limit_items_with_log(all_items.as_slice(), "list_issues");
 
             // Get owner/repo from tool_args for contributor verification
-            let (mut arg_owner, mut arg_repo, mut default_repo_full_name) = extract_repo_info(tool_args);
-            // For search operations, extract repo from query when tool_args lacks owner/repo
-            if arg_owner.is_empty() || arg_repo.is_empty() {
-                let query = tool_args.get("query").and_then(|v| v.as_str()).unwrap_or("");
-                let (q_owner, q_repo, q_repo_id) = extract_repo_info_from_search_query(query);
-                if !q_repo_id.is_empty() {
-                    arg_owner = q_owner;
-                    arg_repo = q_repo;
-                    default_repo_full_name = q_repo_id;
-                }
-            }
+            let (arg_owner, arg_repo, default_repo_full_name) = extract_repo_scope_with_query_fallback(tool_args);
             let default_repo_private = if !arg_owner.is_empty() && !arg_repo.is_empty() {
                 super::backend::is_repo_private(&arg_owner, &arg_repo).unwrap_or(false)
             } else {
