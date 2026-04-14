@@ -21,12 +21,14 @@ type mockGuard struct {
 // mockClosableGuard is a guard that tracks whether Close was called
 type mockClosableGuard struct {
 	mockGuard
-	closed   bool
-	closeErr error
+	closed     bool
+	closeCount int
+	closeErr   error
 }
 
 func (m *mockClosableGuard) Close(ctx context.Context) error {
 	m.closed = true
+	m.closeCount++
 	return m.closeErr
 }
 
@@ -513,6 +515,17 @@ func TestGuardRegistry_Close(t *testing.T) {
 
 		assert.True(t, g1.closed, "expected failing guard Close to be called")
 		assert.True(t, g2.closed, "expected ok guard Close to be called")
+	})
+
+	t.Run("double close is safe", func(t *testing.T) {
+		registry := NewRegistry()
+		g := &mockClosableGuard{mockGuard: mockGuard{id: "wasm"}}
+		registry.Register("server1", g)
+
+		registry.Close(context.Background())
+		registry.Close(context.Background())
+
+		assert.Equal(t, 2, g.closeCount, "Close should be called twice without panic")
 	})
 }
 

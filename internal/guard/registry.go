@@ -111,19 +111,22 @@ func (r *Registry) Close(ctx context.Context) {
 		c  interface{ Close(context.Context) error }
 	}
 
-	r.mu.Lock()
+	r.mu.RLock()
 	closers := make([]closableGuard, 0, len(r.guards))
 	for id, g := range r.guards {
 		if c, ok := g.(interface{ Close(context.Context) error }); ok {
 			closers = append(closers, closableGuard{id: id, c: c})
 		}
 	}
-	r.mu.Unlock()
+	r.mu.RUnlock()
 
 	for _, guard := range closers {
 		if err := guard.c.Close(ctx); err != nil {
 			logger.LogWarn("guard", "Failed to close guard for server %s: %v", guard.id, err)
 		}
+	}
+	if len(closers) > 0 {
+		logger.LogInfo("guard", "Closed %d guard(s)", len(closers))
 	}
 }
 
