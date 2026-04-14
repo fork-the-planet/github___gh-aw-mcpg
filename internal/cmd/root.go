@@ -19,6 +19,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/server"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 	"github.com/github/gh-aw-mcpg/internal/version"
@@ -603,11 +604,7 @@ func loadEnvFile(path string) error {
 		}
 
 		// Log loaded variable (hide sensitive values)
-		displayValue := value
-		if len(value) > 0 {
-			displayValue = value[:min(10, len(value))] + "..."
-		}
-		log.Printf("  Loaded: %s=%s", key, displayValue)
+		log.Printf("  Loaded: %s=%s", key, sanitize.TruncateSecret(value))
 		loadedVars++
 	}
 
