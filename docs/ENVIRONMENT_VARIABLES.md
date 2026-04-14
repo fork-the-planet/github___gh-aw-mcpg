@@ -51,6 +51,19 @@ When using `run_containerized.sh`, these additional variables are available:
 | `DOCKER_HOST` | Docker daemon socket path | `/var/run/docker.sock` |
 | `DOCKER_API_VERSION` | Docker API version (set by helper scripts, Docker client auto-negotiates) | Set by querying Docker daemon's current API version; falls back to `1.44` if detection fails |
 
+## GitHub Authentication
+
+These variables provide a GitHub token used by the proxy command (`awmg proxy`) **and** by the unified gateway mode (`/mcp`) for collaborator permission checks. The first non-empty value wins, checked in the priority order shown:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GITHUB_MCP_SERVER_TOKEN` | Highest-priority GitHub auth token. Useful when running alongside the raw GitHub MCP server which also reads this variable. | (optional) |
+| `GITHUB_TOKEN` | Standard GitHub token (set automatically in GitHub Actions) | (optional) |
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | Personal access token | (optional) |
+| `GH_TOKEN` | Lowest-priority fallback (set by GitHub CLI) | (optional) |
+
+> **Note:** At least one of these must be set for proxy mode upstream authentication and for the unified gateway's `get_collaborator_permission` checks. See `internal/envutil/github.go` for the lookup implementation.
+
 ## Proxy Mode Variables
 
 When running `awmg proxy`, these variables configure the upstream GitHub API:
@@ -59,7 +72,6 @@ When running `awmg proxy`, these variables configure the upstream GitHub API:
 |----------|-------------|---------|
 | `GITHUB_API_URL` | Explicit GitHub API endpoint (e.g., `https://copilot-api.mycompany.ghe.com`); used by proxy to set upstream target | (auto-derived) |
 | `GITHUB_SERVER_URL` | GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `copilot-api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com` | (falls back to `api.github.com`) |
-| `GH_TOKEN` / `GITHUB_TOKEN` / `GITHUB_PERSONAL_ACCESS_TOKEN` | GitHub auth token for the proxy to forward requests (checked in priority order) | (required for upstream auth) |
 
 ## GitHub Actions OIDC Variables
 
