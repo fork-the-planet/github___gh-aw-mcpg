@@ -106,13 +106,23 @@ func (r *Registry) GetGuardInfo() map[string]string {
 // Close closes all registered guards that implement Close(context.Context) error.
 // It should be called during server shutdown to release WASM runtime resources.
 func (r *Registry) Close(ctx context.Context) {
+	type closableGuard struct {
+		id string
+		c  interface{ Close(context.Context) error }
+	}
+
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	closers := make([]closableGuard, 0, len(r.guards))
 	for id, g := range r.guards {
 		if c, ok := g.(interface{ Close(context.Context) error }); ok {
-			if err := c.Close(ctx); err != nil {
-				logger.LogWarn("guard", "Failed to close guard for server %s: %v", id, err)
-			}
+			closers = append(closers, closableGuard{id: id, c: c})
+		}
+	}
+	r.mu.Unlock()
+
+	for _, guard := range closers {
+		if err := guard.c.Close(ctx); err != nil {
+			logger.LogWarn("guard", "Failed to close guard for server %s: %v", guard.id, err)
 		}
 	}
 }
