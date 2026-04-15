@@ -417,6 +417,16 @@ func (c *Connection) callSDKMethodWithReconnect(method string, params interface{
 	return result, err
 }
 
+// logOutboundRPCRequest logs an outbound RPC request, optionally attaching agent DIFC tag snapshots.
+// When shouldAttachTags is true, snapshot must be non-nil.
+func logOutboundRPCRequest(serverID string, method string, payload []byte, shouldAttachTags bool, snapshot *AgentTagsSnapshot) {
+	if shouldAttachTags {
+		logger.LogRPCRequestWithAgentSnapshot(logger.RPCDirectionOutbound, serverID, method, payload, snapshot.Secrecy, snapshot.Integrity)
+	} else {
+		logger.LogRPCRequest(logger.RPCDirectionOutbound, serverID, method, payload)
+	}
+}
+
 // logInboundRPCResponse logs an inbound RPC response, optionally attaching agent DIFC tag snapshots.
 // When shouldAttachTags is true, snapshot must be non-nil.
 func logInboundRPCResponse(serverID string, payload []byte, err error, shouldAttachTags bool, snapshot *AgentTagsSnapshot) {
@@ -445,11 +455,7 @@ func (c *Connection) SendRequestWithServerID(ctx context.Context, method string,
 		"method":  method,
 		"params":  params,
 	})
-	if shouldAttachAgentTags {
-		logger.LogRPCRequestWithAgentSnapshot(logger.RPCDirectionOutbound, serverID, method, requestPayload, snapshot.Secrecy, snapshot.Integrity)
-	} else {
-		logger.LogRPCRequest(logger.RPCDirectionOutbound, serverID, method, requestPayload)
-	}
+	logOutboundRPCRequest(serverID, method, requestPayload, shouldAttachAgentTags, snapshot)
 
 	var result *Response
 	var err error
