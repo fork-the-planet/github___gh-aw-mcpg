@@ -433,3 +433,132 @@ func TestExtractRateLimitErrorText(t *testing.T) {
 		assert.Equal(t, "rate limit exceeded", extractRateLimitErrorText(result))
 	})
 }
+
+// TestCircuitBreakerState_String verifies the string representation of each circuit breaker state.
+func TestCircuitBreakerState_String(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		state circuitBreakerState
+		want  string
+	}{
+		{circuitClosed, "CLOSED"},
+		{circuitOpen, "OPEN"},
+		{circuitHalfOpen, "HALF-OPEN"},
+		{circuitBreakerState(99), "UNKNOWN"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, tt.state.String())
+		})
+	}
+}
+
+// TestFormatResetAt verifies the formatResetAt helper function.
+func TestFormatResetAt(t *testing.T) {
+	t.Parallel()
+
+	t.Run("zero time returns 'unknown'", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, "unknown", formatResetAt(time.Time{}))
+	})
+
+	t.Run("non-zero time includes RFC3339 timestamp and duration hint", func(t *testing.T) {
+		t.Parallel()
+		resetTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+		result := formatResetAt(resetTime)
+		assert.Contains(t, result, "2026-01-01T12:00:00Z", "should contain RFC3339-formatted time")
+		assert.Contains(t, result, "in ", "should contain duration hint")
+	})
+}
+
+// TestIsRateLimitText_Direct directly verifies isRateLimitText with each pattern and edge cases.
+func TestIsRateLimitText_Direct(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		text string
+		want bool
+	}{
+		{
+			name: "rate limit exceeded",
+			text: "403 API rate limit exceeded",
+			want: true,
+		},
+		{
+			name: "rate limit combined with 403 status",
+			text: "error: rate limit triggered, status 403",
+			want: true,
+		},
+		{
+			name: "api rate limit phrase",
+			text: "api rate limit reached",
+			want: true,
+		},
+		{
+			name: "secondary rate limit phrase",
+			text: "secondary rate limit triggered",
+			want: true,
+		},
+		{
+			name: "too many requests phrase",
+			text: "too many requests, please slow down",
+			want: true,
+		},
+		{
+			name: "case insensitive match",
+			text: "RATE LIMIT EXCEEDED",
+			want: true,
+		},
+		{
+			name: "rate limit phrase without 403 or qualifier",
+			text: "rate limit information page",
+			want: false,
+		},
+		{
+			name: "unrelated error",
+			text: "repository not found",
+			want: false,
+		},
+		{
+			name: "empty string",
+			text: "",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, isRateLimitText(tt.text))
+		})
+	}
+}
+
+// TestCircuitBreaker_RecordRateLimitWhenAlreadyOpen verifies that calling RecordRateLimit
+// on an already-OPEN circuit keeps it OPEN and updates the reset time.
+func TestCircuitBreaker_RecordRateLimitWhenAlreadyOpen(t *testing.T) {
+	t.Parallel()
+
+	fakeNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cb := newCircuitBreaker("test", 1, time.Hour)
+	cb.nowFunc = func() time.Time { return fakeNow }
+
+	initialReset := fakeNow.Add(30 * time.Second)
+	cb.RecordRateLimit(initialReset)
+	require.Equal(t, circuitOpen, cb.State(), "should be OPEN after threshold errors")
+
+	// Record another rate limit while already OPEN with a later reset time.
+	laterReset := fakeNow.Add(90 * time.Second)
+	cb.RecordRateLimit(laterReset)
+	assert.Equal(t, circuitOpen, cb.State(), "should remain OPEN")
+
+	// The reset time should be updated to the later value.
+	cb.mu.Lock()
+	gotReset := cb.resetAt
+	cb.mu.Unlock()
+	assert.Equal(t, laterReset, gotReset, "resetAt should be updated to the later reset time")
+}
