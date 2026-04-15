@@ -105,16 +105,16 @@ Local usage:
 	cmd.Flags().StringVar(&proxyPolicy, "policy", os.Getenv("MCP_GATEWAY_GUARD_POLICY_JSON"), "Guard policy JSON")
 	cmd.Flags().StringVar(&proxyToken, "github-token", "", "Fallback GitHub API token (default: forwards client Authorization header)")
 	cmd.Flags().StringVarP(&proxyListen, "listen", "l", "127.0.0.1:8080", "Proxy listen address")
-	cmd.Flags().StringVar(&proxyLogDir, "log-dir", getDefaultLogDir(), "Log file directory")
+	cmd.Flags().StringVar(&proxyLogDir, "log-dir", envutil.GetEnvString("MCP_GATEWAY_LOG_DIR", config.DefaultLogDir), "Log file directory")
 	cmd.Flags().StringVar(&proxyDIFCMode, "guards-mode", "filter", "DIFC enforcement mode: strict, filter, propagate")
 	cmd.Flags().StringVar(&proxyAPIURL, "github-api-url", "", "Upstream GitHub API URL (default: auto-derived from GITHUB_API_URL or GITHUB_SERVER_URL, falls back to https://api.github.com)")
 	cmd.Flags().BoolVar(&proxyTLS, "tls", false, "Enable HTTPS with auto-generated self-signed certificates")
 	cmd.Flags().StringVar(&proxyTLSDir, "tls-dir", "", "Directory for TLS certificates (default: <log-dir>/proxy-tls)")
 	cmd.Flags().StringSliceVar(&proxyTrustedBots, "trusted-bots", nil, "Additional trusted bot usernames (comma-separated, extends built-in list)")
 	cmd.Flags().StringSliceVar(&proxyTrustedUsers, "trusted-users", nil, "User logins that receive approved integrity (comma-separated)")
-	cmd.Flags().StringVar(&proxyOTLPEndpoint, "otlp-endpoint", getDefaultOTLPEndpoint(),
+	cmd.Flags().StringVar(&proxyOTLPEndpoint, "otlp-endpoint", envutil.GetEnvString("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
 		"OTLP HTTP endpoint for trace export (e.g. http://localhost:4318). Tracing is disabled when empty.")
-	cmd.Flags().StringVar(&proxyOTLPService, "otlp-service-name", getDefaultOTLPServiceName(),
+	cmd.Flags().StringVar(&proxyOTLPService, "otlp-service-name", envutil.GetEnvString("OTEL_SERVICE_NAME", config.DefaultTracingServiceName),
 		"Service name reported in traces.")
 	cmd.Flags().Float64Var(&proxyOTLPSampleRate, "otlp-sample-rate", config.DefaultTracingSampleRate,
 		"Fraction of traces to sample and export (0.0–1.0).")

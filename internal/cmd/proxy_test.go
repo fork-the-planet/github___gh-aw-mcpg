@@ -324,7 +324,7 @@ func TestNewProxyCmd_TrustedBotsAndUsersDefaultNil(t *testing.T) {
 	assert.Empty(t, users, "--trusted-users should default to empty/nil")
 }
 
-// TestNewProxyCmd_LogDirDefault verifies --log-dir uses getDefaultLogDir() as default.
+// TestNewProxyCmd_LogDirDefault verifies --log-dir uses the default log directory.
 func TestNewProxyCmd_LogDirDefault(t *testing.T) {
 	t.Setenv("MCP_GATEWAY_LOG_DIR", "")
 
@@ -333,8 +333,8 @@ func TestNewProxyCmd_LogDirDefault(t *testing.T) {
 
 	val, err := cmd.Flags().GetString("log-dir")
 	require.NoError(t, err)
-	assert.Equal(t, getDefaultLogDir(), val,
-		"--log-dir should use getDefaultLogDir() as its default value")
+	assert.Equal(t, config.DefaultLogDir, val,
+		"--log-dir should default to config.DefaultLogDir when MCP_GATEWAY_LOG_DIR is unset")
 }
 
 // TestNewProxyCmd_ListenFlag verifies --listen, -l shorthand and default value.

@@ -18,6 +18,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/server"
@@ -241,11 +242,11 @@ func run(cmd *cobra.Command, args []string) error {
 		cfg.Gateway.PayloadDir = payloadDir
 	}
 
-	// Apply payload path prefix flag (if different from default, it was explicitly set)
+	// Apply payload path prefix: CLI flag takes priority, then env-derived non-empty value.
 	if cmd.Flags().Changed("payload-path-prefix") {
 		cfg.Gateway.PayloadPathPrefix = payloadPathPrefix
-	} else if payloadPathPrefix != "" && payloadPathPrefix != defaultPayloadPathPrefix {
-		// Environment variable was set
+	} else if payloadPathPrefix != "" {
+		// envutil.GetEnvString returned a non-empty value from MCP_GATEWAY_PAYLOAD_PATH_PREFIX
 		cfg.Gateway.PayloadPathPrefix = payloadPathPrefix
 	}
 
@@ -447,7 +448,7 @@ func resolveGuardPolicyOverride(cmd *cobra.Command) (*config.GuardPolicy, string
 
 	if hasScopePublic || hasScopeOwner || hasScopeRepo || hasMinIntegrity {
 		policy, err := config.BuildAllowOnlyPolicy(
-			getDefaultAllowOnlyScopePublic(),
+			envutil.GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false),
 			os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER"),
 			os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO"),
 			os.Getenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY"),
