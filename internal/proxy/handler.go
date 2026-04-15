@@ -447,7 +447,7 @@ func injectRetryAfterIfRateLimited(w http.ResponseWriter, resp *http.Response) {
 		return
 	}
 
-	resetAt := parseRateLimitReset(resetHeader)
+	resetAt := httputil.ParseRateLimitResetHeader(resetHeader)
 	retryAfter := computeRetryAfter(resetAt)
 
 	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
@@ -455,19 +455,6 @@ func injectRetryAfterIfRateLimited(w http.ResponseWriter, resp *http.Response) {
 	logger.LogError("client",
 		"upstream rate limit hit: status=%d X-Ratelimit-Remaining=%s X-Ratelimit-Reset=%s retry-after=%ds",
 		resp.StatusCode, remaining, resetHeader, retryAfter)
-}
-
-// parseRateLimitReset parses the X-RateLimit-Reset Unix-timestamp header.
-// Returns zero time when absent or malformed.
-func parseRateLimitReset(value string) time.Time {
-	if value == "" {
-		return time.Time{}
-	}
-	unix, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		return time.Time{}
-	}
-	return time.Unix(unix, 0)
 }
 
 // computeRetryAfter returns the number of seconds to wait before retrying.

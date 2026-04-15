@@ -1,7 +1,6 @@
 package server
 
 import (
-	"strconv"
 	"testing"
 	"time"
 
@@ -347,58 +346,6 @@ func TestParseRateLimitResetFromText(t *testing.T) {
 			} else {
 				assert.False(t, got.IsZero(), "expected non-zero time")
 				assert.True(t, got.After(time.Now()), "expected future time")
-			}
-		})
-	}
-}
-
-// TestParseRateLimitResetHeader verifies the Unix-timestamp header parsing.
-func TestParseRateLimitResetHeader(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	future := now.Add(60 * time.Second)
-
-	tests := []struct {
-		name     string
-		value    string
-		wantZero bool
-		wantTime time.Time
-	}{
-		{
-			name:     "empty",
-			value:    "",
-			wantZero: true,
-		},
-		{
-			name:     "invalid",
-			value:    "not-a-number",
-			wantZero: true,
-		},
-		{
-			name:     "valid unix timestamp",
-			value:    "1000000000",
-			wantZero: false,
-			wantTime: time.Unix(1000000000, 0),
-		},
-		{
-			name:     "future timestamp",
-			value:    strconv.FormatInt(future.Unix(), 10),
-			wantZero: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := parseRateLimitResetHeader(tt.value)
-			if tt.wantZero {
-				assert.True(t, got.IsZero(), "expected zero time")
-			} else {
-				assert.False(t, got.IsZero(), "expected non-zero time")
-				if !tt.wantTime.IsZero() {
-					assert.Equal(t, tt.wantTime.Unix(), got.Unix())
-				}
 			}
 		})
 	}

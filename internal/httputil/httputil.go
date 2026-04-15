@@ -5,6 +5,9 @@ package httputil
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // WriteJSONResponse sets the Content-Type header, writes the status code, and encodes
@@ -17,4 +20,18 @@ func WriteJSONResponse(w http.ResponseWriter, statusCode int, body interface{}) 
 		return
 	}
 	w.Write(data)
+}
+
+// ParseRateLimitResetHeader parses the Unix-timestamp value of the
+// X-RateLimit-Reset HTTP header into a time.Time.
+// Returns zero time when the header value is absent or malformed.
+func ParseRateLimitResetHeader(value string) time.Time {
+	if value == "" {
+		return time.Time{}
+	}
+	unix, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+	if err != nil {
+		return time.Time{}
+	}
+	return time.Unix(unix, 0)
 }

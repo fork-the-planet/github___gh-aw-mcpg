@@ -190,24 +190,19 @@ func extractOwnerRepo(variables map[string]interface{}, query string) (string, s
 // searchQueryArgPattern extracts the literal query string from search(query:"...", ...)
 var searchQueryArgPattern = regexp.MustCompile(`(?i)\bsearch\s*\(\s*query\s*:\s*"([^"]+)"`)
 
-// truncateForLog truncates s to at most maxRunes runes, for safe debug logging.
-func truncateForLog(s string, maxRunes int) string {
-	return strutil.TruncateRunes(s, maxRunes)
-}
-
 // extractSearchQuery returns the search query argument from a GraphQL search
 // query. It checks variables ($query) first, then inline query text.
 func extractSearchQuery(query string, variables map[string]interface{}) string {
 	// Check variables for $query
 	if variables != nil {
 		if v, ok := variables["query"].(string); ok && v != "" {
-			logGraphQL.Printf("extractSearchQuery: found in variables: %q", truncateForLog(v, 80))
+			logGraphQL.Printf("extractSearchQuery: found in variables: %q", strutil.TruncateRunes(v, 80))
 			return v
 		}
 	}
 	// Parse inline: search(query:"repo:owner/name is:issue", ...)
 	if m := searchQueryArgPattern.FindStringSubmatch(query); m != nil {
-		logGraphQL.Printf("extractSearchQuery: found inline: %q", truncateForLog(m[1], 80))
+		logGraphQL.Printf("extractSearchQuery: found inline: %q", strutil.TruncateRunes(m[1], 80))
 		return m[1]
 	}
 	logGraphQL.Print("extractSearchQuery: no search query found")

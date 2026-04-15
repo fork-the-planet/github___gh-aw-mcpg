@@ -85,29 +85,6 @@ func TestInjectRetryAfterIfRateLimited(t *testing.T) {
 	})
 }
 
-// TestParseRateLimitReset verifies the Unix-timestamp header parser.
-func TestParseRateLimitReset(t *testing.T) {
-	t.Parallel()
-
-	t.Run("empty string returns zero", func(t *testing.T) {
-		t.Parallel()
-		assert.True(t, parseRateLimitReset("").IsZero())
-	})
-
-	t.Run("invalid string returns zero", func(t *testing.T) {
-		t.Parallel()
-		assert.True(t, parseRateLimitReset("not-a-number").IsZero())
-	})
-
-	t.Run("valid unix timestamp parses correctly", func(t *testing.T) {
-		t.Parallel()
-		ts := time.Now().Add(60 * time.Second)
-		got := parseRateLimitReset(strconv.FormatInt(ts.Unix(), 10))
-		assert.False(t, got.IsZero())
-		assert.Equal(t, ts.Unix(), got.Unix())
-	})
-}
-
 // TestComputeRetryAfter verifies the retry-after calculation.
 func TestComputeRetryAfter(t *testing.T) {
 	t.Parallel()

@@ -315,17 +315,3 @@ func parseRateLimitResetFromText(text string) time.Time {
 	}
 	return time.Now().Add(time.Duration(secs) * time.Second)
 }
-
-// parseRateLimitResetHeader parses the Unix-timestamp value of the
-// X-RateLimit-Reset HTTP header into a time.Time.
-// Returns zero time when the header is absent or malformed.
-func parseRateLimitResetHeader(value string) time.Time {
-	if value == "" {
-		return time.Time{}
-	}
-	unix, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
-	if err != nil {
-		return time.Time{}
-	}
-	return time.Unix(unix, 0)
-}

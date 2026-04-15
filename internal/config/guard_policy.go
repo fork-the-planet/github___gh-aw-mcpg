@@ -777,18 +777,6 @@ func ParseGuardPolicyJSON(policyJSON string) (*GuardPolicy, error) {
 	return policy, nil
 }
 
-func validateGuardPolicies(cfg *Config) error {
-	logGuardPolicy.Printf("Validating guard policies: count=%d", len(cfg.Guards))
-	for name, guardCfg := range cfg.Guards {
-		if guardCfg != nil && guardCfg.Policy != nil {
-			if err := ValidateGuardPolicy(guardCfg.Policy); err != nil {
-				return fmt.Errorf("invalid policy for guard '%s': %w", name, err)
-			}
-		}
-	}
-	return nil
-}
-
 // NormalizeScopeKind returns a copy of the policy map with the scope_kind field
 // normalized to lowercase trimmed string form. Other fields are preserved as-is.
 func NormalizeScopeKind(policy map[string]interface{}) map[string]interface{} {

@@ -634,3 +634,17 @@ func validateOpenTelemetryConfig(cfg *TracingConfig, enforceHTTPS bool) error {
 	logValidation.Print("OpenTelemetry config validation passed")
 	return nil
 }
+
+// validateGuardPolicies validates all per-server guard policies in the config.
+// It iterates over cfg.Guards and calls ValidateGuardPolicy for each non-nil policy.
+func validateGuardPolicies(cfg *Config) error {
+	logValidation.Printf("Validating guard policies: count=%d", len(cfg.Guards))
+	for name, guardCfg := range cfg.Guards {
+		if guardCfg != nil && guardCfg.Policy != nil {
+			if err := ValidateGuardPolicy(guardCfg.Policy); err != nil {
+				return fmt.Errorf("invalid policy for guard '%s': %w", name, err)
+			}
+		}
+	}
+	return nil
+}
