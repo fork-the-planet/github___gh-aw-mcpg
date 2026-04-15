@@ -5053,4 +5053,97 @@ mod tests {
             helpers::blocked_integrity(repo, &ctx)
         );
     }
+
+    // === elevate_via_collaborator_permission tests ===
+
+    #[test]
+    fn test_elevate_via_collab_permission_skips_when_already_writer() {
+        let ctx = default_ctx();
+        let repo = "github/copilot";
+        let writer = writer_integrity(repo, &ctx);
+        let result = helpers::elevate_via_collaborator_permission(
+            "someuser", repo, "issue", "github/copilot#1",
+            writer.clone(), &ctx,
+        );
+        assert_eq!(result, writer, "should return unchanged when already at writer level");
+    }
+
+    #[test]
+    fn test_elevate_via_collab_permission_skips_when_merged() {
+        let ctx = default_ctx();
+        let repo = "github/copilot";
+        let merged = merged_integrity(repo, &ctx);
+        let result = helpers::elevate_via_collaborator_permission(
+            "someuser", repo, "issue", "github/copilot#1",
+            merged.clone(), &ctx,
+        );
+        assert_eq!(result, merged, "should return unchanged when already at merged level");
+    }
+
+    #[test]
+    fn test_elevate_via_collab_permission_skips_empty_login() {
+        let ctx = default_ctx();
+        let repo = "github/copilot";
+        let none = none_integrity(repo, &ctx);
+        let result = helpers::elevate_via_collaborator_permission(
+            "", repo, "issue", "github/copilot#1",
+            none.clone(), &ctx,
+        );
+        assert_eq!(result, none, "should return unchanged when author_login is empty");
+    }
+
+    #[test]
+    fn test_elevate_via_collab_permission_skips_invalid_repo() {
+        let ctx = default_ctx();
+        let none = none_integrity("invalid", &ctx);
+        let result = helpers::elevate_via_collaborator_permission(
+            "someuser", "invalid", "issue", "invalid#1",
+            none.clone(), &ctx,
+        );
+        assert_eq!(result, none, "should return unchanged for invalid repo format");
+    }
+
+    #[test]
+    fn test_elevate_via_collab_permission_skips_empty_owner_or_repo() {
+        let ctx = default_ctx();
+        let none = none_integrity("/repo", &ctx);
+        let result = helpers::elevate_via_collaborator_permission(
+            "someuser", "/repo", "issue", "/repo#1",
+            none.clone(), &ctx,
+        );
+        assert_eq!(result, none, "should return unchanged for empty owner");
+
+        let none2 = none_integrity("owner/", &ctx);
+        let result2 = helpers::elevate_via_collaborator_permission(
+            "someuser", "owner/", "issue", "owner/#1",
+            none2.clone(), &ctx,
+        );
+        assert_eq!(result2, none2, "should return unchanged for empty repo");
+    }
+
+    #[test]
+    fn test_elevate_via_collab_permission_no_elevation_non_org_repo() {
+        // In test mode, is_repo_org_owned returns None (no cache) → unwrap_or(false)
+        // so the function should return integrity unchanged
+        let ctx = default_ctx();
+        let repo = "github/copilot";
+        let none = none_integrity(repo, &ctx);
+        let result = helpers::elevate_via_collaborator_permission(
+            "dsyme", repo, "issue", "github/copilot#42",
+            none.clone(), &ctx,
+        );
+        assert_eq!(result, none, "should return unchanged when repo is not org-owned (cache miss → false)");
+    }
+
+    #[test]
+    fn test_elevate_via_collab_permission_preserves_reader_integrity() {
+        let ctx = default_ctx();
+        let repo = "github/copilot";
+        let reader = reader_integrity(repo, &ctx);
+        let result = helpers::elevate_via_collaborator_permission(
+            "contributor", repo, "pr", "github/copilot#10",
+            reader.clone(), &ctx,
+        );
+        assert_eq!(result, reader, "should preserve reader integrity when no org lookup available");
+    }
 }

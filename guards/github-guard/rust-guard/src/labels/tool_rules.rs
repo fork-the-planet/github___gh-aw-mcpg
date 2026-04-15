@@ -7,7 +7,8 @@ use serde_json::Value;
 
 use super::constants::{field_names, SENSITIVE_FILE_KEYWORDS, SENSITIVE_FILE_PATTERNS};
 use super::helpers::{
-    author_association_floor_from_str, collaborator_permission_floor, ensure_integrity_baseline,
+    author_association_floor_from_str,
+    elevate_via_collaborator_permission, ensure_integrity_baseline,
     extract_number_as_string, extract_repo_info, extract_repo_info_from_search_query,
     format_repo_id, is_configured_trusted_bot, is_default_branch_commit_context,
     is_default_branch_ref, is_trusted_first_party_bot, is_trusted_user, max_integrity,
@@ -100,35 +101,10 @@ fn resolve_author_integrity(
         {
             floor = max_integrity(repo_id, floor, writer_integrity(repo_id, ctx), ctx);
         }
-        if floor.len() < 3 {
-            let is_org = super::backend::is_repo_org_owned(owner, repo).unwrap_or(false);
-            if is_org {
-                crate::log_info(&format!(
-                    "{} {}/{}#{}: author_association floor insufficient (len={}), checking collaborator permission for {}",
-                    resource_label, owner, repo, resource_num, floor.len(), login
-                ));
-                if let Some(collab) =
-                    super::backend::get_collaborator_permission(owner, repo, login)
-                {
-                    let perm_floor = collaborator_permission_floor(
-                        repo_id,
-                        collab.permission.as_deref(),
-                        ctx,
-                    );
-                    let merged = max_integrity(repo_id, floor, perm_floor, ctx);
-                    crate::log_info(&format!(
-                        "{} {}/{}#{}: collaborator permission={:?} → merged floor len={}",
-                        resource_label, owner, repo, resource_num, collab.permission, merged.len()
-                    ));
-                    floor = merged;
-                } else {
-                    crate::log_info(&format!(
-                        "{} {}/{}#{}: collaborator permission lookup returned None for {}, keeping author_association floor",
-                        resource_label, owner, repo, resource_num, login
-                    ));
-                }
-            }
-        }
+        let resource_id = format!("{}/{}#{}", owner, repo, resource_num);
+        floor = elevate_via_collaborator_permission(
+            login, repo_id, resource_label, &resource_id, floor, ctx,
+        );
     }
 
     max_integrity(repo_id, base_integrity, floor, ctx)
