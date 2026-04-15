@@ -172,7 +172,7 @@ Run `./awmg --help` for full CLI options. Key flags:
   - Enables per-server DIFC guard assignment independent of `guard-policies`
   - Example: `guard = "github"` (uses the guard named `github` from `[guards.github]`)
 
-- **`connect_timeout`** (optional, HTTP servers only): Per-transport connection timeout in seconds for connecting to HTTP backends. The gateway tries streamable HTTP then SSE transports in sequence; this timeout applies to each attempt. Default: `30`.
+- **`connect_timeout`** (optional, HTTP servers only): Per-transport connection timeout in seconds for connecting to HTTP backends. The gateway tries streamable HTTP, then SSE, then plain JSON-RPC over HTTP POST in sequence; this timeout applies to each attempt. Default: `30`.
 
 - **`rate_limit_threshold`** (optional, TOML/JSON file configs only): Number of consecutive rate-limit errors from this backend that will trip the circuit breaker (transition CLOSED → OPEN). When OPEN, requests are immediately rejected until the breaker is eligible to transition to HALF-OPEN again; this is normally controlled by `rate_limit_cooldown`, but if the gateway knows an upstream rate-limit reset time (for example from response headers or parsed tool error text), that reset time takes precedence. **Not available in JSON stdin format.** Default: `3`.
 
