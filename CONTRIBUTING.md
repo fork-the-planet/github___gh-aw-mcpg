@@ -107,6 +107,13 @@ make test-container-proxy
 
 This target builds a Docker image and tests proxy mode with TLS. It requires a GitHub token available via the `gh` CLI (`gh auth login`) or the `GITHUB_TOKEN`/`GH_TOKEN` environment variable.
 
+#### Race Detection Tests
+Run unit tests with Go's race detector to catch concurrent data races:
+```bash
+make test-race
+```
+The MCP Gateway is a concurrent server; use this to validate thread safety when modifying concurrent code.
+
 ### Linting
 
 Run all linters (go vet, gofmt check, and golangci-lint):
