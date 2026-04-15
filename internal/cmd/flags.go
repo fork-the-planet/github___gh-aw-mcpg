@@ -17,41 +17,21 @@
 //		})
 //	}
 //
-// # getDefault*() Flag Helper Pattern
+// # Flag Defaults with Environment Variable Overrides
 //
-// Each flag whose default value can be overridden by an environment variable has a
-// corresponding getDefault*() helper function that follows this pattern:
+// Flags whose defaults can be overridden by an environment variable use inline
+// envutil.GetEnv* calls directly in the RegisterFlag block:
 //
-//	func getDefaultXxx() T {
-//	    return envutil.GetEnvT("MCP_GATEWAY_XXX", defaultXxx)
-//	}
+//	cmd.Flags().StringVar(&myDir, "my-dir", envutil.GetEnvString("MY_DIR_ENV", config.DefaultMyDir), "...")
 //
-// Current helpers and their environment variables:
+// This keeps the env-var name co-located with the flag declaration.
 //
-//	flags_logging.go  getDefaultLogDir()                → MCP_GATEWAY_LOG_DIR
-//	flags_logging.go  getDefaultPayloadDir()             → MCP_GATEWAY_PAYLOAD_DIR
-//	flags_logging.go  getDefaultPayloadPathPrefix()      → MCP_GATEWAY_PAYLOAD_PATH_PREFIX
-//	flags_logging.go  getDefaultPayloadSizeThreshold()   → MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD
-//	flags_difc.go     getDefaultDIFCMode()               → MCP_GATEWAY_GUARDS_MODE
-//	flags_difc.go     getDefaultDIFCSinkServerIDs()      → MCP_GATEWAY_GUARDS_SINK_SERVER_IDS
-//	flags_difc.go     getDefaultGuardPolicyJSON()        → MCP_GATEWAY_GUARD_POLICY_JSON
-//	flags_difc.go     getDefaultAllowOnlyScopePublic()   → MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC
-//	flags_difc.go     getDefaultAllowOnlyOwner()         → MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER
-//	flags_difc.go     getDefaultAllowOnlyRepo()          → MCP_GATEWAY_ALLOWONLY_SCOPE_REPO
-//	flags_difc.go     getDefaultAllowOnlyMinIntegrity()  → MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY
-//	flags_tracing.go  getDefaultOTLPEndpoint()           → OTEL_EXPORTER_OTLP_ENDPOINT
-//	flags_tracing.go  getDefaultOTLPServiceName()        → OTEL_SERVICE_NAME
-//
-// This pattern is intentionally kept in individual feature files because:
-//   - Each helper names the specific environment variable it reads, making the
-//     coupling between flag and env var explicit and discoverable.
-//   - The one-liner wrappers are trivial and unlikely to diverge.
-//   - Go's type system (string/int/bool) prevents a single generic helper without
-//     sacrificing readability.
+// Exception: getDefaultDIFCMode() in flags_difc.go is kept as a named helper
+// because it contains validation logic beyond a simple env lookup.
 //
 // When adding a new flag with an environment variable override:
-//  1. Add a defaultXxx constant and a getDefaultXxx() function in the feature file.
-//  2. Add the new helper to the table above.
+//  1. Use envutil.GetEnv* directly in the RegisterFlag call.
+//  2. Document the environment variable in AGENTS.md and README.md.
 package cmd
 
 import "github.com/spf13/cobra"

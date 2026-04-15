@@ -147,46 +147,6 @@ func TestValidDIFCModes(t *testing.T) {
 	require.Len(difc.ValidModes, 3, "should only have 3 valid modes")
 }
 
-func TestGetDefaultDIFCSinkServerIDs(t *testing.T) {
-	tests := []struct {
-		name     string
-		envValue string
-		setEnv   bool
-		expected string
-	}{
-		{
-			name:     "no env var - returns empty string",
-			setEnv:   false,
-			expected: "",
-		},
-		{
-			name:     "env var set - returns value",
-			envValue: "safeoutputs,github",
-			setEnv:   true,
-			expected: "safeoutputs,github",
-		},
-		{
-			name:     "empty env var - returns empty string",
-			envValue: "",
-			setEnv:   true,
-			expected: "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.setEnv {
-				t.Setenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", tt.envValue)
-			} else {
-				t.Setenv("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", "")
-			}
-
-			result := getDefaultDIFCSinkServerIDs()
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestParseDIFCSinkServerIDs(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -269,18 +229,4 @@ func TestBuildAllowOnlyPolicy(t *testing.T) {
 		_, err := config.BuildAllowOnlyPolicy(true, "", "", "")
 		require.Error(t, err)
 	})
-}
-
-func TestGetDefaultGuardPolicyInputs(t *testing.T) {
-	t.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", `{"allow-only":{"repos":"public","min-integrity":"none"}}`)
-	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "1")
-	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER", "lpcox")
-	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", "gh-aw-mcpg")
-	t.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "unapproved")
-
-	assert.NotEmpty(t, getDefaultGuardPolicyJSON())
-	assert.True(t, getDefaultAllowOnlyScopePublic())
-	assert.Equal(t, "lpcox", getDefaultAllowOnlyOwner())
-	assert.Equal(t, "gh-aw-mcpg", getDefaultAllowOnlyRepo())
-	assert.Equal(t, "unapproved", getDefaultAllowOnlyMinIntegrity())
 }
