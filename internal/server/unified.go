@@ -466,6 +466,16 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// The closure captures the request and validates before calling this method
 	logUnified.Printf("callBackendTool: serverID=%s, toolName=%s, args=%+v", serverID, toolName, args)
 
+	// Apply the configured tool timeout as a context deadline so backend calls
+	// (including HTTP backends) are bounded by toolTimeout rather than hanging
+	// indefinitely.  This is the primary enforcement point for the gateway's
+	// tool execution budget.
+	if us.cfg != nil && us.cfg.Gateway != nil && us.cfg.Gateway.ToolTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(us.cfg.Gateway.ToolTimeout)*time.Second)
+		defer cancel()
+	}
+
 	// Start an OTEL span for the full tool call lifecycle (spans all phases 0–6)
 	// Attribute names follow MCP Gateway Specification §4.1.3.6
 	ctx, toolSpan := us.getTracer().Start(ctx, "mcp.tool_call",

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -483,4 +484,73 @@ func TestCallBackendTool_AllowedToolsError_MessageFormat(t *testing.T) {
 	text := result.Content[0].(*sdk.TextContent).Text
 	assert.True(t, strings.Contains(text, `"blocked"`), "error message should include tool name: %s", text)
 	assert.True(t, strings.Contains(text, "allowed-tools"), "error message should mention allowed-tools: %s", text)
+}
+
+// TestCallBackendTool_ToolTimeoutEnforcedViaContext verifies that the configured
+// toolTimeout is applied as a context deadline, causing slow backend calls to fail
+// with a deadline-exceeded error instead of hanging indefinitely.
+func TestCallBackendTool_ToolTimeoutEnforcedViaContext(t *testing.T) {
+	require := require.New(t)
+
+	// Create a slow backend that delays longer than our tool timeout
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		method, _ := req["method"].(string)
+		switch method {
+		case "initialize":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]interface{}{},
+					"serverInfo":      map[string]interface{}{"name": "slow-backend", "version": "1.0.0"},
+				},
+			})
+		case "tools/list":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{"tools": []map[string]interface{}{}},
+			})
+		case "tools/call":
+			// Simulate a slow tool: sleep longer than the configured toolTimeout.
+			// The actual tool call should return after ~1s (timeout), but the
+			// httptest.Server cleanup waits for this goroutine to finish.
+			time.Sleep(3 * time.Second)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"content": []map[string]interface{}{{"type": "text", "text": "should not reach here"}},
+				},
+			})
+		}
+	}))
+	defer backend.Close()
+
+	// Configure with a very short toolTimeout (1 second)
+	cfg := &config.Config{
+		Gateway: &config.GatewayConfig{
+			ToolTimeout: 1,
+		},
+		Servers: map[string]*config.ServerConfig{
+			"slow": {Type: "http", URL: backend.URL},
+		},
+	}
+
+	us, err := NewUnified(context.Background(), cfg)
+	require.NoError(err)
+	defer us.Close()
+
+	ctx := context.WithValue(context.Background(), SessionIDContextKey, "timeout-test")
+	result, _, callErr := us.callBackendTool(ctx, "slow", "slow_tool", map[string]interface{}{})
+
+	// The call should fail due to context deadline exceeded
+	require.Error(callErr, "Tool call should fail due to timeout")
+	require.NotNil(result, "Should return a CallToolResult even on timeout")
+	require.True(result.IsError, "Result should be marked as error")
+	t.Logf("Tool call correctly timed out: %v", callErr)
 }

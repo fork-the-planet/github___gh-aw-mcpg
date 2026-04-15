@@ -372,7 +372,7 @@ The `customSchemas` top-level field allows you to define custom server types bey
 | `apiKey` | API key for authentication | (disabled) |
 | `domain` | Gateway domain (`"localhost"`, `"host.docker.internal"`, or `"${VAR}"`) | (unset) |
 | `startupTimeout` | Seconds to wait for backend startup | `30` |
-| `toolTimeout` | Seconds to wait for tool execution (applies to backend request execution via request context deadlines, including HTTP backends) | `60` |
+| `toolTimeout` | Maximum seconds for a single tool call, enforced as a context deadline on all backend requests (stdio and HTTP) | `60` |
 | `payloadDir` | Directory for large payload files | `/tmp/jq-payloads` |
 | `payloadSizeThreshold` (JSON) / `payload_size_threshold` (TOML) | Size threshold in bytes; responses larger than this are stored to disk and returned as a `payloadPath` reference | `524288` (512 KB) |
 | `trustedBots` (JSON) / `trusted_bots` (TOML) | Optional list of additional bot usernames to trust with "approved" integrity level. Additive to the built-in trusted bot list. When specified, must be a non-empty array with non-empty string entries (spec §4.1.3.4); omit the field entirely if not needed. Example: `["my-bot[bot]", "org-automation"]` | (disabled) |
