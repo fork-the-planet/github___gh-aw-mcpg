@@ -39,6 +39,8 @@
 //	flags_difc.go     getDefaultAllowOnlyOwner()         → MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER
 //	flags_difc.go     getDefaultAllowOnlyRepo()          → MCP_GATEWAY_ALLOWONLY_SCOPE_REPO
 //	flags_difc.go     getDefaultAllowOnlyMinIntegrity()  → MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY
+//	flags_tracing.go  getDefaultOTLPEndpoint()           → OTEL_EXPORTER_OTLP_ENDPOINT
+//	flags_tracing.go  getDefaultOTLPServiceName()        → OTEL_SERVICE_NAME
 //
 // This pattern is intentionally kept in individual feature files because:
 //   - Each helper names the specific environment variable it reads, making the
