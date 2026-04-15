@@ -17,6 +17,8 @@ name: Smoke Copilot
 engine:
   id: copilot
 strict: false
+features:
+  cli-proxy: true
 imports:
   - shared/mcp-pagination.md
   - shared/reporting.md

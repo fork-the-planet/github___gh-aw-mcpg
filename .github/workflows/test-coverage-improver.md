@@ -12,6 +12,9 @@ permissions:
 
 engine: copilot
 
+features:
+  cli-proxy: true
+
 network:
   allowed:
     - defaults

@@ -16,6 +16,9 @@ network:
     - containers
     - go
 
+features:
+  cli-proxy: true
+
 steps:
   - name: Set up Go
     uses: actions/setup-go@v6

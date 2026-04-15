@@ -16,6 +16,9 @@ permissions:
 engine: copilot
 timeout-minutes: 30
 
+features:
+  cli-proxy: true
+
 network:
   allowed:
     - defaults
