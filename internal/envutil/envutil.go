@@ -5,7 +5,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/github/gh-aw-mcpg/internal/logger"
 )
+
+var logEnvUtil = logger.New("envutil:envutil")
 
 // GetEnvString returns the value of the environment variable specified by envKey.
 // If the environment variable is not set or is empty, it returns the defaultValue.
@@ -25,6 +29,7 @@ func GetEnvInt(envKey string, defaultValue int) int {
 		if value, err := strconv.Atoi(envValue); err == nil && value > 0 {
 			return value
 		}
+		logEnvUtil.Printf("GetEnvInt: %s=%q is not a valid positive integer, using default=%d", envKey, envValue, defaultValue)
 	}
 	return defaultValue
 }
@@ -37,6 +42,7 @@ func GetEnvDuration(envKey string, defaultValue time.Duration) time.Duration {
 		if d, err := time.ParseDuration(envValue); err == nil && d > 0 {
 			return d
 		}
+		logEnvUtil.Printf("GetEnvDuration: %s=%q is not a valid positive duration, using default=%v", envKey, envValue, defaultValue)
 	}
 	return defaultValue
 }
@@ -54,6 +60,7 @@ func GetEnvBool(envKey string, defaultValue bool) bool {
 		case "0", "false", "no", "off":
 			return false
 		}
+		logEnvUtil.Printf("GetEnvBool: %s=%q is not a recognized boolean value, using default=%v", envKey, envValue, defaultValue)
 	}
 	return defaultValue
 }
