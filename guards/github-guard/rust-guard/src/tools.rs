@@ -104,6 +104,15 @@ pub const READ_WRITE_OPERATIONS: &[&str] = &[
     // Deprecated alias coverage
     "update_project_item", // deprecated alias for projects_write (updateProjectV2ItemFieldValue)
 
+    // Granular issue update tools (alongside issue_write composite)
+    "update_issue_assignees", // PATCH — modifies issue assignees
+    "update_issue_body",      // PATCH — modifies issue body
+    "update_issue_labels",    // PATCH — modifies issue labels
+    "update_issue_milestone", // PATCH — modifies issue milestone
+    "update_issue_state",     // PATCH — opens or closes an issue
+    "update_issue_title",     // PATCH — modifies issue title
+    "update_issue_type",      // PATCH — modifies issue type
+
     // Granular PR update tools (alongside update_pull_request composite)
     "update_pull_request_body",        // PATCH — modifies PR body
     "update_pull_request_draft_state", // PATCH — converts to/from draft
@@ -329,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn test_granular_issue_update_tools_are_write_operations() {
+    fn test_granular_issue_update_tools_are_read_write_operations() {
         for op in &[
             "update_issue_assignees",
             "update_issue_body",
@@ -340,8 +349,13 @@ mod tests {
             "update_issue_type",
         ] {
             assert!(
-                is_write_operation(op),
-                "{} must be classified as a write operation",
+                is_read_write_operation(op),
+                "{} must be classified as a read-write operation",
+                op
+            );
+            assert!(
+                !is_write_operation(op),
+                "{} should not be in WRITE_OPERATIONS (it is in READ_WRITE_OPERATIONS)",
                 op
             );
         }
