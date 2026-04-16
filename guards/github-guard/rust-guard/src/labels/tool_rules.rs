@@ -533,49 +533,30 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
-        // === Granular issue update tools (repo-scoped writes) ===
+        // === Granular repo-scoped write operations ===
+        // Covers granular issue PATCH tools, sub-issue management, granular PR PATCH tools,
+        // and PR review tools. All follow: S = S(repo), I = writer.
         "update_issue_assignees"
         | "update_issue_body"
         | "update_issue_labels"
         | "update_issue_milestone"
         | "update_issue_state"
         | "update_issue_title"
-        | "update_issue_type" => {
-            // Granular PATCH tools that modify individual issue fields.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Sub-issue management tools (repo-scoped writes) ===
-        "add_sub_issue" | "remove_sub_issue" | "reprioritize_sub_issue" => {
-            // Sub-issue link creation, removal, and reordering.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Granular PR update tools (repo-scoped read-write) ===
-        "update_pull_request_body"
+        | "update_issue_type"
+        | "add_sub_issue"
+        | "remove_sub_issue"
+        | "reprioritize_sub_issue"
+        | "update_pull_request_body"
         | "update_pull_request_draft_state"
         | "update_pull_request_state"
-        | "update_pull_request_title" => {
-            // Granular PATCH tools that modify individual PR fields.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === PR review tools (repo-scoped writes) ===
-        "add_pull_request_review_comment"
+        | "update_pull_request_title"
+        | "add_pull_request_review_comment"
         | "create_pull_request_review"
         | "delete_pending_pull_request_review"
         | "request_pull_request_reviewers"
         | "resolve_review_thread"
         | "submit_pending_pull_request_review"
         | "unresolve_review_thread" => {
-            // PR review creation, commenting, submission, and thread resolution.
-            // S = S(repo); I = writer
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             integrity = writer_integrity(repo_id, ctx);
         }
@@ -746,16 +727,17 @@ fn check_file_secrecy(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     let path_lower = path.to_lowercase();
+    let segments: Vec<&str> = path_lower.split('/').collect();
 
     // Check for sensitive file extensions/names
     for pattern in SENSITIVE_FILE_PATTERNS {
-        if path_lower.ends_with(pattern) || path_lower.split('/').any(|seg| seg.starts_with(*pattern)) {
+        if path_lower.ends_with(pattern) || segments.iter().any(|seg| seg.starts_with(*pattern)) {
             return policy_private_scope_label(owner, repo, repo_id, ctx);
         }
     }
 
     // Get filename
-    let filename = path_lower.rsplit('/').next().unwrap_or(&path_lower);
+    let filename = segments.last().copied().unwrap_or(path_lower.as_str());
 
     // Check for sensitive keywords in filename
     for keyword in SENSITIVE_FILE_KEYWORDS {
