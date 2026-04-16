@@ -171,14 +171,23 @@ func TestNewErrorCallToolResult(t *testing.T) {
 			err:         fmt.Errorf("formatted error: %s", "test"),
 			expectError: true,
 		},
+		{
+			name:        "nil error fallback",
+			err:         nil,
+			expectError: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, data, err := newErrorCallToolResult(tt.err)
+			result, data, err := mcp.NewErrorCallToolResult(tt.err)
 
 			// Verify the error is returned
-			assert.Equal(t, tt.err, err, "Error should be returned as-is")
+			if tt.err == nil {
+				assert.Error(t, err, "nil error input should return a fallback error")
+			} else {
+				assert.Equal(t, tt.err, err, "Error should be returned as-is")
+			}
 
 			// Verify data is nil
 			assert.Nil(t, data, "Data should be nil for error results")
@@ -191,7 +200,7 @@ func TestNewErrorCallToolResult(t *testing.T) {
 			require.Len(t, result.Content, 1, "Should have one content item with error message")
 			textContent, ok := result.Content[0].(*sdk.TextContent)
 			require.True(t, ok, "Content should be TextContent")
-			assert.Equal(t, tt.err.Error(), textContent.Text, "Error message should be in content")
+			assert.Equal(t, err.Error(), textContent.Text, "Error message should be in content")
 
 			t.Logf("✓ Error CallToolResult properly created with IsError=%v, message=%q", result.IsError, textContent.Text)
 		})

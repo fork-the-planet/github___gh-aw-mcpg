@@ -68,7 +68,7 @@ func TestLookupGitHubToken(t *testing.T) {
 }
 
 func TestLookupGitHubAPIURL(t *testing.T) {
-	const defaultURL = "https://api.github.com"
+	const defaultURL = DefaultGitHubAPIBaseURL
 
 	t.Run("returns default when env not set", func(t *testing.T) {
 		t.Setenv("GITHUB_API_URL", "")
@@ -94,4 +94,118 @@ func TestLookupGitHubAPIURL(t *testing.T) {
 		t.Setenv("GITHUB_API_URL", " https://github.example.com/api/v3/ ")
 		assert.Equal(t, "https://github.example.com/api/v3", LookupGitHubAPIURL(defaultURL))
 	})
+}
+
+func TestDeriveAPIFromServerURL(t *testing.T) {
+	tests := []struct {
+		name      string
+		serverURL string
+		expected  string
+	}{
+		{
+			name:      "github.com returns default",
+			serverURL: "https://github.com",
+			expected:  DefaultGitHubAPIBaseURL,
+		},
+		{
+			name:      "www.github.com returns default",
+			serverURL: "https://www.github.com",
+			expected:  DefaultGitHubAPIBaseURL,
+		},
+		{
+			name:      "GHEC tenant derives copilot-api subdomain",
+			serverURL: "https://mycompany.ghe.com",
+			expected:  "https://copilot-api.mycompany.ghe.com",
+		},
+		{
+			name:      "GHES uses /api/v3 path",
+			serverURL: "https://github.mycompany.com",
+			expected:  "https://github.mycompany.com/api/v3",
+		},
+		{
+			name:      "GHEC tenant with port",
+			serverURL: "https://mycompany.ghe.com:8443",
+			expected:  "https://copilot-api.mycompany.ghe.com:8443",
+		},
+		{
+			name:      "GHES with port",
+			serverURL: "https://github.example.com:8443",
+			expected:  "https://github.example.com:8443/api/v3",
+		},
+		{
+			name:      "invalid URL",
+			serverURL: "not-a-url",
+			expected:  "",
+		},
+		{
+			name:      "missing scheme is rejected",
+			serverURL: "//github.example.com",
+			expected:  "",
+		},
+		{
+			name:      "unsupported scheme is rejected",
+			serverURL: "ftp://github.example.com",
+			expected:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, deriveAPIFromServerURL(tt.serverURL))
+		})
+	}
+}
+
+func TestDeriveGitHubAPIURL(t *testing.T) {
+	tests := []struct {
+		name       string
+		envAPIURL  string
+		envSrvURL  string
+		defaultURL string
+		expected   string
+	}{
+		{
+			name:       "default when no env vars",
+			envAPIURL:  "",
+			envSrvURL:  "",
+			defaultURL: DefaultGitHubAPIBaseURL,
+			expected:   DefaultGitHubAPIBaseURL,
+		},
+		{
+			name:       "empty default when no env vars",
+			envAPIURL:  "",
+			envSrvURL:  "",
+			defaultURL: "",
+			expected:   "",
+		},
+		{
+			name:       "GITHUB_API_URL takes priority",
+			envAPIURL:  "https://api.custom.ghe.com",
+			envSrvURL:  "https://other.ghe.com",
+			defaultURL: DefaultGitHubAPIBaseURL,
+			expected:   "https://api.custom.ghe.com",
+		},
+		{
+			name:       "derive from GITHUB_SERVER_URL",
+			envAPIURL:  "",
+			envSrvURL:  "https://mycompany.ghe.com",
+			defaultURL: DefaultGitHubAPIBaseURL,
+			expected:   "https://copilot-api.mycompany.ghe.com",
+		},
+		{
+			name:       "invalid GITHUB_SERVER_URL falls back to default",
+			envAPIURL:  "",
+			envSrvURL:  "not-a-valid-url",
+			defaultURL: DefaultGitHubAPIBaseURL,
+			expected:   DefaultGitHubAPIBaseURL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GITHUB_API_URL", tt.envAPIURL)
+			t.Setenv("GITHUB_SERVER_URL", tt.envSrvURL)
+			assert.Equal(t, tt.expected, DeriveGitHubAPIURL(tt.defaultURL))
+		})
+	}
 }

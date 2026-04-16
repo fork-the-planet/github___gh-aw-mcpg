@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -306,7 +304,7 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 		return nil, fmt.Errorf("get_collaborator_permission: no GitHub token available")
 	}
 
-	apiURL := lookupGitHubAPIBaseURL()
+	apiURL := envutil.DeriveGitHubAPIURL(envutil.DefaultGitHubAPIBaseURL)
 	path := fmt.Sprintf("/repos/%s/%s/collaborators/%s/permission", owner, repo, username)
 	url := apiURL + path
 
@@ -357,29 +355,6 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 		},
 	}
 	return mcpResp, nil
-}
-
-// lookupGitHubAPIBaseURL returns the GitHub API base URL from environment
-// or defaults to https://api.github.com.
-func lookupGitHubAPIBaseURL() string {
-	url := envutil.LookupGitHubAPIURL("https://api.github.com")
-	if v := strings.TrimSpace(os.Getenv("GITHUB_API_URL")); v != "" {
-		logUnified.Printf("Using GITHUB_API_URL: %s", url)
-	} else {
-		logUnified.Printf("Using default GitHub API URL: %s", url)
-	}
-	return url
-}
-
-// newErrorCallToolResult creates a standard error CallToolResult with the error message
-// included as text content, so MCP clients can understand what went wrong.
-func newErrorCallToolResult(err error) (*sdk.CallToolResult, interface{}, error) {
-	return &sdk.CallToolResult{
-		IsError: true,
-		Content: []sdk.Content{
-			&sdk.TextContent{Text: err.Error()},
-		},
-	}, nil, err
 }
 
 // buildCircuitBreakers creates per-backend circuit breakers from the configuration.
@@ -508,7 +483,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		deniedErr := fmt.Errorf("tool %q is not in the allowed-tools list for this server", toolName)
 		toolSpan.RecordError(deniedErr)
 		toolSpan.SetStatus(codes.Error, "tool not allowed")
-		return newErrorCallToolResult(deniedErr)
+		return mcp.NewErrorCallToolResult(deniedErr)
 	}
 
 	// Create backend caller for the guard
@@ -522,7 +497,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	enforcementMode, err := us.ensureGuardInitialized(ctx, sessionID, serverID, g, backendCaller)
 	if err != nil {
 		httpStatusCode = 500
-		return newErrorCallToolResult(fmt.Errorf("guard session initialization failed: %w", err))
+		return mcp.NewErrorCallToolResult(fmt.Errorf("guard session initialization failed: %w", err))
 	}
 
 	requestEvaluator := difc.NewEvaluatorWithMode(enforcementMode)
@@ -549,7 +524,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	if err != nil {
 		logger.LogWarn("difc", "Guard labeling failed: %v", err)
 		httpStatusCode = 500
-		return newErrorCallToolResult(fmt.Errorf("guard labeling failed: %w", err))
+		return mcp.NewErrorCallToolResult(fmt.Errorf("guard labeling failed: %w", err))
 	}
 
 	logUnified.Printf("[DIFC] Resource: %s | Operation: %s | Secrecy: %v | Integrity: %v",
@@ -575,7 +550,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			toolSpan.RecordError(detailedErr)
 			toolSpan.SetStatus(codes.Error, "access denied: "+result.Reason)
 			httpStatusCode = 403
-			return newErrorCallToolResult(detailedErr)
+			return mcp.NewErrorCallToolResult(detailedErr)
 		}
 	} else {
 		logUnified.Printf("[DIFC] Access ALLOWED for agent %s to %s", agentID, resource.Description)
@@ -597,7 +572,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		execSpan.RecordError(err)
 		execSpan.SetStatus(codes.Error, "circuit breaker open")
 		httpStatusCode = 429
-		return newErrorCallToolResult(err)
+		return mcp.NewErrorCallToolResult(err)
 	}
 
 	backendResult, err := executeBackendToolCall(execCtx, us.launcher, serverID, sessionID, toolName, args)
@@ -608,7 +583,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		execSpan.RecordError(err)
 		execSpan.SetStatus(codes.Error, err.Error())
 		httpStatusCode = 500
-		return newErrorCallToolResult(err)
+		return mcp.NewErrorCallToolResult(err)
 	}
 
 	// Inspect the tool result for rate-limit indicators from the GitHub MCP server.
@@ -640,7 +615,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		if err != nil {
 			logger.LogWarn("difc", "Response labeling failed: %v", err)
 			httpStatusCode = 500
-			return newErrorCallToolResult(fmt.Errorf("response labeling failed: %w", err))
+			return mcp.NewErrorCallToolResult(fmt.Errorf("response labeling failed: %w", err))
 		}
 	} else {
 		logUnified.Printf("[DIFC] Skipping LabelResponse() for %s operation in %s mode", operation, enforcementMode)
@@ -665,7 +640,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 				blockErr := fmt.Errorf("DIFC policy violation: %d of %d items in response are not accessible to agent %s",
 					filtered.GetFilteredCount(), filtered.TotalCount, agentID)
 				httpStatusCode = 403
-				return newErrorCallToolResult(blockErr)
+				return mcp.NewErrorCallToolResult(blockErr)
 			}
 
 			if filtered.GetFilteredCount() > 0 {
@@ -678,14 +653,14 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			finalResult, err = filtered.ToResult()
 			if err != nil {
 				httpStatusCode = 500
-				return newErrorCallToolResult(fmt.Errorf("failed to convert filtered data: %w", err))
+				return mcp.NewErrorCallToolResult(fmt.Errorf("failed to convert filtered data: %w", err))
 			}
 		} else {
 			// Simple labeled data - already passed coarse-grained check
 			finalResult, err = labeledData.ToResult()
 			if err != nil {
 				httpStatusCode = 500
-				return newErrorCallToolResult(fmt.Errorf("failed to convert labeled data: %w", err))
+				return mcp.NewErrorCallToolResult(fmt.Errorf("failed to convert labeled data: %w", err))
 			}
 		}
 
@@ -714,7 +689,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	callResult, err := mcp.ConvertToCallToolResult(finalResult)
 	if err != nil {
 		httpStatusCode = 500
-		return newErrorCallToolResult(fmt.Errorf("failed to convert result: %w", err))
+		return mcp.NewErrorCallToolResult(fmt.Errorf("failed to convert result: %w", err))
 	}
 
 	// If items were filtered by DIFC policy in filter/propagate mode, append a notice so

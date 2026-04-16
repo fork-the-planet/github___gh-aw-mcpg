@@ -189,7 +189,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	// Resolve GitHub API URL: flag → env vars → default
 	apiURL := proxyAPIURL
 	if apiURL == "" {
-		apiURL = proxy.DeriveGitHubAPIURL()
+		apiURL = envutil.DeriveGitHubAPIURL("")
 	}
 	if apiURL == "" {
 		apiURL = proxy.DefaultGitHubAPIBase

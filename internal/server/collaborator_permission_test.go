@@ -294,20 +294,29 @@ func TestLookupGitHubToken(t *testing.T) {
 	}
 }
 
-func TestLookupGitHubAPIBaseURL(t *testing.T) {
+func TestDeriveGitHubAPIBaseURL(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		t.Setenv("GITHUB_API_URL", "")
-		assert.Equal(t, "https://api.github.com", lookupGitHubAPIBaseURL())
+		t.Setenv("GITHUB_SERVER_URL", "")
+		assert.Equal(t, "https://api.github.com", envutil.DeriveGitHubAPIURL("https://api.github.com"))
 	})
 
 	t.Run("custom URL", func(t *testing.T) {
 		t.Setenv("GITHUB_API_URL", "https://github.example.com/api/v3")
-		assert.Equal(t, "https://github.example.com/api/v3", lookupGitHubAPIBaseURL())
+		t.Setenv("GITHUB_SERVER_URL", "")
+		assert.Equal(t, "https://github.example.com/api/v3", envutil.DeriveGitHubAPIURL("https://api.github.com"))
 	})
 
 	t.Run("strips trailing slash", func(t *testing.T) {
 		t.Setenv("GITHUB_API_URL", "https://github.example.com/api/v3/")
-		assert.Equal(t, "https://github.example.com/api/v3", lookupGitHubAPIBaseURL())
+		t.Setenv("GITHUB_SERVER_URL", "")
+		assert.Equal(t, "https://github.example.com/api/v3", envutil.DeriveGitHubAPIURL("https://api.github.com"))
+	})
+
+	t.Run("derives from GITHUB_SERVER_URL", func(t *testing.T) {
+		t.Setenv("GITHUB_API_URL", "")
+		t.Setenv("GITHUB_SERVER_URL", "https://github.example.com")
+		assert.Equal(t, "https://github.example.com/api/v3", envutil.DeriveGitHubAPIURL("https://api.github.com"))
 	})
 }
 
