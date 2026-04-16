@@ -3,7 +3,6 @@ package integration
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -412,19 +411,15 @@ func TestFullDIFCConfigFromJSON(t *testing.T) {
 	err := cmd.Start()
 	require.NoError(t, err, "Failed to start gateway")
 
-	ok := waitForStderr(&stderr, "Starting MCPG", 5*time.Second)
-	require.Truef(t, ok, "timeout waiting for gateway stderr to contain %q within %s; stderr:\n%s", "Starting MCPG", 5*time.Second, stderr.String())
+	// Wait for guard registration (appears before the blocking registerAllTools
+	// backend connections that may take 30+ seconds for Docker containers).
+	// "Starting MCPG" only prints after NewUnified returns, which blocks on
+	// backend connections — too slow for this test's DIFC-config-only assertions.
+	ok := waitForStderr(&stderr, "[DIFC] Registered guard", 5*time.Second)
+	require.Truef(t, ok, "timeout waiting for DIFC guard registration within %s; stderr:\n%s", 5*time.Second, stderr.String())
 
-	// Try health check
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/health", port))
-	if err == nil {
-		defer resp.Body.Close()
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-		var health map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&health)
-		t.Logf("Health response: %+v", health)
-	}
+	// Brief pause to let remaining sequential guard registrations flush to stderr
+	time.Sleep(300 * time.Millisecond)
 
 	cmd.Process.Kill()
 	cmd.Wait()
