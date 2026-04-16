@@ -68,7 +68,7 @@ func TestLookupGitHubToken(t *testing.T) {
 }
 
 func TestLookupGitHubAPIURL(t *testing.T) {
-	const defaultURL = "https://api.github.com"
+	const defaultURL = DefaultGitHubAPIBaseURL
 
 	t.Run("returns default when env not set", func(t *testing.T) {
 		t.Setenv("GITHUB_API_URL", "")
@@ -105,12 +105,12 @@ func TestDeriveAPIFromServerURL(t *testing.T) {
 		{
 			name:      "github.com returns default",
 			serverURL: "https://github.com",
-			expected:  "https://api.github.com",
+			expected:  DefaultGitHubAPIBaseURL,
 		},
 		{
 			name:      "www.github.com returns default",
 			serverURL: "https://www.github.com",
-			expected:  "https://api.github.com",
+			expected:  DefaultGitHubAPIBaseURL,
 		},
 		{
 			name:      "GHEC tenant derives copilot-api subdomain",
@@ -158,8 +158,8 @@ func TestDeriveGitHubAPIURL(t *testing.T) {
 			name:       "default when no env vars",
 			envAPIURL:  "",
 			envSrvURL:  "",
-			defaultURL: "https://api.github.com",
-			expected:   "https://api.github.com",
+			defaultURL: DefaultGitHubAPIBaseURL,
+			expected:   DefaultGitHubAPIBaseURL,
 		},
 		{
 			name:       "empty default when no env vars",
@@ -172,22 +172,22 @@ func TestDeriveGitHubAPIURL(t *testing.T) {
 			name:       "GITHUB_API_URL takes priority",
 			envAPIURL:  "https://api.custom.ghe.com",
 			envSrvURL:  "https://other.ghe.com",
-			defaultURL: "https://api.github.com",
+			defaultURL: DefaultGitHubAPIBaseURL,
 			expected:   "https://api.custom.ghe.com",
 		},
 		{
 			name:       "derive from GITHUB_SERVER_URL",
 			envAPIURL:  "",
 			envSrvURL:  "https://mycompany.ghe.com",
-			defaultURL: "https://api.github.com",
+			defaultURL: DefaultGitHubAPIBaseURL,
 			expected:   "https://copilot-api.mycompany.ghe.com",
 		},
 		{
 			name:       "invalid GITHUB_SERVER_URL falls back to default",
 			envAPIURL:  "",
 			envSrvURL:  "not-a-valid-url",
-			defaultURL: "https://api.github.com",
-			expected:   "https://api.github.com",
+			defaultURL: DefaultGitHubAPIBaseURL,
+			expected:   DefaultGitHubAPIBaseURL,
 		},
 	}
 

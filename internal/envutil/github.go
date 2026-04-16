@@ -11,6 +11,9 @@ import (
 
 var logGitHub = logger.New("envutil:github")
 
+// DefaultGitHubAPIBaseURL is the default GitHub API base URL.
+const DefaultGitHubAPIBaseURL = "https://api.github.com"
+
 // LookupGitHubToken searches environment variables for a GitHub token using
 // a canonical priority order. It returns the first non-empty (trimmed) value
 // found, or an empty string if none is set.
@@ -84,7 +87,7 @@ func deriveAPIFromServerURL(serverURL string) string {
 
 	switch {
 	case hostname == "github.com" || hostname == "www.github.com":
-		return "https://api.github.com"
+		return DefaultGitHubAPIBaseURL
 	case strings.HasSuffix(hostname, ".ghe.com"):
 		if port := parsed.Port(); port != "" {
 			return fmt.Sprintf("%s://copilot-api.%s:%s", parsed.Scheme, hostname, port)

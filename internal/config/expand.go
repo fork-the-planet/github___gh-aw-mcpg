@@ -14,6 +14,8 @@ var varExprPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
 // expandVariablesCore is the shared implementation for variable expansion.
 // It works with byte slices and handles the core expansion logic, tracking undefined variables.
 // This eliminates code duplication between expandVariables and ExpandRawJSONVariables.
+// It returns the expanded bytes, a slice of undefined variable names, and an error
+// (currently always nil).
 func expandVariablesCore(data []byte, contextDesc string) ([]byte, []string, error) {
 	logValidation.Printf("Expanding variables: context=%s", contextDesc)
 	var undefinedVars []string
@@ -38,7 +40,8 @@ func expandVariablesCore(data []byte, contextDesc string) ([]byte, []string, err
 }
 
 // expandVariables expands variable expressions in a string.
-// Returns the expanded string and error if any variable is undefined.
+// value is the source string and jsonPath identifies the config location for errors.
+// It returns the expanded string and an error if any variable is undefined.
 func expandVariables(value, jsonPath string) (string, error) {
 	result, undefinedVars, _ := expandVariablesCore([]byte(value), fmt.Sprintf("jsonPath=%s", jsonPath))
 
@@ -65,6 +68,8 @@ func ExpandRawJSONVariables(data []byte) ([]byte, error) {
 }
 
 // expandEnvVariables expands all variable expressions in an env map.
+// env is the map to expand and serverName is used for config-path error context.
+// It returns a new map with expanded values or an error if any variable is undefined.
 func expandEnvVariables(env map[string]string, serverName string) (map[string]string, error) {
 	logValidation.Printf("Expanding env variables for server: %s, count=%d", serverName, len(env))
 	result := make(map[string]string, len(env))
