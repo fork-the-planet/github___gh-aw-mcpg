@@ -161,7 +161,7 @@ Run `./awmg --help` for full CLI options. Key flags:
     ```
 
 - **`tools`** (optional): List of tool names to allow for this server
-  - Enforced at runtime: tools not in this list are hidden from `tools/list` responses and rejected with a 403 error on `tools/call`
+  - Enforced at runtime: tools not in this list are hidden from `tools/list` responses and rejected when invoked via `tools/call` (for example, as an MCP/tool error)
   - Use `["*"]` (wildcard) to allow all tools (default behavior when field is omitted)
   - Example: `["get_file_contents", "search_code"]` (only these tools are accessible)
 
