@@ -12,21 +12,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newMinimalTestServer returns an httptest server that responds with a minimal
-// JSON-RPC initialize result so NewHTTPConnection can complete its handshake.
+// newMinimalTestServer returns an httptest server that responds with the
+// minimal HTTP semantics needed for NewHTTPConnection to complete its SDK
+// transport handshake reliably.
 func newMinimalTestServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := map[string]interface{}{
-			"jsonrpc": "2.0",
-			"id":      1,
-			"result": map[string]interface{}{
-				"protocolVersion": "2024-11-05",
-				"serverInfo":      map[string]interface{}{"name": "test"},
-			},
+		switch r.Method {
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.WriteHeader(http.StatusOK)
+			return
+		case http.MethodPost:
+			resp := map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      1,
+				"result": map[string]interface{}{
+					"protocolVersion": "2024-11-05",
+					"serverInfo":      map[string]interface{}{"name": "test"},
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Mcp-Session-Id", "test-session")
+			json.NewEncoder(w).Encode(resp) //nolint:errcheck
+			return
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp) //nolint:errcheck
 	}))
 }
 
