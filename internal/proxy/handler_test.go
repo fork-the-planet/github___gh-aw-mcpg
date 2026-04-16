@@ -188,7 +188,7 @@ func TestServeHTTP_GraphQLIntrospectionPassthrough(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "__schema")
 }
 
-func TestServeHTTP_GraphQLQueryStringForwardedToUpstream(t *testing.T) {
+func TestServeHTTP_GraphQLPreservesQueryString(t *testing.T) {
 	var receivedURL string
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedURL = r.URL.RequestURI()
@@ -202,9 +202,10 @@ func TestServeHTTP_GraphQLQueryStringForwardedToUpstream(t *testing.T) {
 	s := newTestServer(t, upstream.URL)
 	h := &proxyHandler{server: s}
 
-	gqlBody, _ := json.Marshal(map[string]interface{}{
+	gqlBody, err := json.Marshal(map[string]interface{}{
 		"query": `{ repository(owner:"org", name:"repo") { issues(first: 10) { nodes { id } } } }`,
 	})
+	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/graphql?foo=bar", bytes.NewReader(gqlBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
