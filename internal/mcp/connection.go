@@ -24,6 +24,11 @@ import (
 
 var logConn = logger.New("mcp:connection")
 
+// defaultConnectTimeout is the fallback connect timeout used when the configured timeout
+// is non-positive or otherwise invalid.
+// Kept in sync with config.DefaultConnectTimeout (30 s) to avoid importing the config package.
+const defaultConnectTimeout = 30 * time.Second
+
 // ContextKey for session ID
 type ContextKey string
 
@@ -199,7 +204,7 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[string]string, oidcProvider *oidc.Provider, oidcAudience string, keepAlive time.Duration, connectTimeout time.Duration) (*Connection, error) {
 	// Apply default connect timeout when not specified
 	if connectTimeout <= 0 {
-		connectTimeout = 30 * time.Second
+		connectTimeout = defaultConnectTimeout
 	}
 	logger.LogInfo("backend", "Creating HTTP MCP connection with transport fallback, url=%s, connectTimeout=%v", url, connectTimeout)
 	ctx, cancel := context.WithCancel(ctx)
@@ -379,8 +384,8 @@ func (c *Connection) reconnectSDKTransport() error {
 	}
 
 	timeout := c.connectTimeout
-	if timeout == 0 {
-		timeout = 30 * time.Second
+	if timeout <= 0 {
+		timeout = defaultConnectTimeout
 	}
 	connectCtx, cancel := context.WithTimeout(c.ctx, timeout)
 	defer cancel()
