@@ -89,14 +89,19 @@ The proxy reuses the same 6-phase pipeline as the MCP gateway, with Phase 3 adap
 
 ## REST Route Mapping
 
-The proxy maps ~25 GitHub REST API URL patterns to guard tool names:
+The proxy maps REST API URL patterns to guard tool names (see `internal/proxy/router.go` for the exact source of truth). Inbound paths are normalized first:
+
+- `GH_HOST` style REST paths with `/api/v3/...` are normalized to `/...` for routing.
+- Query strings are ignored for route matching and still forwarded upstream.
+
+Supported path families include:
 
 | URL Pattern | Guard Tool |
 |-------------|-----------|
 | `/repos/:owner/:repo/issues` | `list_issues` |
-| `/repos/:owner/:repo/issues/:number` | `get_issue` |
+| `/repos/:owner/:repo/issues/:number` | `issue_read` |
 | `/repos/:owner/:repo/pulls` | `list_pull_requests` |
-| `/repos/:owner/:repo/pulls/:number` | `get_pull_request` |
+| `/repos/:owner/:repo/pulls/:number` | `pull_request_read` |
 | `/repos/:owner/:repo/commits` | `list_commits` |
 | `/repos/:owner/:repo/commits/:sha` | `get_commit` |
 | `/repos/:owner/:repo/contents/:path` | `get_file_contents` |
@@ -106,20 +111,33 @@ The proxy maps ~25 GitHub REST API URL patterns to guard tool names:
 | `/search/code` | `search_code` |
 | `/search/repositories` | `search_repositories` |
 | `/user` | `get_me` |
-| ... | See `internal/proxy/router.go` for full list |
+| `/notifications` | `list_notifications` |
+| `/orgs/:owner/actions/(secrets|variables)[/:name]` | `actions_list` |
+| `/repos/:owner/:repo/discussions...` | `list_discussions` / `get_discussion_comments` |
+| `/repos/:owner/:repo/...` (fallback) | `get_file_contents` |
+| ... | See `internal/proxy/router.go` for the complete regex list and precedence |
 
-Unrecognized URLs pass through without DIFC filtering.
+For **read operations** (GET and GraphQL POST), unmatched routes are denied (fail-closed) to avoid accidental unfiltered data exposure. For **write operations** (non-read methods), requests pass through unchanged.
 
 ## GraphQL Support
 
-GraphQL queries to `/graphql` are parsed to extract the operation type and owner/repo context:
+Inbound GraphQL endpoint paths accepted by the proxy:
+
+- `/graphql` (github.com style)
+- `/api/graphql` (GHES style used by `gh` when host is GHES/proxy)
+- `/api/v3/graphql` (GH_HOST prefix style; normalized)
+
+GraphQL queries are parsed to extract operation type and owner/repo context:
 
 - **Repository-scoped queries** (issues, PRs, commits) — mapped to corresponding tool names
 - **Search queries** — mapped to `search_issues` or `search_code`
 - **Viewer queries** — mapped to `get_me`
-- **Unknown queries** — passed through without filtering
+- **Schema introspection (`__schema`, `__type`)** — passed through (safe metadata)
+- **Unknown queries** — denied (fail-closed)
 
 Owner and repo are extracted from GraphQL variables (`$owner`, `$name`/`$repo`) or inline string arguments.
+
+When the upstream API base is GHES-style `.../api/v3`, GraphQL forwarding is rewritten to `.../api/graphql` to match GHES routing.
 
 ## Policy Notes
 
