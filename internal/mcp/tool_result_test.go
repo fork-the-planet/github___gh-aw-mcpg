@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -314,4 +315,63 @@ func TestParseToolArguments(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, args)
 	})
+}
+
+// TestNewErrorCallToolResult tests construction of error CallToolResult values.
+func TestNewErrorCallToolResult(t *testing.T) {
+	t.Run("non-nil error produces IsError result with error message as text", func(t *testing.T) {
+		inputErr := errors.New("tool execution failed")
+
+		result, second, returnedErr := NewErrorCallToolResult(inputErr)
+
+		require.NotNil(t, result)
+		assert.True(t, result.IsError)
+		assert.Nil(t, second)
+		assert.ErrorIs(t, returnedErr, inputErr)
+
+		require.Len(t, result.Content, 1)
+		text, ok := result.Content[0].(*sdk.TextContent)
+		require.True(t, ok, "Expected TextContent")
+		assert.Equal(t, "tool execution failed", text.Text)
+	})
+
+	t.Run("nil error substitutes unknown error message", func(t *testing.T) {
+		result, second, returnedErr := NewErrorCallToolResult(nil)
+
+		require.NotNil(t, result)
+		assert.True(t, result.IsError)
+		assert.Nil(t, second)
+		require.Error(t, returnedErr)
+		assert.Equal(t, "unknown error", returnedErr.Error())
+
+		require.Len(t, result.Content, 1)
+		text, ok := result.Content[0].(*sdk.TextContent)
+		require.True(t, ok, "Expected TextContent")
+		assert.Equal(t, "unknown error", text.Text)
+	})
+
+	t.Run("error message with special characters is preserved", func(t *testing.T) {
+		inputErr := errors.New(`backend error: {"code":500,"message":"internal server error"}`)
+
+		result, _, returnedErr := NewErrorCallToolResult(inputErr)
+
+		require.NotNil(t, result)
+		assert.True(t, result.IsError)
+		assert.ErrorIs(t, returnedErr, inputErr)
+
+		require.Len(t, result.Content, 1)
+		text, ok := result.Content[0].(*sdk.TextContent)
+		require.True(t, ok)
+		assert.Equal(t, inputErr.Error(), text.Text)
+	})
+}
+
+// TestConvertToCallToolResult_MarshalError tests the error path when data cannot be marshaled.
+func TestConvertToCallToolResult_MarshalError(t *testing.T) {
+	// Channels cannot be marshaled to JSON; json.Marshal returns an error.
+	result, err := ConvertToCallToolResult(make(chan int))
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to marshal backend result")
 }
