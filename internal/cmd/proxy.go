@@ -334,7 +334,7 @@ func configureTLSTrustEnvironment(caCertPath string) error {
 		return nil
 	}
 
-	f, err := os.OpenFile(githubEnvPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(githubEnvPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open GITHUB_ENV file %s: %w", githubEnvPath, err)
 	}

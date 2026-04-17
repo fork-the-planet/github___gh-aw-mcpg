@@ -414,17 +414,19 @@ func TestConfigureTLSTrustEnvironment(t *testing.T) {
 	caPath := "/tmp/proxy-tls/ca.crt"
 
 	t.Run("sets trust environment variables in process", func(t *testing.T) {
+		assert := assert.New(t)
 		t.Setenv("GITHUB_ENV", "")
 
 		err := configureTLSTrustEnvironment(caPath)
 		require.NoError(t, err)
 
 		for _, key := range tlsTrustEnvKeys {
-			assert.Equal(t, caPath, os.Getenv(key), "expected %s to be set", key)
+			assert.Equal(caPath, os.Getenv(key), "expected %s to be set", key)
 		}
 	})
 
 	t.Run("appends trust environment variables to GITHUB_ENV", func(t *testing.T) {
+		assert := assert.New(t)
 		githubEnvFile := t.TempDir() + "/github_env"
 		t.Setenv("GITHUB_ENV", githubEnvFile)
 
@@ -434,7 +436,7 @@ func TestConfigureTLSTrustEnvironment(t *testing.T) {
 		content, err := os.ReadFile(githubEnvFile)
 		require.NoError(t, err)
 		for _, key := range tlsTrustEnvKeys {
-			assert.Contains(t, string(content), key+"="+caPath+"\n")
+			assert.Contains(string(content), key+"="+caPath+"\n")
 		}
 	})
 
