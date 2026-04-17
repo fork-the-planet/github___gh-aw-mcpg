@@ -227,9 +227,6 @@ export SSL_CERT_FILE=/tmp/gh-aw/mcp-logs/proxy-tls/ca.crt
 export GIT_SSL_CAINFO=/tmp/gh-aw/mcp-logs/proxy-tls/ca.crt
 ```
 
-When `GITHUB_ENV` is present (GitHub Actions), `awmg proxy --tls` appends these TLS trust
-variables automatically for downstream steps.
-
 **System-wide (Ubuntu)**:
 ```bash
 cp /tmp/gh-aw/mcp-logs/proxy-tls/ca.crt /usr/local/share/ca-certificates/mcpg-proxy.crt

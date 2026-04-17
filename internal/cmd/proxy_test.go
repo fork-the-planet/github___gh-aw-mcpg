@@ -415,7 +415,6 @@ func TestConfigureTLSTrustEnvironment(t *testing.T) {
 
 	t.Run("sets trust environment variables in process", func(t *testing.T) {
 		assert := assert.New(t)
-		t.Setenv("GITHUB_ENV", "")
 		for _, key := range tlsTrustEnvKeys {
 			t.Setenv(key, "")
 		}
@@ -428,35 +427,8 @@ func TestConfigureTLSTrustEnvironment(t *testing.T) {
 		}
 	})
 
-	t.Run("skips GITHUB_ENV append when env var is unset or empty", func(t *testing.T) {
-		t.Setenv("GITHUB_ENV", "")
-		require.NoError(t, configureTLSTrustEnvironment(caPath))
-	})
-
-	t.Run("appends trust environment variables to GITHUB_ENV", func(t *testing.T) {
-		assert := assert.New(t)
-		githubEnvFile := t.TempDir() + "/github_env"
-		require.NoError(t, os.WriteFile(githubEnvFile, []byte{}, 0o644))
-		t.Setenv("GITHUB_ENV", githubEnvFile)
-		for _, key := range tlsTrustEnvKeys {
-			t.Setenv(key, "")
-		}
-
-		err := configureTLSTrustEnvironment(caPath)
-		require.NoError(t, err)
-
-		content, err := os.ReadFile(githubEnvFile)
-		require.NoError(t, err)
-		for _, key := range tlsTrustEnvKeys {
-			assert.Contains(string(content), key+"="+caPath+"\n")
-		}
-	})
-
-	t.Run("treats GITHUB_ENV write failures as best-effort", func(t *testing.T) {
-		if _, err := os.Stat("/dev/full"); err != nil {
-			t.Skip("/dev/full not available on this platform")
-		}
-		t.Setenv("GITHUB_ENV", "/dev/full")
+	t.Run("does not rely on GITHUB_ENV", func(t *testing.T) {
+		t.Setenv("GITHUB_ENV", "/path/that/does/not/exist/github_env")
 		require.NoError(t, configureTLSTrustEnvironment(caPath))
 	})
 

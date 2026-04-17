@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -328,28 +327,5 @@ func configureTLSTrustEnvironment(caCertPath string) error {
 			return fmt.Errorf("failed to set %s: %w", key, err)
 		}
 	}
-
-	githubEnvPath := os.Getenv("GITHUB_ENV")
-	if githubEnvPath == "" {
-		return nil
-	}
-
-	// Best-effort append: the proxy should still start even if GITHUB_ENV cannot be opened.
-	// Mode is intentionally 0 because O_CREATE is not used (existing runner-managed file only).
-	f, err := os.OpenFile(githubEnvPath, os.O_APPEND|os.O_WRONLY, 0)
-	if err != nil {
-		logger.LogWarn("startup", "Skipping GITHUB_ENV TLS trust export: open failed for %s: %v", githubEnvPath, err)
-		return nil
-	}
-	defer f.Close()
-
-	for _, key := range tlsTrustEnvKeys {
-		if _, err := io.WriteString(f, key+"="+caCertPath+"\n"); err != nil {
-			logger.LogWarn("startup", "Skipping GITHUB_ENV TLS trust export: write failed for %s (%s): %v", githubEnvPath, key, err)
-			return nil
-		}
-	}
-
-	logProxyCmd.Printf("Appended TLS trust environment to GITHUB_ENV: %s", githubEnvPath)
 	return nil
 }
