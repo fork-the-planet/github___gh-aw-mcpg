@@ -174,10 +174,7 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 		log.Printf("Registered route: %s", route)
 	}
 
-	return &http.Server{
-		Addr:    addr,
-		Handler: mux,
-	}
+	return newHTTPServer(addr, mux)
 }
 
 // createFilteredServer creates an MCP server that only exposes tools for a specific backend

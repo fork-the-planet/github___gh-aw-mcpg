@@ -311,18 +311,18 @@ func run(cmd *cobra.Command, args []string) error {
 	if cfg.Gateway != nil {
 		tracingCfg = cfg.Gateway.Tracing
 	}
-	tracingProvider, err := tracing.InitProvider(ctx, tracingCfg)
-	if err != nil {
-		logger.StartupWarn("Failed to initialize tracing provider: %v", err)
-		// Non-fatal: continue without tracing
-		tracingProvider, _ = tracing.InitProvider(ctx, nil)
-	}
+	tracingProvider := initTracingProviderWithFallback(
+		ctx,
+		tracingCfg,
+		"Failed to initialize tracing provider: %v",
+		func(format string, args ...any) {
+			logger.StartupWarn(format, args...)
+		},
+	)
 	defer func() {
-		shutdownCtxTracing, cancelTracing := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancelTracing()
-		if err := tracingProvider.Shutdown(shutdownCtxTracing); err != nil {
-			log.Printf("Warning: tracing provider shutdown error: %v", err)
-		}
+		shutdownTracingProviderWithTimeout(tracingProvider, func(format string, args ...any) {
+			log.Printf("Warning: "+format, args...)
+		})
 	}()
 
 	// Apply W3C parent context from configured traceId/spanId (spec §4.1.3.6).

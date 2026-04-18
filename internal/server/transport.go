@@ -48,8 +48,5 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey st
 	mux.Handle("/mcp/", finalHandler)
 	mux.Handle("/mcp", finalHandler)
 
-	return &http.Server{
-		Addr:    addr,
-		Handler: mux,
-	}
+	return newHTTPServer(addr, mux)
 }
