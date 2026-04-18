@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
 	"log"
@@ -12,14 +11,12 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/proxy"
-	"github.com/github/gh-aw-mcpg/internal/tracing"
 	"github.com/spf13/cobra"
 )
 
@@ -121,11 +118,9 @@ Local usage:
 	cmd.Flags().StringVar(&proxyTLSDir, "tls-dir", "", "Directory for TLS certificates (default: <log-dir>/proxy-tls)")
 	cmd.Flags().StringSliceVar(&proxyTrustedBots, "trusted-bots", nil, "Additional trusted bot usernames (comma-separated, extends built-in list)")
 	cmd.Flags().StringSliceVar(&proxyTrustedUsers, "trusted-users", nil, "User logins that receive approved integrity (comma-separated)")
-	cmd.Flags().StringVar(&proxyOTLPEndpoint, "otlp-endpoint", envutil.GetEnvString("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
-		"OTLP HTTP endpoint for trace export (e.g. http://localhost:4318). Tracing is disabled when empty.")
-	cmd.Flags().StringVar(&proxyOTLPService, "otlp-service-name", envutil.GetEnvString("OTEL_SERVICE_NAME", config.DefaultTracingServiceName),
-		"Service name reported in traces.")
-	cmd.Flags().Float64Var(&proxyOTLPSampleRate, "otlp-sample-rate", config.DefaultTracingSampleRate,
+	registerTracingFlags(cmd.Flags(), &proxyOTLPEndpoint, &proxyOTLPService, &proxyOTLPSampleRate,
+		"OTLP HTTP endpoint for trace export (e.g. http://localhost:4318). Tracing is disabled when empty.",
+		"Service name reported in traces.",
 		"Fraction of traces to sample and export (0.0–1.0).")
 
 	// Only require --guard-wasm when no baked-in guard is available
@@ -165,17 +160,13 @@ func runProxy(cmd *cobra.Command, args []string) error {
 			SampleRate:  &proxyOTLPSampleRate,
 		}
 	}
-	tracingProvider, err := tracing.InitProvider(ctx, tracingCfg)
-	if err != nil {
-		log.Printf("Warning: failed to initialize tracing provider: %v", err)
-		tracingProvider, _ = tracing.InitProvider(ctx, nil)
-	}
+	tracingProvider := initTracingProviderWithFallback(ctx, tracingCfg, func(format string, args ...any) {
+		log.Printf("Warning: "+format, args...)
+	})
 	defer func() {
-		shutdownCtx, cancelTracing := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancelTracing()
-		if err := tracingProvider.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Warning: tracing provider shutdown error: %v", err)
-		}
+		shutdownTracingProviderWithTimeout(tracingProvider, func(format string, args ...any) {
+			log.Printf("Warning: "+format, args...)
+		})
 	}()
 	if tracingCfg != nil {
 		log.Printf("OpenTelemetry tracing enabled for proxy: endpoint=%s, service=%s", proxyOTLPEndpoint, proxyOTLPService)
