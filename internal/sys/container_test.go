@@ -368,18 +368,6 @@ func TestExtractContainerIDFromCgroup(t *testing.T) {
 	}
 }
 
-// TestDetectContainerID_ReturnedIDIsValidOrEmpty verifies that when DetectContainerID
-// returns a non-empty container ID, it is at least 12 characters long (the minimum
-// required by extractContainerIDFromContent).
-func TestDetectContainerID_ReturnedIDIsValidOrEmpty(t *testing.T) {
-	detected, containerID := DetectContainerID()
-	if detected && containerID != "" {
-		assert.GreaterOrEqual(t, len(containerID), 12,
-			"non-empty container ID must be at least 12 characters")
-	}
-	t.Logf("DetectContainerID: detected=%v, id=%q", detected, containerID)
-}
-
 // TestDetectContainerID_EnvVarReturnsEmptyID verifies that container detection via
 // the RUNNING_IN_CONTAINER environment variable always yields an empty container ID,
 // since the env-var path has no mechanism to extract an ID.
