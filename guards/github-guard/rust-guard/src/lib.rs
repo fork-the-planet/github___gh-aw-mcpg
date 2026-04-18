@@ -25,6 +25,7 @@ use std::sync::Mutex;
 
 const POLICY_SCOPE_ALL: &str = "all";
 const POLICY_SCOPE_PUBLIC: &str = "public";
+const DIFC_MODE: &str = "filter";
 
 /// Maximum number of bytes to include in a log preview of serialized JSON.
 const PREVIEW_MAX_BYTES: usize = 500;
@@ -521,19 +522,7 @@ pub extern "C" fn label_agent(
         }
     };
 
-    let ctx = PolicyContext {
-        scopes: scopes.clone(),
-        trusted_bots,
-        blocked_users: policy.blocked_users,
-        approval_labels: policy.approval_labels,
-        trusted_users: policy.trusted_users,
-        endorsement_reactions: policy.endorsement_reactions,
-        disapproval_reactions: policy.disapproval_reactions,
-        disapproval_integrity: policy.disapproval_integrity,
-        endorser_min_integrity: policy.endorser_min_integrity,
-    };
-    set_runtime_policy_context(ctx.clone());
-
+    // Compute scope-derived values while `scopes` is still owned, before moving it into ctx.
     let secrecy: Vec<String> = scopes
         .iter()
         .filter_map(|scope| match scope.scope_kind {
@@ -549,6 +538,21 @@ pub extern "C" fn label_agent(
         .collect();
 
     let token = scope_token(&scopes);
+    let scope_kind_str = normalized_scope_kind(&scopes);
+
+    let ctx = PolicyContext {
+        scopes,
+        trusted_bots,
+        blocked_users: policy.blocked_users,
+        approval_labels: policy.approval_labels,
+        trusted_users: policy.trusted_users,
+        endorsement_reactions: policy.endorsement_reactions,
+        disapproval_reactions: policy.disapproval_reactions,
+        disapproval_integrity: policy.disapproval_integrity,
+        endorser_min_integrity: policy.endorser_min_integrity,
+    };
+    set_runtime_policy_context(ctx.clone());
+
     let integrity = match integrity_floor {
         MinIntegrity::None => labels::none_integrity(&token, &ctx),
         MinIntegrity::Unapproved => labels::reader_integrity(&token, &ctx),
@@ -556,16 +560,14 @@ pub extern "C" fn label_agent(
         MinIntegrity::Merged => labels::merged_integrity(&token, &ctx),
     };
 
-    let difc_mode = "filter";
-
     let normalized_policy = NormalizedPolicy {
-        scope_kind: normalized_scope_kind(&scopes),
+        scope_kind: scope_kind_str,
         min_integrity: integrity_floor.as_str().to_string(),
     };
 
     let output = LabelAgentOutput {
         agent: AgentLabels { secrecy, integrity },
-        difc_mode: difc_mode.to_string(),
+        difc_mode: DIFC_MODE.to_string(),
         normalized_policy,
     };
 
