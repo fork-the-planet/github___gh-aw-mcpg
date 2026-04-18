@@ -19,10 +19,15 @@ func registerTracingFlags(flags *pflag.FlagSet, endpoint *string, serviceName *s
 		sampleUsage)
 }
 
-func initTracingProviderWithFallback(ctx context.Context, tracingCfg *config.TracingConfig, warnf func(format string, args ...any)) *tracing.Provider {
+func initTracingProviderWithFallback(
+	ctx context.Context,
+	tracingCfg *config.TracingConfig,
+	initWarningFormat string,
+	warnf func(format string, args ...any),
+) *tracing.Provider {
 	tracingProvider, err := tracing.InitProvider(ctx, tracingCfg)
 	if err != nil {
-		warnf("failed to initialize tracing provider: %v", err)
+		warnf(initWarningFormat, err)
 		tracingProvider, _ = tracing.InitProvider(ctx, nil)
 	}
 

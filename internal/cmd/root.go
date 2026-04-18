@@ -311,9 +311,14 @@ func run(cmd *cobra.Command, args []string) error {
 	if cfg.Gateway != nil {
 		tracingCfg = cfg.Gateway.Tracing
 	}
-	tracingProvider := initTracingProviderWithFallback(ctx, tracingCfg, func(format string, args ...any) {
-		logger.StartupWarn(format, args...)
-	})
+	tracingProvider := initTracingProviderWithFallback(
+		ctx,
+		tracingCfg,
+		"Failed to initialize tracing provider: %v",
+		func(format string, args ...any) {
+			logger.StartupWarn(format, args...)
+		},
+	)
 	defer func() {
 		shutdownTracingProviderWithTimeout(tracingProvider, func(format string, args ...any) {
 			log.Printf("Warning: "+format, args...)
