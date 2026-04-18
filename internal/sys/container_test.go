@@ -299,6 +299,16 @@ func TestExtractContainerIDFromContent(t *testing.T) {
 			expected: "",
 		},
 		{
+			name:     "docker with ID exactly 11 chars (below minimum)",
+			content:  "0::/docker/abcdef12345",
+			expected: "",
+		},
+		{
+			name:     "containerd with ID exactly 11 chars (below minimum)",
+			content:  "0::/containerd/abcdef12345",
+			expected: "",
+		},
+		{
 			name:     "no container indicators",
 			content:  "0::/user.slice/user-1000.slice",
 			expected: "",
@@ -313,6 +323,31 @@ func TestExtractContainerIDFromContent(t *testing.T) {
 			content:  "0::/kubepods/besteffort/pod123",
 			expected: "",
 		},
+		{
+			name:     "docker at end of path with no following segment",
+			content:  "0::/docker",
+			expected: "",
+		},
+		{
+			name:     "containerd at end of path with no following segment",
+			content:  "0::/containerd",
+			expected: "",
+		},
+		{
+			name:     "match on second line only",
+			content:  "0::/\n1::/docker/abcdef123456",
+			expected: "abcdef123456",
+		},
+		{
+			name:     "first line no match, second line containerd with valid ID",
+			content:  "0::/user.slice/user-1000.slice\n1::/containerd/fedcba654321",
+			expected: "fedcba654321",
+		},
+		{
+			name:     "docker appears in non-segment context within a non-matching path",
+			content:  "0::/system.slice/docker.service",
+			expected: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -320,6 +355,51 @@ func TestExtractContainerIDFromContent(t *testing.T) {
 			result := extractContainerIDFromContent(tt.content)
 			assert.Equal(t, tt.expected, result)
 		})
+	}
+}
+
+// TestExtractContainerIDFromCgroup tests the cgroup-based container ID extraction.
+// This function reads actual system files so the result depends on the environment;
+// we verify it returns a well-formed ID or empty string without panicking.
+func TestExtractContainerIDFromCgroup(t *testing.T) {
+	id := extractContainerIDFromCgroup()
+	if id != "" {
+		assert.GreaterOrEqual(t, len(id), 12, "returned container ID should be at least 12 characters")
+	}
+}
+
+// TestDetectContainerID_ReturnedIDIsValidOrEmpty verifies that when DetectContainerID
+// returns a non-empty container ID, it is at least 12 characters long (the minimum
+// required by extractContainerIDFromContent).
+func TestDetectContainerID_ReturnedIDIsValidOrEmpty(t *testing.T) {
+	detected, containerID := DetectContainerID()
+	if detected && containerID != "" {
+		assert.GreaterOrEqual(t, len(containerID), 12,
+			"non-empty container ID must be at least 12 characters")
+	}
+	t.Logf("DetectContainerID: detected=%v, id=%q", detected, containerID)
+}
+
+// TestDetectContainerID_EnvVarReturnsEmptyID verifies that container detection via
+// the RUNNING_IN_CONTAINER environment variable always yields an empty container ID,
+// since the env-var path has no mechanism to extract an ID.
+func TestDetectContainerID_EnvVarReturnsEmptyID(t *testing.T) {
+	t.Setenv("RUNNING_IN_CONTAINER", "true")
+
+	// Override file-based detection by using the env var path.
+	// We can only guarantee an empty ID when /.dockerenv does not exist and
+	// no cgroup indicator is present.
+	_, dockerEnvErr := os.Stat("/.dockerenv")
+	dockerEnvExists := dockerEnvErr == nil
+
+	cgroupData, _ := os.ReadFile("/proc/1/cgroup")
+	cgroupHasIndicator := containsAny(string(cgroupData), []string{"docker", "containerd", "kubepods", "lxc"})
+
+	// Only assert the empty ID if the env-var path is the sole detection method.
+	if !dockerEnvExists && !cgroupHasIndicator {
+		_, containerID := DetectContainerID()
+		assert.Empty(t, containerID,
+			"container ID should be empty when detected only via RUNNING_IN_CONTAINER env var")
 	}
 }
 
