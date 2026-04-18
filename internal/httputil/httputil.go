@@ -35,3 +35,11 @@ func ParseRateLimitResetHeader(value string) time.Time {
 	}
 	return time.Unix(unix, 0)
 }
+
+// IsTransientHTTPError returns true for status codes that indicate a temporary
+// server-side condition (rate-limiting or transient failure) worth retrying.
+func IsTransientHTTPError(statusCode int) bool {
+	return statusCode == http.StatusTooManyRequests ||
+		statusCode == http.StatusServiceUnavailable ||
+		(statusCode >= 500 && statusCode < 600)
+}

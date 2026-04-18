@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/version"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -113,7 +114,7 @@ func TestBuildVersionString(t *testing.T) {
 			GitCommit = tt.gitCommit
 			BuildDate = tt.buildDate
 
-			result := buildVersionString()
+			result := version.BuildVersionString(Version, GitCommit, BuildDate)
 
 			// Check expected parts
 			for _, part := range tt.expectedParts {
@@ -152,7 +153,7 @@ func TestBuildVersionString_UsesVCSInfo(t *testing.T) {
 	GitCommit = ""
 	BuildDate = ""
 
-	result := buildVersionString()
+	result := version.BuildVersionString(Version, GitCommit, BuildDate)
 
 	// Should at least have "dev"
 	assert.Contains(result, "dev", "Should contain 'dev' when Version is empty")
@@ -181,7 +182,7 @@ func TestBuildVersionString_CommitHashShortening(t *testing.T) {
 	GitCommit = "1234567890abcdefghijklmnop" // Very long hash
 	BuildDate = ""
 
-	result := buildVersionString()
+	result := version.BuildVersionString(Version, GitCommit, BuildDate)
 
 	// The full commit hash should be present (no shortening in direct path)
 	assert.Contains(result, "commit: 1234567890abcdefghijklmnop", "Should include full commit hash when set via GitCommit variable")
@@ -243,7 +244,7 @@ func TestBuildVersionString_OutputFormat(t *testing.T) {
 			GitCommit = tt.gitCommit
 			BuildDate = tt.buildDate
 
-			result := buildVersionString()
+			result := version.BuildVersionString(Version, GitCommit, BuildDate)
 
 			// For VCS fallback case, we can't guarantee exact output
 			if tt.version == "" && tt.gitCommit == "" && tt.buildDate == "" {

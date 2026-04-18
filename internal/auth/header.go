@@ -36,6 +36,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
@@ -44,6 +45,7 @@ import (
 )
 
 var log = logger.New("auth:header")
+var logAPIKey = logger.New("auth:apikey")
 
 var (
 	// ErrMissingAuthHeader is returned when the Authorization header is missing
@@ -179,4 +181,18 @@ func TruncateSessionID(sessionID string) string {
 		return "(none)"
 	}
 	return strutil.Truncate(sessionID, 8)
+}
+
+// GenerateRandomAPIKey generates a cryptographically random API key.
+// Per spec §7.3, the gateway SHOULD generate a random API key on startup
+// if none is provided. Returns a 32-byte hex-encoded string (64 chars).
+func GenerateRandomAPIKey() (string, error) {
+	logAPIKey.Print("Generating random API key")
+	key, err := strutil.RandomHex(32)
+	if err != nil {
+		logAPIKey.Printf("Random API key generation failed: %v", err)
+		return "", fmt.Errorf("failed to generate random API key: %w", err)
+	}
+	logAPIKey.Print("Random API key generated successfully")
+	return key, nil
 }

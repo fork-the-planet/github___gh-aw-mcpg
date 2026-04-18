@@ -1,5 +1,13 @@
 package version
 
+import (
+	"fmt"
+	"runtime/debug"
+	"strings"
+)
+
+const shortHashLength = 7
+
 // gatewayVersion stores the gateway version string, used across multiple packages
 // for error reporting, health checks, and MCP client implementation info.
 // It defaults to "0.0.0-dev" (a valid semantic version pre-release identifier) and
@@ -21,4 +29,43 @@ func Set(v string) {
 // Get returns the current gateway version string.
 func Get() string {
 	return gatewayVersion
+}
+
+// BuildVersionString constructs a detailed version string with optional build metadata.
+func BuildVersionString(mainVersion, gitCommit, buildDate string) string {
+	var parts []string
+
+	if mainVersion != "" {
+		parts = append(parts, mainVersion)
+	} else {
+		parts = append(parts, "dev")
+	}
+
+	if gitCommit != "" {
+		parts = append(parts, fmt.Sprintf("commit: %s", gitCommit))
+	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range buildInfo.Settings {
+			if setting.Key == "vcs.revision" {
+				commitHash := setting.Value
+				if len(commitHash) > shortHashLength {
+					commitHash = commitHash[:shortHashLength]
+				}
+				parts = append(parts, fmt.Sprintf("commit: %s", commitHash))
+				break
+			}
+		}
+	}
+
+	if buildDate != "" {
+		parts = append(parts, fmt.Sprintf("built: %s", buildDate))
+	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range buildInfo.Settings {
+			if setting.Key == "vcs.time" {
+				parts = append(parts, fmt.Sprintf("built: %s", setting.Value))
+				break
+			}
+		}
+	}
+
+	return strings.Join(parts, ", ")
 }

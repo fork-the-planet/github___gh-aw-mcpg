@@ -1,4 +1,4 @@
-package timeutil
+package strutil
 
 import (
 	"testing"

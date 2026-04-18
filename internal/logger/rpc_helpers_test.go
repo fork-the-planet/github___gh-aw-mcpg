@@ -330,53 +330,6 @@ func TestExtractEssentialFields(t *testing.T) {
 	}
 }
 
-// TestGetMapKeys tests the getMapKeys function
-func TestGetMapKeys(t *testing.T) {
-	tests := []struct {
-		name string
-		m    map[string]interface{}
-		want []string
-	}{
-		{
-			name: "normal map",
-			m: map[string]interface{}{
-				"key1": "value1",
-				"key2": "value2",
-				"key3": "value3",
-			},
-			want: []string{"key1", "key2", "key3"},
-		},
-		{
-			name: "empty map",
-			m:    map[string]interface{}{},
-			want: []string{},
-		},
-		{
-			name: "single key",
-			m: map[string]interface{}{
-				"only": "value",
-			},
-			want: []string{"only"},
-		},
-		{
-			name: "nil values",
-			m: map[string]interface{}{
-				"null1": nil,
-				"null2": nil,
-			},
-			want: []string{"null1", "null2"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getMapKeys(tt.m)
-			assert.ElementsMatch(t, tt.want, result, "keys should match regardless of order")
-			assert.Len(t, result, len(tt.want), "should have correct number of keys")
-		})
-	}
-}
-
 // TestIsEffectivelyEmpty tests the isEffectivelyEmpty function
 func TestIsEffectivelyEmpty(t *testing.T) {
 	tests := []struct {

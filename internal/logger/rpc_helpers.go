@@ -6,7 +6,6 @@
 //
 // - truncateAndSanitize: Combines secret sanitization with length truncation
 // - extractEssentialFields: Extracts key JSON-RPC fields for compact logging
-// - getMapKeys: Utility for extracting map keys without values
 // - isEffectivelyEmpty: Checks if data is effectively empty (e.g., only params: null)
 // - ExtractErrorMessage: Extracts clean error messages from log lines
 //
@@ -78,20 +77,15 @@ func extractEssentialFields(payload []byte) map[string]interface{} {
 	if params, ok := data["params"]; ok {
 		if paramsMap, ok := params.(map[string]interface{}); ok {
 			// Include param count and keys, but not values
-			essential["params_keys"] = getMapKeys(paramsMap)
+			keys := make([]string, 0, len(paramsMap))
+			for k := range paramsMap {
+				keys = append(keys, k)
+			}
+			essential["params_keys"] = keys
 		}
 	}
 
 	return essential
-}
-
-// getMapKeys returns the keys of a map
-func getMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
 }
 
 // isEffectivelyEmpty checks if the data is effectively empty (only contains params: null)

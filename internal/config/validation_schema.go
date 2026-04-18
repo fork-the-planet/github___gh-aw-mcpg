@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/config/rules"
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	"github.com/santhosh-tekuri/jsonschema/v5"
@@ -48,14 +49,6 @@ var schemaFetchRetryDelay = time.Second
 // schemaHTTPClientTimeout is the per-attempt HTTP request timeout. It is a variable
 // so tests can shorten it to avoid long waits when testing timeout behaviour.
 var schemaHTTPClientTimeout = 10 * time.Second
-
-// isTransientHTTPError returns true for status codes that indicate a temporary
-// server-side condition (rate-limiting or transient failure) worth retrying.
-func isTransientHTTPError(statusCode int) bool {
-	return statusCode == http.StatusTooManyRequests ||
-		statusCode == http.StatusServiceUnavailable ||
-		(statusCode >= 500 && statusCode < 600)
-}
 
 var (
 	// Compile regex patterns from schema for additional validation
@@ -260,7 +253,7 @@ func fetchAndFixSchema(url string) ([]byte, error) {
 			break
 		}
 
-		if isTransientHTTPError(resp.StatusCode) {
+		if httputil.IsTransientHTTPError(resp.StatusCode) {
 			lastErr = fmt.Errorf("failed to fetch schema: HTTP %d", resp.StatusCode)
 			logSchema.Printf("Schema fetch attempt %d returned transient error: HTTP %d, will retry", attempt, resp.StatusCode)
 			resp.Body.Close()

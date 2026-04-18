@@ -1,4 +1,4 @@
-package config
+package httputil
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestIsTransientHTTPError verifies every status-code branch in isTransientHTTPError.
+// TestIsTransientHTTPError verifies every status-code branch in IsTransientHTTPError.
 // The function returns true for HTTP 429 (TooManyRequests), 503 (ServiceUnavailable),
 // and any 5xx status code, and false for all other codes.
 func TestIsTransientHTTPError(t *testing.T) {
@@ -121,8 +121,8 @@ func TestIsTransientHTTPError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := isTransientHTTPError(tt.statusCode)
-			assert.Equal(t, tt.want, got, "isTransientHTTPError(%d)", tt.statusCode)
+			got := IsTransientHTTPError(tt.statusCode)
+			assert.Equal(t, tt.want, got, "IsTransientHTTPError(%d)", tt.statusCode)
 		})
 	}
 }

@@ -35,9 +35,9 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 - `internal/mcp/` - MCP protocol types with enhanced error logging
 - `internal/middleware/` - HTTP middleware (jq schema processing)
 - `internal/server/` - HTTP server (routed/unified modes)
+- `internal/strutil/` - String and formatting utilities
 - `internal/sys/` - System utilities
 - `internal/testutil/` - Test utilities and helpers
-- `internal/timeutil/` - Time formatting utilities
 - `internal/tty/` - Terminal detection utilities
 - `internal/version/` - Version management
 

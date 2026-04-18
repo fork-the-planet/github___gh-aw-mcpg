@@ -46,6 +46,15 @@ type Provider struct {
 	cache        map[string]*cachedToken // keyed by audience
 }
 
+// ErrMissingOIDCEnvVar returns a formatted error for when
+// ACTIONS_ID_TOKEN_REQUEST_URL is not set for a server that requires OIDC auth.
+func ErrMissingOIDCEnvVar(serverID string) error {
+	return fmt.Errorf(
+		"server %q requires OIDC authentication but ACTIONS_ID_TOKEN_REQUEST_URL is not set; "+
+			"OIDC auth is only available in GitHub Actions with `permissions: { id-token: write }`",
+		serverID)
+}
+
 // NewProvider creates a new Provider using the given OIDC request URL and bearer token.
 // These values come from the ACTIONS_ID_TOKEN_REQUEST_URL and
 // ACTIONS_ID_TOKEN_REQUEST_TOKEN environment variables respectively.

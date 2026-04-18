@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/timeutil"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/tty"
 )
 
@@ -122,9 +122,9 @@ func (l *Logger) Printf(format string, args ...any) {
 
 	// Write to stderr with colors and time diff
 	if l.color != "" {
-		fmt.Fprintf(os.Stderr, "%s%s%s %s +%s\n", l.color, l.namespace, colorReset, message, timeutil.FormatDuration(diff))
+		fmt.Fprintf(os.Stderr, "%s%s%s %s +%s\n", l.color, l.namespace, colorReset, message, strutil.FormatDuration(diff))
 	} else {
-		fmt.Fprintf(os.Stderr, "%s %s +%s\n", l.namespace, message, timeutil.FormatDuration(diff))
+		fmt.Fprintf(os.Stderr, "%s %s +%s\n", l.namespace, message, strutil.FormatDuration(diff))
 	}
 
 	// Also write to file logger in text-only format (no colors, no time diff)
@@ -149,9 +149,9 @@ func (l *Logger) Print(args ...any) {
 
 	// Write to stderr with colors and time diff
 	if l.color != "" {
-		fmt.Fprintf(os.Stderr, "%s%s%s %s +%s\n", l.color, l.namespace, colorReset, message, timeutil.FormatDuration(diff))
+		fmt.Fprintf(os.Stderr, "%s%s%s %s +%s\n", l.color, l.namespace, colorReset, message, strutil.FormatDuration(diff))
 	} else {
-		fmt.Fprintf(os.Stderr, "%s %s +%s\n", l.namespace, message, timeutil.FormatDuration(diff))
+		fmt.Fprintf(os.Stderr, "%s %s +%s\n", l.namespace, message, strutil.FormatDuration(diff))
 	}
 
 	// Also write to file logger in text-only format (no colors, no time diff)
