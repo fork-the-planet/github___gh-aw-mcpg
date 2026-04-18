@@ -4753,7 +4753,6 @@ mod tests {
             "update_issue_state",
             "update_issue_title",
             "update_issue_type",
-            "set_issue_fields",
         ] {
             let (secrecy, integrity, _desc) = apply_tool_labels(
                 tool,
@@ -4769,6 +4768,40 @@ mod tests {
             assert_eq!(secrecy, vec![] as Vec<String>, "{tool} secrecy mismatch");
             assert_eq!(integrity, writer_integrity(repo_id, &ctx), "{tool} should have writer integrity");
         }
+    }
+
+    #[test]
+    fn test_apply_tool_labels_set_issue_fields_writer_integrity() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "issue_number": 1,
+            "fields": [
+                {
+                    "field_id": "PVTSSF_example",
+                    "text_value": "In progress"
+                }
+            ]
+        });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "set_issue_fields",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(secrecy, vec![] as Vec<String>, "set_issue_fields secrecy mismatch");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "set_issue_fields should have writer integrity"
+        );
     }
 
     #[test]

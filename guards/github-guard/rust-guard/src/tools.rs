@@ -99,7 +99,9 @@ pub const READ_WRITE_OPERATIONS: &[&str] = &[
     "update_issue_state",     // PATCH — opens or closes an issue
     "update_issue_title",     // PATCH — modifies issue title
     "update_issue_type",      // PATCH — modifies issue type
-    "set_issue_fields",       // GraphQL — sets org-level custom field values on an issue
+
+    // Issue custom field mutation (field definitions are org-level; target issue is repo-scoped)
+    "set_issue_fields", // GraphQL — sets custom field values on a specific repository issue
 
     // Sub-issue management tools (alongside sub_issue_write composite)
     "add_sub_issue",          // POST  /repos/.../issues/{number}/sub_issues
@@ -349,7 +351,6 @@ mod tests {
             "update_issue_state",
             "update_issue_title",
             "update_issue_type",
-            "set_issue_fields",
         ] {
             assert!(
                 is_read_write_operation(op),
@@ -362,6 +363,21 @@ mod tests {
                 op
             );
         }
+    }
+
+    #[test]
+    fn test_set_issue_fields_is_read_write_operation() {
+        let op = "set_issue_fields";
+        assert!(
+            is_read_write_operation(op),
+            "{} must be classified as a read-write operation",
+            op
+        );
+        assert!(
+            !is_write_operation(op),
+            "{} should not be in WRITE_OPERATIONS (it is in READ_WRITE_OPERATIONS)",
+            op
+        );
     }
 
     #[test]
