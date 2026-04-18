@@ -285,9 +285,7 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 			if err != nil {
 				logger.LogError("client", "MCP tool call error, session=%s, tool=%s, error=%v", sessionID, toolNameCopy, err)
 			} else {
-				resultJSON, _ := json.Marshal(data)
-				sanitizedResult := sanitize.SanitizeString(string(resultJSON))
-				logger.LogInfo("client", "MCP tool call response, session=%s, tool=%s, result=%s", sessionID, toolNameCopy, sanitizedResult)
+				logger.LogInfo("client", "MCP tool call response, session=%s, tool=%s, result=%s", sessionID, toolNameCopy, marshalAndSanitizeForLog(data))
 			}
 
 			return result, data, err
@@ -351,6 +349,22 @@ func (us *UnifiedServer) callSysServer(toolName string) (interface{}, error) {
 	return result, nil
 }
 
+func marshalAndSanitizeForLog(value interface{}) string {
+	resultJSON, _ := json.Marshal(value)
+	return sanitize.SanitizeString(string(resultJSON))
+}
+
+func (us *UnifiedServer) callAndLogSysTool(sessionID, operationName, sysToolName string) (*sdk.CallToolResult, interface{}, error) {
+	result, err := us.callSysServer(sysToolName)
+	if err != nil {
+		logger.LogError("client", "MCP %s call failed, session=%s, error=%v", operationName, sessionID, err)
+		return mcp.NewErrorCallToolResult(err)
+	}
+
+	logger.LogInfo("client", "MCP %s response, session=%s, result=%s", operationName, sessionID, marshalAndSanitizeForLog(result))
+	return nil, result, nil
+}
+
 // registerSysTools registers built-in sys tools
 func (us *UnifiedServer) registerSysTools() error {
 	// Create sys_init handler
@@ -392,16 +406,7 @@ func (us *UnifiedServer) registerSysTools() error {
 		logger.LogInfo("client", "MCP session initialized successfully, session=%s, available_servers=%v", sessionID, us.launcher.ServerIDs())
 
 		// Call sys_init
-		result, err := us.callSysServer("sys_init")
-		if err != nil {
-			logger.LogError("client", "MCP session initialization: sys_init call failed, session=%s, error=%v", sessionID, err)
-			return mcp.NewErrorCallToolResult(err)
-		}
-
-		resultJSON, _ := json.Marshal(result)
-		sanitizedResult := sanitize.SanitizeString(string(resultJSON))
-		logger.LogInfo("client", "MCP session initialization complete, session=%s, result=%s", sessionID, sanitizedResult)
-		return nil, result, nil
+		return us.callAndLogSysTool(sessionID, "session initialization", "sys_init")
 	}
 
 	// Register sys_init tool using helper
@@ -431,15 +436,7 @@ func (us *UnifiedServer) registerSysTools() error {
 			return mcp.NewErrorCallToolResult(err)
 		}
 
-		result, err := us.callSysServer("sys_list_servers")
-		if err != nil {
-			logger.LogError("client", "MCP sys_list_servers error, session=%s, error=%v", sessionID, err)
-			return mcp.NewErrorCallToolResult(err)
-		}
-
-		resultJSON, _ := json.Marshal(result)
-		logger.LogInfo("client", "MCP sys_list_servers response, session=%s, result=%s", sessionID, string(resultJSON))
-		return nil, result, nil
+		return us.callAndLogSysTool(sessionID, "sys_list_servers", "sys_list_servers")
 	}
 
 	// Register sys_list_servers tool using helper

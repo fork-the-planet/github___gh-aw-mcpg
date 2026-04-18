@@ -496,6 +496,37 @@ func TestCallSysServer_UnknownTool(t *testing.T) {
 	require.Error(err, "callSysServer with unknown tool should return an error")
 }
 
+func TestMarshalAndSanitizeForLog_RedactsSecrets(t *testing.T) {
+	assert := assert.New(t)
+
+	const secret = "ghp_1234567890123456789012345678901234567890"
+	sanitized := marshalAndSanitizeForLog(map[string]interface{}{
+		"token": secret,
+	})
+
+	assert.Contains(sanitized, "[REDACTED]")
+	assert.NotContains(sanitized, secret)
+}
+
+func TestCallAndLogSysTool_UnknownToolReturnsErrorResult(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{},
+	}
+
+	us, err := NewUnified(context.Background(), cfg)
+	require.NoError(err)
+	defer us.Close()
+
+	result, data, callErr := us.callAndLogSysTool("session-id", "sys test", "nonexistent_tool")
+	require.Error(callErr)
+	require.NotNil(result)
+	assert.Nil(data)
+	assert.True(result.IsError)
+}
+
 // TestRegisterAllToolsParallel_EmptyList verifies that parallel registration with no
 // servers does not block and returns immediately.
 func TestRegisterAllToolsParallel_EmptyList(t *testing.T) {

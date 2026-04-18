@@ -351,12 +351,15 @@ func (us *UnifiedServer) ensureGuardInitialized(
 		log.Printf("[DIFC] label_agent returned nil result: server=%s, session=%s, guard=%s", serverID, sessionID, g.Name())
 		return defaultMode, fmt.Errorf("label_agent returned nil result")
 	}
-	resultJSON, marshalErr := json.Marshal(labelAgentResult)
-	if marshalErr != nil {
-		log.Printf("[DIFC] label_agent returned result (failed to serialize for logging): server=%s, session=%s, guard=%s, error=%v", serverID, sessionID, g.Name(), marshalErr)
-	} else {
-		log.Printf("[DIFC] label_agent response: server=%s, session=%s, guard=%s, response=%s", serverID, sessionID, g.Name(), string(resultJSON))
-	}
+	logger.LogMarshaledForDebug(
+		labelAgentResult,
+		func(resultJSON string) {
+			log.Printf("[DIFC] label_agent response: server=%s, session=%s, guard=%s, response=%s", serverID, sessionID, g.Name(), resultJSON)
+		},
+		func(marshalErr error) {
+			log.Printf("[DIFC] label_agent returned result (failed to serialize for logging): server=%s, session=%s, guard=%s, error=%v", serverID, sessionID, g.Name(), marshalErr)
+		},
+	)
 
 	mode := defaultMode
 	if labelAgentResult.DIFCMode != "" {
