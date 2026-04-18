@@ -267,11 +267,10 @@ awmg/
     ├── oidc/                  # OIDC authentication for HTTP MCP backends
     ├── proxy/                 # HTTP forward proxy for DIFC filtering
     ├── server/                # HTTP server (routed/unified modes)
-    ├── strutil/               # String utility helpers
+    ├── strutil/               # String and formatting utility helpers
     ├── syncutil/              # Concurrency utility helpers
     ├── sys/                   # System utilities
     ├── testutil/              # Test utilities and helpers
-    ├── timeutil/              # Time formatting utilities
     ├── tracing/               # OpenTelemetry OTLP tracing helpers
     ├── tty/                   # Terminal detection utilities
     └── version/               # Version management
