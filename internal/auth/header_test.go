@@ -9,6 +9,84 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 )
 
+func TestIsMalformedHeader(t *testing.T) {
+	assert := assert.New(t)
+
+	tests := []struct {
+		name   string
+		header string
+		want   bool
+	}{
+		{
+			name:   "Empty string is valid",
+			header: "",
+			want:   false,
+		},
+		{
+			name:   "Normal API key is valid",
+			header: "my-secret-api-key",
+			want:   false,
+		},
+		{
+			name:   "Bearer token is valid",
+			header: "Bearer my-token-123",
+			want:   false,
+		},
+		{
+			name:   "Horizontal tab (0x09) is valid per RFC 7230",
+			header: "key\twith\ttabs",
+			want:   false,
+		},
+		{
+			name:   "Printable ASCII is valid",
+			header: "!#$%&'*+-.0123456789ABCDEFabcdef~",
+			want:   false,
+		},
+		{
+			name:   "Null byte (0x00) is malformed",
+			header: "key\x00value",
+			want:   true,
+		},
+		{
+			name:   "DEL (0x7F) is malformed",
+			header: "key\x7fvalue",
+			want:   true,
+		},
+		{
+			name:   "Control char 0x01 is malformed",
+			header: "key\x01value",
+			want:   true,
+		},
+		{
+			name:   "Newline (0x0A) is malformed",
+			header: "key\nvalue",
+			want:   true,
+		},
+		{
+			name:   "Carriage return (0x0D) is malformed",
+			header: "key\rvalue",
+			want:   true,
+		},
+		{
+			name:   "Leading null byte",
+			header: "\x00key",
+			want:   true,
+		},
+		{
+			name:   "Trailing null byte",
+			header: "key\x00",
+			want:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := IsMalformedHeader(tt.header)
+			assert.Equal(tt.want, got)
+		})
+	}
+}
+
 func TestTruncateSecret(t *testing.T) {
 	assert := assert.New(t)
 

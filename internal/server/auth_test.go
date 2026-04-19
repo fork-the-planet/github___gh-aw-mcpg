@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/gh-aw-mcpg/internal/auth"
 )
 
 // TestAuthMiddleware tests the authMiddleware function with various scenarios
@@ -292,7 +294,7 @@ func TestAuthMiddleware_ConcurrentRequests(t *testing.T) {
 	}
 }
 
-// TestIsMalformedAuthHeader tests the isMalformedAuthHeader helper.
+// TestIsMalformedAuthHeader tests auth.IsMalformedHeader via the server package.
 func TestIsMalformedAuthHeader(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -313,8 +315,8 @@ func TestIsMalformedAuthHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isMalformedAuthHeader(tt.header)
-			assert.Equal(t, tt.malformed, got, "isMalformedAuthHeader(%q) should return %v", tt.header, tt.malformed)
+			got := auth.IsMalformedHeader(tt.header)
+			assert.Equal(t, tt.malformed, got, "auth.IsMalformedHeader(%q) should return %v", tt.header, tt.malformed)
 		})
 	}
 }

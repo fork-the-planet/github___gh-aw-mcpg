@@ -183,6 +183,19 @@ func TruncateSessionID(sessionID string) string {
 	return strutil.Truncate(sessionID, 8)
 }
 
+// IsMalformedHeader returns true if the header value contains characters
+// that are not valid in HTTP header values per RFC 7230: null bytes, control
+// characters below 0x20 (except horizontal tab 0x09), or DEL (0x7F).
+// Per spec 7.2 item 3, such headers must be rejected with HTTP 400.
+func IsMalformedHeader(header string) bool {
+	for _, c := range header {
+		if c == 0x00 || (c < 0x20 && c != 0x09) || c == 0x7F {
+			return true
+		}
+	}
+	return false
+}
+
 // GenerateRandomAPIKey generates a cryptographically random API key.
 // Per spec §7.3, the gateway SHOULD generate a random API key on startup
 // if none is provided. Returns a 32-byte hex-encoded string (64 chars).

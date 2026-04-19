@@ -3,23 +3,11 @@ package server
 import (
 	"net/http"
 
+	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
 var logAuth = logger.New("server:auth")
-
-// isMalformedAuthHeader returns true if the header value contains characters
-// that are not valid in HTTP header values per RFC 7230: null bytes, control
-// characters below 0x20 (except horizontal tab 0x09), or DEL (0x7F).
-// Per spec 7.2 item 3, such headers must be rejected with HTTP 400.
-func isMalformedAuthHeader(header string) bool {
-	for _, c := range header {
-		if c == 0x00 || (c < 0x20 && c != 0x09) || c == 0x7F {
-			return true
-		}
-	}
-	return false
-}
 
 // authMiddleware implements API key authentication per spec section 7.1
 // Per spec: Authorization header MUST contain the API key directly (NOT Bearer scheme)
@@ -43,7 +31,7 @@ func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
 
 		// Spec 7.2 item 3: Malformed Authorization headers (null bytes, non-printable
 		// control characters) must return 400 Bad Request, not 401.
-		if isMalformedAuthHeader(authHeader) {
+		if auth.IsMalformedHeader(authHeader) {
 			rejectRequest(w, r, http.StatusBadRequest, "bad_request", "malformed Authorization header", "auth", "authentication_failed", "malformed_auth_header")
 			return
 		}
