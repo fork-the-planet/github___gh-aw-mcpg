@@ -203,6 +203,8 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	logProxyCmd.Printf("Resolved GitHub API URL: %s, explicit flag=%v", apiURL, proxyAPIURL != "")
 
 	// Create the proxy server
+	logProxyCmd.Printf("Creating proxy server: guard=%s, hasPolicy=%v, mode=%s, trustedBots=%d, trustedUsers=%d",
+		proxyGuardWasm, proxyPolicy != "", proxyDIFCMode, len(proxyTrustedBots), len(proxyTrustedUsers))
 	proxySrv, err := proxy.New(ctx, proxy.Config{
 		WasmPath:     proxyGuardWasm,
 		Policy:       proxyPolicy,
@@ -215,6 +217,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create proxy server: %w", err)
 	}
+	logProxyCmd.Printf("Proxy server created successfully")
 
 	// Generate TLS certificates if requested
 	var tlsCfg *proxy.TLSConfig
@@ -235,11 +238,13 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create the HTTP server
+	logProxyCmd.Printf("Creating HTTP server: addr=%s, tls=%v", proxyListen, tlsCfg != nil)
 	httpServer := &http.Server{
 		Addr:    proxyListen,
 		Handler: proxySrv.Handler(),
 	}
 	if tlsCfg != nil {
+		logProxyCmd.Printf("Applying TLS configuration to HTTP server")
 		httpServer.TLSConfig = tlsCfg.Config
 	}
 
@@ -318,10 +323,12 @@ func configureTLSTrustEnvironment(caCertPath string) error {
 		return fmt.Errorf("invalid TLS CA cert path contains newline")
 	}
 
+	logProxyCmd.Printf("Configuring TLS trust environment: caCertPath=%s, envVars=%v", caCertPath, tlsTrustEnvKeys)
 	for _, key := range tlsTrustEnvKeys {
 		if err := os.Setenv(key, caCertPath); err != nil {
 			return fmt.Errorf("failed to set %s: %w", key, err)
 		}
 	}
+	logProxyCmd.Printf("TLS trust environment configured successfully: %d env vars set", len(tlsTrustEnvKeys))
 	return nil
 }
