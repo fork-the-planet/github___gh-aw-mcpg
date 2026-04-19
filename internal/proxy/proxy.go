@@ -156,14 +156,21 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trusted
 	}
 
 	// Validate the policy structure
-	policyMap, ok := policy.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("policy must be a JSON object")
+	policyMap, err := guard.PolicyToMap(policy)
+	if err != nil {
+		return fmt.Errorf("policy must be a JSON object: %w", err)
 	}
 	guardPolicy := &config.GuardPolicy{}
 	if ao, hasAO := policyMap["allow-only"]; hasAO {
 		logProxy.Printf("Parsing allow-only policy from guard configuration")
-		aoBytes, _ := json.Marshal(ao)
+		aoMap, err := guard.PolicyToMap(ao)
+		if err != nil {
+			return fmt.Errorf("invalid allow-only policy: %w", err)
+		}
+		aoBytes, err := json.Marshal(aoMap)
+		if err != nil {
+			return fmt.Errorf("invalid allow-only policy: %w", err)
+		}
 		var allowOnly config.AllowOnlyPolicy
 		if err := json.Unmarshal(aoBytes, &allowOnly); err != nil {
 			return fmt.Errorf("invalid allow-only policy: %w", err)

@@ -364,13 +364,8 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		}
 	}
 
-	policyJSON, err := json.Marshal(policy)
+	payload, err := PolicyToMap(policy)
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize label_agent policy: %w", err)
-	}
-
-	var payload map[string]interface{}
-	if err := json.Unmarshal(policyJSON, &payload); err != nil {
 		return nil, fmt.Errorf("failed to decode label_agent policy payload: %w", err)
 	}
 
@@ -549,17 +544,13 @@ func BuildLabelAgentPayload(policy interface{}, trustedBots []string, trustedUse
 		return policy
 	}
 
-	// Marshal the policy to a generic map so we can inject the trusted-bots and trusted-users
-	// keys alongside the allow-only policy without altering the policy itself.
-	policyJSON, err := json.Marshal(policy)
+	// Convert the policy to a generic map so we can inject the trusted-bots and
+	// trusted-users keys alongside the allow-only policy without altering the
+	// policy itself.
+	payload, err := PolicyToMap(policy)
 	if err != nil {
-		// If we can't marshal the policy, return it as-is; buildStrictLabelAgentPayload
+		// If we can't convert the policy, return it as-is; buildStrictLabelAgentPayload
 		// will surface the error later.
-		return policy
-	}
-
-	var payload map[string]interface{}
-	if err := json.Unmarshal(policyJSON, &payload); err != nil {
 		return policy
 	}
 
