@@ -194,7 +194,7 @@ import (
 // The three sets and their internal helpers are:
 //
 //	file_logger.go       LogInfo / LogWarn / LogError / LogDebug          → logWithLevel
-//	markdown_logger.go   LogInfoMd / LogWarnMd / LogErrorMd / LogDebugMd  → logWithMarkdownLevel
+//	markdown_logger.go   LogInfoMd / LogWarnMd / LogErrorMd / LogDebugMd  → logWithMarkdown
 //	server_file_logger.go LogInfoWithServer / ... / LogDebugWithServer    → logWithLevelAndServer
 //
 // This pattern is intentionally kept across the three files because:
@@ -202,13 +202,25 @@ import (
 //   - The one-liner wrappers are trivial and unlikely to diverge.
 //   - Go lacks the metaprogramming to eliminate them without sacrificing readability.
 //
-// The shared logFuncs map (file_logger.go) centralises the LogLevel → log-function
-// mapping so that the internal helpers (logWithMarkdownLevel, logWithLevelAndServer)
+// The shared logFuncs map below centralises the LogLevel → log-function
+// mapping so that the internal helpers (logWithMarkdown, logWithLevelAndServer)
 // do not need their own switch-on-level blocks.
 //
 // When adding a new LogLevel constant (e.g., LogLevelTrace):
-//  1. Add a new entry to the logFuncs map in file_logger.go.
+//  1. Add a new entry to the logFuncs map below.
 //  2. Add a new LogTrace wrapper to each of the three files above.
+//
+// logFuncs maps each LogLevel to its corresponding global log function.
+// This eliminates repeated switch-on-level blocks in logWithMarkdown
+// (markdown_logger.go) and logWithLevelAndServer (server_file_logger.go).
+// When adding a new LogLevel constant, add a corresponding entry here so
+// that all dispatch sites automatically support the new level.
+var logFuncs = map[LogLevel]func(string, string, ...interface{}){
+	LogLevelInfo:  LogInfo,
+	LogLevelWarn:  LogWarn,
+	LogLevelError: LogError,
+	LogLevelDebug: LogDebug,
+}
 
 // Global Logger RWMutex Access Pattern
 //

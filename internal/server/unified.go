@@ -124,10 +124,7 @@ type UnifiedServer struct {
 
 // getTracer returns the cached tracer if set, otherwise falls back to the global tracer.
 func (us *UnifiedServer) getTracer() oteltrace.Tracer {
-	if us.tracer != nil {
-		return us.tracer
-	}
-	return tracing.Tracer()
+	return tracing.GetCachedOrGlobal(us.tracer)
 }
 
 // NewUnified creates a new unified MCP server
