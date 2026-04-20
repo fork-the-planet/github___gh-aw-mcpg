@@ -1190,6 +1190,39 @@ func TestThresholdBehavior_LargePayloadsUsePayloadDir(t *testing.T) {
 	}
 }
 
+// TestThresholdBehavior_LargeScalarPayloadsUseNativeSchemaPath verifies large scalar payloads
+// are handled correctly when schema generation runs on native scalar types.
+func TestThresholdBehavior_LargeScalarPayloadsUseNativeSchemaPath(t *testing.T) {
+	baseDir := t.TempDir()
+
+	tests := []struct {
+		name         string
+		payload      interface{}
+		expectedType string
+	}{
+		{name: "string payload", payload: strings.Repeat("x", 128), expectedType: "string"},
+		{name: "number payload", payload: 42.5, expectedType: "number"},
+		{name: "boolean payload", payload: true, expectedType: "boolean"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+				return &sdk.CallToolResult{IsError: false}, tt.payload, nil
+			}
+
+			wrapped := WrapToolHandler(mockHandler, "test_tool", baseDir, "", 0, testGetSessionID)
+			_, data, err := wrapped(context.Background(), &sdk.CallToolRequest{}, map[string]interface{}{})
+
+			require.NoError(t, err)
+			pm, ok := data.(PayloadMetadata)
+			require.True(t, ok, "Large scalar payload should return PayloadMetadata")
+			assert.FileExists(t, pm.PayloadPath, "Payload file should exist")
+			assert.Equal(t, tt.expectedType, pm.PayloadSchema, "Schema should match scalar type")
+		})
+	}
+}
+
 // TestThresholdBehavior_MixedPayloads verifies that the same handler with the same threshold
 // correctly handles both small (inline) and large (file storage) payloads
 func TestThresholdBehavior_MixedPayloads(t *testing.T) {

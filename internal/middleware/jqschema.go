@@ -136,7 +136,7 @@ func generateRandomID() string {
 // Error handling:
 // - Returns compilation errors if init() failed
 // - Returns context.DeadlineExceeded if query times out
-// - Returns enhanced error messages for type errors (gojq v0.12.19+)
+// - Returns enhanced gojq type error messages when available
 // - Properly handles gojq.HaltError for clean halt conditions
 func applyJqSchema(ctx context.Context, jsonData interface{}) (interface{}, error) {
 	// Check if compilation succeeded at init time
@@ -154,7 +154,8 @@ func applyJqSchema(ctx context.Context, jsonData interface{}) (interface{}, erro
 
 	// Run the pre-compiled query with context support (much faster than Parse+Run)
 	// The iterator is consumed only once because the walk_schema filter produces exactly
-	// one output value (the fully-transformed schema). There is no need to drain it.
+	// one output value (the fully-transformed schema). No further drain is needed because
+	// gojq iterators are synchronous and do not leave background goroutines running.
 	iter := jqSchemaCode.RunWithContext(ctx, jsonData)
 	v, ok := iter.Next()
 	if !ok {
@@ -178,7 +179,7 @@ func applyJqSchema(ctx context.Context, jsonData interface{}) (interface{}, erro
 			return nil, fmt.Errorf("jq schema filter halted with error (exit code %d): %w", haltErr.ExitCode(), err)
 		}
 
-		// Generic error case (includes enhanced v0.12.19+ type error messages)
+		// Generic error case (includes enhanced gojq type error messages when available)
 		return nil, fmt.Errorf("jq schema filter error: %w", err)
 	}
 
@@ -351,11 +352,11 @@ func WrapToolHandler(
 		logger.LogDebug("payload", "Applying jq schema transformation: tool=%s, queryID=%s", toolName, queryID)
 		var schemaObj interface{}
 		if schemaErr := func() error {
-			// Prepare data for jq processing. If data is already a native Go type
-			// (map or slice), use it directly to avoid a redundant JSON round-trip.
+			// Prepare data for jq processing. If data is already a native JSON-compatible
+			// Go type, use it directly to avoid a redundant JSON round-trip.
 			var jsonData interface{}
 			switch data.(type) {
-			case map[string]interface{}, []interface{}:
+			case map[string]interface{}, []interface{}, string, float64, bool:
 				jsonData = data
 			default:
 				if err := json.Unmarshal(payloadJSON, &jsonData); err != nil {
