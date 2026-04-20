@@ -297,6 +297,20 @@ func TestIsRateLimitToolResult(t *testing.T) {
 			wantHit:   true,
 			wantReset: false, // 0s means no future time
 		},
+		{
+			name: "non-map content items are skipped before matching",
+			result: map[string]interface{}{
+				"isError": true,
+				"content": []interface{}{
+					"not-a-map", // triggers the !ok continue branch
+					map[string]interface{}{
+						"type": "text",
+						"text": "API rate limit exceeded",
+					},
+				},
+			},
+			wantHit: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -333,6 +347,11 @@ func TestParseRateLimitResetFromText(t *testing.T) {
 		{
 			name:     "no pattern",
 			text:     "some other error",
+			wantZero: true,
+		},
+		{
+			name:     "pattern without s/]/( terminator gives zero time",
+			text:     "rate reset in 42",
 			wantZero: true,
 		},
 	}
@@ -377,6 +396,27 @@ func TestExtractRateLimitErrorText(t *testing.T) {
 	t.Run("returns fallback for empty content", func(t *testing.T) {
 		t.Parallel()
 		result := map[string]interface{}{"isError": true, "content": []interface{}{}}
+		assert.Equal(t, "rate limit exceeded", extractRateLimitErrorText(result))
+	})
+
+	t.Run("skips non-map content items and returns text from valid item", func(t *testing.T) {
+		t.Parallel()
+		result := map[string]interface{}{
+			"content": []interface{}{
+				"not-a-map", // skipped via the !ok continue branch
+				map[string]interface{}{
+					"text": "API rate limit exceeded",
+				},
+			},
+		}
+		assert.Equal(t, "API rate limit exceeded", extractRateLimitErrorText(result))
+	})
+
+	t.Run("returns fallback when all content items are non-maps", func(t *testing.T) {
+		t.Parallel()
+		result := map[string]interface{}{
+			"content": []interface{}{"not-a-map", 42},
+		}
 		assert.Equal(t, "rate limit exceeded", extractRateLimitErrorText(result))
 	})
 }
@@ -483,6 +523,41 @@ func TestIsRateLimitText_Direct(t *testing.T) {
 			assert.Equal(t, tt.want, isRateLimitText(tt.text))
 		})
 	}
+}
+
+// TestCircuitBreaker_RecordSuccessFromOpenState verifies that calling RecordSuccess on an
+// OPEN circuit (e.g. an in-flight request completing after the circuit opened) closes
+// the circuit directly, exercising the "else if prev != circuitClosed" branch.
+func TestCircuitBreaker_RecordSuccessFromOpenState(t *testing.T) {
+	t.Parallel()
+	fakeNow := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	cb := newCircuitBreaker("test", 1, time.Minute)
+	cb.nowFunc = func() time.Time { return fakeNow }
+
+	cb.RecordRateLimit(time.Time{})
+	require.Equal(t, circuitOpen, cb.State())
+
+	// Simulate an in-flight request completing successfully while the circuit is OPEN.
+	cb.RecordSuccess()
+	assert.Equal(t, circuitClosed, cb.State(), "RecordSuccess from OPEN should close the circuit")
+	assert.NoError(t, cb.Allow(), "CLOSED circuit should allow requests after RecordSuccess from OPEN")
+}
+
+// TestCircuitBreaker_HalfOpenAllowsWhenNoProbeInFlight exercises the defensive
+// fallback path in Allow() where the circuit is HALF-OPEN but probeInFlight is false.
+// This shouldn't normally occur, but the circuit should allow through defensively.
+func TestCircuitBreaker_HalfOpenAllowsWhenNoProbeInFlight(t *testing.T) {
+	t.Parallel()
+	cb := newCircuitBreaker("test", 1, time.Minute)
+
+	// Manually set the state to HALF-OPEN with no probe in flight.
+	cb.mu.Lock()
+	cb.state = circuitHalfOpen
+	cb.probeInFlight = false
+	cb.mu.Unlock()
+
+	err := cb.Allow()
+	assert.NoError(t, err, "HALF-OPEN with no probe in flight should allow through defensively")
 }
 
 // TestCircuitBreaker_RecordRateLimitWhenAlreadyOpen verifies that calling RecordRateLimit
