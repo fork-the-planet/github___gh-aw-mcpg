@@ -209,7 +209,7 @@ pub struct ResourceLabels {
 #[derive(Debug, Serialize)]
 struct LabelResourceOutput {
     resource: ResourceLabels,
-    operation: String,
+    operation: &'static str,
 }
 
 /// Input structure for label_response
@@ -314,7 +314,7 @@ enum ReposValue {
 #[derive(Debug, Serialize)]
 struct LabelAgentOutput {
     agent: AgentLabels,
-    difc_mode: String,
+    difc_mode: &'static str,
     normalized_policy: NormalizedPolicy,
 }
 
@@ -567,7 +567,7 @@ pub extern "C" fn label_agent(
 
     let output = LabelAgentOutput {
         agent: AgentLabels { secrecy, integrity },
-        difc_mode: DIFC_MODE.to_string(),
+        difc_mode: DIFC_MODE,
         normalized_policy,
     };
 
@@ -713,7 +713,7 @@ pub extern "C" fn label_resource(
             secrecy: final_secrecy,
             integrity: final_integrity,
         },
-        operation: operation.to_string(),
+        operation,
     };
 
     // Serialize output

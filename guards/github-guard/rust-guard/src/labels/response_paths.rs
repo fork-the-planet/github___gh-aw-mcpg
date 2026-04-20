@@ -640,3 +640,106 @@ pub fn label_response_paths(
     // Not a collection or not supported - return None to use resource labels
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::labels::constants::label_constants;
+    use serde_json::json;
+
+    fn ctx() -> PolicyContext {
+        PolicyContext::default()
+    }
+
+    #[test]
+    fn search_repositories_private_gets_secrecy_public_gets_empty() {
+        let tool_args = json!({});
+        let response = json!({
+            "content": [{
+                "type": "text",
+                "text": serde_json::to_string(&json!({
+                    "items": [
+                        {"full_name": "octocat/private-repo", "private": true},
+                        {"full_name": "octocat/public-repo", "private": false}
+                    ]
+                }))
+                .expect("response should serialize")
+            }]
+        });
+
+        let result = label_response_paths("search_repositories", &tool_args, &response, &ctx())
+            .expect("should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 2);
+
+        let private_entry = &result.labeled_paths[0];
+        let public_entry = &result.labeled_paths[1];
+
+        assert!(
+            !private_entry.labels.secrecy.is_empty(),
+            "private repo should have non-empty secrecy"
+        );
+        assert!(
+            public_entry.labels.secrecy.is_empty(),
+            "public repo should have empty secrecy"
+        );
+    }
+
+    #[test]
+    fn list_pull_requests_merged_pr_gets_merged_integrity() {
+        let tool_args = json!({"owner": "octocat", "repo": "hello-world"});
+        let pr = json!({
+            "number": 1,
+            "merged_at": "2024-01-01T00:00:00Z",
+            "base": {"repo": {"full_name": "octocat/hello-world"}},
+            "head": {"repo": {"full_name": "octocat/hello-world"}}
+        });
+        let response = json!({
+            "content": [{
+                "type": "text",
+                "text": serde_json::to_string(&json!([pr])).expect("response should serialize")
+            }]
+        });
+
+        let result = label_response_paths("list_pull_requests", &tool_args, &response, &ctx())
+            .expect("should produce path labels");
+        assert_eq!(result.labeled_paths.len(), 1);
+
+        let entry = &result.labeled_paths[0];
+        let merged_label = format!("{}octocat/hello-world", label_constants::MERGED_PREFIX);
+        assert!(
+            entry.labels.integrity.contains(&merged_label),
+            "merged PR should have merged integrity; got {:?}",
+            entry.labels.integrity
+        );
+    }
+
+    #[test]
+    fn search_issues_uses_repo_qualifier_from_query_scope() {
+        let tool_args = json!({"query": "is:issue repo:octocat/hello-world bug"});
+        let response = json!({
+            "content": [{
+                "type": "text",
+                "text": serde_json::to_string(&json!({
+                    "items": [{"number": 42}]
+                }))
+                .expect("response should serialize")
+            }]
+        });
+
+        let result = label_response_paths("search_issues", &tool_args, &response, &ctx())
+            .expect("search_issues should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 1);
+        assert_eq!(
+            result.labeled_paths[0].labels.description,
+            "issue:octocat/hello-world#42"
+        );
+    }
+
+    #[test]
+    fn unknown_tool_returns_none() {
+        let result = label_response_paths("unknown_tool", &json!({}), &json!({}), &ctx());
+        assert!(result.is_none(), "unknown tool should produce no path labels");
+    }
+}
