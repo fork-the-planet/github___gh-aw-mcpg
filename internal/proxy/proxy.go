@@ -157,8 +157,12 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trusted
 
 	// Validate via the canonical helper so proxy.go stays in sync with any
 	// future changes to GuardPolicy.UnmarshalJSON or ValidateGuardPolicy.
-	if _, err := config.ParseGuardPolicyJSON(policyJSON); err != nil {
+	parsedPolicy, err := config.ParseGuardPolicyJSON(policyJSON)
+	if err != nil {
 		return fmt.Errorf("policy validation failed: %w", err)
+	}
+	if parsedPolicy.WriteSink != nil {
+		return fmt.Errorf("policy validation failed: write-sink policies are not supported for guard initialization; expected top-level allow-only/allowonly policy")
 	}
 
 	// Build payload with optional trusted bots and trusted users
