@@ -99,9 +99,9 @@ func TestLogWithLevelAndServer(t *testing.T) {
 	assert.Contains(t, unifiedLog, "Debug message via server helper")
 }
 
-// TestLogWithMarkdownLevel verifies the logWithMarkdownLevel helper function
+// TestLogWithMarkdown verifies the logWithMarkdown helper function
 // correctly handles both regular and markdown logging
-func TestLogWithMarkdownLevel(t *testing.T) {
+func TestLogWithMarkdown(t *testing.T) {
 	tmpDir := t.TempDir()
 	logDir := filepath.Join(tmpDir, "logs")
 

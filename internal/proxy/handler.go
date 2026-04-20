@@ -40,10 +40,7 @@ type proxyHandler struct {
 
 // getTracer returns the cached tracer if set, otherwise falls back to the global tracer.
 func (h *proxyHandler) getTracer() oteltrace.Tracer {
-	if h.tracer != nil {
-		return h.tracer
-	}
-	return tracing.Tracer()
+	return tracing.GetCachedOrGlobal(h.tracer)
 }
 
 func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

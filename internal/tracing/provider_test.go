@@ -92,6 +92,20 @@ func TestTracer_ReturnsNonNil(t *testing.T) {
 	assert.NotNil(t, tr)
 }
 
+func TestGetCachedOrGlobal_WithCachedTracer_ReturnsCached(t *testing.T) {
+	cached := noop.NewTracerProvider().Tracer("cached")
+	assert.Equal(t, cached, tracing.GetCachedOrGlobal(cached))
+}
+
+func TestGetCachedOrGlobal_WithNilTracer_ReturnsGlobal(t *testing.T) {
+	ctx := context.Background()
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	assert.NotNil(t, tracing.GetCachedOrGlobal(nil))
+}
+
 func TestInitProvider_SampleRateZero_UsesNeverSampler(t *testing.T) {
 	ctx := context.Background()
 

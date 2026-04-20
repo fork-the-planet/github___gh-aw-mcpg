@@ -350,6 +350,8 @@ func (us *UnifiedServer) callSysServer(toolName string) (interface{}, error) {
 }
 
 func marshalAndSanitizeForLog(value interface{}) string {
+	// Best-effort logging helper: if marshaling fails, we intentionally keep logging
+	// a sanitized empty string rather than surfacing an additional logging-only error.
 	resultJSON, _ := json.Marshal(value)
 	return sanitize.SanitizeString(string(resultJSON))
 }

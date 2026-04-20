@@ -306,6 +306,14 @@ func Tracer() trace.Tracer {
 	return otel.Tracer(instrumentationName)
 }
 
+// GetCachedOrGlobal returns cached if non-nil, otherwise falls back to the global tracer.
+func GetCachedOrGlobal(cached trace.Tracer) trace.Tracer {
+	if cached != nil {
+		return cached
+	}
+	return Tracer()
+}
+
 // ParentContext returns a context carrying the W3C remote parent span context
 // from the configured traceId and spanId (spec §4.1.3.6).
 // Exported for use at startup to build the root span's parent context.

@@ -170,9 +170,9 @@ func (ml *MarkdownLogger) Log(level LogLevel, category, format string, args ...i
 // logWithMarkdown is a helper that logs to both regular and markdown loggers.
 // It uses the withGlobalLogger helper from global_helpers.go to handle mutex locking
 // and nil-checking for the markdown logger access.
-func logWithMarkdown(level LogLevel, regularLogFunc func(string, string, ...interface{}), category, format string, args ...interface{}) {
+func logWithMarkdown(level LogLevel, category, format string, args ...interface{}) {
 	// Log to regular logger
-	regularLogFunc(category, format, args...)
+	logFuncs[level](category, format, args...)
 
 	// Log to markdown logger using withGlobalLogger helper
 	withGlobalLogger(&globalMarkdownMu, &globalMarkdownLogger, func(logger *MarkdownLogger) {
@@ -180,31 +180,24 @@ func logWithMarkdown(level LogLevel, regularLogFunc func(string, string, ...inte
 	})
 }
 
-// logWithMarkdownLevel is a helper that reduces code duplication for markdown logging at different levels.
-// It uses the logFuncs map (file_logger.go) to look up the regular log function for the given level,
-// eliminating repeated switch-on-level patterns across LogInfoMd, LogWarnMd, LogErrorMd, and LogDebugMd.
-func logWithMarkdownLevel(level LogLevel, category, format string, args ...interface{}) {
-	logWithMarkdown(level, logFuncs[level], category, format, args...)
-}
-
 // LogInfoMd logs to both regular and markdown loggers
 func LogInfoMd(category, format string, args ...interface{}) {
-	logWithMarkdownLevel(LogLevelInfo, category, format, args...)
+	logWithMarkdown(LogLevelInfo, category, format, args...)
 }
 
 // LogWarnMd logs to both regular and markdown loggers
 func LogWarnMd(category, format string, args ...interface{}) {
-	logWithMarkdownLevel(LogLevelWarn, category, format, args...)
+	logWithMarkdown(LogLevelWarn, category, format, args...)
 }
 
 // LogErrorMd logs to both regular and markdown loggers
 func LogErrorMd(category, format string, args ...interface{}) {
-	logWithMarkdownLevel(LogLevelError, category, format, args...)
+	logWithMarkdown(LogLevelError, category, format, args...)
 }
 
 // LogDebugMd logs to both regular and markdown loggers
 func LogDebugMd(category, format string, args ...interface{}) {
-	logWithMarkdownLevel(LogLevelDebug, category, format, args...)
+	logWithMarkdown(LogLevelDebug, category, format, args...)
 }
 
 // CloseMarkdownLogger closes the global markdown logger
