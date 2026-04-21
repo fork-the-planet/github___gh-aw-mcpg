@@ -60,13 +60,6 @@ fn set_cached_repo_visibility(repo_id: &str, is_private: bool) {
     }
 }
 
-fn get_cached_owner_is_org(repo_id: &str) -> Option<bool> {
-    repo_owner_type_cache()
-        .lock()
-        .ok()
-        .and_then(|cache| cache.get(repo_id).copied())
-}
-
 fn set_cached_owner_is_org(repo_id: &str, is_org: bool) {
     if let Ok(mut cache) = repo_owner_type_cache().lock() {
         cache.insert(repo_id.to_string(), is_org);
@@ -271,21 +264,6 @@ pub fn is_repo_private_with_callback(
     get_cached_repo_visibility(&repo_id)
 }
 
-/// Check whether a repository is owned by an organization (vs a personal account).
-/// This is determined from the `owner.type` field in the search_repositories response,
-/// which is cached alongside repo visibility during `is_repo_private` calls.
-///
-/// Returns:
-/// - `Some(true)` if the owner is an Organization
-/// - `Some(false)` if the owner is a User (personal account)
-/// - `None` if the owner type could not be determined
-pub fn is_repo_org_owned(owner: &str, repo: &str) -> Option<bool> {
-    if owner.is_empty() || repo.is_empty() {
-        return None;
-    }
-    let repo_id = format!("{}/{}", owner, repo);
-    get_cached_owner_is_org(&repo_id)
-}
 
 /// Fetch pull request facts used for integrity derivation.
 pub fn get_pull_request_facts_with_callback(
@@ -1308,23 +1286,6 @@ mod tests {
             }]
         });
         assert_eq!(extract_owner_is_org(&response, "myorg/myrepo"), None);
-    }
-
-    #[test]
-    fn test_is_repo_org_owned_uses_cache() {
-        clear_owner_type_cache_for_tests();
-        set_cached_owner_is_org("cached-org/repo", true);
-        assert_eq!(is_repo_org_owned("cached-org", "repo"), Some(true));
-
-        set_cached_owner_is_org("cached-user/repo", false);
-        assert_eq!(is_repo_org_owned("cached-user", "repo"), Some(false));
-        clear_owner_type_cache_for_tests();
-    }
-
-    #[test]
-    fn test_is_repo_org_owned_empty_args() {
-        assert_eq!(is_repo_org_owned("", "repo"), None);
-        assert_eq!(is_repo_org_owned("owner", ""), None);
     }
 }
 
