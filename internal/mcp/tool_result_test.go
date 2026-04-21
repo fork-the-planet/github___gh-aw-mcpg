@@ -221,6 +221,29 @@ func TestConvertToCallToolResult(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 	})
+
+	// This test exercises the fallback path in ConvertToCallToolResult where
+	// json.Unmarshal into the typed backendResult struct fails. This happens
+	// when the "content" field exists but holds a non-array JSON value (e.g. a
+	// string). The function should fall back to wrapping the raw bytes as text.
+	t.Run("content field is non-array value falls back to raw text wrap", func(t *testing.T) {
+		// Use a raw JSON map so we can provide a string-typed "content" field
+		// that passes the hasContentField check but fails the typed unmarshal.
+		input := map[string]interface{}{
+			"content": "this is a string, not an array",
+		}
+
+		result, err := ConvertToCallToolResult(input)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Len(t, result.Content, 1)
+		assert.False(t, result.IsError)
+
+		text, ok := result.Content[0].(*sdk.TextContent)
+		require.True(t, ok, "Expected TextContent fallback")
+		assert.Contains(t, text.Text, "this is a string, not an array")
+	})
 }
 
 // TestParseToolArguments tests extraction and unmarshaling of tool arguments.
@@ -316,6 +339,21 @@ func TestParseToolArguments(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Empty(t, args)
+	})
+
+	t.Run("null json arguments returns nil map without error", func(t *testing.T) {
+		// json.Unmarshal("null", &map) is valid and yields a nil map.
+		// The function returns (nil, nil) in this case.
+		req := &sdk.CallToolRequest{
+			Params: &sdk.CallToolParamsRaw{
+				Arguments: json.RawMessage(`null`),
+			},
+		}
+
+		args, err := ParseToolArguments(req)
+
+		require.NoError(t, err)
+		assert.Nil(t, args, "null JSON arguments should yield a nil map")
 	})
 }
 
