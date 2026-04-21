@@ -10,8 +10,8 @@ use super::helpers::{
     author_association_floor_from_str,
     elevate_via_collaborator_permission, ensure_integrity_baseline,
     extract_number_as_string, extract_repo_info, extract_repo_info_from_search_query,
-    format_repo_id, is_configured_trusted_bot, is_default_branch_commit_context,
-    is_default_branch_ref, is_trusted_first_party_bot, is_trusted_user, max_integrity,
+    format_repo_id, is_any_trusted_actor, is_default_branch_commit_context,
+    is_default_branch_ref, max_integrity,
     merged_integrity, policy_private_scope_label, private_user_label, project_github_label,
     reader_integrity, writer_integrity, PolicyContext,
 };
@@ -95,10 +95,7 @@ fn resolve_author_integrity(
     let mut floor = author_association_floor_from_str(repo_id, author_association, ctx);
 
     if let Some(login) = author_login {
-        if is_trusted_first_party_bot(login)
-            || is_configured_trusted_bot(login, ctx)
-            || is_trusted_user(login, ctx)
-        {
+        if is_any_trusted_actor(login, ctx) {
             floor = max_integrity(repo_id, floor, writer_integrity(repo_id, ctx), ctx);
         }
         let resource_id = format!("{}/{}#{}", owner, repo, resource_num);
