@@ -1195,12 +1195,6 @@ mod tests {
 
     // --- Owner type (org vs user) tests ---
 
-    fn clear_owner_type_cache_for_tests() {
-        if let Ok(mut cache) = repo_owner_type_cache().lock() {
-            cache.clear();
-        }
-    }
-
     #[test]
     fn test_owner_type_from_repo_object_org() {
         let item = serde_json::json!({
