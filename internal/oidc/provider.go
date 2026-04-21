@@ -59,6 +59,7 @@ func ErrMissingOIDCEnvVar(serverID string) error {
 // These values come from the ACTIONS_ID_TOKEN_REQUEST_URL and
 // ACTIONS_ID_TOKEN_REQUEST_TOKEN environment variables respectively.
 func NewProvider(requestURL, requestToken string) *Provider {
+	logOIDC.Printf("Creating OIDC provider: requestURL=%s, hasToken=%v", requestURL, requestToken != "")
 	return &Provider{
 		requestURL:   requestURL,
 		requestToken: requestToken,
@@ -126,6 +127,7 @@ func (p *Provider) fetchToken(ctx context.Context, audience string) (string, tim
 		return "", time.Time{}, fmt.Errorf("failed to read OIDC token response: %w", err)
 	}
 
+	logOIDC.Printf("OIDC token HTTP response: status=%d, bodyLen=%d", resp.StatusCode, len(body))
 	if resp.StatusCode != http.StatusOK {
 		return "", time.Time{}, fmt.Errorf("OIDC token request returned HTTP %d: %s", resp.StatusCode, string(body))
 	}
@@ -161,6 +163,8 @@ func extractJWTExpiry(jwtToken string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("malformed JWT: expected 3 parts, got %d", len(parts))
 	}
 
+	logOIDC.Printf("Parsing JWT expiry: partCount=%d, payloadLen=%d", len(parts), len(parts[1]))
+
 	// Decode the payload (second part) with base64url encoding
 	// JWT uses base64url without padding, so we add padding as needed
 	payload := parts[1]
@@ -186,5 +190,7 @@ func extractJWTExpiry(jwtToken string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("JWT has no exp claim")
 	}
 
-	return time.Unix(claims.Exp, 0), nil
+	expiresAt := time.Unix(claims.Exp, 0)
+	logOIDC.Printf("JWT expiry parsed: exp=%d, expiresAt=%s", claims.Exp, expiresAt.Format(time.RFC3339))
+	return expiresAt, nil
 }
