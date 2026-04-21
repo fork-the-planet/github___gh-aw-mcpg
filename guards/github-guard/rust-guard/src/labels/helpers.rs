@@ -940,7 +940,8 @@ pub(crate) fn extract_repo_from_github_url(url: &str) -> Option<String> {
 
 /// Extract repository full name from a response item
 /// Tries multiple fields in order: full_name, repository.full_name,
-/// base.repo.full_name, head.repo.full_name, html_url parsing
+/// base.repo.full_name, head.repo.full_name, then URL parsing from
+/// repository_url, html_url, and url.
 /// Returns empty string if no repo info found
 pub fn extract_repo_from_item(item: &Value) -> String {
     // Direct full_name (repositories)
@@ -975,7 +976,7 @@ pub fn extract_repo_from_item(item: &Value) -> String {
     }
     // URL field fallback (repository_url for search results, html_url / url as generic fallbacks)
     for field in &["repository_url", "html_url", "url"] {
-        if let Some(url) = item.get(*field).and_then(|v| v.as_str()) {
+        if let Some(url) = item.get(field).and_then(|v| v.as_str()) {
             if let Some(repo_id) = extract_repo_from_github_url(url) {
                 return repo_id;
             }
@@ -1769,6 +1770,20 @@ mod tests {
 
     fn test_ctx() -> PolicyContext {
         PolicyContext::default()
+    }
+
+    #[test]
+    fn test_is_any_trusted_actor_tiers_and_negative() {
+        let ctx = PolicyContext {
+            trusted_bots: vec!["custom-bot".to_string()],
+            trusted_users: vec!["trusted-human".to_string()],
+            ..Default::default()
+        };
+
+        assert!(is_any_trusted_actor("github-actions[bot]", &ctx));
+        assert!(is_any_trusted_actor("custom-bot", &ctx));
+        assert!(is_any_trusted_actor("trusted-human", &ctx));
+        assert!(!is_any_trusted_actor("random-user", &ctx));
     }
 
     #[test]
