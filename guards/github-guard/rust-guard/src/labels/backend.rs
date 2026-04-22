@@ -19,11 +19,6 @@ fn repo_visibility_cache() -> &'static Mutex<HashMap<String, bool>> {
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn repo_owner_type_cache() -> &'static Mutex<HashMap<String, bool>> {
-    static CACHE: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
 /// Cache for collaborator permission lookups keyed by "owner/repo:username" (all lowercase).
 /// This is a process-wide static cache that persists across requests. Because the WASM guard
 /// is instantiated per-request in the gateway, entries accumulate over the process lifetime.
@@ -57,12 +52,6 @@ fn get_cached_repo_visibility(repo_id: &str) -> Option<bool> {
 fn set_cached_repo_visibility(repo_id: &str, is_private: bool) {
     if let Ok(mut cache) = repo_visibility_cache().lock() {
         cache.insert(repo_id.to_string(), is_private);
-    }
-}
-
-fn set_cached_owner_is_org(repo_id: &str, is_org: bool) {
-    if let Ok(mut cache) = repo_owner_type_cache().lock() {
-        cache.insert(repo_id.to_string(), is_org);
     }
 }
 
@@ -218,9 +207,8 @@ pub fn is_repo_private_with_callback(
         }
 
         let result = extract_repo_private_flag(&response, &repo_id);
-        // Piggyback owner type extraction from the same search response
+        // Piggyback owner type extraction from the same search response for debug logging
         if let Some(is_org) = extract_owner_is_org(&response, &repo_id) {
-            set_cached_owner_is_org(&repo_id, is_org);
             crate::log_debug(&format!(
                 "Repo owner type for {}: {}",
                 repo_id,
@@ -347,34 +335,8 @@ pub fn get_issue_author_association_with_callback(
     repo: &str,
     issue_number: &str,
 ) -> Option<String> {
-    if owner.is_empty() || repo.is_empty() || issue_number.is_empty() {
-        return None;
-    }
-
-    let args = serde_json::json!({
-        "owner": owner,
-        "repo": repo,
-        "issue_number": issue_number,
-        "method": "get",
-    });
-
-    let args_str = args.to_string();
-    let mut result_buffer = vec![0u8; SMALL_BUFFER_SIZE];
-
-    let len = match callback("issue_read", &args_str, &mut result_buffer) {
-        Ok(len) if len > 0 => len,
-        _ => return None,
-    };
-
-    let response_str = std::str::from_utf8(&result_buffer[..len]).ok()?;
-    let response = serde_json::from_str::<Value>(response_str).ok()?;
-    let issue = super::extract_mcp_response(&response);
-
-    issue
-        .get("author_association")
-        .or_else(|| issue.get("authorAssociation"))
-        .and_then(|v| v.as_str())
-        .map(String::from)
+    get_issue_author_info_with_callback(callback, owner, repo, issue_number)
+        .and_then(|info| info.author_association)
 }
 
 pub fn get_pull_request_facts(
