@@ -26,7 +26,14 @@ func WriteJSONResponse(w http.ResponseWriter, statusCode int, body interface{}) 
 		return
 	}
 	logHTTP.Printf("JSON response body size: %d bytes", len(data))
-	w.Write(data)
+	n, err := w.Write(data)
+	if err != nil {
+		logHTTP.Printf("Failed to write JSON response body: wrote=%d expected=%d err=%v", n, len(data), err)
+		return
+	}
+	if n != len(data) {
+		logHTTP.Printf("Short write for JSON response body: wrote=%d expected=%d", n, len(data))
+	}
 }
 
 // ParseRateLimitResetHeader parses the Unix-timestamp value of the
