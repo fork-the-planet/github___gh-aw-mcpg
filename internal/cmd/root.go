@@ -51,6 +51,7 @@ var rootCmd = &cobra.Command{
 	Version: cliVersion,
 	Long: `MCPG is a proxy server for Model Context Protocol (MCP) servers.
 It provides routing, aggregation, and management of multiple MCP backend servers.`,
+	Args:              cobra.NoArgs,
 	SilenceUsage:      true, // Don't show help on runtime errors
 	SilenceErrors:     true, // Prevent cobra from printing errors — Execute() caller handles display
 	PersistentPreRunE: preRun,

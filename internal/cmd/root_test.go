@@ -40,7 +40,7 @@ func TestRunRequiresConfigSource(t *testing.T) {
 	t.Run("config file provided", func(t *testing.T) {
 		configFile = "test.toml"
 		configStdin = false
-		err := preRun(nil, nil)
+		err := preRun(&cobra.Command{}, nil)
 		// Should pass validation when --config is provided
 		assert.NoError(t, err, "Should not error when --config is provided")
 	})
@@ -48,7 +48,7 @@ func TestRunRequiresConfigSource(t *testing.T) {
 	t.Run("config stdin provided", func(t *testing.T) {
 		configFile = ""
 		configStdin = true
-		err := preRun(nil, nil)
+		err := preRun(&cobra.Command{}, nil)
 		// Should pass validation when --config-stdin is provided
 		assert.NoError(t, err, "Should not error when --config-stdin is provided")
 	})
@@ -56,7 +56,7 @@ func TestRunRequiresConfigSource(t *testing.T) {
 	t.Run("both config file and stdin provided", func(t *testing.T) {
 		configFile = "test.toml"
 		configStdin = true
-		err := preRun(nil, nil)
+		err := preRun(&cobra.Command{}, nil)
 		// When both are provided, should pass validation
 		assert.NoError(t, err, "Should not error when both are provided")
 	})
@@ -78,7 +78,7 @@ func TestPreRunValidation(t *testing.T) {
 		configFile = "test.toml"
 		configStdin = false
 		verbosity = 0
-		err := preRun(nil, nil)
+		err := preRun(&cobra.Command{}, nil)
 		assert.NoError(t, err)
 	})
 
@@ -86,7 +86,7 @@ func TestPreRunValidation(t *testing.T) {
 		configFile = ""
 		configStdin = true
 		verbosity = 0
-		err := preRun(nil, nil)
+		err := preRun(&cobra.Command{}, nil)
 		assert.NoError(t, err)
 	})
 
@@ -108,7 +108,7 @@ func TestPreRunValidation(t *testing.T) {
 		configFile = "test.toml"
 		configStdin = false
 		verbosity = 1
-		err := preRun(nil, nil)
+		err := preRun(&cobra.Command{}, nil)
 		assert.NoError(t, err)
 		// Level 1 doesn't set DEBUG env var
 		assert.Empty(t, os.Getenv(logger.EnvDebug))
@@ -129,7 +129,7 @@ func TestPreRunValidation(t *testing.T) {
 		configFile = "test.toml"
 		configStdin = false
 		verbosity = 2
-		err := preRun(nil, nil)
+		err := preRun(&cobra.Command{}, nil)
 		assert.NoError(t, err)
 		assert.Equal(t, "cmd:*,server:*,launcher:*", os.Getenv(logger.EnvDebug))
 	})
@@ -149,7 +149,7 @@ func TestPreRunValidation(t *testing.T) {
 		configFile = "test.toml"
 		configStdin = false
 		verbosity = 3
-		err := preRun(nil, nil)
+		err := preRun(&cobra.Command{}, nil)
 		assert.NoError(t, err)
 		assert.Equal(t, "*", os.Getenv(logger.EnvDebug))
 	})
@@ -169,7 +169,7 @@ func TestPreRunValidation(t *testing.T) {
 		configFile = "test.toml"
 		configStdin = false
 		verbosity = 2
-		err := preRun(nil, nil)
+		err := preRun(&cobra.Command{}, nil)
 		assert.NoError(t, err)
 		// Should not override existing DEBUG
 		assert.Equal(t, "custom:*", os.Getenv(logger.EnvDebug))
