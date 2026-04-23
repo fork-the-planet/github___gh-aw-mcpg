@@ -596,14 +596,14 @@ func TestNewHTTPConnection_StreamableTransport_BadSSEEndpoint(t *testing.T) {
 	require := require.New(t)
 	assert := assert.New(t)
 
-	getRequestCount := 0
+	getMethodCount := 0
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			// Simulate a server that returns 500 for the SSE GET stream.
 			// Before the fix this would call c.fail() and break the connection;
 			// after the fix the GET is never issued.
-			getRequestCount++
+			getMethodCount++
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(`{"error":"internal server error"}`)) //nolint:errcheck
 			return
@@ -638,5 +638,5 @@ func TestNewHTTPConnection_StreamableTransport_BadSSEEndpoint(t *testing.T) {
 
 	assert.Equal(HTTPTransportStreamable, conn.httpTransportType, "Should use streamable transport")
 	assert.Equal("unwrap-session-1", conn.httpSessionID, "Session ID should be captured from POST response")
-	assert.Equal(0, getRequestCount, "No GET requests should be issued (standalone SSE is disabled)")
+	assert.Equal(0, getMethodCount, "No GET requests should be issued (standalone SSE is disabled)")
 }
