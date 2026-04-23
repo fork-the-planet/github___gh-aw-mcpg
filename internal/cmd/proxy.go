@@ -102,7 +102,7 @@ Local usage:
 
   # Run locally with explicit guard WASM and TLS
   awmg proxy \
-    --guard-wasm guards/github_guard.wasm \
+    --guard-wasm guards/github-guard/github_guard.wasm \
     --policy '{"allow-only":{"repos":["org/repo"]}}' \
     --listen localhost:8443 --tls`,
 		SilenceUsage: true,
