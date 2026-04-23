@@ -445,7 +445,15 @@ func tryStreamableHTTPTransport(ctx context.Context, cancel context.CancelFunc, 
 			return &sdk.StreamableClientTransport{
 				Endpoint:   url,
 				HTTPClient: httpClient,
-				MaxRetries: 0, // Don't retry on failure - we'll try other transports
+				MaxRetries: -1, // Disable retries; we try other transports on failure.
+				// DisableStandaloneSSE prevents the SDK from issuing a GET request for a
+				// persistent server-sent events stream immediately after initialization.
+				// Some HTTP MCP servers (e.g. cloud APIs) return 5xx or keep the GET
+				// request open indefinitely, which causes the SDK to call c.fail() and
+				// break the connection before the gateway can send the initialized
+				// notification. The gateway operates in request-response mode only and
+				// does not need server-initiated messages, so this stream is unnecessary.
+				DisableStandaloneSSE: true,
 			}
 		},
 		keepAlive,

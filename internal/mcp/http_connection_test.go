@@ -582,3 +582,61 @@ func TestNewHTTPConnection_GettersAfterCreation(t *testing.T) {
 		assert.Equal(t, expectedValue, returnedHeaders[key], "Header %s should match", key)
 	}
 }
+
+// TestNewHTTPConnection_StreamableTransport_BadSSEEndpoint verifies that the streamable
+// HTTP transport succeeds even when the server's SSE endpoint (GET) returns errors.
+//
+// This tests the fix for the Unwrap MCP server issue: some cloud API MCP servers
+// correctly respond to POST (initialize) but return 5xx or unexpected responses to GET
+// requests. Before the fix, the SDK's standalone SSE stream would call c.fail() on the
+// connection, causing the initialized notification to fail and the connection to be
+// reported as "error". With DisableStandaloneSSE: true, the GET is never issued and
+// the connection succeeds on the POST-only path.
+func TestNewHTTPConnection_StreamableTransport_BadSSEEndpoint(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	getRequestCount := 0
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			// Simulate a server that returns 500 for the SSE GET stream.
+			// Before the fix this would call c.fail() and break the connection;
+			// after the fix the GET is never issued.
+			getRequestCount++
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"error":"internal server error"}`)) //nolint:errcheck
+			return
+		}
+
+		// POST: respond with a valid JSON-RPC initialize result.
+		response := map[string]interface{}{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"result": map[string]interface{}{
+				"protocolVersion": "2024-11-05",
+				"serverInfo": map[string]interface{}{
+					"name":    "unwrap-mcp",
+					"version": "1.0.0",
+				},
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Mcp-Session-Id", "unwrap-session-1")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response) //nolint:errcheck
+	}))
+	defer testServer.Close()
+
+	conn, err := NewHTTPConnection(context.Background(), "unwrap", testServer.URL, map[string]string{
+		"Authorization": "Bearer secret-token",
+	}, nil, "", 0, 0)
+
+	require.NoError(err, "Connection must succeed even when the server's GET SSE endpoint returns 500")
+	require.NotNil(conn)
+	defer conn.Close()
+
+	assert.Equal(HTTPTransportStreamable, conn.httpTransportType, "Should use streamable transport")
+	assert.Equal("unwrap-session-1", conn.httpSessionID, "Session ID should be captured from POST response")
+	assert.Equal(0, getRequestCount, "No GET requests should be issued (standalone SSE is disabled)")
+}
