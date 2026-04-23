@@ -839,6 +839,13 @@ func TestLogEntry_SyncError(t *testing.T) {
 		w.Close()
 	})
 
+	// Pre-flight: verify that Sync on the write end of a pipe actually fails on
+	// this OS/filesystem. If Sync is a no-op or succeeds, skip so the suite
+	// stays portable.
+	if syncErr := w.Sync(); syncErr == nil {
+		t.Skip("os.File.Sync on a pipe does not return an error on this platform")
+	}
+
 	jl := &JSONLLogger{
 		logFile: w,
 		encoder: json.NewEncoder(w),
@@ -858,7 +865,6 @@ func TestLogEntry_HappyPath(t *testing.T) {
 	logPath := filepath.Join(tmpDir, "test.jsonl")
 	f, err := os.Create(logPath)
 	require.NoError(t, err, "failed to create log file")
-	t.Cleanup(func() { f.Close() })
 
 	jl := &JSONLLogger{
 		logFile: f,
@@ -892,7 +898,6 @@ func TestLogEntry_ConcurrentAccess(t *testing.T) {
 	logPath := filepath.Join(tmpDir, "concurrent.jsonl")
 	f, err := os.Create(logPath)
 	require.NoError(t, err, "failed to create log file")
-	t.Cleanup(func() { f.Close() })
 
 	jl := &JSONLLogger{
 		logFile: f,
