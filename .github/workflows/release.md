@@ -1,6 +1,6 @@
 ---
 name: Release
-description: Build, test, and release MCP Gateway binary and Docker image, then generate and prepend release highlights
+description: Build, test, and release MCP Gateway binary and Docker image, generate release highlights, and make the release immutable
 on:
   roles:
     - admin
@@ -39,7 +39,6 @@ tools:
 safe-outputs:
   threat-detection:
     enabled: false
-  update-release:
 jobs:
   # Pre-tag validation: Run tests BEFORE creating the tag (workflow_dispatch only)
   # This prevents tag creation if build or tests fail
@@ -361,6 +360,26 @@ jobs:
           echo "Attaching SBOM files to release: $RELEASE_TAG"
           gh release upload "$RELEASE_TAG" sbom.spdx.json sbom.cdx.json --clobber
           echo "✓ SBOM files attached to release"
+
+  # Make the release immutable after all assets (binaries + SBOM) are uploaded.
+  # This prevents any future modification or deletion of the release for security.
+  # `release` is listed explicitly in `needs` to access `needs.release.outputs.release_tag`.
+  make-immutable:
+    needs: ["generate-sbom", "release"]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Make release immutable
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.release.outputs.release_tag }}
+        run: |
+          echo "Making release $RELEASE_TAG immutable..."
+          gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --make-immutable
+          echo "✓ Release $RELEASE_TAG is now immutable and cannot be modified"
+
 steps:
   - name: Setup environment and fetch release data
     env:
@@ -586,22 +605,17 @@ Supported platforms: `linux/amd64`, `linux/arm64`
 
 ## Output Format
 
-**CRITICAL**: You MUST call the `update_release` tool to update the release with the generated highlights:
+**NOTE**: The release will be marked as immutable by the `make-immutable` workflow job after its configured dependencies complete (`generate-sbom` and `release`). `make-immutable` runs concurrently with the agent — it does not wait for the agent to finish. Do not attempt to update the release body as that would conflict with the immutability workflow. Instead, print the generated highlights to stdout so they appear in the workflow run logs.
 
-```javascript
-update_release({
-  tag: "${RELEASE_TAG}",
-  operation: "prepend",
-  body: "## 🌟 Release Highlights\n\n[Your complete markdown highlights here]"
-})
+After running through steps 1–4 above, print the complete highlights markdown to stdout:
+
+```bash
+cat << 'EOF'
+## 🌟 Release Highlights
+
+[Your complete markdown highlights here]
+EOF
 ```
-
-**Required Parameters:**
-- `tag` - Release tag from `${RELEASE_TAG}` environment variable (e.g., "v0.1.0")
-- `operation` - Must be `"prepend"` to add before existing notes
-- `body` - Complete markdown content (include all formatting, emojis, links)
-
-**WARNING**: If you don't call the `update_release` tool, the release notes will NOT be updated!
 
 **Documentation Base URL:**
 - Repository docs: `https://github.com/github/gh-aw-mcpg/blob/main/docs/`
