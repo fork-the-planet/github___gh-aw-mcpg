@@ -105,7 +105,6 @@ Local usage:
     --guard-wasm guards/github_guard.wasm \
     --policy '{"allow-only":{"repos":["org/repo"]}}' \
     --listen localhost:8443 --tls`,
-		GroupID:      "modes",
 		SilenceUsage: true,
 		RunE:         runProxy,
 	}
