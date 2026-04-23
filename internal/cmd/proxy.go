@@ -97,6 +97,14 @@ Local usage:
     --guard-wasm guards/github-guard/github_guard.wasm \
     --policy '{"allow-only":{"repos":["org/repo"],"min-integrity":"approved"}}' \
     --listen localhost:8443 --tls`,
+		Example: `  # Run with auto-detected baked-in guard (container image)
+  awmg proxy --policy '{"allow-only":{"repos":["org/repo"],"min-integrity":"approved"}}'
+
+  # Run locally with explicit guard WASM and TLS
+  awmg proxy \
+    --guard-wasm guards/github-guard/github_guard.wasm \
+    --policy '{"allow-only":{"repos":["org/repo"]}}' \
+    --listen localhost:8443 --tls`,
 		SilenceUsage: true,
 		RunE:         runProxy,
 	}
@@ -107,6 +115,10 @@ Local usage:
 	} else {
 		guardHelp += " (required)"
 	}
+	// Note: --listen and --log-dir are re-declared here (not inherited from rootCmd as
+	// persistent flags) because the proxy subcommand has different defaults and a distinct
+	// purpose: it runs as a standalone HTTPS forward proxy, not an MCP gateway. Keeping
+	// them independent avoids confusion and allows each command to evolve separately.
 	cmd.Flags().StringVar(&proxyGuardWasm, "guard-wasm", defaultGuard, guardHelp)
 	cmd.Flags().StringVar(&proxyPolicy, "policy", os.Getenv("MCP_GATEWAY_GUARD_POLICY_JSON"), "Guard policy JSON")
 	cmd.Flags().StringVar(&proxyToken, "github-token", "", "Fallback GitHub API token (default: forwards client Authorization header)")

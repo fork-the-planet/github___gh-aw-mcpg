@@ -65,6 +65,9 @@ func newTestRootWithCompletion() (*cobra.Command, *cobra.Command) {
 	root := &cobra.Command{
 		Use: "awmg",
 	}
+	// Add the real root's "utils" group so GroupID assignments on attached
+	// subcommands remain valid when root.Execute() is called in tests.
+	root.AddGroup(&cobra.Group{ID: "utils", Title: "Utilities:"})
 	completion := newCompletionCmd()
 	root.AddCommand(completion)
 	return root, completion
@@ -283,6 +286,8 @@ func TestNewCompletionCmd_OverridesParentPersistentPreRunE(t *testing.T) {
 			return assert.AnError
 		},
 	}
+	// Add the group so the completion command's GroupID is valid.
+	root.AddGroup(&cobra.Group{ID: "utils", Title: "Utilities:"})
 	completion := newCompletionCmd()
 	root.AddCommand(completion)
 

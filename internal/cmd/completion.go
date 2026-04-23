@@ -46,6 +46,7 @@ PowerShell:
   PS> awmg completion powershell > awmg.ps1
   # and source this file from your PowerShell profile.
 `,
+		GroupID:               "utils",
 		DisableFlagsInUseLine: true,
 		ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
 		Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
@@ -67,7 +68,11 @@ PowerShell:
 		},
 	}
 
-	// Override the parent's PersistentPreRunE to skip validation for completion command
+	// Override PersistentPreRunE to skip the root command's validation hook.
+	// Note: cobra does NOT automatically chain PersistentPreRunE hooks — unlike
+	// middleware-style frameworks, a child's PersistentPreRunE completely replaces
+	// the parent's. We explicitly set a no-op here so that completion generation
+	// runs without requiring a config file.
 	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		return nil
 	}

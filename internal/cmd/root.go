@@ -46,11 +46,19 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "awmg",
-	Short:   "MCPG MCP proxy server",
-	Version: cliVersion,
+	Use:   "awmg",
+	Short: "MCPG MCP proxy server",
 	Long: `MCPG is a proxy server for Model Context Protocol (MCP) servers.
 It provides routing, aggregation, and management of multiple MCP backend servers.`,
+	Example: `  # Start in routed mode with a config file
+  awmg --config config.toml --routed
+
+  # Start in unified mode reading config from stdin
+  cat config.json | awmg --config-stdin --unified --listen 0.0.0.0:3000
+
+  # Run with debug logging
+  DEBUG=* awmg --config config.toml`,
+	Version:           cliVersion,
 	Args:              cobra.NoArgs,
 	SilenceUsage:      true, // Don't show help on runtime errors
 	SilenceErrors:     true, // Prevent cobra from printing errors — Execute() caller handles display
@@ -72,6 +80,12 @@ func init() {
 
 	// Register custom flag completions
 	registerFlagCompletions(rootCmd)
+
+	// Group subcommands for organized help output
+	rootCmd.AddGroup(
+		&cobra.Group{ID: "modes", Title: "Operation Modes:"},
+		&cobra.Group{ID: "utils", Title: "Utilities:"},
+	)
 
 	// Add completion command
 	rootCmd.AddCommand(newCompletionCmd())
