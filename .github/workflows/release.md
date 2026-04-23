@@ -363,11 +363,9 @@ jobs:
 
   # Make the release immutable after all assets (binaries + SBOM) are uploaded.
   # This prevents any future modification or deletion of the release for security.
+  # `release` is listed explicitly in `needs` to access `needs.release.outputs.release_tag`.
   make-immutable:
-    # `release` is listed explicitly so we can access needs.release.outputs.release_tag
-    # (GitHub Actions requires a job to be in `needs` to access its outputs).
     needs: ["generate-sbom", "release"]
-    if: success()
     runs-on: ubuntu-latest
     permissions:
       contents: write

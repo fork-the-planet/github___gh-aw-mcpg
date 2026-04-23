@@ -1154,7 +1154,6 @@ jobs:
     needs:
       - generate-sbom
       - release
-    if: success()
     runs-on: ubuntu-latest
     permissions:
       contents: write
