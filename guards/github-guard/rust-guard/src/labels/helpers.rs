@@ -1225,8 +1225,30 @@ pub fn max_integrity(
 ///
 /// Mapping (case-insensitive):
 /// - OWNER, MEMBER, COLLABORATOR => approved
-/// - CONTRIBUTOR, FIRST_TIME_CONTRIBUTOR => unapproved
-/// - FIRST_TIMER, NONE, missing => none
+/// - CONTRIBUTOR, FIRST_TIME_CONTRIBUTOR, NONE => unapproved
+/// - FIRST_TIMER, missing, unknown => none
+///
+/// ### `NONE` vs `FIRST_TIMER`
+///
+/// GitHub's API definitions for these values are intentionally vague
+/// (see <https://docs.github.com/en/graphql/reference/enums#commentauthorassociation>):
+///
+/// - `FIRST_TIMER`: "Author has not previously committed to GitHub."
+///   This indicates a brand-new GitHub account with no commit history anywhere.
+///
+/// - `FIRST_TIME_CONTRIBUTOR`: "Author has not previously committed to the repository."
+///   The user has committed elsewhere on GitHub but not to this specific repo.
+///
+/// - `NONE`: "Author has no association with the repository."
+///   This does **not** mean the user is established or trustworthy — only that
+///   they have no special relationship with the repo. In practice `NONE` covers
+///   users who have opened issues or commented but never committed, as well as
+///   accounts that have simply never interacted before.
+///
+/// We map `NONE` to `unapproved` (same as `FIRST_TIME_CONTRIBUTOR`) because
+/// both represent users with no prior contributions to the specific repo who
+/// are not brand-new to GitHub. The only value that indicates a truly new
+/// GitHub account is `FIRST_TIMER`.
 pub fn author_association_floor_from_str(
     scope: &str,
     association: Option<&str>,
@@ -1239,8 +1261,8 @@ pub fn author_association_floor_from_str(
     let normalized = raw.trim().to_ascii_uppercase();
     match normalized.as_str() {
         "OWNER" | "MEMBER" | "COLLABORATOR" => writer_integrity(scope, ctx),
-        "CONTRIBUTOR" | "FIRST_TIME_CONTRIBUTOR" => reader_integrity(scope, ctx),
-        _ => vec![], // FIRST_TIMER, NONE, or any unrecognised value
+        "CONTRIBUTOR" | "FIRST_TIME_CONTRIBUTOR" | "NONE" => reader_integrity(scope, ctx),
+        _ => vec![], // FIRST_TIMER or any unrecognised value
     }
 }
 
@@ -2182,6 +2204,50 @@ mod tests {
         assert_eq!(integrity_for_level("merged", scope, &ctx), merged_integrity(scope, &ctx));
         // Unknown should default to none (safe)
         assert_eq!(integrity_for_level("unknown", scope, &ctx), none_integrity(scope, &ctx));
+    }
+
+    #[test]
+    fn test_author_association_none_maps_to_unapproved() {
+        // NONE means "no association with the repository" — NOT "brand new to GitHub".
+        // It should map to unapproved (reader_integrity), same as FIRST_TIME_CONTRIBUTOR.
+        // See https://docs.github.com/en/graphql/reference/enums#commentauthorassociation
+        let ctx = test_ctx();
+        let scope = "owner/repo";
+
+        // NONE → unapproved (reader_integrity)
+        assert_eq!(
+            author_association_floor_from_str(scope, Some("NONE"), &ctx),
+            reader_integrity(scope, &ctx),
+            "NONE should map to unapproved (reader) integrity"
+        );
+
+        // FIRST_TIME_CONTRIBUTOR → unapproved (same as NONE)
+        assert_eq!(
+            author_association_floor_from_str(scope, Some("FIRST_TIME_CONTRIBUTOR"), &ctx),
+            reader_integrity(scope, &ctx),
+            "FIRST_TIME_CONTRIBUTOR should map to unapproved (reader) integrity"
+        );
+
+        // FIRST_TIMER → none (brand-new GitHub account)
+        assert_eq!(
+            author_association_floor_from_str(scope, Some("FIRST_TIMER"), &ctx),
+            vec![] as Vec<String>,
+            "FIRST_TIMER should map to none (empty) integrity"
+        );
+
+        // NONE and FIRST_TIME_CONTRIBUTOR produce the same integrity
+        assert_eq!(
+            author_association_floor_from_str(scope, Some("NONE"), &ctx),
+            author_association_floor_from_str(scope, Some("FIRST_TIME_CONTRIBUTOR"), &ctx),
+            "NONE and FIRST_TIME_CONTRIBUTOR should produce identical integrity"
+        );
+
+        // NONE and FIRST_TIMER produce different integrity
+        assert_ne!(
+            author_association_floor_from_str(scope, Some("NONE"), &ctx),
+            author_association_floor_from_str(scope, Some("FIRST_TIMER"), &ctx),
+            "NONE and FIRST_TIMER should produce different integrity levels"
+        );
     }
 
     #[test]

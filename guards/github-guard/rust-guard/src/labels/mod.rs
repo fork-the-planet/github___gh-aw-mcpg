@@ -818,7 +818,7 @@ mod tests {
         let unknown_commit = json!({"author_association": "NONE"});
         assert_eq!(
             commit_integrity(&unknown_commit, repo, false, false, &ctx),
-            none_integrity(repo, &ctx)
+            reader_integrity(repo, &ctx)
         );
         assert_eq!(
             commit_integrity(&unknown_commit, repo, true, false, &ctx),
@@ -925,14 +925,15 @@ mod tests {
             writer_integrity(repo, &ctx)
         );
 
-        // Non-trusted bot still gets none integrity on public repo
+        // Non-trusted bot gets unapproved (reader) integrity on public repo
+        // because NONE association maps to unapproved
         let renovate_issue = json!({
             "user": {"login": "renovate[bot]"},
             "author_association": "NONE"
         });
         assert_eq!(
             issue_integrity(&renovate_issue, repo, false, &ctx),
-            none_integrity(repo, &ctx)
+            reader_integrity(repo, &ctx)
         );
     }
 
@@ -1064,11 +1065,12 @@ mod tests {
             writer_integrity(repo, &ctx_with_bots)
         );
 
-        // Without trusted_bots in context, the same bot gets none integrity
+        // Without trusted_bots in context, the same bot gets unapproved (reader)
+        // integrity because NONE association maps to unapproved
         let ctx_without_bots = default_ctx();
         assert_eq!(
             issue_integrity(&configured_bot_issue, repo, false, &ctx_without_bots),
-            none_integrity(repo, &ctx_without_bots)
+            reader_integrity(repo, &ctx_without_bots)
         );
     }
 
@@ -1091,11 +1093,11 @@ mod tests {
             writer_integrity(repo, &ctx_with_bots)
         );
 
-        // Without trusted_bots, the same bot gets none integrity
+        // Without trusted_bots, the same bot gets unapproved (reader) integrity
         let ctx_without_bots = default_ctx();
         assert_eq!(
             pr_integrity(&configured_bot_pr, repo, false, None, &ctx_without_bots),
-            none_integrity(repo, &ctx_without_bots)
+            reader_integrity(repo, &ctx_without_bots)
         );
     }
 
@@ -1128,14 +1130,14 @@ mod tests {
             writer_integrity(repo, &ctx_with_bots)
         );
 
-        // Unknown bot still gets none integrity
+        // Unknown bot gets unapproved (reader) integrity because NONE maps to unapproved
         let unknown_bot_issue = json!({
             "user": {"login": "unknown-bot[bot]"},
             "author_association": "NONE"
         });
         assert_eq!(
             issue_integrity(&unknown_bot_issue, repo, false, &ctx_with_bots),
-            none_integrity(repo, &ctx_with_bots)
+            reader_integrity(repo, &ctx_with_bots)
         );
     }
 
@@ -4044,11 +4046,12 @@ mod tests {
             writer_integrity(repo, &ctx_with_users)
         );
 
-        // Without trusted_users in context, the same user gets none integrity
+        // Without trusted_users in context, the same user gets unapproved (reader)
+        // integrity because NONE association maps to unapproved
         let ctx_without_users = default_ctx();
         assert_eq!(
             issue_integrity(&trusted_user_issue, repo, false, &ctx_without_users),
-            none_integrity(repo, &ctx_without_users)
+            reader_integrity(repo, &ctx_without_users)
         );
     }
 
@@ -4071,11 +4074,11 @@ mod tests {
             writer_integrity(repo, &ctx_with_users)
         );
 
-        // Without trusted_users, the same user gets none integrity
+        // Without trusted_users, the same user gets unapproved (reader) integrity
         let ctx_without_users = default_ctx();
         assert_eq!(
             pr_integrity(&trusted_user_pr, repo, false, None, &ctx_without_users),
-            none_integrity(repo, &ctx_without_users)
+            reader_integrity(repo, &ctx_without_users)
         );
     }
 
@@ -5082,10 +5085,10 @@ mod tests {
             "author_association": "NONE",
             "number": 10
         });
-        // No reactions → base integrity (none for external contributor on public repo)
+        // No reactions → base integrity (unapproved for NONE association on public repo)
         assert_eq!(
             issue_integrity(&issue, repo, false, &ctx),
-            helpers::none_integrity(repo, &ctx)
+            helpers::reader_integrity(repo, &ctx)
         );
     }
 
@@ -5101,10 +5104,10 @@ mod tests {
             "number": 11,
             "reactions": {"total_count": 5, "thumbs_up": 5, "+1": 5}
         });
-        // Gateway mode → fall through to base integrity (none)
+        // Gateway mode → fall through to base integrity (unapproved for NONE)
         assert_eq!(
             issue_integrity(&issue, repo, false, &ctx),
-            helpers::none_integrity(repo, &ctx)
+            helpers::reader_integrity(repo, &ctx)
         );
     }
 
@@ -5142,10 +5145,10 @@ mod tests {
             "number": 30,
             "reactions": {"nodes": []}
         });
-        // Empty nodes → no change from base integrity
+        // Empty nodes → no change from base integrity (unapproved for NONE)
         assert_eq!(
             issue_integrity(&issue, repo, false, &ctx),
-            helpers::none_integrity(repo, &ctx)
+            helpers::reader_integrity(repo, &ctx)
         );
     }
 

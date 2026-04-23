@@ -103,41 +103,43 @@ func TestRegisterFlagCompletions(t *testing.T) {
 	t.Run("config flag completion returns toml extension filter", func(t *testing.T) {
 		cmd := setupCmd(t)
 
-		flag := cmd.Flags().Lookup("config")
-		require.NotNil(t, flag, "config flag should be registered")
-		exts, ok := flag.Annotations[cobra.BashCompFilenameExt]
-		require.True(t, ok, "config flag should have filename extension annotation")
-		assert.Equal(t, []string{"toml"}, exts,
+		compFunc, ok := cmd.GetFlagCompletionFunc("config")
+		require.True(t, ok, "config flag should have a completion function")
+		completions, directive := compFunc(cmd, nil, "")
+		assert.Equal(t, []string{"toml"}, completions,
 			"config flag should complete with .toml extension")
+		assert.Equal(t, cobra.ShellCompDirectiveFilterFileExt, directive)
 	})
 
 	t.Run("log-dir flag completion returns directory filter", func(t *testing.T) {
 		cmd := setupCmd(t)
 
-		flag := cmd.Flags().Lookup("log-dir")
-		require.NotNil(t, flag, "log-dir flag should be registered")
-		_, ok := flag.Annotations[cobra.BashCompSubdirsInDir]
-		assert.True(t, ok, "log-dir flag should have directory annotation")
+		compFunc, ok := cmd.GetFlagCompletionFunc("log-dir")
+		require.True(t, ok, "log-dir flag should have a completion function")
+		_, directive := compFunc(cmd, nil, "")
+		assert.Equal(t, cobra.ShellCompDirectiveFilterDirs, directive,
+			"log-dir flag should have directory completion directive")
 	})
 
 	t.Run("payload-dir flag completion returns directory filter", func(t *testing.T) {
 		cmd := setupCmd(t)
 
-		flag := cmd.Flags().Lookup("payload-dir")
-		require.NotNil(t, flag, "payload-dir flag should be registered")
-		_, ok := flag.Annotations[cobra.BashCompSubdirsInDir]
-		assert.True(t, ok, "payload-dir flag should have directory annotation")
+		compFunc, ok := cmd.GetFlagCompletionFunc("payload-dir")
+		require.True(t, ok, "payload-dir flag should have a completion function")
+		_, directive := compFunc(cmd, nil, "")
+		assert.Equal(t, cobra.ShellCompDirectiveFilterDirs, directive,
+			"payload-dir flag should have directory completion directive")
 	})
 
 	t.Run("env flag completion returns .env extension filter", func(t *testing.T) {
 		cmd := setupCmd(t)
 
-		flag := cmd.Flags().Lookup("env")
-		require.NotNil(t, flag, "env flag should be registered")
-		exts, ok := flag.Annotations[cobra.BashCompFilenameExt]
-		require.True(t, ok, "env flag should have filename extension annotation")
-		assert.Equal(t, []string{"env"}, exts,
+		compFunc, ok := cmd.GetFlagCompletionFunc("env")
+		require.True(t, ok, "env flag should have a completion function")
+		completions, directive := compFunc(cmd, nil, "")
+		assert.Equal(t, []string{"env"}, completions,
 			"env flag should complete with .env extension")
+		assert.Equal(t, cobra.ShellCompDirectiveFilterFileExt, directive)
 	})
 
 	t.Run("guards-mode flag completion returns valid enum values", func(t *testing.T) {

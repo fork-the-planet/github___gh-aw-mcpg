@@ -54,12 +54,34 @@ Integrity assignment is derived from a combination of:
 ### Author Association Initialization
 
 `author_association` provides the **initial integrity floor** for user-authored objects.
+Values are defined by the GitHub API
+([reference](https://docs.github.com/en/graphql/reference/enums#commentauthorassociation)).
 
 Initialization mapping:
 
 - `OWNER`, `MEMBER`, `COLLABORATOR` -> `approved:<scope>`
-- `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR` -> `unapproved:<scope>`
-- `FIRST_TIMER`, `NONE` -> `[]` (initial floor before baseline enforcement)
+- `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, `NONE` -> `unapproved:<scope>`
+- `FIRST_TIMER`, missing, unknown -> `[]` (initial floor before baseline enforcement)
+
+**Rationale for `NONE` → `unapproved`:**
+
+GitHub's definitions for `FIRST_TIMER`, `FIRST_TIME_CONTRIBUTOR`, and `NONE` are
+intentionally vague. Per the
+[CommentAuthorAssociation docs](https://docs.github.com/en/graphql/reference/enums#commentauthorassociation):
+
+| Value | GitHub definition |
+|---|---|
+| `FIRST_TIMER` | "Author has not previously committed to **GitHub**." |
+| `FIRST_TIME_CONTRIBUTOR` | "Author has not previously committed to **the repository**." |
+| `NONE` | "Author has **no association** with the repository." |
+
+`NONE` does **not** mean the user is established or trustworthy — only that they have
+no special relationship with the repository. However, `NONE` is distinct from
+`FIRST_TIMER` (brand-new to all of GitHub). In practice `NONE` covers users who have
+opened issues or commented but never committed, as well as users active elsewhere on
+GitHub. We treat `NONE` the same as `FIRST_TIME_CONTRIBUTOR` because both represent
+users with no prior contributions to the specific repo who are not brand-new to GitHub.
+Only `FIRST_TIMER` indicates a truly new GitHub account.
 
 Notes:
 
@@ -84,7 +106,7 @@ The label cannot be downgraded below its initialized level. Example: an issue au
 
 ### Public repositories
 
-- Issues (and issue-like user-submitted discussion objects) initialize from `author_association` and are commonly baseline `none:<scope>` for `NONE`/`FIRST_TIMER` after baseline enforcement.
+- Issues (and issue-like user-submitted discussion objects) initialize from `author_association` and are commonly baseline `unapproved:<scope>` for `NONE` or `none:<scope>` for `FIRST_TIMER` after baseline enforcement.
 - Pull requests:
   - Forked PR (head repo differs from base repo): endorsement baseline `unapproved:<scope>`
   - Direct PR (head repo == base repo): endorsement baseline `approved:<scope>`
@@ -99,7 +121,7 @@ Resource labels are coarse pre-check labels by tool call.
 
 | Tool / Resource Type | Private Repo | Public Repo |
 |---|---|---|
-| `get_issue`, `list_issues` | max(author_association floor, approved) | author_association floor (common NONE/FIRST_TIMER => baseline `none`) |
+| `get_issue`, `list_issues` | max(author_association floor, approved) | author_association floor (NONE => baseline `unapproved`, FIRST_TIMER => baseline `none`) |
 | `search_issues` | baseline `none` (cross-repo coarse) | baseline `none` |
 | `get_pull_request`, `list_pull_requests` | max(author_association floor, approved); merged/default-branch evidence can elevate to merged | start from author_association floor, then apply PR lineage baseline (direct => approved, forked => unapproved); merged/default-branch evidence can elevate to merged |
 | `search_pull_requests` | baseline `none` (cross-repo coarse) | baseline `none` |
@@ -131,7 +153,7 @@ Response labels are fine-grained per item and are authoritative when available.
 | Response Object Type | Private Repo | Public Repo |
 |---|---|---|
 | Repository item (`search_repositories`, `get_repository`) | approved | approved |
-| Issue item (`list_issues`, `search_issues`, `get_issue`) | max(author_association floor, approved) | author_association floor (commonly baseline `none` for `NONE`/`FIRST_TIMER`) |
+| Issue item (`list_issues`, `search_issues`, `get_issue`) | max(author_association floor, approved) | author_association floor (NONE => `unapproved`, FIRST_TIMER => `none`) |
 | Pull request item (`list_pull_requests`, `search_pull_requests`, `get_pull_request`) | max(author_association floor, approved); if merged/default-branch reachable => merged | start from author_association floor; apply lineage baseline (direct => approved, forked => unapproved); if merged/default-branch reachable => merged |
 | Commit item (`list_commits`, `get_commit`) | max(author_association floor, approved); if default-branch reachable => merged | author_association floor; if default-branch reachable => merged; otherwise stay at floor unless other endorsement evidence applies |
 | File content item (`get_file_contents`) | default/no-ref: merged; otherwise approved | default/no-ref: merged; otherwise approved |

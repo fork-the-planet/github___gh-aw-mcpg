@@ -310,9 +310,19 @@ integrity floor (case-insensitive) as follows:
 - `COLLABORATOR` → approved
 - `CONTRIBUTOR` → unapproved
 - `FIRST_TIME_CONTRIBUTOR` → unapproved
+- `NONE` → unapproved
 - `FIRST_TIMER` → none
-- `NONE` → none
 - missing/unknown value → none
+
+**Note on `NONE` vs `FIRST_TIMER`:** GitHub's API definitions for these values are
+intentionally vague
+([reference](https://docs.github.com/en/graphql/reference/enums#commentauthorassociation)).
+`FIRST_TIMER` ("Author has not previously committed to GitHub") indicates a brand-new
+GitHub account. `NONE` ("Author has no association with the repository") does **not**
+imply the user is established or trustworthy — only that they are not `FIRST_TIMER`.
+We map `NONE` to `unapproved` (same as `FIRST_TIME_CONTRIBUTOR`) because both
+represent users with no prior contributions to the specific repo who are not brand-new
+to GitHub.
 
 In the implementation:
 - approved floor uses `writer_integrity(scope)`
