@@ -235,7 +235,7 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 	}
 
 	var (
-		apiPath string
+		apiPath                                 string
 		collabOwner, collabRepo, collabUsername string
 	)
 	switch toolName {
