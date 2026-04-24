@@ -77,7 +77,7 @@ func emptyAgentLabelsResult(mode string) *LabelAgentResult {
 }
 
 // ApplyLabelAgentResult applies the agent labels from a LabelAgentResult to the given
-// AgentLabels using batch helpers (minimising mutex acquisitions), and returns the
+// AgentLabels using batch helpers (minimizing mutex acquisitions), and returns the
 // effective enforcement mode. If result.DIFCMode is empty, defaultMode is returned
 // unchanged. If result.DIFCMode is non-empty but cannot be parsed, an error is returned.
 func ApplyLabelAgentResult(result *LabelAgentResult, agentLabels *difc.AgentLabels, defaultMode difc.EnforcementMode) (difc.EnforcementMode, error) {
