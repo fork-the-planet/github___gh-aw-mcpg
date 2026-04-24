@@ -340,14 +340,14 @@ fi
 ### Step 7: Tool Timeout Enforcement Test
 
 Call `slow_tool` which sleeps 90 seconds on the backend.
-The gateway's `tool_timeout` is 60 seconds, so it should return a timeout error
+The gateway's `toolTimeout` is 60 seconds, so it should return a timeout error
 within ~60 seconds, NOT hang until the backend finishes.
 
 ```bash
 echo ">>> Tool timeout test: calling slow_tool (expects timeout error after ~60s)..."
 TIMEOUT_START=$(date +%s)
 # --max-time 95: allow 5s beyond the 90s backend sleep; the gateway should
-# interrupt and return an error well before this, at ~60s (tool_timeout).
+# interrupt and return an error well before this, at ~60s (toolTimeout).
 TIMEOUT_RESP=$(curl -s --max-time 95 -X POST http://127.0.0.1:18766/mcp \
   -H "Authorization: smoke-test-key" \
   -H "Content-Type: application/json" \
