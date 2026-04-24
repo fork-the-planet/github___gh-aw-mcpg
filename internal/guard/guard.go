@@ -81,17 +81,20 @@ func emptyAgentLabelsResult(mode string) *LabelAgentResult {
 // effective enforcement mode. If result.DIFCMode is empty, defaultMode is returned
 // unchanged. If result.DIFCMode is non-empty but cannot be parsed, an error is returned.
 func ApplyLabelAgentResult(result *LabelAgentResult, agentLabels *difc.AgentLabels, defaultMode difc.EnforcementMode) (difc.EnforcementMode, error) {
+	// Validate/parse mode first so that tag mutation is skipped when mode is invalid.
+	// This keeps the operation atomic: either both the mode and the tags are applied,
+	// or neither is.
+	mode := defaultMode
+	if result.DIFCMode != "" {
+		parsedMode, err := difc.ParseEnforcementMode(result.DIFCMode)
+		if err != nil {
+			return defaultMode, fmt.Errorf("invalid difc_mode from label_agent: %w", err)
+		}
+		mode = parsedMode
+	}
+
 	agentLabels.AddSecrecyTags(difc.StringsToTags(result.Agent.Secrecy))
 	agentLabels.AddIntegrityTags(difc.StringsToTags(result.Agent.Integrity))
-
-	if result.DIFCMode == "" {
-		return defaultMode, nil
-	}
-
-	mode, err := difc.ParseEnforcementMode(result.DIFCMode)
-	if err != nil {
-		return defaultMode, fmt.Errorf("invalid difc_mode from label_agent: %w", err)
-	}
 
 	return mode, nil
 }

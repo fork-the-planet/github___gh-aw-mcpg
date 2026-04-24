@@ -120,6 +120,19 @@ func TestInitGuardPolicy_LabelAgentError(t *testing.T) {
 	assert.False(t, s.guardInitialized)
 }
 
+// TestInitGuardPolicy_LabelAgentNilResult verifies that a nil result from LabelAgent
+// is treated as an error and leaves the server uninitialized.
+func TestInitGuardPolicy_LabelAgentNilResult(t *testing.T) {
+	g := &labelAgentStubGuard{labelAgentResult: nil}
+	s := newTestServerForInitGuardPolicy(g, difc.EnforcementFilter)
+
+	err := s.initGuardPolicy(context.Background(), validAllowOnlyPolicyJSON, nil, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nil result")
+	assert.False(t, s.guardInitialized)
+}
+
 // TestInitGuardPolicy_SuccessWithNoLabels verifies the happy path: a valid policy with no
 // agent labels sets guardInitialized to true and leaves the enforcement mode unchanged.
 func TestInitGuardPolicy_SuccessWithNoLabels(t *testing.T) {

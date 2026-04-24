@@ -969,6 +969,8 @@ func TestApplyLabelAgentResult(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid difc_mode from label_agent")
 		assert.Equal(t, difc.EnforcementStrict, mode)
+		assert.Empty(t, agentLabels.GetSecrecyTags())
+		assert.Empty(t, agentLabels.GetIntegrityTags())
 	})
 
 	t.Run("merges tags additively (union semantics)", func(t *testing.T) {

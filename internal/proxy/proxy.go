@@ -185,6 +185,9 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trusted
 	if err != nil {
 		return fmt.Errorf("LabelAgent failed: %w", err)
 	}
+	if result == nil {
+		return fmt.Errorf("LabelAgent returned nil result")
+	}
 
 	// Apply agent labels and parse enforcement mode from guard response
 	agentLabels := s.agentRegistry.GetOrCreate("proxy")
