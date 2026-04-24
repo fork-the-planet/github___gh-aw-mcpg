@@ -430,7 +430,7 @@ echo "Cleanup complete"
 Read the results file and determine overall pass/fail:
 
 ```bash
-cat /tmp/smoke-long-session/results.txt
+cat /tmp/smoke-long-session/results.txt || true
 FAILURES=$(grep -c "^FAIL:" /tmp/smoke-long-session/results.txt 2>/dev/null || echo 0)
 PASSES=$(grep -c "^PASS:" /tmp/smoke-long-session/results.txt 2>/dev/null || echo 0)
 echo "Results: $PASSES passed, $FAILURES failed"
