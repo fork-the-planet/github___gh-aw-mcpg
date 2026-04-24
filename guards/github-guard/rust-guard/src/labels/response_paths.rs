@@ -213,7 +213,7 @@ pub fn label_response_paths(
                     items_path: if items_path.is_empty() {
                         None
                     } else {
-                        Some(items_path.to_string())
+                        Some(items_path)
                     },
                 });
             }
@@ -311,7 +311,7 @@ pub fn label_response_paths(
                     items_path: if items_path.is_empty() {
                         None
                     } else {
-                        Some(items_path.to_string())
+                        Some(items_path)
                     },
                 });
             }
@@ -628,7 +628,7 @@ pub fn label_response_paths(
                     items_path: if items_path.is_empty() {
                         None
                     } else {
-                        Some(items_path.to_string())
+                        Some(items_path)
                     },
                 });
             }
