@@ -6,7 +6,6 @@
 //
 // - truncateAndSanitize: Combines secret sanitization with length truncation
 // - extractEssentialFields: Extracts key JSON-RPC fields for compact logging
-// - isEffectivelyEmpty: Checks if data is effectively empty (e.g., only params: null)
 // - ExtractErrorMessage: Extracts clean error messages from log lines
 //
 // These helpers are used by the RPC logging system to safely and efficiently
@@ -86,23 +85,6 @@ func extractEssentialFields(payload []byte) map[string]interface{} {
 	}
 
 	return essential
-}
-
-// isEffectivelyEmpty checks if the data is effectively empty (only contains params: null)
-func isEffectivelyEmpty(data map[string]interface{}) bool {
-	// If empty, it's empty
-	if len(data) == 0 {
-		return true
-	}
-
-	// If only one field and it's "params" with null value, it's empty
-	if len(data) == 1 {
-		if params, ok := data["params"]; ok && params == nil {
-			return true
-		}
-	}
-
-	return false
 }
 
 // ExtractErrorMessage extracts a clean error message from a log line.

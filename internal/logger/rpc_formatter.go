@@ -57,6 +57,23 @@ func formatRPCMessage(info *RPCMessageInfo) string {
 	return strings.Join(parts, " ")
 }
 
+// isEffectivelyEmpty checks if the data is effectively empty (only contains params: null)
+func isEffectivelyEmpty(data map[string]interface{}) bool {
+	// If empty, it's empty
+	if len(data) == 0 {
+		return true
+	}
+
+	// If only one field and it's "params" with null value, it's empty
+	if len(data) == 1 {
+		if params, ok := data["params"]; ok && params == nil {
+			return true
+		}
+	}
+
+	return false
+}
+
 // formatJSONWithoutFields formats JSON by removing specified fields and compacting to single line
 // Returns the formatted string, a boolean indicating if the JSON was valid, and a boolean indicating if empty
 func formatJSONWithoutFields(jsonStr string, fieldsToRemove []string) (string, bool, bool) {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 // circuitBreakerState represents the state of a circuit breaker.
@@ -224,7 +225,7 @@ func formatResetAt(t time.Time) string {
 	if t.IsZero() {
 		return "unknown"
 	}
-	return fmt.Sprintf("%s (in %s)", t.UTC().Format(time.RFC3339), time.Until(t).Round(time.Second))
+	return fmt.Sprintf("%s (in %s)", t.UTC().Format(time.RFC3339), strutil.FormatDuration(time.Until(t).Round(time.Second)))
 }
 
 // extractRateLimitErrorText extracts the text content from a raw tool result

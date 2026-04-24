@@ -3,15 +3,14 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
@@ -24,6 +23,7 @@ import (
 )
 
 var logHelpers = logger.New("server:helpers")
+var logSDK = logger.New("server:sdk-frontend")
 
 // logRuntimeError logs runtime errors to stdout per spec section 9.2
 func logRuntimeError(errorType, detail string, r *http.Request, serverName *string) {
@@ -219,30 +219,17 @@ func setupSessionCallback(r *http.Request, backendID string) (string, bool) {
 // agent-originated trace is continued; if no such headers are present a fresh
 // root span (and new trace ID) is created automatically.
 func WithOTELTracing(next http.Handler, tag string) http.Handler {
-	t := tracing.Tracer()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Extract incoming W3C trace context (traceparent / tracestate).
-		// If the headers are absent the returned ctx is unchanged and OTEL
-		// will generate a fresh trace ID when the span is started.
-		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
-
-		ctx, span := t.Start(ctx, "gateway.request",
-			oteltrace.WithAttributes(
-				semconv.HTTPRequestMethodKey.String(r.Method),
-				semconv.URLPathKey.String(r.URL.Path),
-				attribute.String("gateway.tag", tag),
-			),
-			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
-		)
-		defer span.End()
-
-		req := r.WithContext(ctx)
-		next.ServeHTTP(w, req)
-
-		// Add session ID after request handling, once the session has been attached
-		sessionID := SessionIDFromContext(req.Context())
+	// Wrap next with an enrichment handler that adds session ID to the span
+	// after the inner handler returns (once the session has been attached to the context).
+	// This works because setupSessionCallback uses pointer mutation (*r = *injectSessionContext(...))
+	// to update the request struct in-place, so r.Context() after ServeHTTP reflects the session ID.
+	enriched := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
+		sessionID := SessionIDFromContext(r.Context())
+		span := oteltrace.SpanFromContext(r.Context())
 		span.SetAttributes(attribute.String("session.id", auth.TruncateSessionID(sessionID)))
 	})
+	return tracing.WrapHTTPHandler(enriched, "gateway.request", attribute.String("gateway.tag", tag))
 }
 
 // wrapWithMiddleware applies the standard middleware stack to an SDK handler.
@@ -271,4 +258,118 @@ func wrapWithMiddleware(handler http.Handler, logTag string, unifiedServer *Unif
 
 	logHelpers.Printf("Middleware wrapping complete: logTag=%s", logTag)
 	return tracingHandler.ServeHTTP
+}
+
+// WithSDKLogging wraps an SDK StreamableHTTPHandler to log JSON-RPC translation results.
+// This captures the request/response at the HTTP boundary to understand what the SDK
+// sees and what it returns, particularly for debugging protocol state issues.
+func WithSDKLogging(handler http.Handler, mode string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		startTime := time.Now()
+
+		// Extract session info for logging context
+		authHeader := r.Header.Get("Authorization")
+		sessionID := auth.ExtractSessionID(authHeader)
+		mcpSessionID := r.Header.Get("Mcp-Session-Id")
+
+		// Log incoming request
+		logSDK.Printf(">>> SDK Request [%s] session=%s mcp-session=%s method=%s path=%s",
+			mode, auth.TruncateSessionID(sessionID), auth.TruncateSessionID(mcpSessionID), r.Method, r.URL.Path)
+
+		// Capture and log request body for POST requests
+		requestBody, err := peekRequestBody(r)
+		var jsonrpcReq mcp.Request
+		if err == nil && len(requestBody) > 0 {
+			// Parse JSON-RPC request
+			if err := json.Unmarshal(requestBody, &jsonrpcReq); err == nil {
+				logSDK.Printf("    JSON-RPC Request: method=%s id=%v", jsonrpcReq.Method, jsonrpcReq.ID)
+				logger.LogDebug("sdk-frontend", "JSON-RPC request parsed: mode=%s, method=%s, id=%v, session=%s",
+					mode, jsonrpcReq.Method, jsonrpcReq.ID, auth.TruncateSessionID(sessionID))
+			} else {
+				logSDK.Printf("    Failed to parse JSON-RPC request: %v", err)
+				logSDK.Printf("    Raw body: %s", string(requestBody))
+			}
+		}
+
+		// Wrap response writer to capture output
+		lw := newResponseWriter(w)
+
+		// Call the actual SDK handler
+		handler.ServeHTTP(lw, r)
+
+		duration := time.Since(startTime)
+
+		// Parse and log response
+		responseBody := lw.Body()
+		if len(responseBody) > 0 {
+			// Try to parse as JSON-RPC response
+			var jsonrpcResp mcp.Response
+			if err := json.Unmarshal(responseBody, &jsonrpcResp); err == nil {
+				if jsonrpcResp.Error != nil {
+					// Error response - this is what we're particularly interested in
+					logSDK.Printf("<<< SDK Response [%s] ERROR status=%d duration=%v",
+						mode, lw.StatusCode(), duration)
+					logSDK.Printf("    JSON-RPC Error: code=%d message=%q",
+						jsonrpcResp.Error.Code, jsonrpcResp.Error.Message)
+
+					// Check for specific error types
+					errorCode := jsonrpcResp.Error.Code
+					errorMsg := jsonrpcResp.Error.Message
+
+					// Log tool not found errors specifically for better monitoring
+					// Error code -32602 (Invalid params) is used by the SDK for unknown tools
+					// Error code -32601 (Method not found) could also indicate tool issues
+					// We check the method to ensure this is a tools/call request
+					if (errorCode == -32602 || errorCode == -32601) && jsonrpcReq.Method == "tools/call" {
+						logSDK.Printf("    ⚠️  TOOL NOT FOUND ERROR")
+						logger.LogWarn("client",
+							"Tool not found: mode=%s, method=%s, session=%s, code=%d, message=%q",
+							mode, jsonrpcReq.Method, auth.TruncateSessionID(sessionID), errorCode, errorMsg)
+					}
+
+					// Log detailed error info for protocol state issues
+					if strings.Contains(errorMsg, "session initialization") ||
+						strings.Contains(errorMsg, "invalid during") {
+						logSDK.Printf("    ⚠️  PROTOCOL STATE ERROR DETECTED")
+						logSDK.Printf("    Request method was: %s", jsonrpcReq.Method)
+						logSDK.Printf("    Session ID: %s", auth.TruncateSessionID(sessionID))
+						logSDK.Printf("    MCP-Session-Id header: %s", auth.TruncateSessionID(mcpSessionID))
+						logSDK.Printf("    This error indicates SDK's StreamableHTTPHandler created fresh protocol state")
+
+						logger.LogWarn("sdk-frontend",
+							"Protocol state error: mode=%s, method=%s, session=%s, mcp_session=%s, error=%q",
+							mode, jsonrpcReq.Method, auth.TruncateSessionID(sessionID),
+							auth.TruncateSessionID(mcpSessionID), errorMsg)
+					} else if (errorCode != -32602 && errorCode != -32601) || jsonrpcReq.Method != "tools/call" {
+						// Only log as general error if not already logged above
+						logger.LogError("sdk-frontend",
+							"JSON-RPC error: mode=%s, method=%s, code=%d, message=%q",
+							mode, jsonrpcReq.Method, errorCode, errorMsg)
+					}
+				} else {
+					// Success response
+					logSDK.Printf("<<< SDK Response [%s] SUCCESS status=%d duration=%v",
+						mode, lw.StatusCode(), duration)
+					logSDK.Printf("    JSON-RPC Response id=%v has result=%v",
+						jsonrpcResp.ID, jsonrpcResp.Result != nil)
+
+					logger.LogDebug("sdk-frontend",
+						"JSON-RPC success: mode=%s, method=%s, id=%v, duration=%v",
+						mode, jsonrpcReq.Method, jsonrpcResp.ID, duration)
+				}
+			} else {
+				// Could be SSE stream or other format
+				logSDK.Printf("<<< SDK Response [%s] status=%d duration=%v (non-JSON or stream)",
+					mode, lw.StatusCode(), duration)
+				if len(responseBody) < 500 {
+					logSDK.Printf("    Raw response: %s", string(responseBody))
+				} else {
+					logSDK.Printf("    Raw response (truncated): %s...", string(responseBody[:500]))
+				}
+			}
+		} else {
+			logSDK.Printf("<<< SDK Response [%s] status=%d duration=%v (empty body)",
+				mode, lw.StatusCode(), duration)
+		}
+	})
 }
