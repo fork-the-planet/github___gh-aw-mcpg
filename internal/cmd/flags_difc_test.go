@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"os"
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
@@ -110,20 +109,10 @@ func TestGetDefaultDIFCMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save and restore original env
-			originalEnv := os.Getenv("MCP_GATEWAY_GUARDS_MODE")
-			defer func() {
-				if originalEnv != "" {
-					os.Setenv("MCP_GATEWAY_GUARDS_MODE", originalEnv)
-				} else {
-					os.Unsetenv("MCP_GATEWAY_GUARDS_MODE")
-				}
-			}()
-
 			if tt.envValue != "" {
-				os.Setenv("MCP_GATEWAY_GUARDS_MODE", tt.envValue)
+				t.Setenv("MCP_GATEWAY_GUARDS_MODE", tt.envValue)
 			} else {
-				os.Unsetenv("MCP_GATEWAY_GUARDS_MODE")
+				t.Setenv("MCP_GATEWAY_GUARDS_MODE", "")
 			}
 
 			got := getDefaultDIFCMode()
@@ -180,8 +169,23 @@ func TestParseDIFCSinkServerIDs(t *testing.T) {
 			expect: []string{"safeoutputs", "github"},
 		},
 		{
+			name:   "consecutive commas skip empty parts",
+			input:  "safeoutputs,,github",
+			expect: []string{"safeoutputs", "github"},
+		},
+		{
+			name:   "trailing comma skips empty part",
+			input:  "safeoutputs,github,",
+			expect: []string{"safeoutputs", "github"},
+		},
+		{
 			name:    "rejects embedded whitespace",
 			input:   "safe outputs",
+			wantErr: true,
+		},
+		{
+			name:    "rejects embedded tab",
+			input:   "safe\toutputs",
 			wantErr: true,
 		},
 	}
