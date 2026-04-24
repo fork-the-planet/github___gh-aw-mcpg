@@ -438,7 +438,7 @@ echo "Results: $PASSES passed, $FAILURES failed"
 
 **Only if there are failures**, create an issue with this exact format:
 
-- Title: "Smoke Long Session: ${{ github.run_id }}"
+- Title: "[smoke-long-session] ${{ github.run_id }}"
 - Body:
 
 ```
