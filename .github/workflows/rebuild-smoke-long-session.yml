@@ -1,0 +1,98 @@
+name: Rebuild smoke-long-session workflow
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Monday at 9:00 AM UTC to keep the workflow up to date
+    - cron: '0 9 * * 1'
+  push:
+    paths:
+      - '.github/workflows/smoke-long-session.md'
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gh-aw-mcpg repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c # v6
+        with:
+          go-version: '1.25.0'
+          cache: false
+
+      - name: Clone gh-aw repository
+        run: |
+          cd /tmp
+          rm -rf gh-aw
+          git clone https://github.com/github/gh-aw.git
+          echo "✓ Cloned gh-aw repository"
+
+      - name: Build gh-aw compiler
+        run: |
+          cd /tmp/gh-aw
+          make build
+          ./gh-aw --version
+          echo "✓ Built gh-aw compiler: $(./gh-aw --version)"
+
+      - name: Compile smoke-long-session workflow
+        run: |
+          cd ${{ github.workspace }}
+          /tmp/gh-aw/gh-aw compile smoke-long-session
+          echo "✓ Compiled smoke-long-session.md to smoke-long-session.lock.yml"
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet .github/workflows/smoke-long-session.lock.yml; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes detected in smoke-long-session.lock.yml"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Changes detected in smoke-long-session.lock.yml"
+          fi
+
+      - name: Create Pull Request
+        if: steps.check_changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: rebuild smoke-long-session workflow with latest gh-aw compiler'
+          branch: automated/rebuild-smoke-long-session
+          delete-branch: true
+          title: 'chore: Rebuild smoke-long-session workflow'
+          body: |
+            ## Automated Workflow Rebuild
+
+            This PR updates the `smoke-long-session.lock.yml` file by recompiling it from the source `smoke-long-session.md` using the latest gh-aw compiler.
+
+            ### Changes
+            - Cloned and built gh-aw from https://github.com/github/gh-aw
+            - Recompiled `.github/workflows/smoke-long-session.md` using `gh-aw compile smoke-long-session`
+            - Updated `.github/workflows/smoke-long-session.lock.yml` with the latest compilation
+
+            ### Verification
+            - The gh-aw-mcpg container reference should be present in the compiled workflow
+            - MCP Gateway configuration should be properly set up
+
+            This is an automated PR created by the rebuild-smoke-long-session workflow.
+          labels: |
+            automated
+            workflow-maintenance
+
+      - name: Summary
+        run: |
+          if [ "${{ steps.check_changes.outputs.changed }}" == "true" ]; then
+            echo "✅ Created PR with updated smoke-long-session.lock.yml" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No changes needed - workflow is up to date" >> $GITHUB_STEP_SUMMARY
+          fi
