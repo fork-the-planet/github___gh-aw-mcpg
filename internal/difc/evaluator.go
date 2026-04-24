@@ -89,6 +89,30 @@ func ParseEnforcementMode(s string) (EnforcementMode, error) {
 	}
 }
 
+// DIFCComponents holds the set of DIFC objects needed by a server or proxy.
+type DIFCComponents struct {
+	Mode          EnforcementMode
+	AgentRegistry *AgentRegistry
+	Capabilities  *Capabilities
+	Evaluator     *Evaluator
+}
+
+// NewComponents initializes the standard DIFC component set.
+// modeStr is parsed via ParseEnforcementMode; defaultMode is used when modeStr
+// is empty or invalid.
+func NewComponents(modeStr string, defaultMode EnforcementMode) DIFCComponents {
+	mode, err := ParseEnforcementMode(modeStr)
+	if err != nil {
+		mode = defaultMode
+	}
+	return DIFCComponents{
+		Mode:          mode,
+		AgentRegistry: NewAgentRegistryWithDefaults(nil, nil),
+		Capabilities:  NewCapabilities(),
+		Evaluator:     NewEvaluatorWithMode(mode),
+	}
+}
+
 // AccessDecision represents the result of a DIFC evaluation
 type AccessDecision int
 
