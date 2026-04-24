@@ -1,6 +1,6 @@
 ---
 name: Release
-description: Build, test, and release MCP Gateway binary and Docker image, generate release highlights, and make the release immutable
+description: Build, test, and release MCP Gateway binary and Docker image, and generate release highlights
 on:
   roles:
     - admin
@@ -361,25 +361,6 @@ jobs:
           gh release upload "$RELEASE_TAG" sbom.spdx.json sbom.cdx.json --clobber
           echo "✓ SBOM files attached to release"
 
-  # Make the release immutable after all assets (binaries + SBOM) are uploaded.
-  # This prevents any future modification or deletion of the release for security.
-  # `release` is listed explicitly in `needs` to access `needs.release.outputs.release_tag`.
-  make-immutable:
-    needs: ["generate-sbom", "release"]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Make release immutable
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ needs.release.outputs.release_tag }}
-        run: |
-          echo "Making release $RELEASE_TAG immutable..."
-          gh release edit "$RELEASE_TAG" --repo "$GH_REPO" --make-immutable
-          echo "✓ Release $RELEASE_TAG is now immutable and cannot be modified"
-
 steps:
   - name: Setup environment and fetch release data
     env:
@@ -605,7 +586,7 @@ Supported platforms: `linux/amd64`, `linux/arm64`
 
 ## Output Format
 
-**NOTE**: The release will be marked as immutable by the `make-immutable` workflow job after its configured dependencies complete (`generate-sbom` and `release`). `make-immutable` runs concurrently with the agent — it does not wait for the agent to finish. Do not attempt to update the release body as that would conflict with the immutability workflow. Instead, print the generated highlights to stdout so they appear in the workflow run logs.
+**NOTE**: Print the generated highlights to stdout so they appear in the workflow run logs.
 
 After running through steps 1–4 above, print the complete highlights markdown to stdout:
 
