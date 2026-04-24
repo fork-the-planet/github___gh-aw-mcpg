@@ -286,7 +286,7 @@ call_echo() {
     -H "Content-Type: application/json" \
     -H "Accept: application/json, text/event-stream" \
     -H "Mcp-Session-Id: $SESSION_ID" \
-    -d '{"jsonrpc":"2.0","id":99,"method":"tools/call","params":{"name":"mock__echo_tool","arguments":{"message":"ping"}}}')
+    -d '{"jsonrpc":"2.0","id":99,"method":"tools/call","params":{"name":"mock___echo_tool","arguments":{"message":"ping"}}}')
   if echo "$RESP" | grep -q '"result"'; then
     echo "✓ $label passed (T+${elapsed}m)"
     echo "PASS: $label" >> /tmp/smoke-long-session/results.txt
