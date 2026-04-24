@@ -9,6 +9,72 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestParseCollaboratorPermissionArgs(t *testing.T) {
+	t.Run("returns all fields when present", func(t *testing.T) {
+		argsMap := map[string]interface{}{
+			"owner":    "myorg",
+			"repo":     "myrepo",
+			"username": "alice",
+		}
+		owner, repo, username, err := ParseCollaboratorPermissionArgs(argsMap)
+		require.NoError(t, err)
+		assert.Equal(t, "myorg", owner)
+		assert.Equal(t, "myrepo", repo)
+		assert.Equal(t, "alice", username)
+	})
+
+	t.Run("error when owner missing", func(t *testing.T) {
+		argsMap := map[string]interface{}{
+			"repo":     "myrepo",
+			"username": "alice",
+		}
+		owner, repo, username, err := ParseCollaboratorPermissionArgs(argsMap)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing owner/repo/username")
+		assert.Equal(t, "", owner)
+		assert.Equal(t, "myrepo", repo)
+		assert.Equal(t, "alice", username)
+	})
+
+	t.Run("error when repo missing", func(t *testing.T) {
+		argsMap := map[string]interface{}{
+			"owner":    "myorg",
+			"username": "alice",
+		}
+		owner, repo, username, err := ParseCollaboratorPermissionArgs(argsMap)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing owner/repo/username")
+		assert.Equal(t, "myorg", owner)
+		assert.Equal(t, "", repo)
+		assert.Equal(t, "alice", username)
+	})
+
+	t.Run("error when username missing", func(t *testing.T) {
+		argsMap := map[string]interface{}{
+			"owner": "myorg",
+			"repo":  "myrepo",
+		}
+		owner, repo, username, err := ParseCollaboratorPermissionArgs(argsMap)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing owner/repo/username")
+		assert.Equal(t, "myorg", owner)
+		assert.Equal(t, "myrepo", repo)
+		assert.Equal(t, "", username)
+	})
+
+	t.Run("returns partial values on error for logging", func(t *testing.T) {
+		argsMap := map[string]interface{}{
+			"owner": "myorg",
+			"repo":  "myrepo",
+		}
+		owner, repo, username, err := ParseCollaboratorPermissionArgs(argsMap)
+		require.Error(t, err)
+		assert.Equal(t, "myorg", owner)
+		assert.Equal(t, "myrepo", repo)
+		assert.Equal(t, "", username)
+	})
+}
+
 func TestLogAndWrapCollaboratorPermission(t *testing.T) {
 	t.Run("logs permission and wraps in MCP format", func(t *testing.T) {
 		body := []byte(`{"permission":"admin","user":{"login":"alice"}}`)

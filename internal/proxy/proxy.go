@@ -234,7 +234,10 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 		return nil, fmt.Errorf("unexpected args type: %T", args)
 	}
 
-	var apiPath string
+	var (
+		apiPath                                 string
+		collabOwner, collabRepo, collabUsername string
+	)
 	switch toolName {
 	case "pull_request_read":
 		owner, _ := argsMap["owner"].(string)
@@ -276,14 +279,13 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 		apiPath = fmt.Sprintf("/search/repositories?q=%s&per_page=%s", url.QueryEscape(query), perPage)
 
 	case "get_collaborator_permission":
-		owner, _ := argsMap["owner"].(string)
-		repo, _ := argsMap["repo"].(string)
-		username, _ := argsMap["username"].(string)
-		if owner == "" || repo == "" || username == "" {
-			logProxy.Printf("restBackendCaller: get_collaborator_permission missing args (owner=%q repo=%q username=%q)", owner, repo, username)
-			return nil, fmt.Errorf("get_collaborator_permission: missing owner/repo/username")
+		var parseErr error
+		collabOwner, collabRepo, collabUsername, parseErr = mcp.ParseCollaboratorPermissionArgs(argsMap)
+		if parseErr != nil {
+			logProxy.Printf("restBackendCaller: get_collaborator_permission missing args (owner=%q repo=%q username=%q)", collabOwner, collabRepo, collabUsername)
+			return nil, parseErr
 		}
-		apiPath = fmt.Sprintf("/repos/%s/%s/collaborators/%s/permission", owner, repo, username)
+		apiPath = fmt.Sprintf("/repos/%s/%s/collaborators/%s/permission", collabOwner, collabRepo, collabUsername)
 
 	default:
 		logProxy.Printf("restBackendCaller: unsupported tool %s", toolName)
@@ -319,10 +321,7 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 
 	// For get_collaborator_permission, log the resolved permission level for observability
 	if toolName == "get_collaborator_permission" {
-		owner, _ := argsMap["owner"].(string)
-		repo, _ := argsMap["repo"].(string)
-		username, _ := argsMap["username"].(string)
-		return mcp.LogAndWrapCollaboratorPermission(body, owner, repo, username, resp.StatusCode, logProxy.Printf), nil
+		return mcp.LogAndWrapCollaboratorPermission(body, collabOwner, collabRepo, collabUsername, resp.StatusCode, logProxy.Printf), nil
 	}
 
 	// Wrap in MCP response format: {content: [{type: "text", text: "..."}]}
