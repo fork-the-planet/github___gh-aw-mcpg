@@ -360,26 +360,17 @@ func (us *UnifiedServer) ensureGuardInitialized(
 		},
 	)
 
-	mode := defaultMode
-	if labelAgentResult.DIFCMode != "" {
-		parsedMode, err := difc.ParseEnforcementMode(labelAgentResult.DIFCMode)
-		if err != nil {
-			return defaultMode, fmt.Errorf("invalid difc_mode from label_agent: %w", err)
-		}
-		mode = parsedMode
-	}
-
 	agentID := guard.GetAgentIDFromContext(ctx)
-	secrecyTags := difc.StringsToTags(labelAgentResult.Agent.Secrecy)
-	integrityTags := difc.StringsToTags(labelAgentResult.Agent.Integrity)
 
 	// Merge labels into existing agent (union semantics).
 	// Multiple guards may contribute labels for the same agent; each guard's
 	// label_agent output is additive so that later guards do not overwrite
 	// labels set by earlier ones.
 	agentLabels := us.agentRegistry.GetOrCreate(agentID)
-	agentLabels.AddSecrecyTags(secrecyTags)
-	agentLabels.AddIntegrityTags(integrityTags)
+	mode, err := guard.ApplyLabelAgentResult(labelAgentResult, agentLabels, defaultMode)
+	if err != nil {
+		return defaultMode, fmt.Errorf("label_agent result invalid: %w", err)
+	}
 
 	us.sessionMu.Lock()
 	session = us.sessions[sessionID]

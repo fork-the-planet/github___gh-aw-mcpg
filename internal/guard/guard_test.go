@@ -924,3 +924,85 @@ func TestIsValidAllowOnlyRepos(t *testing.T) {
 }
 
 // TestParseResourceResponse and TestParseCollectionLabeledData are in wasm_response_parse_test.go
+
+func TestApplyLabelAgentResult(t *testing.T) {
+	t.Run("applies secrecy and integrity tags using batch helpers", func(t *testing.T) {
+		agentLabels := difc.NewAgentLabels("test-agent")
+		result := &LabelAgentResult{
+			Agent: AgentLabelsPayload{
+				Secrecy:   []string{"secret-a", "secret-b"},
+				Integrity: []string{"trusted"},
+			},
+			DIFCMode: difc.ModeFilter,
+		}
+
+		mode, err := ApplyLabelAgentResult(result, agentLabels, difc.EnforcementStrict)
+
+		require.NoError(t, err)
+		assert.Equal(t, difc.EnforcementFilter, mode)
+		assert.ElementsMatch(t, []difc.Tag{"secret-a", "secret-b"}, agentLabels.GetSecrecyTags())
+		assert.ElementsMatch(t, []difc.Tag{"trusted"}, agentLabels.GetIntegrityTags())
+	})
+
+	t.Run("returns defaultMode when DIFCMode is empty", func(t *testing.T) {
+		agentLabels := difc.NewAgentLabels("test-agent")
+		result := &LabelAgentResult{
+			Agent:    AgentLabelsPayload{},
+			DIFCMode: "",
+		}
+
+		mode, err := ApplyLabelAgentResult(result, agentLabels, difc.EnforcementFilter)
+
+		require.NoError(t, err)
+		assert.Equal(t, difc.EnforcementFilter, mode)
+	})
+
+	t.Run("returns error for invalid DIFCMode", func(t *testing.T) {
+		agentLabels := difc.NewAgentLabels("test-agent")
+		result := &LabelAgentResult{
+			Agent:    AgentLabelsPayload{Secrecy: []string{"s"}, Integrity: []string{}},
+			DIFCMode: "invalid-mode",
+		}
+
+		mode, err := ApplyLabelAgentResult(result, agentLabels, difc.EnforcementStrict)
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid difc_mode from label_agent")
+		assert.Equal(t, difc.EnforcementStrict, mode)
+		assert.Empty(t, agentLabels.GetSecrecyTags())
+		assert.Empty(t, agentLabels.GetIntegrityTags())
+	})
+
+	t.Run("merges tags additively (union semantics)", func(t *testing.T) {
+		agentLabels := difc.NewAgentLabels("test-agent")
+		agentLabels.AddSecrecyTags([]difc.Tag{"pre-existing"})
+
+		result := &LabelAgentResult{
+			Agent: AgentLabelsPayload{
+				Secrecy:   []string{"new-secret"},
+				Integrity: []string{},
+			},
+			DIFCMode: difc.ModeStrict,
+		}
+
+		_, err := ApplyLabelAgentResult(result, agentLabels, difc.EnforcementStrict)
+
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []difc.Tag{"pre-existing", "new-secret"}, agentLabels.GetSecrecyTags())
+	})
+
+	t.Run("handles empty tags slices", func(t *testing.T) {
+		agentLabels := difc.NewAgentLabels("test-agent")
+		result := &LabelAgentResult{
+			Agent:    AgentLabelsPayload{Secrecy: []string{}, Integrity: []string{}},
+			DIFCMode: difc.ModePropagate,
+		}
+
+		mode, err := ApplyLabelAgentResult(result, agentLabels, difc.EnforcementStrict)
+
+		require.NoError(t, err)
+		assert.Equal(t, difc.EnforcementPropagate, mode)
+		assert.Empty(t, agentLabels.GetSecrecyTags())
+		assert.Empty(t, agentLabels.GetIntegrityTags())
+	})
+}

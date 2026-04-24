@@ -120,6 +120,19 @@ func TestInitGuardPolicy_LabelAgentError(t *testing.T) {
 	assert.False(t, s.guardInitialized)
 }
 
+// TestInitGuardPolicy_LabelAgentNilResult verifies that a nil result from LabelAgent
+// is treated as an error and leaves the server uninitialized.
+func TestInitGuardPolicy_LabelAgentNilResult(t *testing.T) {
+	g := &labelAgentStubGuard{labelAgentResult: nil}
+	s := newTestServerForInitGuardPolicy(g, difc.EnforcementFilter)
+
+	err := s.initGuardPolicy(context.Background(), validAllowOnlyPolicyJSON, nil, nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "nil result")
+	assert.False(t, s.guardInitialized)
+}
+
 // TestInitGuardPolicy_SuccessWithNoLabels verifies the happy path: a valid policy with no
 // agent labels sets guardInitialized to true and leaves the enforcement mode unchanged.
 func TestInitGuardPolicy_SuccessWithNoLabels(t *testing.T) {
@@ -165,18 +178,20 @@ func TestInitGuardPolicy_DIFCModeOverride(t *testing.T) {
 		"guard response DIFCMode must override the server's enforcement mode")
 }
 
-// TestInitGuardPolicy_InvalidDIFCModeIgnored verifies that an unrecognized DIFCMode in the
-// guard response is silently ignored and the original enforcement mode is preserved.
-func TestInitGuardPolicy_InvalidDIFCModeIgnored(t *testing.T) {
+// TestInitGuardPolicy_InvalidDIFCModeError verifies that an unrecognized DIFCMode in the
+// guard response is treated as an error so the caller can react to a malformed guard output.
+func TestInitGuardPolicy_InvalidDIFCModeError(t *testing.T) {
 	g := defaultLabelAgentStub("not-a-real-mode", []string{}, []string{})
 	s := newTestServerForInitGuardPolicy(g, difc.EnforcementFilter)
 
 	err := s.initGuardPolicy(context.Background(), validAllowOnlyPolicyJSON, nil, nil)
 
-	require.NoError(t, err)
-	assert.True(t, s.guardInitialized)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid difc_mode")
+	assert.False(t, s.guardInitialized,
+		"guard must not be marked initialized when DIFCMode is invalid")
 	assert.Equal(t, difc.EnforcementFilter, s.enforcementMode,
-		"unrecognized DIFCMode in guard response must not change the enforcement mode")
+		"enforcement mode must remain unchanged when DIFCMode is invalid")
 }
 
 // TestInitGuardPolicy_EmptyDIFCModePreservesMode verifies that an empty DIFCMode in

@@ -2,6 +2,7 @@ package guard
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 )
@@ -73,4 +74,27 @@ func emptyAgentLabelsResult(mode string) *LabelAgentResult {
 		},
 		DIFCMode: mode,
 	}
+}
+
+// ApplyLabelAgentResult applies the agent labels from a LabelAgentResult to the given
+// AgentLabels using batch helpers (minimizing mutex acquisitions), and returns the
+// effective enforcement mode. If result.DIFCMode is empty, defaultMode is returned
+// unchanged. If result.DIFCMode is non-empty but cannot be parsed, an error is returned.
+func ApplyLabelAgentResult(result *LabelAgentResult, agentLabels *difc.AgentLabels, defaultMode difc.EnforcementMode) (difc.EnforcementMode, error) {
+	// Validate/parse mode first so that tag mutation is skipped when mode is invalid.
+	// This keeps the operation atomic: either both the mode and the tags are applied,
+	// or neither is.
+	mode := defaultMode
+	if result.DIFCMode != "" {
+		parsedMode, err := difc.ParseEnforcementMode(result.DIFCMode)
+		if err != nil {
+			return defaultMode, fmt.Errorf("invalid difc_mode from label_agent: %w", err)
+		}
+		mode = parsedMode
+	}
+
+	agentLabels.AddSecrecyTags(difc.StringsToTags(result.Agent.Secrecy))
+	agentLabels.AddIntegrityTags(difc.StringsToTags(result.Agent.Integrity))
+
+	return mode, nil
 }
