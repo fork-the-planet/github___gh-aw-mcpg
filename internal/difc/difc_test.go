@@ -254,7 +254,7 @@ func TestFormatViolationError(t *testing.T) {
 		resource.Integrity.Label.Add("trusted")
 
 		err := FormatViolationError(result, agentSecrecy, agentIntegrity, resource)
-		assert.Error(t, err, "Expected non-nil error for denied access")
+		require.Error(t, err, "Expected non-nil error for denied access")
 
 		errMsg := err.Error()
 		// Check that the reason is included
