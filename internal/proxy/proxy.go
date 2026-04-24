@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -104,7 +103,7 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 	// NewComponents returns any parse error so we can warn without parsing twice.
 	difcComponents, difcParseErr := difc.NewComponents(cfg.DIFCMode, difc.EnforcementFilter)
 	if difcParseErr != nil {
-		log.Printf("[proxy] WARNING: invalid DIFC mode %q, defaulting to filter", cfg.DIFCMode)
+		logProxy.Printf("WARNING: invalid DIFC mode %q, defaulting to filter", cfg.DIFCMode)
 	}
 	logProxy.Printf("Enforcement mode resolved: %s", difcComponents.Mode)
 
@@ -203,7 +202,7 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trusted
 	}
 
 	s.guardInitialized = true
-	log.Printf("[proxy] Guard initialized: mode=%s, secrecy=%v, integrity=%v",
+	logProxy.Printf("Guard initialized: mode=%s, secrecy=%v, integrity=%v",
 		s.enforcementMode, result.Agent.Secrecy, result.Agent.Integrity)
 
 	return nil

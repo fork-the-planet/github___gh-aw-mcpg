@@ -1,4 +1,4 @@
-package config
+package sys
 
 import (
 	"fmt"
@@ -10,14 +10,14 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logDockerHelpers = logger.New("config:docker_helpers")
+var logDocker = logger.New("sys:docker")
 
-// containerIDPattern validates that a container ID only contains valid characters (hex digits)
-// Container IDs are 64 character hex strings, but short form (12 chars) is also valid
+// containerIDPattern validates that a container ID only contains valid characters (hex digits).
+// Container IDs are 64 character hex strings, but short form (12 chars) is also valid.
 var containerIDPattern = regexp.MustCompile(`^[a-f0-9]{12,64}$`)
 
-// checkDockerAccessible verifies that the Docker daemon is accessible
-func checkDockerAccessible() bool {
+// CheckDockerAccessible verifies that the Docker daemon is accessible.
+func CheckDockerAccessible() bool {
 	// First check if the Docker socket exists
 	socketPath := os.Getenv("DOCKER_HOST")
 	if socketPath == "" {
@@ -26,10 +26,10 @@ func checkDockerAccessible() bool {
 		// Parse unix:// prefix if present
 		socketPath = strings.TrimPrefix(socketPath, "unix://")
 	}
-	logEnv.Printf("Checking Docker socket accessibility: socketPath=%s", socketPath)
+	logDocker.Printf("Checking Docker socket accessibility: socketPath=%s", socketPath)
 
 	if _, err := os.Stat(socketPath); os.IsNotExist(err) {
-		logEnv.Printf("Docker socket not found: socketPath=%s", socketPath)
+		logDocker.Printf("Docker socket not found: socketPath=%s", socketPath)
 		return false
 	}
 
@@ -38,13 +38,13 @@ func checkDockerAccessible() bool {
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	accessible := cmd.Run() == nil
-	logEnv.Printf("Docker daemon check: accessible=%v", accessible)
+	logDocker.Printf("Docker daemon check: accessible=%v", accessible)
 	return accessible
 }
 
-// validateContainerID validates that the container ID is safe to use in commands
-// Container IDs should only contain lowercase hex characters (a-f, 0-9)
-func validateContainerID(containerID string) error {
+// ValidateContainerID validates that the container ID is safe to use in commands.
+// Container IDs should only contain lowercase hex characters (a-f, 0-9).
+func ValidateContainerID(containerID string) error {
 	if containerID == "" {
 		return fmt.Errorf("container ID is empty")
 	}
@@ -69,11 +69,11 @@ func validateContainerID(containerID string) error {
 //   - output: The trimmed output from docker inspect
 //   - error: Any validation or command execution error
 func runDockerInspect(containerID, formatTemplate string) (string, error) {
-	if err := validateContainerID(containerID); err != nil {
+	if err := ValidateContainerID(containerID); err != nil {
 		return "", err
 	}
 
-	logDockerHelpers.Printf("Running docker inspect: containerID=%s, format=%s", containerID, formatTemplate)
+	logDocker.Printf("Running docker inspect: containerID=%s, format=%s", containerID, formatTemplate)
 
 	cmd := exec.Command("docker", "inspect", "--format", formatTemplate, containerID)
 	output, err := cmd.Output()
@@ -82,13 +82,13 @@ func runDockerInspect(containerID, formatTemplate string) (string, error) {
 	}
 
 	result := strings.TrimSpace(string(output))
-	logDockerHelpers.Printf("Docker inspect succeeded: output_len=%d", len(result))
+	logDocker.Printf("Docker inspect succeeded: output_len=%d", len(result))
 	return result, nil
 }
 
-// checkPortMapping uses docker inspect to verify that the specified port is mapped
-func checkPortMapping(containerID, port string) (bool, error) {
-	logDockerHelpers.Printf("Checking port mapping: containerID=%s, port=%s", containerID, port)
+// CheckPortMapping uses docker inspect to verify that the specified port is mapped.
+func CheckPortMapping(containerID, port string) (bool, error) {
+	logDocker.Printf("Checking port mapping: containerID=%s, port=%s", containerID, port)
 
 	output, err := runDockerInspect(containerID, "{{json .NetworkSettings.Ports}}")
 	if err != nil {
@@ -101,24 +101,24 @@ func checkPortMapping(containerID, port string) (bool, error) {
 	// Check if the port is in the output with a host binding
 	// The format is like: {"8000/tcp":[{"HostIp":"0.0.0.0","HostPort":"8000"}]}
 	mapped := strings.Contains(output, portKey) && strings.Contains(output, "HostPort")
-	logDockerHelpers.Printf("Port mapping check result: port=%s, mapped=%v", portKey, mapped)
+	logDocker.Printf("Port mapping check result: port=%s, mapped=%v", portKey, mapped)
 	return mapped, nil
 }
 
-// checkStdinInteractive uses docker inspect to verify the container was started with -i flag
-func checkStdinInteractive(containerID string) bool {
+// CheckStdinInteractive uses docker inspect to verify the container was started with -i flag.
+func CheckStdinInteractive(containerID string) bool {
 	output, err := runDockerInspect(containerID, "{{.Config.OpenStdin}}")
 	if err != nil {
 		return false
 	}
 
 	interactive := output == "true"
-	logDockerHelpers.Printf("Stdin interactive check: containerID=%s, interactive=%v", containerID, interactive)
+	logDocker.Printf("Stdin interactive check: containerID=%s, interactive=%v", containerID, interactive)
 	return interactive
 }
 
-// checkLogDirMounted uses docker inspect to verify the log directory is mounted
-func checkLogDirMounted(containerID, logDir string) bool {
+// CheckLogDirMounted uses docker inspect to verify the log directory is mounted.
+func CheckLogDirMounted(containerID, logDir string) bool {
 	output, err := runDockerInspect(containerID, "{{json .Mounts}}")
 	if err != nil {
 		return false
@@ -126,6 +126,6 @@ func checkLogDirMounted(containerID, logDir string) bool {
 
 	// Check if the log directory is in the mounts
 	mounted := strings.Contains(output, logDir)
-	logDockerHelpers.Printf("Log dir mount check: containerID=%s, logDir=%s, mounted=%v", containerID, logDir, mounted)
+	logDocker.Printf("Log dir mount check: containerID=%s, logDir=%s, mounted=%v", containerID, logDir, mounted)
 	return mounted
 }

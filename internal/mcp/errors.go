@@ -7,6 +7,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 // ConnectionErrorContext holds all context needed to produce a detailed connection
@@ -28,10 +29,7 @@ type ConnectionErrorContext struct {
 // and execution environment. All callers (launcher and mcp connection) use this
 // single function so that hint analysis and output format remain consistent.
 func LogConnectionError(errCtx ConnectionErrorContext, err error) {
-	suffix := ""
-	if errCtx.SessionID != "" {
-		suffix = " for session '" + errCtx.SessionID + "'"
-	}
+	suffix := strutil.SessionSuffix(errCtx.SessionID)
 
 	// Structured log via file logger.
 	if errCtx.ServerID != "" {

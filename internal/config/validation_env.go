@@ -73,7 +73,7 @@ func ValidateExecutionEnvironment() *EnvValidationResult {
 	logEnv.Printf("Containerization check: isContainerized=%v, containerID=%s", result.IsContainerized, result.ContainerID)
 
 	// Check Docker daemon accessibility
-	result.DockerAccessible = checkDockerAccessible()
+	result.DockerAccessible = sys.CheckDockerAccessible()
 	if !result.DockerAccessible {
 		logEnv.Print("Docker daemon is not accessible")
 		result.ValidationErrors = append(result.ValidationErrors,
@@ -111,7 +111,7 @@ func ValidateContainerizedEnvironment(containerID string) *EnvValidationResult {
 	port := os.Getenv("MCP_GATEWAY_PORT")
 	if port != "" {
 		logEnv.Printf("Checking port mapping: port=%s", port)
-		portMapped, err := checkPortMapping(containerID, port)
+		portMapped, err := sys.CheckPortMapping(containerID, port)
 		if err != nil {
 			result.ValidationWarnings = append(result.ValidationWarnings,
 				fmt.Sprintf("Could not verify port mapping: %v", err))
@@ -124,7 +124,7 @@ func ValidateContainerizedEnvironment(containerID string) *EnvValidationResult {
 	}
 
 	// Check if stdin is interactive (requires -i flag)
-	result.StdinInteractive = checkStdinInteractive(containerID)
+	result.StdinInteractive = sys.CheckStdinInteractive(containerID)
 	logEnv.Printf("Stdin interactive check: interactive=%v", result.StdinInteractive)
 	if !result.StdinInteractive {
 		result.ValidationErrors = append(result.ValidationErrors,
@@ -136,7 +136,7 @@ func ValidateContainerizedEnvironment(containerID string) *EnvValidationResult {
 	if logDir == "" {
 		logDir = DefaultLogDir
 	}
-	result.LogDirMounted = checkLogDirMounted(containerID, logDir)
+	result.LogDirMounted = sys.CheckLogDirMounted(containerID, logDir)
 	logEnv.Printf("Log directory mount check: mounted=%v, logDir=%s", result.LogDirMounted, logDir)
 	if !result.LogDirMounted {
 		result.ValidationWarnings = append(result.ValidationWarnings,
