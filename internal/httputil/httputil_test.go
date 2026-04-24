@@ -273,3 +273,40 @@ func TestParseRateLimitResetHeader(t *testing.T) {
 		})
 	}
 }
+
+// TestApplyGitHubAPIHeaders verifies that ApplyGitHubAPIHeaders sets the
+// expected headers on an HTTP request.
+func TestApplyGitHubAPIHeaders(t *testing.T) {
+	t.Run("sets Authorization when authHeader is non-empty", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
+		require.NoError(t, err)
+
+		ApplyGitHubAPIHeaders(req, "token my-secret")
+
+		assert.Equal(t, "token my-secret", req.Header.Get("Authorization"))
+		assert.Equal(t, "application/vnd.github+json", req.Header.Get("Accept"))
+		assert.Equal(t, GitHubUserAgent, req.Header.Get("User-Agent"))
+	})
+
+	t.Run("does not set Authorization when authHeader is empty", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
+		require.NoError(t, err)
+
+		ApplyGitHubAPIHeaders(req, "")
+
+		assert.Empty(t, req.Header.Get("Authorization"))
+		assert.Equal(t, "application/vnd.github+json", req.Header.Get("Accept"))
+		assert.Equal(t, GitHubUserAgent, req.Header.Get("User-Agent"))
+	})
+
+	t.Run("works with Bearer token scheme", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, "http://example.com", nil)
+		require.NoError(t, err)
+
+		ApplyGitHubAPIHeaders(req, "Bearer ghp_abc123")
+
+		assert.Equal(t, "Bearer ghp_abc123", req.Header.Get("Authorization"))
+		assert.Equal(t, "application/vnd.github+json", req.Header.Get("Accept"))
+		assert.Equal(t, GitHubUserAgent, req.Header.Get("User-Agent"))
+	})
+}

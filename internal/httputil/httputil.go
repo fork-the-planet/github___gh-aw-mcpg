@@ -53,6 +53,21 @@ func ParseRateLimitResetHeader(value string) time.Time {
 	return reset
 }
 
+// GitHubUserAgent is the User-Agent header value sent on all GitHub API requests.
+const GitHubUserAgent = "awmg/1.0"
+
+// ApplyGitHubAPIHeaders sets the standard GitHub API request headers on req.
+// authHeader should be the full Authorization header value (e.g. "token xyz" or
+// "Bearer xyz"). When authHeader is empty no Authorization header is set, which
+// is appropriate when the caller has already decided that no auth is available.
+func ApplyGitHubAPIHeaders(req *http.Request, authHeader string) {
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", GitHubUserAgent)
+}
+
 // IsTransientHTTPError returns true for status codes that indicate a temporary
 // server-side condition (rate-limiting or transient failure) worth retrying.
 func IsTransientHTTPError(statusCode int) bool {

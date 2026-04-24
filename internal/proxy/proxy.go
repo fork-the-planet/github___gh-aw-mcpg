@@ -19,6 +19,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
@@ -353,13 +354,13 @@ func (s *Server) forwardToGitHub(ctx context.Context, method, path string, body 
 	}
 
 	// Prefer the client's own Authorization header; fall back to configured token.
+	var authHeader string
 	if clientAuth != "" {
-		req.Header.Set("Authorization", clientAuth)
+		authHeader = clientAuth
 	} else if s.githubToken != "" {
-		req.Header.Set("Authorization", "token "+s.githubToken)
+		authHeader = "token " + s.githubToken
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "awmg-proxy/1.0")
+	httputil.ApplyGitHubAPIHeaders(req, authHeader)
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
 	}

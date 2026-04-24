@@ -18,6 +18,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/guard"
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/launcher"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
@@ -312,8 +313,7 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 		logUnified.Printf("get_collaborator_permission: failed to create request for %s/%s user %s: %v", owner, repo, username, err)
 		return nil, fmt.Errorf("get_collaborator_permission: failed to create request: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+token)
-	req.Header.Set("Accept", "application/vnd.github+json")
+	httputil.ApplyGitHubAPIHeaders(req, "token "+token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
