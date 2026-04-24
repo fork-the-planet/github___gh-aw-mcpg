@@ -16,9 +16,6 @@ permissions:
 engine: copilot
 timeout-minutes: 30
 
-features:
-  cli-proxy: true
-
 network:
   allowed:
     - defaults
@@ -26,6 +23,7 @@ network:
 
 tools:
   github:
+    mode: gh-proxy
     toolsets: [default, pull_requests]
     allowed-repos: ["github/gh-aw-mcpg"]
     min-integrity: unapproved

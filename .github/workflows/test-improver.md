@@ -16,9 +16,6 @@ network:
     - containers
     - go
 
-features:
-  cli-proxy: true
-
 steps:
   - name: Set up Go
     uses: actions/setup-go@v6
@@ -39,6 +36,7 @@ safe-outputs:
 tools:
   cache-memory: true
   github:
+    mode: gh-proxy
     toolsets: [default]
     allowed-repos: ["github/gh-aw-mcpg"]
     min-integrity: unapproved

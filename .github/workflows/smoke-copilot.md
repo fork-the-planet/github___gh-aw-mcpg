@@ -17,8 +17,6 @@ name: Smoke Copilot
 engine:
   id: copilot
 strict: false
-features:
-  cli-proxy: true
 imports:
   - shared/mcp-pagination.md
   - shared/reporting.md
@@ -33,6 +31,7 @@ network:
 tools:
   cache-memory: true
   github:
+    mode: gh-proxy
     toolsets: [repos, pull_requests]
     allowed-repos: ["github/gh-aw-mcpg"]
     min-integrity: unapproved

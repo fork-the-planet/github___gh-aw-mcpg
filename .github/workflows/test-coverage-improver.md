@@ -12,9 +12,6 @@ permissions:
 
 engine: copilot
 
-features:
-  cli-proxy: true
-
 network:
   allowed:
     - defaults
@@ -44,6 +41,7 @@ safe-outputs:
 tools:
   cache-memory: true
   github:
+    mode: gh-proxy
     toolsets: [default]
     allowed-repos: ["github/gh-aw-mcpg"]
     min-integrity: unapproved
