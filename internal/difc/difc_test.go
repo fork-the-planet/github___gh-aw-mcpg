@@ -254,7 +254,7 @@ func TestFormatViolationError(t *testing.T) {
 		resource.Integrity.Label.Add("trusted")
 
 		err := FormatViolationError(result, agentSecrecy, agentIntegrity, resource)
-		assert.NotNil(t, err, "Expected non-nil error for denied access")
+		assert.Error(t, err, "Expected non-nil error for denied access")
 
 		errMsg := err.Error()
 		// Check that the reason is included
@@ -296,7 +296,7 @@ func TestFormatViolationError(t *testing.T) {
 		resource.Integrity.Label.Add("verified")
 
 		err := FormatViolationError(result, agentSecrecy, agentIntegrity, resource)
-		assert.NotNil(t, err, "Expected non-nil error for denied access")
+		assert.Error(t, err, "Expected non-nil error for denied access")
 
 		errMsg := err.Error()
 		// Check that the reason is included
@@ -333,7 +333,7 @@ func TestFormatViolationError(t *testing.T) {
 		resource.Integrity.Label.Add("high-trust")
 
 		err := FormatViolationError(result, agentSecrecy, agentIntegrity, resource)
-		assert.NotNil(t, err, "Expected non-nil error for denied access")
+		assert.Error(t, err, "Expected non-nil error for denied access")
 
 		errMsg := err.Error()
 		// Check that both sections are present
@@ -356,7 +356,7 @@ func TestFormatViolationError(t *testing.T) {
 		resource.Secrecy.Label.Add("private")
 
 		err := FormatViolationError(result, agentSecrecy, agentIntegrity, resource)
-		assert.NotNil(t, err, "Expected non-nil error")
+		assert.Error(t, err, "Expected non-nil error")
 
 		errMsg := err.Error()
 		// Empty labels should still be displayed
@@ -384,7 +384,7 @@ func TestFormatViolationError(t *testing.T) {
 		resource.Integrity.Label.Add("int3")
 
 		err := FormatViolationError(result, agentSecrecy, agentIntegrity, resource)
-		assert.NotNil(t, err, "Expected non-nil error")
+		assert.Error(t, err, "Expected non-nil error")
 
 		errMsg := err.Error()
 		// Verify all tags are mentioned
@@ -414,7 +414,7 @@ func TestFormatViolationError(t *testing.T) {
 		resource.Integrity.Label.Add("i0")
 
 		err := FormatViolationError(result, agentSecrecy, agentIntegrity, resource)
-		assert.NotNil(t, err, "Expected non-nil error")
+		assert.Error(t, err, "Expected non-nil error")
 
 		errMsg := err.Error()
 
@@ -453,7 +453,7 @@ func TestFormatViolationError(t *testing.T) {
 		resource.Secrecy.Label.Add("single-tag")
 
 		err := FormatViolationError(result, agentSecrecy, agentIntegrity, resource)
-		assert.NotNil(t, err, "Expected non-nil error")
+		assert.Error(t, err, "Expected non-nil error")
 
 		errMsg := err.Error()
 		assert.Contains(t, errMsg, "single-tag", "Expected single-tag in error message")

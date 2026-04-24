@@ -319,7 +319,7 @@ func TestHTTPError_LauncherIntegration(t *testing.T) {
 
 	// Try to get or launch the failing backend
 	_, err := launcher.GetOrLaunch(l, "failing-backend")
-	require.NotNil(t, err, "Expected launcher to fail due to backend error, but it succeeded")
+	require.Error(t, err, "Expected launcher to fail due to backend error, but it succeeded")
 
 	// Verify error is properly propagated through launcher
 	if err != nil {
