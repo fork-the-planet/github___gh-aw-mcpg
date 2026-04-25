@@ -1176,3 +1176,52 @@ func TestEvaluator_StrictMode_Read_Unchanged(t *testing.T) {
 		assert.Equal(t, AccessDeny, result.Decision)
 	})
 }
+
+// TestNewComponents verifies that NewComponents initializes all DIFC components
+// correctly and handles mode parsing, empty mode string, and invalid mode string.
+func TestNewComponents(t *testing.T) {
+	t.Run("empty mode string uses default", func(t *testing.T) {
+		components, err := NewComponents("", EnforcementFilter)
+		require.NoError(t, err)
+		assert.Equal(t, EnforcementFilter, components.Mode)
+		assert.NotNil(t, components.AgentRegistry)
+		assert.NotNil(t, components.Capabilities)
+		assert.NotNil(t, components.Evaluator)
+	})
+
+	t.Run("valid mode string overrides default", func(t *testing.T) {
+		components, err := NewComponents("filter", EnforcementStrict)
+		require.NoError(t, err)
+		assert.Equal(t, EnforcementFilter, components.Mode)
+		assert.NotNil(t, components.AgentRegistry)
+		assert.NotNil(t, components.Capabilities)
+		assert.NotNil(t, components.Evaluator)
+	})
+
+	t.Run("invalid mode string falls back to default and returns error", func(t *testing.T) {
+		components, err := NewComponents("invalid-mode", EnforcementFilter)
+		require.Error(t, err, "invalid mode string should return an error")
+		assert.Equal(t, EnforcementFilter, components.Mode, "should fall back to default on parse error")
+		assert.NotNil(t, components.AgentRegistry)
+		assert.NotNil(t, components.Capabilities)
+		assert.NotNil(t, components.Evaluator)
+	})
+
+	t.Run("propagate mode string", func(t *testing.T) {
+		components, err := NewComponents("propagate", EnforcementStrict)
+		require.NoError(t, err)
+		assert.Equal(t, EnforcementPropagate, components.Mode)
+		assert.NotNil(t, components.AgentRegistry)
+		assert.NotNil(t, components.Capabilities)
+		assert.NotNil(t, components.Evaluator)
+	})
+
+	t.Run("strict mode string explicit", func(t *testing.T) {
+		components, err := NewComponents("strict", EnforcementFilter)
+		require.NoError(t, err)
+		assert.Equal(t, EnforcementStrict, components.Mode)
+		assert.NotNil(t, components.AgentRegistry)
+		assert.NotNil(t, components.Capabilities)
+		assert.NotNil(t, components.Evaluator)
+	})
+}
