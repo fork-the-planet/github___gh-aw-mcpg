@@ -2,6 +2,7 @@ package difc
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
@@ -401,4 +402,68 @@ func (e *ViolationError) Detailed() string {
 	msg += fmt.Sprintf("\n  Agent %s tags: %v", e.Type, e.AgentTags)
 	msg += fmt.Sprintf("\n  Resource %s tags: %v", e.Type, e.ResourceTags)
 	return msg
+}
+
+// formatIntegrityLevel converts a list of integrity tags into a human-readable
+// integrity level description (e.g., "approved" instead of "[unapproved:all approved:all]").
+func formatIntegrityLevel(tags []Tag) string {
+	if len(tags) == 0 {
+		return "none"
+	}
+	// Find the highest integrity level mentioned in the tags
+	highest := ""
+	for _, tag := range tags {
+		s := string(tag)
+		// Strip scope suffix (e.g., "approved:all" → "approved")
+		if idx := strings.Index(s, ":"); idx > 0 {
+			s = s[:idx]
+		}
+		switch s {
+		case "merged":
+			return "\"merged\""
+		case "approved":
+			highest = "\"approved\""
+		case "unapproved":
+			if highest == "" {
+				highest = "\"unapproved\""
+			}
+		}
+	}
+	if highest != "" {
+		return highest
+	}
+	return fmt.Sprintf("%v", tags)
+}
+
+// formatSecrecyLevel converts a list of secrecy tags into a human-readable
+// secrecy scope description (e.g., "private (org/repo)" instead of "[private:org/repo]").
+func formatSecrecyLevel(tags []Tag) string {
+	if len(tags) == 0 {
+		return "public"
+	}
+
+	bestScope := ""
+	hasPrivate := false
+
+	for _, tag := range tags {
+		s := string(tag)
+		if strings.HasPrefix(s, "private:") {
+			scope := strings.TrimPrefix(s, "private:")
+			if scope != "" && len(scope) > len(bestScope) {
+				bestScope = scope
+			}
+			continue
+		}
+		if s == "private" {
+			hasPrivate = true
+		}
+	}
+
+	if bestScope != "" {
+		return fmt.Sprintf("private (%s)", bestScope)
+	}
+	if hasPrivate {
+		return "private"
+	}
+	return fmt.Sprintf("%v", tags)
 }

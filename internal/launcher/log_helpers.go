@@ -9,7 +9,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 // logSecurityWarning logs container security warnings
@@ -21,7 +20,7 @@ func (l *Launcher) logSecurityWarning(serverID string, serverCfg *config.ServerC
 
 // logLaunchStart logs server launch initiation
 func (l *Launcher) logLaunchStart(serverID, sessionID string, serverCfg *config.ServerConfig, isDirectCommand bool) {
-	suffix := strutil.SessionSuffix(sessionID)
+	suffix := logger.SessionSuffix(sessionID)
 	logger.LogInfoWithServer(serverID, "backend", "Launching MCP backend server%s: server=%s%s, command=%s, args=%v",
 		suffix, serverID, suffix, serverCfg.Command, sanitize.SanitizeArgs(serverCfg.Args))
 	if sessionID != "" {
@@ -74,7 +73,7 @@ func (l *Launcher) logLaunchError(serverID, sessionID string, err error, serverC
 
 // logTimeoutError logs startup timeout diagnostics
 func (l *Launcher) logTimeoutError(serverID, sessionID string) {
-	suffix := strutil.SessionSuffix(sessionID)
+	suffix := logger.SessionSuffix(sessionID)
 	logger.LogErrorWithServer(serverID, "backend", "MCP backend server startup timeout%s: server=%s%s, timeout=%v",
 		suffix, serverID, suffix, l.startupTimeout)
 	log.Printf("[LAUNCHER] ⚠️  The server may be hanging or taking too long to initialize")
@@ -84,7 +83,7 @@ func (l *Launcher) logTimeoutError(serverID, sessionID string) {
 
 // logLaunchSuccess logs successful server launch
 func (l *Launcher) logLaunchSuccess(serverID, sessionID string) {
-	suffix := strutil.SessionSuffix(sessionID)
+	suffix := logger.SessionSuffix(sessionID)
 	logger.LogInfoWithServer(serverID, "backend", "Successfully launched MCP backend server%s: server=%s%s", suffix, serverID, suffix)
 	logLauncher.Printf("Connection established: serverID=%s%s", serverID, suffix)
 }
