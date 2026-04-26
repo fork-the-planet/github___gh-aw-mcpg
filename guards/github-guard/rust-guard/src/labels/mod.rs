@@ -1907,6 +1907,34 @@ mod tests {
     }
 
     // -------------------------------------------------------------------------
+    // Actions: actions_list
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_apply_tool_labels_actions_list_secrecy_inherits_repo_visibility() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot"
+        });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "actions_list",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        // actions_list returns repo-scoped workflow metadata; secrecy inherits from
+        // repository visibility and integrity is writer-level (requires write access to manage).
+        assert_eq!(secrecy, vec![] as Vec<String>, "actions_list secrecy inherits repo visibility (public repo → empty)");
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "actions_list must have writer-level integrity");
+    }
+
+    // -------------------------------------------------------------------------
     // Context: get_me
     // -------------------------------------------------------------------------
 
