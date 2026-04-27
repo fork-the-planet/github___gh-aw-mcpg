@@ -84,6 +84,7 @@ func newCircuitBreaker(serverID string, threshold int, cooldown time.Duration) *
 	if cooldown <= 0 {
 		cooldown = DefaultRateLimitCooldown
 	}
+	logCircuitBreaker.Printf("Creating circuit breaker: serverID=%s, threshold=%d, cooldown=%v", serverID, threshold, cooldown)
 	return &circuitBreaker{
 		serverID:  serverID,
 		state:     circuitClosed,
@@ -140,6 +141,7 @@ func (cb *circuitBreaker) Allow() error {
 	case circuitHalfOpen:
 		// Only one probe is allowed; further requests are blocked until the probe resolves.
 		if cb.probeInFlight {
+			logCircuitBreaker.Printf("server %q circuit breaker HALF-OPEN, probe already in flight — rejecting request", cb.serverID)
 			return &ErrCircuitOpen{ServerID: cb.serverID, ResetAt: cb.resetAt}
 		}
 		// This shouldn't normally happen (probe resolved but state wasn't updated),
@@ -157,6 +159,9 @@ func (cb *circuitBreaker) RecordSuccess() {
 	defer cb.mu.Unlock()
 
 	prev := cb.state
+	if cb.consecutiveErrors > 0 {
+		logCircuitBreaker.Printf("server %q circuit breaker resetting consecutive error count: %d → 0", cb.serverID, cb.consecutiveErrors)
+	}
 	cb.consecutiveErrors = 0
 	cb.probeInFlight = false
 	if cb.state == circuitHalfOpen {
@@ -314,5 +319,7 @@ func parseRateLimitResetFromText(text string) time.Time {
 	if err != nil || secs <= 0 {
 		return time.Time{}
 	}
-	return time.Now().Add(time.Duration(secs) * time.Second)
+	resetAt := time.Now().Add(time.Duration(secs) * time.Second)
+	logCircuitBreaker.Printf("Parsed rate limit reset time from text: resetIn=%ds, resetAt=%s", secs, resetAt.UTC().Format(time.RFC3339))
+	return resetAt
 }
