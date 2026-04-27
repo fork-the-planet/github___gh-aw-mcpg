@@ -8,7 +8,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 **Build**: `make build` (builds `awmg` binary)  
 **Test**: `make test` (run unit tests, no build required)  
 **Test-Unit**: `make test-unit` (run unit tests only)  
-**Test-Integration**: `make test-integration` (run binary integration tests, requires build)  
+**Test-Integration**: `make test-integration` (run binary integration tests, auto-builds binary if not present)  
 **Test-All**: `make test-all` (run both unit and integration tests)  
 **Test-CI**: `make test-ci` (unit tests with coverage and JSON output for CI)  
 **Lint**: `make lint` (runs go vet, gofmt checks, and golangci-lint)  
@@ -29,15 +29,20 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
   - `validation_test.go` - Comprehensive validation tests
 - `internal/difc/` - Decentralized Information Flow Control
 - `internal/envutil/` - Environment variable utilities
-- `internal/guard/` - Security guards (AllowOnly, WriteSink, NoopGuard)
+- `internal/guard/` - Security guards (NoopGuard, WasmGuard, WriteSinkGuard)
+- `internal/httputil/` - Shared HTTP helper utilities (server, proxy)
 - `internal/launcher/` - Backend process management
 - `internal/logger/` - Debug logging framework (micro logger)
 - `internal/mcp/` - MCP protocol types with enhanced error logging
 - `internal/middleware/` - HTTP middleware (jq schema processing)
+- `internal/oidc/` - GitHub Actions OIDC token provider and caching
+- `internal/proxy/` - Filtering HTTP proxy for the GitHub API with DIFC enforcement
 - `internal/server/` - HTTP server (routed/unified modes)
 - `internal/strutil/` - String and formatting utilities
+- `internal/syncutil/` - Concurrency utilities
 - `internal/sys/` - System utilities
 - `internal/testutil/` - Test utilities and helpers
+- `internal/tracing/` - OpenTelemetry tracing setup and OTLP export
 - `internal/tty/` - Terminal detection utilities
 - `internal/version/` - Version management
 
@@ -369,7 +374,11 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `GITHUB_PERSONAL_ACCESS_TOKEN` - GitHub auth
 - `GITHUB_API_URL` - Explicit GitHub API endpoint (e.g., `https://copilot-api.mycompany.ghe.com`); used by proxy to set upstream target
 - `GITHUB_SERVER_URL` - GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `copilot-api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com`
-- `DOCKER_API_VERSION` - Set by querying Docker daemon's current API version; falls back to `1.44` for all architectures if detection fails
+- `ACTIONS_ID_TOKEN_REQUEST_URL` - GitHub Actions OIDC token endpoint URL; required for `github-oidc` auth type
+- `ACTIONS_ID_TOKEN_REQUEST_TOKEN` - GitHub Actions OIDC request token; required for `github-oidc` auth type
+- `MCP_GATEWAY_PORT` - Gateway listen port (overrides config `port` field; validated 1-65535)
+- `MCP_GATEWAY_DOMAIN` - Gateway domain name (overrides config `domain` field)
+- `MCP_GATEWAY_API_KEY` - Gateway API key (overrides config `api_key` field)
 - `DEBUG` - Enable debug logging (e.g., `DEBUG=*`, `DEBUG=server:*,launcher:*`)
 - `DEBUG_COLORS` - Control colored output (0 to disable, auto-disabled when piping)
 - `MCP_GATEWAY_LOG_DIR` - Log file directory (sets default for `--log-dir` flag, default: `/tmp/gh-aw/mcp-logs`)

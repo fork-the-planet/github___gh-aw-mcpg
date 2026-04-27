@@ -138,8 +138,9 @@ args = [
 ]
 
 # Example 4: Custom MCP Server with Volume Mounts
-# NOTE: TOML configuration does not support ${VAR} variable expansion.
+# NOTE: TOML does not support ${VAR} expansion in server args/env fields.
 # Use absolute paths directly in args — shell variables like ${PWD} will NOT be expanded.
+# (The [gateway.opentelemetry] and [gateway.tracing] sections DO support ${VAR} expansion.)
 [servers.custom]
 command = "docker"
 args = [
@@ -188,7 +189,8 @@ args = [
 # - Use -i for interactive mode (required for stdin/stdout communication)
 # - Set NO_COLOR=1 and TERM=dumb for better compatibility
 # - Use ${VAR_NAME} syntax to reference environment variables in JSON stdin format only
-# - TOML configuration does not support ${VAR_NAME} expansion; use absolute paths instead
+# - TOML does not support ${VAR_NAME} expansion in server args/env fields; use absolute paths instead
+# - The [gateway.opentelemetry] and [gateway.tracing] sections do support ${VAR_NAME} expansion
 #
 # Environment Variables:
 # - Empty value ("") passes through from host environment

@@ -171,7 +171,7 @@ echo '{"mcpServers": {...}}' | ./awmg --config-stdin
 ./awmg --config config.toml -v
 
 # Custom payload directory and size threshold
-./awmg --config config.toml --payload-dir /tmp/payloads --payload-size-threshold 1048576
+./awmg --config config.toml --payload-dir ./payloads --payload-size-threshold 1048576
 ```
 
 See [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) for the full list of environment variable overrides.
