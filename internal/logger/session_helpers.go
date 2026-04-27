@@ -1,4 +1,4 @@
-package strutil
+package logger
 
 import "fmt"
 
