@@ -255,7 +255,6 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 	// Try standard transports in order: streamable HTTP → SSE → plain JSON-RPC
 
 	// Try 1: Streamable HTTP (2025-03-26 spec)
-	logConn.Printf("Attempting streamable HTTP transport for %s", url)
 	conn, err := tryStreamableHTTPTransport(ctx, cancel, serverID, url, headers, headerClient, keepAlive, connectTimeout)
 	if err == nil {
 		logger.LogInfo("backend", "Successfully connected using streamable HTTP transport, url=%s", url)
@@ -264,7 +263,6 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 	logConn.Printf("Streamable HTTP failed: %v", err)
 
 	// Try 2: SSE (2024-11-05 spec)
-	logConn.Printf("Attempting SSE transport for %s", url)
 	conn, err = trySSETransport(ctx, cancel, serverID, url, headers, headerClient, keepAlive, connectTimeout)
 	if err == nil {
 		logger.LogWarn("backend", "⚠️  MCP over SSE (2024-11-05 spec) is DEPRECATED for url=%s. Please migrate to streamable HTTP transport (2025-03-26 spec).", url)
@@ -274,7 +272,6 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 	logConn.Printf("SSE transport failed: %v", err)
 
 	// Try 3: Plain JSON-RPC over HTTP (non-standard, for fallback)
-	logConn.Printf("Attempting plain JSON-RPC transport for %s", url)
 	conn, err = tryPlainJSONTransport(ctx, cancel, serverID, url, headers, headerClient)
 	if err == nil {
 		logger.LogInfo("backend", "Successfully connected using plain JSON-RPC transport, url=%s", url)
