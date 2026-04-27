@@ -183,12 +183,11 @@ fn split_repo_id(repo_id: &str) -> Option<(&str, &str)> {
 }
 
 fn policy_scope_token(scopes: &[PolicyScopeEntry]) -> String {
-    let mut labels: Vec<String> = vec![];
-    for scope in scopes {
-        if !scope.scope_label.is_empty() {
-            labels.push(scope.scope_label.clone());
-        }
-    }
+    let labels: Vec<&str> = scopes
+        .iter()
+        .map(|s| s.scope_label.as_str())
+        .filter(|s| !s.is_empty())
+        .collect();
     if labels.is_empty() {
         String::new()
     } else {
@@ -996,27 +995,27 @@ pub fn extract_repo_from_item(item: &Value) -> String {
 ///   - "/items" for {items: [...]}
 ///   - "/data/repository/pullRequests/nodes" for GraphQL nested format
 ///   - etc.
-pub fn extract_items_array(response: &Value) -> (Option<&Vec<Value>>, String) {
+pub fn extract_items_array(response: &Value) -> (Option<&Vec<Value>>, &'static str) {
     // REST formats
     if let Some(arr) = response.as_array() {
-        return (Some(arr), String::new());
+        return (Some(arr), "");
     }
     if let Some(arr) = response.get("items").and_then(|v| v.as_array()) {
-        return (Some(arr), "/items".to_string());
+        return (Some(arr), "/items");
     }
     if let Some(arr) = response.get("issues").and_then(|v| v.as_array()) {
-        return (Some(arr), "/issues".to_string());
+        return (Some(arr), "/issues");
     }
     if let Some(arr) = response.get("pull_requests").and_then(|v| v.as_array()) {
-        return (Some(arr), "/pull_requests".to_string());
+        return (Some(arr), "/pull_requests");
     }
 
     // GraphQL format: data.repository.<resource>.nodes or data.search.nodes
     if let Some((arr, pointer)) = find_graphql_nodes_with_path(response) {
-        return (Some(arr), pointer.to_string());
+        return (Some(arr), pointer);
     }
 
-    (None, String::new())
+    (None, "")
 }
 
 /// Collect items from a response that is either a JSON array or a single object.
