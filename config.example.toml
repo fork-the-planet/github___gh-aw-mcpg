@@ -177,6 +177,39 @@ args = [
 # sequential_launch = false
 
 # ============================================================================
+# Security: mTLS & HMAC Request Signing
+# ============================================================================
+# These options are configured via CLI flags or environment variables, NOT
+# directly in the TOML file. They are documented here for reference.
+#
+# TLS (one-way or mutual):
+#   --tls-cert <path>   Path to TLS server certificate PEM file (enables HTTPS)
+#                       Env: MCP_GATEWAY_TLS_CERT
+#   --tls-key <path>    Path to TLS server private key PEM file (required with --tls-cert)
+#                       Env: MCP_GATEWAY_TLS_KEY
+#   --tls-ca <path>     Path to CA certificate PEM file for client certificate
+#                       verification — enables mutual TLS (mTLS)
+#                       Env: MCP_GATEWAY_CA_CERT
+#
+# HMAC request signing:
+#   --hmac-secret <s>   Shared HMAC-SHA256 secret for request signing and replay
+#                       protection. When set, requests to HMAC-protected MCP
+#                       handler routes must include:
+#                         X-MCP-Timestamp  — Unix-second timestamp
+#                         X-MCP-Nonce      — unique per-request random nonce
+#                         X-MCP-Signature  — hex-encoded HMAC-SHA256 signature
+#                       Common operational endpoints such as /health and
+#                       /close are intentionally not HMAC-protected.
+#                       Env: MCP_GATEWAY_HMAC_SECRET
+#
+# Example (run command):
+#   ./awmg --config config.toml \
+#     --tls-cert /path/to/server.crt \
+#     --tls-key  /path/to/server.key \
+#     --tls-ca   /path/to/ca.crt \
+#     --hmac-secret "$(openssl rand -hex 32)"
+
+# ============================================================================
 # Notes
 # ============================================================================
 #

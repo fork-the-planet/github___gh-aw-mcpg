@@ -29,6 +29,10 @@ When running locally (`run.sh`), these variables are optional (warnings shown if
 | `MCP_GATEWAY_WASM_GUARDS_DIR` | Root directory for per-server WASM guards (`<root>/<serverID>/*.wasm`, first match is loaded) | (disabled) |
 | `MCP_GATEWAY_GUARDS_MODE` | Guards enforcement mode: `strict` (deny violations), `filter` (remove denied tools), `propagate` (auto-adjust agent labels) (sets default for `--guards-mode`) | `strict` |
 | `MCP_GATEWAY_GUARDS_SINK_SERVER_IDS` | Comma-separated sink server IDs for JSONL guards tag enrichment (sets default for `--guards-sink-server-ids`) | (disabled) |
+| `MCP_GATEWAY_TLS_CERT` | Path to TLS server certificate PEM file. When set together with `MCP_GATEWAY_TLS_KEY`, enables HTTPS. Sets default for `--tls-cert`. | (disabled) |
+| `MCP_GATEWAY_TLS_KEY` | Path to TLS server private key PEM file. Required when `MCP_GATEWAY_TLS_CERT` is set. Sets default for `--tls-key`. | (disabled) |
+| `MCP_GATEWAY_CA_CERT` | Path to CA certificate PEM file for client certificate verification. When set (requires `MCP_GATEWAY_TLS_CERT`/`MCP_GATEWAY_TLS_KEY`), enables mutual TLS (mTLS). Sets default for `--tls-ca`. | (disabled) |
+| `MCP_GATEWAY_HMAC_SECRET` | Shared HMAC-SHA256 secret for request signing and replay protection on MCP request endpoints (for example, `/mcp` and `/mcp/<server>`). When set, those MCP requests must carry valid `X-MCP-Timestamp`, `X-MCP-Nonce`, and `X-MCP-Signature` headers. Sets default for `--hmac-secret`. | (disabled) |
 | `DEBUG` | Enable debug logging with pattern matching (e.g., `*`, `server:*,launcher:*`) | (disabled) |
 | `DEBUG_COLORS` | Control colored debug output (0 to disable, auto-disabled when piping) | Auto-detect |
 | `RUNNING_IN_CONTAINER` | Manual override; set to `"true"` to force container detection when `/.dockerenv` and cgroup detection are unavailable | (unset) |
