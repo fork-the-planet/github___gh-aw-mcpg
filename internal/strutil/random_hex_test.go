@@ -119,9 +119,13 @@ func TestRandomHexWithFallback_Uniqueness(t *testing.T) {
 }
 
 // TestRandomHexWithFallback_NegativeFallsBack verifies that a negative size triggers the
-// fallback path (since RandomHex returns an error for negative n).
+// fallback path (since RandomHex returns an error for negative n) and that the fallback
+// still produces a valid hex-encoded string.
 func TestRandomHexWithFallback_NegativeFallsBack(t *testing.T) {
 	result := RandomHexWithFallback(-1)
-	// The fallback format is "fallback-<pid>-<nanoseconds>"; check for the prefix.
-	assert.Contains(t, result, "fallback-", "negative size should trigger fallback ID")
+	// The fallback produces a valid 32-character hex string (pid + nanoseconds encoded).
+	assert.NotEmpty(t, result, "fallback should produce a non-empty string")
+	_, err := hex.DecodeString(result)
+	assert.NoError(t, err, "fallback should produce valid hex")
+	assert.Len(t, result, 32, "fallback should produce 32 hex chars (16 bytes)")
 }
