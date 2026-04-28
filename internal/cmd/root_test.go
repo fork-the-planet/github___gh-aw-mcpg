@@ -292,7 +292,7 @@ func TestWriteGatewayConfig(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		err := writeGatewayConfig(cfg, "127.0.0.1:3000", "unified", &buf)
+		err := writeGatewayConfig(cfg, "127.0.0.1:3000", "unified", false, &buf)
 		require.NoError(t, err)
 
 		// Parse JSON output
@@ -329,7 +329,7 @@ func TestWriteGatewayConfig(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		err := writeGatewayConfig(cfg, "localhost:8080", "routed", &buf)
+		err := writeGatewayConfig(cfg, "localhost:8080", "routed", false, &buf)
 		require.NoError(t, err)
 
 		// Parse JSON output
@@ -371,7 +371,7 @@ func TestWriteGatewayConfig(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		err := writeGatewayConfig(cfg, "127.0.0.1:3000", "unified", &buf)
+		err := writeGatewayConfig(cfg, "127.0.0.1:3000", "unified", false, &buf)
 		require.NoError(t, err)
 
 		// Parse JSON output
@@ -408,7 +408,7 @@ func TestWriteGatewayConfig(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		err := writeGatewayConfig(cfg, "[::1]:3000", "unified", &buf)
+		err := writeGatewayConfig(cfg, "[::1]:3000", "unified", false, &buf)
 		require.NoError(t, err)
 
 		// Parse JSON output
@@ -436,7 +436,7 @@ func TestWriteGatewayConfig(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		err := writeGatewayConfig(cfg, "invalid-address", "unified", &buf)
+		err := writeGatewayConfig(cfg, "invalid-address", "unified", false, &buf)
 		require.NoError(t, err)
 
 		output := buf.String()
@@ -560,7 +560,7 @@ func TestWriteGatewayConfig_WildcardAddresses(t *testing.T) {
 			}
 
 			var buf bytes.Buffer
-			err := writeGatewayConfig(cfg, tt.listenAddr, tt.mode, &buf)
+			err := writeGatewayConfig(cfg, tt.listenAddr, tt.mode, false, &buf)
 			require.NoError(t, err)
 
 			var result map[string]interface{}
@@ -597,7 +597,7 @@ func TestWriteGatewayConfig_EmptyServerList(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeGatewayConfig(cfg, "127.0.0.1:3000", "unified", &buf)
+	err := writeGatewayConfig(cfg, "127.0.0.1:3000", "unified", false, &buf)
 	require.NoError(t, err)
 
 	var result map[string]interface{}
@@ -623,7 +623,7 @@ func TestWriteGatewayConfig_FileSync(t *testing.T) {
 	require.NoError(t, err)
 	defer tmpFile.Close()
 
-	err = writeGatewayConfig(cfg, "127.0.0.1:3000", "unified", tmpFile)
+	err = writeGatewayConfig(cfg, "127.0.0.1:3000", "unified", false, tmpFile)
 	require.NoError(t, err)
 
 	// Re-read and verify the file was written correctly

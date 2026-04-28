@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -386,7 +387,7 @@ func run(cmd *cobra.Command, args []string) error {
 		// Extract API key from gateway config (spec 7.1)
 		apiKey := cfg.GetAPIKey()
 
-		httpServer = server.CreateHTTPServerForRoutedMode(listenAddr, unifiedServer, apiKey)
+		httpServer = server.CreateHTTPServerForRoutedMode(listenAddr, unifiedServer, apiKey, hmacSecret)
 	} else {
 		logger.StartupInfo("Starting MCPG in UNIFIED mode on %s", listenAddr)
 		logger.StartupInfo("Endpoint: /mcp")
@@ -394,21 +395,61 @@ func run(cmd *cobra.Command, args []string) error {
 		// Extract API key from gateway config (spec 7.1)
 		apiKey := cfg.GetAPIKey()
 
-		httpServer = server.CreateHTTPServerForMCP(listenAddr, unifiedServer, apiKey)
+		httpServer = server.CreateHTTPServerForMCP(listenAddr, unifiedServer, apiKey, hmacSecret)
 	}
 	// Register the HTTP server shutdown function so the /close handler can drain
 	// in-flight requests before exiting (spec 5.1.3)
 	unifiedServer.SetHTTPShutdown(httpServer.Shutdown)
+
+	// Build net.Listener — optionally wrapping with TLS (ASI-07 Phase 1).
+	// Plain HTTP is still used when no TLS certificate is configured (backward compatible).
+	// Validate that TLS flags are consistent: cert+key must both be provided together,
+	// and CA cert requires cert+key to be set.
+	hasCert := tlsCertPath != ""
+	hasKey := tlsKeyPath != ""
+	hasCA := tlsCAPath != ""
+	if hasCert != hasKey {
+		return fmt.Errorf("--tls-cert and --tls-key must both be provided together")
+	}
+	if hasCA && !hasCert {
+		return fmt.Errorf("--tls-ca requires --tls-cert and --tls-key to also be set")
+	}
+
+	listener, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		return fmt.Errorf("failed to listen on %s: %w", listenAddr, err)
+	}
+	tlsEnabled := hasCert && hasKey
+	var tlsCfg *tls.Config
+	if tlsEnabled {
+		tlsCfg, err = server.LoadGatewayTLS(tlsCertPath, tlsKeyPath, tlsCAPath)
+		if err != nil {
+			_ = listener.Close()
+			return fmt.Errorf("failed to configure TLS: %w", err)
+		}
+		listener = tls.NewListener(listener, tlsCfg)
+		mtlsNote := ""
+		if tlsCAPath != "" {
+			mtlsNote = " (mTLS enabled)"
+		}
+		logger.StartupInfo("TLS enabled: cert=%s, key=%s, ca=%s — listening on https://%s%s", tlsCertPath, tlsKeyPath, tlsCAPath, listenAddr, mtlsNote)
+	} else {
+		logger.StartupInfo("TLS not configured — listening on http://%s (set --tls-cert/--tls-key to enable)", listenAddr)
+	}
+	if hmacSecret != "" {
+		logger.StartupInfo("HMAC request signing enabled (ASI-07)")
+	}
+
 	// Start HTTP server in background
 	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)
 			cancel()
 		}
 	}()
 
 	// Write gateway configuration to stdout per spec section 5.4
-	if err := writeGatewayConfigToStdout(cfg, listenAddr, mode); err != nil {
+	if err := writeGatewayConfigToStdout(cfg, listenAddr, mode, tlsEnabled); err != nil {
 		log.Printf("Warning: failed to write gateway configuration to stdout: %v", err)
 	}
 
@@ -479,11 +520,11 @@ func resolveGuardPolicyOverride(cmd *cobra.Command) (*config.GuardPolicy, string
 
 // writeGatewayConfigToStdout writes the rewritten gateway configuration to stdout
 // per MCP Gateway Specification Section 5.4
-func writeGatewayConfigToStdout(cfg *config.Config, listenAddr, mode string) error {
-	return writeGatewayConfig(cfg, listenAddr, mode, os.Stdout)
+func writeGatewayConfigToStdout(cfg *config.Config, listenAddr, mode string, tlsEnabled bool) error {
+	return writeGatewayConfig(cfg, listenAddr, mode, tlsEnabled, os.Stdout)
 }
 
-func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, w io.Writer) error {
+func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, tlsEnabled bool, w io.Writer) error {
 	debugLog.Printf("Writing gateway config: listenAddr=%s, mode=%s, serverCount=%d", listenAddr, mode, len(cfg.Servers))
 
 	// Parse listen address to extract host and port
@@ -527,6 +568,11 @@ func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, w io.Writer
 
 	servers := outputConfig["mcpServers"].(map[string]interface{})
 
+	scheme := "http"
+	if tlsEnabled {
+		scheme = "https"
+	}
+
 	for name, server := range cfg.Servers {
 		serverConfig := map[string]interface{}{
 			"type": "http",
@@ -534,10 +580,10 @@ func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, w io.Writer
 
 		var serverURL string
 		if mode == "routed" {
-			serverURL = fmt.Sprintf("http://%s:%s/mcp/%s", domain, port, name)
+			serverURL = fmt.Sprintf("%s://%s:%s/mcp/%s", scheme, domain, port, name)
 		} else {
 			// Unified mode - all servers use /mcp endpoint
-			serverURL = fmt.Sprintf("http://%s:%s/mcp", domain, port)
+			serverURL = fmt.Sprintf("%s://%s:%s/mcp", scheme, domain, port)
 		}
 		serverConfig["url"] = serverURL
 		debugLog.Printf("Writing server config: name=%s, url=%s, toolCount=%d", name, serverURL, len(server.Tools))

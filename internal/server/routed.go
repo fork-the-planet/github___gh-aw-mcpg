@@ -124,7 +124,9 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 // In routed mode, each backend is accessible at /mcp/<server>
 // Multiple routes from the same Authorization header share a session
 // If apiKey is provided, all requests except /health require authentication (spec 7.1)
-func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, apiKey string) *http.Server {
+// If hmacSecret is provided, routed /mcp/<server> requests must carry a valid
+// HMAC-SHA256 signature (ASI-07); common endpoints (e.g. /health, /close) are not HMAC-protected.
+func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, apiKey, hmacSecret string) *http.Server {
 	logRouted.Printf("Creating HTTP server for routed mode: addr=%s", addr)
 	mux := http.NewServeMux()
 
@@ -165,8 +167,8 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 			SessionTimeout: routedSessionTimeout,
 		})
 
-		// Apply standard middleware stack (SDK logging → shutdown check → auth)
-		finalHandler := wrapWithMiddleware(routeHandler, "routed:"+backendID, unifiedServer, apiKey)
+		// Apply standard middleware stack (SDK logging → shutdown check → auth → HMAC)
+		finalHandler := wrapWithMiddleware(routeHandler, "routed:"+backendID, unifiedServer, apiKey, hmacSecret)
 
 		// Mount the handler at both /mcp/<server> and /mcp/<server>/
 		mux.Handle(route+"/", finalHandler)

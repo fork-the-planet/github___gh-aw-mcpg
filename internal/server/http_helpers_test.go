@@ -561,7 +561,7 @@ func TestWrapWithMiddleware(t *testing.T) {
 			})
 
 			// Wrap with middleware
-			finalHandler := wrapWithMiddleware(mockHandler, "test", us, tt.apiKey)
+			finalHandler := wrapWithMiddleware(mockHandler, "test", us, tt.apiKey, "")
 
 			// Create test request
 			req := httptest.NewRequest("GET", "/test", nil)
@@ -611,7 +611,7 @@ func TestWrapWithMiddleware_MiddlewareOrder(t *testing.T) {
 	})
 
 	// Wrap with middleware that requires auth
-	finalHandler := wrapWithMiddleware(mockHandler, "test", us, "test-key")
+	finalHandler := wrapWithMiddleware(mockHandler, "test", us, "test-key", "")
 
 	// Create request with valid auth
 	req := httptest.NewRequest("GET", "/test", nil)
@@ -665,7 +665,7 @@ func TestWrapWithMiddleware_LogTagVariations(t *testing.T) {
 
 			// Should not panic with any log tag
 			assert.NotPanics(t, func() {
-				finalHandler := wrapWithMiddleware(mockHandler, tt.logTag, us, "")
+				finalHandler := wrapWithMiddleware(mockHandler, tt.logTag, us, "", "")
 				req := httptest.NewRequest("GET", "/test", nil)
 				w := httptest.NewRecorder()
 				finalHandler(w, req)

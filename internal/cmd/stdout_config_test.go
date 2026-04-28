@@ -153,7 +153,7 @@ func TestWriteGatewayConfigToStdout(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			err := writeGatewayConfig(tt.cfg, tt.listenAddr, tt.mode, &buf)
+			err := writeGatewayConfig(tt.cfg, tt.listenAddr, tt.mode, false, &buf)
 			require.NoError(t, err)
 
 			var result map[string]interface{}
@@ -200,7 +200,7 @@ func TestWriteGatewayConfigToStdout_EmptyConfig(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeGatewayConfig(cfg, "127.0.0.1:8080", "routed", &buf)
+	err := writeGatewayConfig(cfg, "127.0.0.1:8080", "routed", false, &buf)
 	require.NoError(t, err)
 
 	var result map[string]interface{}
@@ -221,7 +221,7 @@ func TestWriteGatewayConfigToStdout_JSONFormat(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeGatewayConfig(cfg, "localhost:3000", "routed", &buf)
+	err := writeGatewayConfig(cfg, "localhost:3000", "routed", false, &buf)
 	require.NoError(t, err)
 
 	// Verify it's valid JSON
@@ -251,7 +251,7 @@ func TestWriteGatewayConfigToStdout_WithPipe(t *testing.T) {
 	// Write configuration to pipe in a goroutine
 	errCh := make(chan error, 1)
 	go func() {
-		writeErr := writeGatewayConfig(cfg, "127.0.0.1:3000", "unified", w)
+		writeErr := writeGatewayConfig(cfg, "127.0.0.1:3000", "unified", false, w)
 		w.Close() // Close writer to signal EOF
 		errCh <- writeErr
 	}()
@@ -283,7 +283,7 @@ func TestWriteGatewayConfig_WriteError(t *testing.T) {
 		},
 	}
 
-	err := writeGatewayConfig(cfg, "127.0.0.1:8080", "routed", errWriter{})
+	err := writeGatewayConfig(cfg, "127.0.0.1:8080", "routed", false, errWriter{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to encode configuration")
 }
@@ -298,7 +298,7 @@ func TestWriteGatewayConfig_PortOnlyAddress(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	err := writeGatewayConfig(cfg, ":8080", "unified", &buf)
+	err := writeGatewayConfig(cfg, ":8080", "unified", false, &buf)
 	require.NoError(t, err)
 
 	var result map[string]interface{}
@@ -316,4 +316,44 @@ func TestWriteGatewayConfig_PortOnlyAddress(t *testing.T) {
 	// Empty host from SplitHostPort should fall back to DefaultListenIPv4
 	assert.Contains(t, url, DefaultListenIPv4, "Should use default IPv4 host when address has no host")
 	assert.Contains(t, url, "8080", "Should preserve the port")
+}
+
+// TestWriteGatewayConfig_TLSScheme verifies that https:// URLs are emitted when
+// tlsEnabled=true and http:// URLs are emitted otherwise.
+func TestWriteGatewayConfig_TLSScheme(t *testing.T) {
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"github": {Command: "echo"},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		tlsEnabled bool
+		wantScheme string
+	}{
+		{"plain HTTP", false, "http://"},
+		{"HTTPS (TLS)", true, "https://"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			err := writeGatewayConfig(cfg, "127.0.0.1:3000", "routed", tt.tlsEnabled, &buf)
+			require.NoError(t, err)
+
+			var result map[string]interface{}
+			require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
+
+			mcpServers := result["mcpServers"].(map[string]interface{})
+			serverConfig := mcpServers["github"].(map[string]interface{})
+			url := serverConfig["url"].(string)
+
+			assert.True(t, len(url) > 0, "URL should not be empty")
+			assert.True(t,
+				(tt.wantScheme == "https://" && url[:8] == "https://") ||
+					(tt.wantScheme == "http://" && url[:7] == "http://"),
+				"URL %q should start with %s", url, tt.wantScheme)
+		})
+	}
 }

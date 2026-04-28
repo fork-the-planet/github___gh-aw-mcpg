@@ -15,7 +15,7 @@ import (
 )
 
 // serverCreator defines a function type for creating HTTP servers
-type serverCreator func(addr string, us *UnifiedServer, apiKey string) *http.Server
+type serverCreator func(addr string, us *UnifiedServer, apiKey, hmacSecret string) *http.Server
 
 // TestHealthEndpoint tests the health endpoint across different server modes and scenarios
 func TestHealthEndpoint(t *testing.T) {
@@ -70,7 +70,7 @@ func TestHealthEndpoint(t *testing.T) {
 			t.Cleanup(func() { us.Close() })
 
 			// Create HTTP server using the provided creator function
-			httpServer := tt.createServer(":0", us, tt.apiKey)
+			httpServer := tt.createServer(":0", us, tt.apiKey, "")
 
 			// Create test request
 			req := httptest.NewRequest("GET", "/health", nil)
@@ -102,7 +102,7 @@ func TestHealthEndpoint_NoAuthRequired(t *testing.T) {
 	t.Cleanup(func() { us.Close() })
 
 	// Create HTTP server WITH API key (health should still work without auth)
-	httpServer := CreateHTTPServerForRoutedMode(":0", us, "test-api-key")
+	httpServer := CreateHTTPServerForRoutedMode(":0", us, "test-api-key", "")
 
 	// Create test request WITHOUT Authorization header
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -211,7 +211,7 @@ func TestHealthEndpoint_ResponseFields(t *testing.T) {
 	require.NoError(t, err, "Failed to create unified server")
 	defer us.Close()
 
-	httpServer := CreateHTTPServerForRoutedMode(":0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode(":0", us, "", "")
 
 	// Get response once
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -294,7 +294,7 @@ func TestHealthEndpoint_ContentType(t *testing.T) {
 	require.NoError(err)
 	t.Cleanup(func() { us.Close() })
 
-	httpServer := CreateHTTPServerForRoutedMode(":0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode(":0", us, "", "")
 
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
@@ -317,7 +317,7 @@ func TestHealthEndpoint_HTTPMethods(t *testing.T) {
 	require.NoError(err)
 	t.Cleanup(func() { us.Close() })
 
-	httpServer := CreateHTTPServerForRoutedMode(":0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode(":0", us, "", "")
 
 	tests := []struct {
 		name   string
@@ -378,7 +378,7 @@ func TestHealthEndpoint_MultipleServers(t *testing.T) {
 	require.NoError(err)
 	t.Cleanup(func() { us.Close() })
 
-	httpServer := CreateHTTPServerForRoutedMode(":0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode(":0", us, "", "")
 
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
@@ -423,7 +423,7 @@ func TestHealthEndpoint_BothModes(t *testing.T) {
 			require.NoError(err)
 			t.Cleanup(func() { us.Close() })
 
-			httpServer := tt.createServer(":0", us, "")
+			httpServer := tt.createServer(":0", us, "", "")
 
 			req := httptest.NewRequest("GET", "/health", nil)
 			w := httptest.NewRecorder()

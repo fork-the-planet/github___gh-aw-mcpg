@@ -93,7 +93,7 @@ func TestTransparentProxy_RoutedMode(t *testing.T) {
 	us.toolsMu.Unlock()
 
 	// Create HTTP server in routed mode
-	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 
 	// Start server in background using httptest
 	ts := httptest.NewServer(httpServer.Handler)
@@ -357,7 +357,7 @@ func TestTransparentProxy_MultipleBackends(t *testing.T) {
 	t.Run("RoutesRegistered", func(t *testing.T) {
 		assert := assert.New(t)
 
-		httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+		httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 		ts := httptest.NewServer(httpServer.Handler)
 		defer ts.Close()
 
@@ -442,7 +442,7 @@ func TestProxyDoesNotModifyRequests(t *testing.T) {
 	}
 	us.toolsMu.Unlock()
 
-	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 	ts := httptest.NewServer(httpServer.Handler)
 	defer ts.Close()
 
@@ -503,7 +503,7 @@ func TestCloseEndpoint_Integration(t *testing.T) {
 		assert := assert.New(t)
 		require := require.New(t)
 
-		httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+		httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 		ts := httptest.NewServer(httpServer.Handler)
 		defer ts.Close()
 
@@ -556,7 +556,7 @@ func TestCloseEndpoint_Integration(t *testing.T) {
 		assert := assert.New(t)
 		require := require.New(t)
 
-		httpServer := CreateHTTPServerForMCP("127.0.0.1:0", us2, "")
+		httpServer := CreateHTTPServerForMCP("127.0.0.1:0", us2, "", "")
 		ts := httptest.NewServer(httpServer.Handler)
 		defer ts.Close()
 
@@ -590,7 +590,7 @@ func TestCloseEndpoint_Integration(t *testing.T) {
 		require := require.New(t)
 
 		apiKey := "test-api-key-12345"
-		httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us3, apiKey)
+		httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us3, apiKey, "")
 		ts := httptest.NewServer(httpServer.Handler)
 		defer ts.Close()
 

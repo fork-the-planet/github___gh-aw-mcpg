@@ -34,7 +34,7 @@ func TestCloseEndpoint_Success(t *testing.T) {
 	us.SetTestMode(true)
 
 	// Create routed mode server
-	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 
 	// Create test request
 	req := httptest.NewRequest(http.MethodPost, "/close", nil)
@@ -79,7 +79,7 @@ func TestCloseEndpoint_Idempotency(t *testing.T) {
 	us.SetTestMode(true)
 
 	// Create routed mode server
-	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 
 	// First call
 	req1 := httptest.NewRequest(http.MethodPost, "/close", nil)
@@ -116,7 +116,7 @@ func TestCloseEndpoint_MethodNotAllowed(t *testing.T) {
 	defer us.Close()
 
 	// Create routed mode server
-	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 
 	// Try GET request
 	req := httptest.NewRequest(http.MethodGet, "/close", nil)
@@ -143,7 +143,7 @@ func TestCloseEndpoint_RequiresAuth(t *testing.T) {
 	apiKey := "test-secret-key"
 
 	// Create routed mode server with API key
-	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, apiKey)
+	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, apiKey, "")
 
 	// Request without auth header
 	req := httptest.NewRequest(http.MethodPost, "/close", nil)
@@ -266,7 +266,7 @@ func TestCreateHTTPServerForRoutedMode_ServerIDs(t *testing.T) {
 	defer us.Close()
 
 	// Create routed mode server
-	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:8000", us, "")
+	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:8000", us, "", "")
 	require.NotNil(t, httpServer, "CreateHTTPServerForRoutedMode() returned nil")
 
 	// Verify server IDs are correctly set up
@@ -346,7 +346,7 @@ func TestRoutedMode_SysRouteNotExposed_DIFCDisabled(t *testing.T) {
 	defer us.Close()
 
 	// Create routed mode server
-	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 
 	// Try to access /mcp/sys route - should get 404
 	req := httptest.NewRequest(http.MethodGet, "/mcp/sys", nil)
@@ -377,7 +377,7 @@ func TestRoutedMode_SysRouteNotExposed_DIFCEnabled(t *testing.T) {
 	defer us.Close()
 
 	// Create routed mode server
-	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 
 	// Try to access /mcp/sys route - should get 404 even when DIFC is enabled
 	req := httptest.NewRequest(http.MethodGet, "/mcp/sys", nil)
@@ -467,7 +467,7 @@ func TestCloseEndpoint_EdgeCases(t *testing.T) {
 			us.SetTestMode(true)
 
 			// Create routed mode server with or without API key
-			httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, tt.apiKey)
+			httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, tt.apiKey, "")
 
 			// Create test request
 			req := httptest.NewRequest(tt.method, "/close", nil)
@@ -795,7 +795,7 @@ func TestCreateHTTPServerForRoutedMode_OAuth(t *testing.T) {
 	defer us.Close()
 
 	// Create HTTP server in routed mode without API key
-	httpServer := CreateHTTPServerForRoutedMode(":0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode(":0", us, "", "")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

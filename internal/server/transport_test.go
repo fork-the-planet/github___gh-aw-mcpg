@@ -181,7 +181,7 @@ func TestCreateHTTPServerForMCP_OAuth(t *testing.T) {
 	defer us.Close()
 
 	// Create HTTP server without API key
-	httpServer := CreateHTTPServerForMCP(":0", us, "")
+	httpServer := CreateHTTPServerForMCP(":0", us, "", "")
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -223,7 +223,7 @@ func TestCreateHTTPServerForMCP_Health(t *testing.T) {
 			defer us.Close()
 
 			// Create HTTP server
-			httpServer := CreateHTTPServerForMCP(":0", us, tt.apiKey)
+			httpServer := CreateHTTPServerForMCP(":0", us, tt.apiKey, "")
 
 			// Create test request
 			req := httptest.NewRequest("GET", "/health", nil)
@@ -324,7 +324,7 @@ func TestCreateHTTPServerForMCP_Close(t *testing.T) {
 			us.SetTestMode(true)
 
 			// Create HTTP server
-			httpServer := CreateHTTPServerForMCP(":0", us, tt.apiKey)
+			httpServer := CreateHTTPServerForMCP(":0", us, tt.apiKey, "")
 
 			// Create test request
 			req := httptest.NewRequest(tt.method, "/close", nil)
@@ -373,7 +373,7 @@ func TestCreateHTTPServerForMCP_DoubleClose(t *testing.T) {
 	us.SetTestMode(true)
 
 	// Create HTTP server
-	httpServer := CreateHTTPServerForMCP(":0", us, "")
+	httpServer := CreateHTTPServerForMCP(":0", us, "", "")
 
 	// First close request
 	req1 := httptest.NewRequest("POST", "/close", nil)
@@ -450,7 +450,7 @@ func TestCreateHTTPServerForMCP_MCPEndpoint(t *testing.T) {
 			defer us.Close()
 
 			// Create HTTP server
-			httpServer := CreateHTTPServerForMCP(":0", us, tt.apiKey)
+			httpServer := CreateHTTPServerForMCP(":0", us, tt.apiKey, "")
 
 			// Create test request
 			req := httptest.NewRequest(tt.method, tt.path, tt.body)

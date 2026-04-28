@@ -75,7 +75,7 @@ func TestShutdownBehavior_RoutedMode(t *testing.T) {
 			us.SetTestMode(true)
 
 			// Create HTTP server in routed mode
-			httpServer := CreateHTTPServerForRoutedMode(":0", us, "")
+			httpServer := CreateHTTPServerForRoutedMode(":0", us, "", "")
 
 			// Call /close to initiate shutdown
 			closeReq := httptest.NewRequest("POST", "/close", nil)
@@ -166,7 +166,7 @@ func TestShutdownBehavior_UnifiedMode(t *testing.T) {
 			us.SetTestMode(true)
 
 			// Create HTTP server in unified mode
-			httpServer := CreateHTTPServerForMCP(":0", us, "")
+			httpServer := CreateHTTPServerForMCP(":0", us, "", "")
 
 			// Call /close to initiate shutdown
 			closeReq := httptest.NewRequest("POST", "/close", nil)
@@ -225,7 +225,7 @@ func TestShutdownBehavior_WithAuth(t *testing.T) {
 	apiKey := "test-api-key"
 
 	// Create HTTP server with auth in routed mode
-	httpServer := CreateHTTPServerForRoutedMode(":0", us, apiKey)
+	httpServer := CreateHTTPServerForRoutedMode(":0", us, apiKey, "")
 
 	// Call /close to initiate shutdown (with auth)
 	closeReq := httptest.NewRequest("POST", "/close", nil)
@@ -272,7 +272,7 @@ func TestShutdownBehavior_BeforeShutdown(t *testing.T) {
 	defer us.Close()
 
 	// Create HTTP server in routed mode
-	httpServer := CreateHTTPServerForRoutedMode(":0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode(":0", us, "", "")
 
 	// Try to access MCP endpoint BEFORE shutdown
 	// Note: Without actual backend, this will fail with different errors,

@@ -164,7 +164,7 @@ func TestGatewayRoutedMode(t *testing.T) {
 	})
 
 	// Create HTTP server in routed mode
-	httpServer := server.CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+	httpServer := server.CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 	ts := httptest.NewServer(httpServer.Handler)
 	defer ts.Close()
 

@@ -35,7 +35,7 @@ func TestNonExistentToolCallLogging_RoutedMode(t *testing.T) {
 	defer us.Close()
 
 	// Create HTTP server in routed mode
-	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "")
+	httpServer := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "")
 
 	// First, initialize the session with initialize request
 	initReq := map[string]interface{}{
@@ -138,7 +138,7 @@ func TestNonExistentToolCallLogging_UnifiedMode(t *testing.T) {
 	defer us.Close()
 
 	// Create HTTP server in unified mode
-	httpServer := CreateHTTPServerForMCP("127.0.0.1:0", us, "")
+	httpServer := CreateHTTPServerForMCP("127.0.0.1:0", us, "", "")
 
 	// First, initialize the session
 	initReq := map[string]interface{}{

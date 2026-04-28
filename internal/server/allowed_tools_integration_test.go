@@ -347,7 +347,7 @@ func TestAllowedTools_RoutedMode_ToolsListFiltered(t *testing.T) {
 	defer us.Close()
 
 	// Create routed HTTP server and verify the filtered server only exposes allowed tools.
-	httpSrv := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "") // no API key for test
+	httpSrv := CreateHTTPServerForRoutedMode("127.0.0.1:0", us, "", "") // no API key for test
 	ts := httptest.NewServer(httpSrv.Handler)
 	defer ts.Close()
 
