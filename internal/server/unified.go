@@ -809,6 +809,11 @@ func (us *UnifiedServer) InitiateShutdown() int {
 			us.guardRegistry.Close(context.Background())
 		}
 
+		// Release JIT resources held by the shared WASM compilation cache
+		if err := guard.CloseGlobalCompilationCache(context.Background()); err != nil {
+			logger.LogError("shutdown", "Failed to close WASM compilation cache: %v", err)
+		}
+
 		logger.LogInfo("shutdown", "Backend servers terminated successfully")
 	})
 	return serversTerminated
