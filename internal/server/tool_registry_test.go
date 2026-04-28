@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
+	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -496,11 +497,11 @@ func TestCallSysServer_UnknownTool(t *testing.T) {
 	require.Error(err, "callSysServer with unknown tool should return an error")
 }
 
-func TestMarshalAndSanitizeForLog_RedactsSecrets(t *testing.T) {
+func TestSanitizeMarshalAndSanitize_RedactsSecrets(t *testing.T) {
 	assert := assert.New(t)
 
 	const secret = "ghp_1234567890123456789012345678901234567890"
-	sanitized := marshalAndSanitizeForLog(map[string]interface{}{
+	sanitized := sanitize.MarshalAndSanitize(map[string]interface{}{
 		"token": secret,
 	})
 
