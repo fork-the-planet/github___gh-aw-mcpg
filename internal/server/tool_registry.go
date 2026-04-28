@@ -285,7 +285,7 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 			if err != nil {
 				logger.LogError("client", "MCP tool call error, session=%s, tool=%s, error=%v", sessionID, toolNameCopy, err)
 			} else {
-				logger.LogInfo("client", "MCP tool call response, session=%s, tool=%s, result=%s", sessionID, toolNameCopy, marshalAndSanitizeForLog(data))
+				logger.LogInfo("client", "MCP tool call response, session=%s, tool=%s, result=%s", sessionID, toolNameCopy, sanitize.MarshalAndSanitize(data))
 			}
 
 			return result, data, err
@@ -349,13 +349,6 @@ func (us *UnifiedServer) callSysServer(toolName string) (interface{}, error) {
 	return result, nil
 }
 
-func marshalAndSanitizeForLog(value interface{}) string {
-	// Best-effort logging helper: if marshaling fails, we intentionally keep logging
-	// a sanitized empty string rather than surfacing an additional logging-only error.
-	resultJSON, _ := json.Marshal(value)
-	return sanitize.SanitizeString(string(resultJSON))
-}
-
 func (us *UnifiedServer) callAndLogSysTool(sessionID, operationName, sysToolName string) (*sdk.CallToolResult, interface{}, error) {
 	result, err := us.callSysServer(sysToolName)
 	if err != nil {
@@ -363,7 +356,7 @@ func (us *UnifiedServer) callAndLogSysTool(sessionID, operationName, sysToolName
 		return mcp.NewErrorCallToolResult(err)
 	}
 
-	logger.LogInfo("client", "MCP %s response, session=%s, result=%s", operationName, sessionID, marshalAndSanitizeForLog(result))
+	logger.LogInfo("client", "MCP %s response, session=%s, result=%s", operationName, sessionID, sanitize.MarshalAndSanitize(result))
 	return nil, result, nil
 }
 

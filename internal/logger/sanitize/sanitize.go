@@ -50,6 +50,14 @@ var SecretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)"(token|password|passwd|pwd|apikey|api_key|api-key|secret|client_secret|api_secret|authorization|auth|key|private_key|public_key|credentials|credential|access_token|refresh_token|bearer_token)"\s*:\s*"[^"]{1,}"`),
 }
 
+// MarshalAndSanitize marshals value to JSON and sanitizes the result to redact secrets.
+// If marshaling fails, it returns a sanitized empty string rather than surfacing a
+// logging-only error — callers should use this only in best-effort logging contexts.
+func MarshalAndSanitize(value any) string {
+	resultJSON, _ := json.Marshal(value)
+	return SanitizeString(string(resultJSON))
+}
+
 // SanitizeString replaces potential secrets in a string with [REDACTED]
 func SanitizeString(message string) string {
 	result := message
