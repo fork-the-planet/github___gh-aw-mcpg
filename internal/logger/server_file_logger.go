@@ -28,8 +28,7 @@ var (
 func InitServerFileLogger(logDir string) error {
 	// Create log directory if it doesn't exist
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		log.Printf("WARNING: Failed to create log directory for server logs: %v", err)
-		log.Printf("WARNING: Falling back to unified logging only")
+		logFallbackWarnings(err, "Failed to create log directory for server logs", "Falling back to unified logging only")
 		// Create a fallback logger that won't create files
 		sfl := &ServerFileLogger{
 			logDir:      logDir,

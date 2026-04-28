@@ -24,3 +24,10 @@ func initWithWarning(err error, name string) {
 		log.Printf("Warning: Failed to initialize %s: %v", name, err)
 	}
 }
+
+// logFallbackWarnings prints two WARNING lines for logger initialization failure with fallback:
+// the first includes the underlying error, the second describes the fallback behavior.
+func logFallbackWarnings(err error, errMsg, fallbackMsg string) {
+	log.Printf("WARNING: %s: %v", errMsg, err)
+	log.Printf("WARNING: %s", fallbackMsg)
+}

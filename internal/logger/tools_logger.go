@@ -60,8 +60,7 @@ func setupToolsLogger(file *os.File, logDir, fileName string) (*ToolsLogger, err
 
 // handleToolsLoggerError falls back to a no-op logger when the file cannot be opened.
 func handleToolsLoggerError(err error, logDir, fileName string) (*ToolsLogger, error) {
-	log.Printf("WARNING: Failed to initialize tools log file: %v", err)
-	log.Printf("WARNING: Tools logging disabled")
+	logFallbackWarnings(err, "Failed to initialize tools log file", "Tools logging disabled")
 	tl := &ToolsLogger{
 		logDir:      logDir,
 		fileName:    fileName,

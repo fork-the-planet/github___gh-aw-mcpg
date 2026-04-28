@@ -37,8 +37,7 @@ func setupFileLogger(file *os.File, logDir, fileName string) (*FileLogger, error
 
 // handleFileLoggerError falls back to stdout when the log file cannot be opened.
 func handleFileLoggerError(err error, logDir, fileName string) (*FileLogger, error) {
-	log.Printf("WARNING: Failed to initialize log file: %v", err)
-	log.Printf("WARNING: Falling back to stdout for logging")
+	logFallbackWarnings(err, "Failed to initialize log file", "Falling back to stdout for logging")
 	fl := &FileLogger{
 		logDir:      logDir,
 		fileName:    fileName,

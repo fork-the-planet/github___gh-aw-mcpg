@@ -77,7 +77,7 @@ func withResponseLogging(handler http.Handler) http.Handler {
 		handler.ServeHTTP(lw, r)
 		if len(lw.Body()) > 0 {
 			sanitizedBody := sanitize.SanitizeString(string(lw.Body()))
-			log.Printf("[%s] %s %s - Status: %d, Response: %s", r.RemoteAddr, r.Method, r.URL.Path, lw.StatusCode(), sanitizedBody)
+			logHelpers.Printf("[%s] %s %s - Status: %d, Response: %s", r.RemoteAddr, r.Method, r.URL.Path, lw.StatusCode(), sanitizedBody)
 		}
 	})
 }
@@ -93,7 +93,6 @@ func extractAndValidateSession(r *http.Request) string {
 	if sessionID == "" {
 		logHelpers.Printf("Session extraction failed: no Authorization header, remote=%s", r.RemoteAddr)
 		logger.LogError("client", "Rejected MCP client connection: no Authorization header, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
-		log.Printf("[%s] %s %s - REJECTED: No Authorization header", r.RemoteAddr, r.Method, r.URL.Path)
 		return ""
 	}
 
@@ -155,7 +154,6 @@ func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
 	} else {
 		logger.LogDebug("client", "MCP request body, session=%s, body=%s", sessionID, sanitizedBody)
 	}
-	log.Printf("Request body: %s", sanitizedBody)
 	logHelpers.Print("Request body logged for debugging")
 }
 
@@ -189,23 +187,14 @@ func setupSessionCallback(r *http.Request, backendID string) (string, bool) {
 	if backendID != "" {
 		logger.LogInfo("client", "New MCP client connection, remote=%s, method=%s, path=%s, backend=%s, session=%s",
 			r.RemoteAddr, r.Method, r.URL.Path, backendID, sessionID)
-		log.Printf("=== NEW STREAMABLE HTTP CONNECTION (ROUTED) ===")
 	} else {
 		logger.LogInfo("client", "MCP connection established, remote=%s, method=%s, path=%s, session=%s",
 			r.RemoteAddr, r.Method, r.URL.Path, sessionID)
-		log.Printf("=== NEW STREAMABLE HTTP CONNECTION ===")
 	}
-	log.Printf("[%s] %s %s", r.RemoteAddr, r.Method, r.URL.Path)
-	if backendID != "" {
-		log.Printf("Backend: %s", backendID)
-	}
-	log.Printf("Authorization (Session ID): %s", sanitize.TruncateSecret(sessionID))
 
 	logHTTPRequestBody(r, sessionID, backendID)
 
 	*r = *injectSessionContext(r, sessionID, backendID)
-	log.Printf("✓ Injected session ID into context")
-	log.Printf("===================================\n")
 
 	return sessionID, true
 }
