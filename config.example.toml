@@ -193,10 +193,13 @@ args = [
 #
 # HMAC request signing:
 #   --hmac-secret <s>   Shared HMAC-SHA256 secret for request signing and replay
-#                       protection. When set, all requests must include:
+#                       protection. When set, requests to HMAC-protected MCP
+#                       handler routes must include:
 #                         X-MCP-Timestamp  — Unix-second timestamp
 #                         X-MCP-Nonce      — unique per-request random nonce
 #                         X-MCP-Signature  — hex-encoded HMAC-SHA256 signature
+#                       Common operational endpoints such as /health and
+#                       /close are intentionally not HMAC-protected.
 #                       Env: MCP_GATEWAY_HMAC_SECRET
 #
 # Example (run command):
