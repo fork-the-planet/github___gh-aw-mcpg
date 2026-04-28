@@ -16,6 +16,7 @@ network:
   allowed:
     - defaults
     - github
+    - "*.blob.core.windows.net"
 
 tools:
   github:
@@ -88,8 +89,8 @@ For each relevant run, download the agent artifacts which contain:
 
 ```bash
 # For each run ID, download artifacts to a temp directory
-TMPDIR=$(mktemp -d)
-gh run download <RUN_ID> --repo github/gh-aw --dir "$TMPDIR" 2>/dev/null || echo "No artifacts"
+ARTIFACT_DIR=$(mktemp -d)
+gh run download <RUN_ID> --repo github/gh-aw --dir "$ARTIFACT_DIR" 2>/dev/null || echo "No artifacts"
 ```
 
 ### Step 3: Analyze DIFC Events
@@ -128,23 +129,52 @@ For each downloaded artifact set, check:
 
 ```bash
 # Example: Count DIFC events in JSONL
-grep -c 'difc_integrity' "$TMPDIR"/*/mcp-logs/rpc-messages.jsonl 2>/dev/null || echo "0"
+grep -c 'difc_integrity' "$ARTIFACT_DIR"/*/mcp-logs/rpc-messages.jsonl 2>/dev/null || true
 
 # Example: Find guard errors (including WASM traps)
-grep -iE 'error|failed|blocked|unknown|wasm error:|WASM guard trap' "$TMPDIR"/*/mcp-logs/mcp-gateway.log 2>/dev/null | head -20
+grep -iE 'error|failed|blocked|unknown|wasm error:|WASM guard trap' "$ARTIFACT_DIR"/*/mcp-logs/mcp-gateway.log 2>/dev/null | head -20
 
 # Example: Specifically search for WASM guard panics
-grep -iE 'wasm error:|WASM guard trap|unreachable' "$TMPDIR"/*/mcp-logs/mcp-gateway.log 2>/dev/null
+grep -iE 'wasm error:|WASM guard trap|unreachable' "$ARTIFACT_DIR"/*/mcp-logs/mcp-gateway.log 2>/dev/null
 
 # Example: Detect direct API bypass attempts in job logs
 # The network firewall logs blocked connections; search agent stderr/stdout for clues
 grep -iE 'api\.github\.com|chatgpt\.com|openai\.com|curl.*https?://[^ ]*github|fetch.*https?://[^ ]*github' \
-  "$TMPDIR"/*/mcp-logs/*.log 2>/dev/null | head -30
+  "$ARTIFACT_DIR"/*/mcp-logs/*.log 2>/dev/null | head -30
 
 # Example: Summarize firewall blocks by domain from network-firewall logs (if present)
-grep -iE 'BLOCK|DENY|firewall' "$TMPDIR"/*/mcp-logs/*.log 2>/dev/null \
+grep -iE 'BLOCK|DENY|firewall' "$ARTIFACT_DIR"/*/mcp-logs/*.log 2>/dev/null \
   | grep -oE '(api\.github\.com|github\.com|chatgpt\.com|openai\.com|[a-z0-9.-]+\.[a-z]{2,})' \
   | sort | uniq -c | sort -rn | head -20
+```
+
+After analyzing each artifact set, emit a DIFC event summary to the GitHub Actions step
+summary so future audits can verify tag counts without downloading artifacts.
+Use the same `ARTIFACT_DIR` variable defined in Step 2 above (the directory passed to
+`gh run download --dir`):
+
+```bash
+# ARTIFACT_DIR is the root directory where all run artifacts were downloaded, e.g.:
+#   ARTIFACT_DIR=$(mktemp -d)
+#   gh run download <RUN_ID> --repo github/gh-aw --dir "$ARTIFACT_DIR"
+
+# Write per-run DIFC event counts to the step summary
+{
+  echo "## DIFC Event Summary"
+  echo ""
+  echo "| Run | DIFC Events Labelled | DIFC Events Filtered |"
+  echo "|-----|----------------------|----------------------|"
+
+  for dir in "$ARTIFACT_DIR"/*/; do
+    run_id=$(basename "$dir")
+    jsonl="$dir/mcp-logs/rpc-messages.jsonl"
+    if [ -f "$jsonl" ]; then
+      labelled=$(grep -c '"difc_integrity"' "$jsonl" 2>/dev/null || true)
+      filtered=$(grep -c '"filtered":true\|DIFC_FILTERED' "$jsonl" 2>/dev/null || true)
+      echo "| $run_id | $labelled | $filtered |"
+    fi
+  done
+} >> "$GITHUB_STEP_SUMMARY"
 ```
 
 ### Step 4: Classify Findings
@@ -158,6 +188,13 @@ Classify each finding by severity:
   or an external AI service such as `chatgpt.com` / `openai.com` directly instead
   of routing through the MCP Gateway — visible as network firewall blocks)
 - 🟢 **Info**: Normal filtering behavior, expected blocks, or configuration notes
+
+**Activation job rate-limit failures** (`403 API rate limit exceeded for installation`
+in the `activation` job) are an **infrastructure issue**, not a DIFC concern. The agent
+was never invoked, so no MCP traffic was generated and no filtering occurred. Classify
+these as 🟢 Info and note them in the Informational section. If the same workflow fails
+due to rate-limits repeatedly, recommend staggering its scheduled cron time relative to
+other high-frequency workflows in the repository.
 
 When classifying a **direct API bypass** warning (W-1), record:
 - The blocked domain(s) and block count
