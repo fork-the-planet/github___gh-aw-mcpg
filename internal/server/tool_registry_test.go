@@ -497,7 +497,7 @@ func TestCallSysServer_UnknownTool(t *testing.T) {
 	require.Error(err, "callSysServer with unknown tool should return an error")
 }
 
-func TestMarshalAndSanitizeForLog_RedactsSecrets(t *testing.T) {
+func TestSanitizeMarshalAndSanitize_RedactsSecrets(t *testing.T) {
 	assert := assert.New(t)
 
 	const secret = "ghp_1234567890123456789012345678901234567890"
