@@ -1,6 +1,11 @@
 package proxy
 
-import "github.com/github/gh-aw-mcpg/internal/difc"
+import (
+	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/logger"
+)
+
+var logTransform = logger.New("proxy:response_transform")
 
 // rewrapSearchResponse re-wraps filtered items into the original search response
 // envelope. GitHub search endpoints return {"total_count": N, "items": [...]};
@@ -8,16 +13,19 @@ import "github.com/github/gh-aw-mcpg/internal/difc"
 func rewrapSearchResponse(originalData interface{}, filteredItems interface{}) interface{} {
 	original, ok := originalData.(map[string]interface{})
 	if !ok {
+		logTransform.Print("rewrapSearchResponse: originalData is not a map, returning filteredItems unchanged")
 		return filteredItems
 	}
 	// Detect search response wrapper (has total_count + items/repositories)
 	if _, hasTotalCount := original["total_count"]; !hasTotalCount {
+		logTransform.Print("rewrapSearchResponse: no total_count field, not a search response, returning filteredItems unchanged")
 		return filteredItems
 	}
 	items, ok := filteredItems.([]interface{})
 	if !ok {
 		return filteredItems
 	}
+	logTransform.Printf("rewrapSearchResponse: rebuilding search wrapper with %d filtered items", len(items))
 	// Rebuild the search wrapper with filtered items
 	result := make(map[string]interface{})
 	for k, v := range original {
@@ -64,17 +72,22 @@ func unwrapSingleObject(originalData interface{}, filteredData interface{}) inte
 func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCollectionLabeledData) interface{} {
 	original, ok := originalData.(map[string]interface{})
 	if !ok {
+		logTransform.Print("rebuildGraphQLResponse: originalData is not a map, returning null data")
 		return map[string]interface{}{"data": nil}
 	}
 	if _, ok := original["data"]; !ok {
+		logTransform.Print("rebuildGraphQLResponse: no data field in original response, returning null data")
 		return map[string]interface{}{"data": nil}
 	}
 
 	// If all items were filtered out, return {"data": null} to avoid leaking
 	// the original response through non-collection fields (e.g., viewer).
 	if filtered.GetAccessibleCount() == 0 {
+		logTransform.Print("rebuildGraphQLResponse: all items filtered out, returning null data")
 		return map[string]interface{}{"data": nil}
 	}
+
+	logTransform.Printf("rebuildGraphQLResponse: rebuilding with %d accessible items", filtered.GetAccessibleCount())
 
 	// Deep-clone the original data structure
 	cloned := deepCloneJSON(original)
@@ -91,6 +104,7 @@ func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCol
 	if clonedMap, ok := cloned.(map[string]interface{}); ok {
 		if clonedData, ok := clonedMap["data"]; ok {
 			if !replaceNodesArray(clonedData, accessibleItems) {
+				logTransform.Print("rebuildGraphQLResponse: no nodes/edges array found in cloned data, returning null data")
 				return map[string]interface{}{"data": nil}
 			}
 		}
