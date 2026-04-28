@@ -1416,7 +1416,8 @@ pub fn is_default_branch_commit_context(tool_name: &str, sha_or_ref: &str) -> bo
     tool_name == "get_commit" && looks_like_commit_sha(sha_or_ref)
 }
 
-/// Apply the standard post-integrity adjustment pipeline for user-authored content items:
+/// Apply the standard post-integrity adjustment pipeline to a content item after
+/// baseline integrity calculation:
 /// 1. Approval-label promotion  → raise to at least approved
 /// 2. Endorsement promotion     → raise to at least approved on maintainer reaction
 /// 3. Disapproval demotion      → cap at configured level on maintainer reaction (wins last)
@@ -1747,9 +1748,10 @@ pub fn commit_integrity(
     ensure_integrity_baseline(repo_full_name, integrity, ctx)
 }
 
-/// Canonical list of trusted first-party GitHub platform bots.
-/// Each entry is the canonical username form; matching is case-insensitive.
-/// To add a new bot, append a single entry here — no other changes needed.
+/// Known username variants for trusted first-party GitHub platform bots.
+/// Entries include all known variants for each bot (e.g. with/without `[bot]` suffix,
+/// with/without `app/` prefix) as returned by different GitHub APIs and the gh CLI.
+/// Matching is case-insensitive. To add a new bot, append its variant(s) here — no other changes needed.
 const TRUSTED_FIRST_PARTY_BOTS: &[&str] = &[
     "dependabot[bot]",
     "github-actions[bot]",
