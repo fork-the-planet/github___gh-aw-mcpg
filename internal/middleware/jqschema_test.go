@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -1318,4 +1319,102 @@ func TestThresholdBehavior_ConfigurableThresholds(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWrapToolHandler_NilResult verifies that a nil result returned by the handler
+// (with no error) is passed through unchanged without triggering payload storage.
+func TestWrapToolHandler_NilResult(t *testing.T) {
+	baseDir := t.TempDir()
+
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+		return nil, map[string]interface{}{"key": "value"}, nil
+	}
+
+	wrapped := WrapToolHandler(mockHandler, "test_tool", baseDir, "", 1024, testGetSessionID)
+	result, data, err := wrapped(context.Background(), &sdk.CallToolRequest{}, nil)
+
+	require.NoError(t, err)
+	assert.Nil(t, result, "nil result must be passed through unchanged")
+	assert.NotNil(t, data, "data should be preserved when result is nil")
+
+	// No files should be written to baseDir
+	entries, readErr := os.ReadDir(baseDir)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries, "no payload files should be created for nil result")
+}
+
+// TestWrapToolHandler_IsErrorResultWithData verifies that when the handler returns
+// IsError=true with data but no Go error, the result and data pass through unchanged
+// without payload storage (error results should not be stored to disk).
+func TestWrapToolHandler_IsErrorResultWithData(t *testing.T) {
+	baseDir := t.TempDir()
+
+	errData := map[string]interface{}{"error": "tool execution failed", "code": 42}
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+		return &sdk.CallToolResult{IsError: true}, errData, nil
+	}
+
+	wrapped := WrapToolHandler(mockHandler, "test_tool", baseDir, "", 1024, testGetSessionID)
+	result, data, err := wrapped(context.Background(), &sdk.CallToolRequest{}, nil)
+
+	require.NoError(t, err, "Go error should be nil")
+	require.NotNil(t, result)
+	assert.True(t, result.IsError, "IsError must remain true")
+	assert.Equal(t, errData, data, "data must be returned unchanged for error results")
+
+	// No files should be written to baseDir
+	entries, readErr := os.ReadDir(baseDir)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries, "no payload files should be created for error results")
+}
+
+// TestWrapToolHandler_PreviewUTF8Boundary verifies that the payload preview is truncated
+// at a valid UTF-8 rune boundary when the cut-point falls inside a multi-byte character.
+//
+// The JSON encoding of {"d":"<493 'a' chars>é<suffix>"} places the first byte of 'é' (0xC3)
+// at index 499 and its continuation byte (0xA9) at index 500 (= PayloadPreviewSize).
+// The preview code must back up to index 499 so the returned preview is valid UTF-8.
+func TestWrapToolHandler_PreviewUTF8Boundary(t *testing.T) {
+	baseDir := t.TempDir()
+
+	// Craft a value so that JSON byte 500 (PayloadPreviewSize) lands on the continuation
+	// byte of the 2-byte UTF-8 sequence for 'é' (U+00E9 → 0xC3 0xA9).
+	//
+	// JSON layout:  {"d":"  (6 bytes)  +  493 × 'a'  +  é (2 bytes)  +  suffix  + "}" (2 bytes)
+	// Index 499 = 0xC3 (rune start), index 500 = 0xA9 (continuation → triggers cutPoint--)
+	value := strings.Repeat("a", 493) + "é" + strings.Repeat("b", 20)
+	data := map[string]interface{}{"d": value}
+
+	// Verify the test assumption: byte at PayloadPreviewSize is indeed a continuation byte.
+	encoded, err := json.Marshal(data)
+	require.NoError(t, err)
+	require.Greater(t, len(encoded), PayloadPreviewSize,
+		"encoded JSON must be longer than PayloadPreviewSize for preview truncation to kick in")
+	require.False(t, utf8.RuneStart(encoded[PayloadPreviewSize]),
+		"byte at PayloadPreviewSize must be a UTF-8 continuation byte to exercise cutPoint--")
+
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+		return &sdk.CallToolResult{IsError: false}, data, nil
+	}
+
+	// Use a small threshold (0) to force the large-payload path even for this modest payload.
+	wrapped := WrapToolHandler(mockHandler, "test_tool", baseDir, "", 0, testGetSessionID)
+	result, _, handlerErr := wrapped(context.Background(), &sdk.CallToolRequest{}, nil)
+
+	require.NoError(t, handlerErr)
+	require.NotNil(t, result)
+	require.NotEmpty(t, result.Content, "result must have content")
+
+	textContent, ok := result.Content[0].(*sdk.TextContent)
+	require.True(t, ok, "content item must be *sdk.TextContent")
+
+	var meta map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &meta))
+
+	preview, ok := meta["payloadPreview"].(string)
+	require.True(t, ok, "payloadPreview must be a string")
+
+	// The preview must be valid UTF-8 (no mid-character truncation).
+	assert.True(t, utf8.ValidString(preview), "preview must be valid UTF-8")
+	assert.True(t, strings.HasSuffix(preview, "..."), "truncated preview must end with '...'")
 }
