@@ -1,7 +1,6 @@
 package launcher
 
 import (
-	"log"
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
@@ -47,7 +46,7 @@ func NewHealthMonitor(l *Launcher, interval time.Duration) *HealthMonitor {
 
 // Start begins periodic health checks in a background goroutine.
 func (hm *HealthMonitor) Start() {
-	log.Printf("[HEALTH] Starting health monitor (interval=%s)", hm.interval)
+	logHealth.Printf("Starting health monitor: interval=%v", hm.interval)
 	logger.LogInfo("startup", "Health monitor started (interval=%s)", hm.interval)
 	go hm.run()
 }
@@ -129,6 +128,6 @@ func (hm *HealthMonitor) handleErrorState(serverID string, state ServerState) {
 	}
 
 	hm.consecutiveFailures[serverID] = 0
-	log.Printf("[HEALTH] Successfully restarted server %q", serverID)
+	logHealth.Printf("Successfully restarted server: serverID=%s", serverID)
 	logger.LogInfo("backend", "Health check: successfully restarted server %q", serverID)
 }
