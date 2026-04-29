@@ -254,17 +254,9 @@ func savePayload(baseDir, pathPrefix, sessionID, queryID string, payload []byte)
 		return "", fmt.Errorf("failed to set payload file permissions: %w", err)
 	}
 
-	// Verify file was written correctly and log actual resulting mode
-	if stat, err := os.Stat(filePath); err != nil {
-		logger.LogWarn("payload", "Could not verify payload file after write: path=%s, error=%v", filePath, err)
-		logger.LogInfo("payload", "Successfully saved large payload to filesystem: path=%s, size=%d bytes",
-			filePath, payloadSize)
-	} else {
-		logger.LogInfo("payload", "Successfully saved large payload to filesystem: path=%s, size=%d bytes, permissions=%#o",
-			filePath, payloadSize, stat.Mode().Perm())
-		logger.LogDebug("payload", "Payload file verified: path=%s, size=%d bytes, mode=%s",
-			filePath, stat.Size(), stat.Mode())
-	}
+	// Permissions are known to be 0600 (enforced by os.Chmod above); no syscall needed.
+	logger.LogInfo("payload", "Successfully saved large payload to filesystem: path=%s, size=%d bytes, permissions=0600",
+		filePath, payloadSize)
 
 	// If pathPrefix is provided, use it to remap the path for the client
 	// This allows the gateway to save files at one path (e.g., /tmp/jq-payloads)
@@ -419,10 +411,7 @@ func WrapToolHandler(
 			return result, data, err
 		}
 
-		// Calculate schema size for logging (marshal temporarily)
-		schemaBytes, _ := json.Marshal(schemaObj)
-		logger.LogDebug("payload", "Schema transformation completed: tool=%s, queryID=%s, schemaSize=%d bytes",
-			toolName, queryID, len(schemaBytes))
+		logger.LogDebug("payload", "Schema transformation completed: tool=%s, queryID=%s", toolName, queryID)
 
 		// Build the transformed response: first PayloadPreviewSize bytes + schema.
 		// Slice the bytes before converting to string to avoid allocating a full copy of the
