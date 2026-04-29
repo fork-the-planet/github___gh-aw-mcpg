@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -52,6 +53,17 @@ func newMockHTTPBackendForCB(t *testing.T, toolNames []string, toolsCallHandler 
 			})
 		case "tools/call":
 			toolsCallHandler(w, req["id"])
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"error": map[string]interface{}{
+					"code":    -32601,
+					"message": "method not found: " + method,
+				},
+			})
 		}
 	}))
 }
@@ -64,10 +76,10 @@ func TestCallBackendTool_CircuitBreakerOpen_RejectsRequestWithoutCallingBackend(
 	assert := assert.New(t)
 
 	// Track whether the backend's tools/call handler was invoked.
-	backendCalled := false
+	var backendCalled atomic.Bool
 
 	backend := newMockHTTPBackendForCB(t, []string{"test_tool"}, func(w http.ResponseWriter, reqID interface{}) {
-		backendCalled = true
+		backendCalled.Store(true)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"jsonrpc": "2.0", "id": reqID,
 			"result": map[string]interface{}{
@@ -116,7 +128,7 @@ func TestCallBackendTool_CircuitBreakerOpen_RejectsRequestWithoutCallingBackend(
 	assert.Contains(textContent.Text, "OPEN", "error should mention circuit is OPEN")
 
 	// The backend must NOT have been contacted for the tool call.
-	assert.False(backendCalled, "backend should not be called when circuit breaker is OPEN")
+	assert.False(backendCalled.Load(), "backend should not be called when circuit breaker is OPEN")
 }
 
 // TestCallBackendTool_RateLimitResponse_TripsCircuitBreaker verifies that when the
@@ -333,12 +345,16 @@ func TestCallBackendTool_CircuitBreakerHalfOpen_SuccessfulProbeClosesCircuit(t *
 	cb := us.getCircuitBreaker("halfopen-server")
 	require.NotNil(cb)
 
+	// Use a fake clock so we can advance time without sleeping.
+	fakeNow := time.Now()
+	cb.nowFunc = func() time.Time { return fakeNow }
+
 	// Open the circuit.
 	cb.RecordRateLimit(time.Time{})
 	require.Equal(circuitOpen, cb.State())
 
-	// Wait for the cooldown to expire so Allow() transitions to HALF-OPEN.
-	time.Sleep(1100 * time.Millisecond)
+	// Advance the fake clock past the cooldown so Allow() transitions to HALF-OPEN.
+	fakeNow = fakeNow.Add(1100 * time.Millisecond)
 
 	// At this point Allow() would return nil (HALF-OPEN) and let one probe through.
 	ctx := context.WithValue(context.Background(), SessionIDContextKey, "halfopen-session")
