@@ -1,0 +1,308 @@
+package guard
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
+// normalizePolicyPayload coerces a policy value to a map[string]interface{}.
+// String inputs are JSON-parsed; non-object JSON values are rejected.
+func normalizePolicyPayload(policy interface{}) (interface{}, error) {
+	if policy == nil {
+		return nil, fmt.Errorf("policy is required")
+	}
+
+	if policyString, ok := policy.(string); ok {
+		trimmed := strings.TrimSpace(policyString)
+		if trimmed == "" {
+			return nil, fmt.Errorf("policy string is empty")
+		}
+
+		var parsed interface{}
+		if err := json.Unmarshal([]byte(trimmed), &parsed); err != nil {
+			return nil, fmt.Errorf("policy string is not valid JSON object: %w", err)
+		}
+
+		switch parsed.(type) {
+		case map[string]interface{}:
+			return parsed, nil
+		default:
+			return nil, fmt.Errorf("policy JSON must decode to an object")
+		}
+	}
+
+	return policy, nil
+}
+
+// buildStrictLabelAgentPayload validates the normalised policy and returns a
+// map ready to be serialised as the label_agent input payload.
+func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, error) {
+	if policy == nil {
+		return nil, fmt.Errorf("invalid guard policy transport shape: expected {\"allow-only\":{\"repos\":...,\"min-integrity\":...}}")
+	}
+
+	if policyMap, ok := policy.(map[string]interface{}); ok {
+		if nested, hasPolicy := policyMap["policy"]; hasPolicy {
+			if nestedMap, nestedOK := nested.(map[string]interface{}); nestedOK {
+				if _, hasAllowOnly := nestedMap["allow-only"]; hasAllowOnly {
+					return nil, fmt.Errorf("gateway policy adapter is outdated: remove legacy envelope key policy before calling label_agent")
+				}
+			}
+		}
+	}
+
+	payload, err := PolicyToMap(policy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode label_agent policy payload: %w", err)
+	}
+
+	if _, hasPolicyEnvelope := payload["policy"]; hasPolicyEnvelope {
+		return nil, fmt.Errorf("gateway policy adapter is outdated: remove legacy envelope key policy before calling label_agent")
+	}
+
+	allowOnlyRaw, ok := payload["allow-only"]
+	if !ok {
+		// Accept legacy "allowonly" form for backward compatibility
+		allowOnlyRaw, ok = payload["allowonly"]
+	}
+	if !ok {
+		return nil, fmt.Errorf("label_agent policy must use top-level allow-only object (received policy.allow-only)")
+	}
+
+	// Validate that the only allowed top-level keys are "allow-only" (or legacy "allowonly")
+	// and the optional "trusted-bots" key.
+	for k := range payload {
+		switch k {
+		case "allow-only", "allowonly", "trusted-bots":
+			// valid top-level keys
+		default:
+			return nil, fmt.Errorf("invalid guard policy transport shape: unexpected key %q", k)
+		}
+	}
+
+	allowOnly, ok := allowOnlyRaw.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid guard policy transport shape: expected {\"allow-only\":{\"repos\":...,\"min-integrity\":...}}")
+	}
+
+	reposRaw, hasRepos := allowOnly["repos"]
+	integrityRaw, hasIntegrity := allowOnly["min-integrity"]
+	if !hasIntegrity {
+		integrityRaw, hasIntegrity = allowOnly["integrity"]
+	}
+	if !hasRepos || !hasIntegrity {
+		return nil, fmt.Errorf("invalid guard policy transport shape: missing required fields repos and/or min-integrity in allow-only object")
+	}
+
+	// Validate that the allow-only object contains only known keys.
+	for k := range allowOnly {
+		switch k {
+		case "repos", "min-integrity", "integrity", "blocked-users", "approval-labels", "trusted-users",
+			"endorsement-reactions", "disapproval-reactions", "disapproval-integrity", "endorser-min-integrity":
+			// valid allow-only keys
+		default:
+			return nil, fmt.Errorf("invalid guard policy transport shape: unexpected allow-only key %q", k)
+		}
+	}
+
+	if !isValidAllowOnlyRepos(reposRaw) {
+		return nil, fmt.Errorf("invalid repos value: expected all, public, or non-empty array of scoped strings")
+	}
+
+	integrity, ok := integrityRaw.(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid integrity value: expected one of none|unapproved|approved|merged")
+	}
+
+	switch strings.ToLower(strings.TrimSpace(integrity)) {
+	case "none", "unapproved", "approved", "merged":
+	default:
+		return nil, fmt.Errorf("invalid integrity value: expected one of none|unapproved|approved|merged")
+	}
+
+	// Validate blocked-users if present: must be a non-empty array of non-empty strings.
+	if blockedUsersRaw, ok := allowOnly["blocked-users"]; ok {
+		arr, ok := blockedUsersRaw.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid blocked-users value: expected array of strings")
+		}
+		for _, entry := range arr {
+			if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
+				return nil, fmt.Errorf("invalid blocked-users value: each entry must be a non-empty string")
+			}
+		}
+	}
+
+	// Validate approval-labels if present: must be a non-empty array of non-empty strings.
+	if approvalLabelsRaw, ok := allowOnly["approval-labels"]; ok {
+		arr, ok := approvalLabelsRaw.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid approval-labels value: expected array of strings")
+		}
+		for _, entry := range arr {
+			if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
+				return nil, fmt.Errorf("invalid approval-labels value: each entry must be a non-empty string")
+			}
+		}
+	}
+
+	// Validate trusted-bots if present.
+	// Per spec §4.1.3.4: trustedBots MUST be a non-empty array of strings when present.
+	if trustedBotsRaw, hasTrustedBots := payload["trusted-bots"]; hasTrustedBots {
+		trustedBots, ok := trustedBotsRaw.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid trusted-bots value: expected non-empty array of strings")
+		}
+		if len(trustedBots) == 0 {
+			return nil, fmt.Errorf("invalid trusted-bots value: must be a non-empty array when present")
+		}
+		for _, entry := range trustedBots {
+			if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
+				return nil, fmt.Errorf("invalid trusted-bots value: each entry must be a non-empty string")
+			}
+		}
+	}
+
+	// Validate trusted-users if present inside allow-only.
+	// Must be a non-empty array of non-empty strings when present.
+	if trustedUsersRaw, ok := allowOnly["trusted-users"]; ok {
+		arr, ok := trustedUsersRaw.([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid trusted-users value: expected array of strings")
+		}
+		for _, entry := range arr {
+			if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
+				return nil, fmt.Errorf("invalid trusted-users value: each entry must be a non-empty string")
+			}
+		}
+	}
+
+	// Validate endorsement-reactions and disapproval-reactions if present.
+	for _, reactionKey := range []string{"endorsement-reactions", "disapproval-reactions"} {
+		if reactionsRaw, ok := allowOnly[reactionKey]; ok {
+			arr, ok := reactionsRaw.([]interface{})
+			if !ok {
+				return nil, fmt.Errorf("invalid %s value: expected array of strings", reactionKey)
+			}
+			for _, entry := range arr {
+				if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
+					return nil, fmt.Errorf("invalid %s value: each entry must be a non-empty string", reactionKey)
+				}
+			}
+		}
+	}
+
+	// Validate disapproval-integrity if present.
+	if disIntRaw, ok := allowOnly["disapproval-integrity"]; ok {
+		disInt, ok := disIntRaw.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid disapproval-integrity value: expected one of none|unapproved|approved|merged")
+		}
+		switch strings.ToLower(strings.TrimSpace(disInt)) {
+		case "none", "unapproved", "approved", "merged":
+		default:
+			return nil, fmt.Errorf("invalid disapproval-integrity value: expected one of none|unapproved|approved|merged")
+		}
+	}
+
+	// Validate endorser-min-integrity if present.
+	if endMinRaw, ok := allowOnly["endorser-min-integrity"]; ok {
+		endMin, ok := endMinRaw.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid endorser-min-integrity value: expected one of none|unapproved|approved|merged")
+		}
+		switch strings.ToLower(strings.TrimSpace(endMin)) {
+		case "none", "unapproved", "approved", "merged":
+		default:
+			return nil, fmt.Errorf("invalid endorser-min-integrity value: expected one of none|unapproved|approved|merged")
+		}
+	}
+
+	return payload, nil
+}
+
+// BuildLabelAgentPayload constructs the label_agent input payload from the given guard policy
+// and optional lists of additional trusted bot usernames and trusted user logins. The trusted
+// bots are merged with the guard's built-in list and cannot remove any built-in entries. If
+// both trustedBots and trustedUsers are nil or empty, the returned payload contains only the
+// allow-only policy.
+func BuildLabelAgentPayload(policy interface{}, trustedBots []string, trustedUsers []string) interface{} {
+	if len(trustedBots) == 0 && len(trustedUsers) == 0 {
+		return policy
+	}
+
+	// Convert the policy to a generic map so we can inject the trusted-bots and
+	// trusted-users keys alongside the allow-only policy without altering the
+	// policy itself.
+	payload, err := PolicyToMap(policy)
+	if err != nil {
+		// If we can't convert the policy, return it as-is; buildStrictLabelAgentPayload
+		// will surface the error later.
+		return policy
+	}
+
+	if len(trustedBots) > 0 {
+		// trusted-bots is a top-level key in the label_agent payload.
+		// Convert []string to []interface{} for JSON compatibility.
+		bots := make([]interface{}, len(trustedBots))
+		for i, b := range trustedBots {
+			bots[i] = b
+		}
+		payload["trusted-bots"] = bots
+	}
+
+	if len(trustedUsers) > 0 {
+		// trusted-users is injected inside the allow-only object.
+		// Convert []string to []interface{} for JSON compatibility.
+		// If allow-only is absent, the injection is skipped and buildStrictLabelAgentPayload
+		// will reject the payload when called with the missing allow-only key.
+		users := make([]interface{}, len(trustedUsers))
+		for i, u := range trustedUsers {
+			users[i] = u
+		}
+		// Inject into allow-only object if present
+		if allowOnly, ok := payload["allow-only"].(map[string]interface{}); ok {
+			allowOnly["trusted-users"] = users
+		}
+	}
+
+	return payload
+}
+
+// isValidAllowOnlyRepos returns true if repos is either a recognised string
+// shorthand ("all" or "public") or a non-empty array of strings.
+func isValidAllowOnlyRepos(repos interface{}) bool {
+	switch value := repos.(type) {
+	case string:
+		trimmed := strings.TrimSpace(strings.ToLower(value))
+		return trimmed == "all" || trimmed == "public"
+	case []interface{}:
+		if len(value) == 0 {
+			return false
+		}
+		for _, entry := range value {
+			if _, ok := entry.(string); !ok {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+// checkBoolFailure returns a non-nil error if the given raw response map
+// contains field key set to false, extracting the "error" message if present.
+func checkBoolFailure(raw map[string]interface{}, resultJSON []byte, key string) error {
+	val, ok := raw[key].(bool)
+	if !ok || val {
+		return nil // field absent or true — not a failure
+	}
+	if message, msgOK := raw["error"].(string); msgOK && strings.TrimSpace(message) != "" {
+		logWasm.Printf("label_agent response indicated failure: error=%s, response=%s", message, string(resultJSON))
+		return fmt.Errorf("label_agent rejected policy: %s", message)
+	}
+	logWasm.Printf("label_agent response indicated non-success status: response=%s", string(resultJSON))
+	return fmt.Errorf("label_agent returned non-success status")
+}
