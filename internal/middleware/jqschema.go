@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -127,7 +128,7 @@ func init() {
 	query, err := gojq.Parse(jqSchemaFilter)
 	if err != nil {
 		jqSchemaCompileErr = fmt.Errorf("failed to parse jq schema filter: %w", err)
-		logger.LogError("startup", "Failed to parse jq schema filter at init (application will not start): %v", err)
+		log.Printf("FATAL: Failed to parse jq schema filter at init (application will not start): %v", err)
 		return
 	}
 
@@ -137,7 +138,7 @@ func init() {
 		}),
 	)
 	if jqSchemaCompileErr != nil {
-		logger.LogError("startup", "Failed to compile jq schema filter at init (application will not start): %v", jqSchemaCompileErr)
+		log.Printf("FATAL: Failed to compile jq schema filter at init (application will not start): %v", jqSchemaCompileErr)
 		return
 	}
 
