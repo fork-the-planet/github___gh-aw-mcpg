@@ -36,13 +36,7 @@ func NormalizeInputSchema(schema map[string]interface{}, toolName string) map[st
 		logSchema.Printf("Tool %s has no type field, hasProperties=%v", toolName, hasProperties)
 		if hasProperties {
 			logger.LogWarn("backend", "Tool schema normalized: %s - added 'type': 'object' to schema with properties", toolName)
-			// Create a copy of the schema to avoid modifying the original
-			normalized := make(map[string]interface{})
-			for k, v := range schema {
-				normalized[k] = v
-			}
-			normalized["type"] = "object"
-			return normalized
+			return copySchemaWithKey(schema, "type", "object")
 		}
 		// Schema without type and without properties - assume it's an empty object schema
 		logger.LogWarn("backend", "Tool schema normalized: %s - schema missing type, assuming empty object schema", toolName)
@@ -69,17 +63,19 @@ func NormalizeInputSchema(schema map[string]interface{}, toolName string) map[st
 	// add an empty properties object to make it valid
 	if !hasProperties && !hasAdditionalProperties {
 		logger.LogWarn("backend", "Tool schema normalized: %s - added empty properties to object type schema", toolName)
-
-		// Create a copy of the schema to avoid modifying the original
-		normalized := make(map[string]interface{})
-		for k, v := range schema {
-			normalized[k] = v
-		}
-		normalized["properties"] = map[string]interface{}{}
-
-		return normalized
+		return copySchemaWithKey(schema, "properties", map[string]interface{}{})
 	}
 
 	logSchema.Printf("Tool %s schema is valid, no normalization needed", toolName)
 	return schema
+}
+
+// copySchemaWithKey returns a shallow copy of schema with the given key set to value.
+func copySchemaWithKey(schema map[string]interface{}, key string, value interface{}) map[string]interface{} {
+	normalized := make(map[string]interface{}, len(schema)+1)
+	for k, v := range schema {
+		normalized[k] = v
+	}
+	normalized[key] = value
+	return normalized
 }
