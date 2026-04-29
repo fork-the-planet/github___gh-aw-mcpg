@@ -43,9 +43,10 @@ validate_container_id() {
     if [ -z "$cid" ]; then
         return 1
     fi
-    # Container IDs must be 12-64 hex characters only
+    # Container IDs must be 12-64 hex characters only.
+    # Non-hex IDs (e.g. Kubernetes pod names on ARC/containerd) are expected and
+    # are silently rejected here — the caller treats this as informational.
     if ! echo "$cid" | grep -qE '^[a-f0-9]{12,64}$'; then
-        log_warn "Invalid container ID format: $cid"
         return 1
     fi
     return 0
@@ -87,12 +88,27 @@ verify_containerized() {
 
 # Check Docker daemon accessibility
 check_docker_socket() {
-    local socket_path="${DOCKER_HOST:-/var/run/docker.sock}"
+    local raw_host="${DOCKER_HOST:-}"
+
+    # TCP Docker hosts (e.g. tcp://localhost:2375 for ARC/DinD) have no socket file to check.
+    if echo "${raw_host}" | grep -q '^tcp://'; then
+        log_info "TCP Docker host configured: ${raw_host}"
+        if ! docker info > /dev/null 2>&1; then
+            log_error "Docker daemon at ${raw_host} is not accessible"
+            log_error "Ensure DOCKER_HOST is correct and the daemon is running"
+            exit 1
+        fi
+        log_info "Docker daemon is accessible"
+        return 0
+    fi
+
+    local socket_path="${raw_host:-/var/run/docker.sock}"
     socket_path="${socket_path#unix://}"
 
     if [ ! -S "$socket_path" ]; then
         log_error "Docker socket not found at $socket_path"
         log_error "Mount the Docker socket: -v /var/run/docker.sock:/var/run/docker.sock"
+        log_error "For ARC/DinD with a custom socket path, set DOCKER_HOST and mount accordingly"
         exit 1
     fi
 
