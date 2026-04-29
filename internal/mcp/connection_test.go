@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1017,4 +1018,73 @@ func TestPaginateAll(t *testing.T) {
 		// Initial page + 2 unique cursor fetches, then cycle detected before another fetch.
 		assert.Equal(t, 3, callCount)
 	})
+
+	t.Run("fetch error on first page propagates", func(t *testing.T) {
+		_, err := paginateAll("server1", "tools", func(cursor string) (paginatedPage[string], error) {
+			return paginatedPage[string]{}, fmt.Errorf("backend unavailable")
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "backend unavailable")
+	})
+
+	t.Run("fetch error on subsequent page propagates", func(t *testing.T) {
+		call := 0
+		_, err := paginateAll("server1", "tools", func(cursor string) (paginatedPage[string], error) {
+			call++
+			if call == 1 {
+				return paginatedPage[string]{Items: []string{"a"}, NextCursor: "page2"}, nil
+			}
+			return paginatedPage[string]{}, fmt.Errorf("page 2 fetch failed")
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "page 2 fetch failed")
+		assert.Equal(t, 2, call)
+	})
+
+	t.Run("empty first page returns empty slice", func(t *testing.T) {
+		items, err := paginateAll("server1", "tools", func(cursor string) (paginatedPage[string], error) {
+			return paginatedPage[string]{Items: []string{}, NextCursor: ""}, nil
+		})
+		require.NoError(t, err)
+		assert.Empty(t, items)
+	})
+}
+
+// TestListMCPItems_NilSession verifies that listMCPItems returns a session error
+// immediately when the connection has no active SDK session.
+func TestListMCPItems_NilSession(t *testing.T) {
+	conn := newTestConnection(t)
+	fetchCalled := false
+	_, err := listMCPItems(conn, "tools",
+		func(cursor string) (paginatedPage[string], error) {
+			fetchCalled = true
+			return paginatedPage[string]{Items: []string{"a"}}, nil
+		},
+		func(items []string) []string { return items },
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.False(t, fetchCalled, "fetch should not be called when session is unavailable")
+}
+
+// TestCallParamMethod_BadParams verifies that callParamMethod propagates
+// unmarshal errors when the raw params cannot be decoded into the typed struct.
+func TestCallParamMethod_BadParams(t *testing.T) {
+	conn := newTestConnection(t)
+	// Pass a type that can be marshalled but cannot be unmarshalled into
+	// CallToolParams because the "name" field type mismatches.
+	badParams := map[string]interface{}{
+		"name": []int{1, 2, 3}, // expects string, gets array
+	}
+	type strictParams struct {
+		Name string `json:"name"`
+	}
+	fnCalled := false
+	_, err := callParamMethod(conn, badParams, func(p strictParams) (interface{}, error) {
+		fnCalled = true
+		return nil, nil
+	})
+	// requireSession should fail first since the connection has no session.
+	require.Error(t, err)
+	assert.False(t, fnCalled)
 }
