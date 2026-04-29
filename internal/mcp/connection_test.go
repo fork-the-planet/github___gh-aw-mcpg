@@ -1067,24 +1067,20 @@ func TestListMCPItems_NilSession(t *testing.T) {
 	assert.False(t, fetchCalled, "fetch should not be called when session is unavailable")
 }
 
-// TestCallParamMethod_BadParams verifies that callParamMethod propagates
-// unmarshal errors when the raw params cannot be decoded into the typed struct.
-func TestCallParamMethod_BadParams(t *testing.T) {
+// TestCallParamMethod_NilSession verifies that callParamMethod returns a session
+// error immediately when the connection has no active SDK session, without
+// invoking the typed handler.
+func TestCallParamMethod_NilSession(t *testing.T) {
 	conn := newTestConnection(t)
-	// Pass a type that can be marshalled but cannot be unmarshalled into
-	// CallToolParams because the "name" field type mismatches.
-	badParams := map[string]interface{}{
-		"name": []int{1, 2, 3}, // expects string, gets array
-	}
 	type strictParams struct {
 		Name string `json:"name"`
 	}
 	fnCalled := false
-	_, err := callParamMethod(conn, badParams, func(p strictParams) (interface{}, error) {
+	_, err := callParamMethod(conn, map[string]interface{}{"name": "tool"}, func(p strictParams) (interface{}, error) {
 		fnCalled = true
 		return nil, nil
 	})
-	// requireSession should fail first since the connection has no session.
 	require.Error(t, err)
-	assert.False(t, fnCalled)
+	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.False(t, fnCalled, "handler should not be called when session is unavailable")
 }
