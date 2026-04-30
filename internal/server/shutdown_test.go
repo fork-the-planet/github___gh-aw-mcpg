@@ -16,6 +16,7 @@ import (
 
 // TestShutdownBehavior_RoutedMode tests that MCP endpoints return 503 after /close in routed mode
 func TestShutdownBehavior_RoutedMode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		endpoint         string
@@ -100,11 +101,8 @@ func TestShutdownBehavior_RoutedMode(t *testing.T) {
 				var response map[string]interface{}
 				err := json.NewDecoder(w.Body).Decode(&response)
 				require.NoError(t, err, "Failed to decode JSON response")
-				if errorMsg, ok := response["error"].(string); ok {
-					assert.Equal(t, tt.expectError, errorMsg, "Unexpected error message")
-				} else {
-					t.Errorf("Expected error field in response")
-				}
+				require.Contains(t, response, "error", "response should contain an 'error' field")
+				assert.Equal(t, tt.expectError, response["error"], "Unexpected error message")
 			}
 		})
 	}
@@ -112,6 +110,7 @@ func TestShutdownBehavior_RoutedMode(t *testing.T) {
 
 // TestShutdownBehavior_UnifiedMode tests that MCP endpoints return 503 after /close in unified mode
 func TestShutdownBehavior_UnifiedMode(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		endpoint         string
@@ -191,11 +190,8 @@ func TestShutdownBehavior_UnifiedMode(t *testing.T) {
 				var response map[string]interface{}
 				err := json.NewDecoder(w.Body).Decode(&response)
 				require.NoError(t, err, "Failed to decode JSON response")
-				if errorMsg, ok := response["error"].(string); ok {
-					assert.Equal(t, tt.expectError, errorMsg, "Unexpected error message")
-				} else {
-					t.Errorf("Expected error field in response")
-				}
+				require.Contains(t, response, "error", "response should contain an 'error' field")
+				assert.Equal(t, tt.expectError, response["error"], "Unexpected error message")
 			}
 		})
 	}
