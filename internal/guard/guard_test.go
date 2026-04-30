@@ -861,7 +861,7 @@ func TestBuildStrictLabelAgentPayload(t *testing.T) {
 	})
 }
 
-func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
+func TestBuildStrictLabelAgentPayloadExtendedGuard(t *testing.T) {
 	validBase := func() map[string]interface{} {
 		return map[string]interface{}{
 			"allow-only": map[string]interface{}{
