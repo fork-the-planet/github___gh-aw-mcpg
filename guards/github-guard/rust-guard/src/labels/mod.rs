@@ -152,7 +152,7 @@ pub(crate) fn extract_mcp_response(response: &Value) -> Value {
 mod tests {
     use super::*;
     use super::helpers::{get_bool_or, get_nested_str, get_str_or, has_author_association, make_item_path};
-    use crate::labels::constants::label_constants;
+    use crate::labels::constants::{label_constants, scope_names};
     use serde_json::json;
 
     fn default_ctx() -> PolicyContext {
@@ -2127,7 +2127,7 @@ mod tests {
         );
 
         assert_eq!(secrecy, private_user_label(), "list_gists must carry private:user secrecy (mix of public/secret gists)");
-        assert_eq!(integrity, reader_integrity("user", &ctx), "list_gists must have reader (unapproved) integrity (user content)");
+        assert_eq!(integrity, reader_integrity(scope_names::USER, &ctx), "list_gists must have reader (unapproved) integrity (user content)");
     }
 
     // -------------------------------------------------------------------------
@@ -2150,7 +2150,7 @@ mod tests {
         );
 
         assert_eq!(secrecy, private_user_label(), "get_gist must carry private:user secrecy");
-        assert_eq!(integrity, reader_integrity("user", &ctx), "get_gist must have reader integrity");
+        assert_eq!(integrity, reader_integrity(scope_names::USER, &ctx), "get_gist must have reader integrity");
     }
 
     // -------------------------------------------------------------------------
@@ -2557,7 +2557,7 @@ mod tests {
         assert_eq!(items.len(), 1, "should label one gist item");
         let item = &items[0];
         assert_eq!(item.labels.secrecy, vec![] as Vec<String>, "public gist must have empty secrecy");
-        assert_eq!(item.labels.integrity, reader_integrity("user", &ctx), "gist must have reader integrity");
+        assert_eq!(item.labels.integrity, reader_integrity(scope_names::USER, &ctx), "gist must have reader integrity");
         assert_eq!(item.labels.description, "gist:abc123def456");
     }
 
@@ -2578,7 +2578,7 @@ mod tests {
         assert_eq!(items.len(), 1);
         let item = &items[0];
         assert_eq!(item.labels.secrecy, private_user_label(), "secret gist must carry private:user secrecy");
-        assert_eq!(item.labels.integrity, reader_integrity("user", &ctx), "secret gist still has reader integrity");
+        assert_eq!(item.labels.integrity, reader_integrity(scope_names::USER, &ctx), "secret gist still has reader integrity");
         assert_eq!(item.labels.description, "gist:secret789xyz");
     }
 
@@ -2604,7 +2604,7 @@ mod tests {
         assert_eq!(items[2].labels.secrecy, vec![] as Vec<String>, "third item is public → empty secrecy");
         // All gists share the same reader integrity level
         for item in &items {
-            assert_eq!(item.labels.integrity, reader_integrity("user", &ctx));
+            assert_eq!(item.labels.integrity, reader_integrity(scope_names::USER, &ctx));
         }
     }
 
@@ -2622,7 +2622,7 @@ mod tests {
 
         assert_eq!(items.len(), 1, "single-object response must produce one labeled item");
         assert_eq!(items[0].labels.secrecy, vec![] as Vec<String>);
-        assert_eq!(items[0].labels.integrity, reader_integrity("user", &ctx));
+        assert_eq!(items[0].labels.integrity, reader_integrity(scope_names::USER, &ctx));
     }
 
     // -------------------------------------------------------------------------
@@ -2639,7 +2639,7 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].labels.secrecy, private_user_label());
-        assert_eq!(items[0].labels.integrity, reader_integrity("user", &ctx));
+        assert_eq!(items[0].labels.integrity, reader_integrity(scope_names::USER, &ctx));
     }
 
     // -------------------------------------------------------------------------
@@ -2719,7 +2719,7 @@ mod tests {
         assert_eq!(result.labeled_paths.len(), 1);
         assert_eq!(result.labeled_paths[0].path, "/0");
         assert_eq!(result.labeled_paths[0].labels.secrecy, vec![] as Vec<String>, "public gist path must have empty secrecy");
-        assert_eq!(result.labeled_paths[0].labels.integrity, reader_integrity("user", &ctx));
+        assert_eq!(result.labeled_paths[0].labels.integrity, reader_integrity(scope_names::USER, &ctx));
         assert_eq!(result.labeled_paths[0].labels.description, "gist:pub1");
     }
 
@@ -2740,7 +2740,7 @@ mod tests {
 
         assert_eq!(result.labeled_paths.len(), 1);
         assert_eq!(result.labeled_paths[0].labels.secrecy, private_user_label(), "private gist path must carry private:user secrecy");
-        assert_eq!(result.labeled_paths[0].labels.integrity, reader_integrity("user", &ctx));
+        assert_eq!(result.labeled_paths[0].labels.integrity, reader_integrity(scope_names::USER, &ctx));
     }
 
     // -------------------------------------------------------------------------
@@ -2765,7 +2765,7 @@ mod tests {
         // Default labels for the collection use conservative reader integrity
         let default_labels = result.default_labels.as_ref().expect("should have default labels");
         assert_eq!(default_labels.secrecy, vec![] as Vec<String>);
-        assert_eq!(default_labels.integrity, reader_integrity("user", &ctx));
+        assert_eq!(default_labels.integrity, reader_integrity(scope_names::USER, &ctx));
     }
 
     // -------------------------------------------------------------------------
@@ -4306,7 +4306,7 @@ mod tests {
         );
 
         assert_eq!(secrecy, private_user_label(), "create_gist must carry private:user secrecy");
-        assert_eq!(integrity, reader_integrity("user", &ctx), "create_gist must have reader integrity (user content)");
+        assert_eq!(integrity, reader_integrity(scope_names::USER, &ctx), "create_gist must have reader integrity (user content)");
     }
 
     #[test]
@@ -4325,7 +4325,7 @@ mod tests {
         );
 
         assert_eq!(secrecy, private_user_label(), "update_gist must carry private:user secrecy");
-        assert_eq!(integrity, reader_integrity("user", &ctx), "update_gist must have reader integrity");
+        assert_eq!(integrity, reader_integrity(scope_names::USER, &ctx), "update_gist must have reader integrity");
     }
 
     #[test]

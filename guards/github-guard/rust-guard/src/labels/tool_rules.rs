@@ -677,7 +677,7 @@ pub fn apply_tool_labels(
             // Enabling a toolset expands the agent's runtime capability set.
             // Requires writer-level integrity to prevent low-trust agents from
             // self-escalating by enabling additional tool groups.
-            // S = public (empty — no repository-scoped data); I = writer (global)
+            // S = public (empty — no repository-scoped data); I = writer (github)
             baseline_scope = scope_names::GITHUB.to_string();
             integrity = writer_integrity(scope_names::GITHUB, ctx);
         }

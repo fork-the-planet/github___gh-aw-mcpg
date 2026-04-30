@@ -31,9 +31,12 @@ pub mod policy_integrity {
     pub const ORDER_HIGH_TO_LOW: [&str; 4] = [MERGED, APPROVED, UNAPPROVED, NONE];
 }
 
-/// Canonical scope token strings used for baseline and integrity scoping.
+/// Canonical *reserved* scope token strings used for baseline and integrity scoping.
 ///
-/// These are the three scope tokens used throughout the labeling system.
+/// These are the three well-known, fixed scope tokens that represent broad resource
+/// categories (org-level, user-level, and cross-repo). Other scopes exist at runtime
+/// (e.g. `owner` or `owner/repo` for concrete repositories) — those are constructed
+/// dynamically and are not represented here.
 /// Using constants avoids silent typos (e.g. "Github") that produce wrong DIFC labels
 /// with no compiler error.
 pub mod scope_names {

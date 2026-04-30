@@ -10,7 +10,7 @@
 //! Use path-based labeling (`label_response_paths`) when possible for better
 //! performance with large result sets.
 
-use super::constants::{field_names, label_constants};
+use super::constants::{field_names, label_constants, scope_names};
 use super::extract_mcp_response;
 use super::helpers::*;
 use crate::{LabeledItem, ResourceLabels};
@@ -387,7 +387,7 @@ pub fn label_response_items(
                     labels: ResourceLabels {
                         description: format!("gist:{}", id),
                         secrecy,
-                        integrity: reader_integrity("user", ctx),
+                        integrity: reader_integrity(scope_names::USER, ctx),
                     },
                 });
             }
