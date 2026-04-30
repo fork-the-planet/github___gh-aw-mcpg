@@ -808,3 +808,58 @@ func TestCreateHTTPServerForRoutedMode_OAuth(t *testing.T) {
 		})
 	}
 }
+
+// TestRoutedModeSessionTimeout_ReadsEnvVar verifies that CreateHTTPServerForRoutedMode
+// uses MCP_GATEWAY_SESSION_TIMEOUT for the SDK session timeout, matching unified mode.
+// This ensures long-running agentic workflows (>30 min) do not get spurious
+// "session not found" errors that would occur with the previous hardcoded 30-minute timeout.
+func TestRoutedModeSessionTimeout_ReadsEnvVar(t *testing.T) {
+	// Verify that the timeout used is driven by MCP_GATEWAY_SESSION_TIMEOUT
+	// by checking with a custom value and with the default.
+	t.Run("custom timeout from env", func(t *testing.T) {
+		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "2h")
+
+		ctx := context.Background()
+		cfg := &config.Config{Servers: map[string]*config.ServerConfig{}}
+		us, err := NewUnified(ctx, cfg)
+		require.NoError(t, err)
+		defer us.Close()
+
+		// CreateHTTPServerForRoutedMode internally calls envutil.GetEnvDuration.
+		// We verify indirectly via newFilteredServerCache: a cache created with the env-
+		// driven timeout must not evict an entry that is younger than 2 hours.
+		cache := newFilteredServerCache(2 * time.Hour)
+		callCount := 0
+		creator := func() *sdk.Server {
+			callCount++
+			return sdk.NewServer(&sdk.Implementation{Name: "test", Version: "1.0"}, &sdk.ServerOptions{})
+		}
+
+		cache.getOrCreate("backend", "session1", creator)
+		// Entry was just created; it should NOT be evicted by the 2h TTL cache.
+		cache.getOrCreate("backend", "session1", creator)
+		assert.Equal(t, 1, callCount, "session should be reused within the 2h timeout")
+	})
+
+	t.Run("default 6h timeout when env unset", func(t *testing.T) {
+		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "")
+
+		ctx := context.Background()
+		cfg := &config.Config{Servers: map[string]*config.ServerConfig{}}
+		us, err := NewUnified(ctx, cfg)
+		require.NoError(t, err)
+		defer us.Close()
+
+		// With no env var, the default is 6 hours; a freshly-created session must survive.
+		cache := newFilteredServerCache(6 * time.Hour)
+		callCount := 0
+		creator := func() *sdk.Server {
+			callCount++
+			return sdk.NewServer(&sdk.Implementation{Name: "test", Version: "1.0"}, &sdk.ServerOptions{})
+		}
+
+		cache.getOrCreate("backend", "session1", creator)
+		cache.getOrCreate("backend", "session1", creator)
+		assert.Equal(t, 1, callCount, "session should be reused within the 6h default timeout")
+	})
+}

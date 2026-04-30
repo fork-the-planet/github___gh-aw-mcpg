@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
+	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/version"
@@ -140,7 +141,10 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 
 	// Create server cache for session-aware server instances.
 	// TTL matches the SDK SessionTimeout so cache entries expire with sessions.
-	routedSessionTimeout := 30 * time.Minute
+	// Reads MCP_GATEWAY_SESSION_TIMEOUT (same variable as unified mode) with a 6h default
+	// so that long-running agentic workflows (e.g. >30 min GitHub Actions jobs) do not
+	// receive spurious "session not found" errors.
+	routedSessionTimeout := envutil.GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour)
 	serverCache := newFilteredServerCache(routedSessionTimeout)
 
 	// Create a proxy for each backend server
