@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
+	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/version"
@@ -120,6 +121,13 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 	return server
 }
 
+// getRoutedSessionTimeout returns the session timeout for routed mode by reading
+// MCP_GATEWAY_SESSION_TIMEOUT with a 6-hour default, matching unified mode behaviour.
+// It is extracted as a package-level function so tests can assert the env-var wiring directly.
+func getRoutedSessionTimeout() time.Duration {
+	return envutil.GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour)
+}
+
 // CreateHTTPServerForRoutedMode creates an HTTP server for routed mode
 // In routed mode, each backend is accessible at /mcp/<server>
 // Multiple routes from the same Authorization header share a session
@@ -140,7 +148,9 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 
 	// Create server cache for session-aware server instances.
 	// TTL matches the SDK SessionTimeout so cache entries expire with sessions.
-	routedSessionTimeout := 30 * time.Minute
+	// Long-running agentic workflows (e.g. >30 min GitHub Actions jobs) need this
+	// to be at least as long as the workflow to avoid spurious "session not found" errors.
+	routedSessionTimeout := getRoutedSessionTimeout()
 	serverCache := newFilteredServerCache(routedSessionTimeout)
 
 	// Create a proxy for each backend server

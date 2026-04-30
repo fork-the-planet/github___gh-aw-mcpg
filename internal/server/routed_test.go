@@ -808,3 +808,27 @@ func TestCreateHTTPServerForRoutedMode_OAuth(t *testing.T) {
 		})
 	}
 }
+
+// TestRoutedModeSessionTimeout_ReadsEnvVar verifies that the session timeout used by
+// CreateHTTPServerForRoutedMode is driven by MCP_GATEWAY_SESSION_TIMEOUT, matching
+// unified mode. Long-running agentic workflows (>30 min) previously failed with
+// "session not found" errors because routed mode had a hardcoded 30-minute timeout.
+func TestRoutedModeSessionTimeout_ReadsEnvVar(t *testing.T) {
+	t.Run("custom timeout from env", func(t *testing.T) {
+		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "2h")
+		got := getRoutedSessionTimeout()
+		assert.Equal(t, 2*time.Hour, got, "getRoutedSessionTimeout should return the value from MCP_GATEWAY_SESSION_TIMEOUT")
+	})
+
+	t.Run("default 6h timeout when env var is empty", func(t *testing.T) {
+		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "")
+		got := getRoutedSessionTimeout()
+		assert.Equal(t, 6*time.Hour, got, "getRoutedSessionTimeout should default to 6h when MCP_GATEWAY_SESSION_TIMEOUT is empty")
+	})
+
+	t.Run("default 6h timeout is not the old 30min value", func(t *testing.T) {
+		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "")
+		got := getRoutedSessionTimeout()
+		assert.Greater(t, got, 30*time.Minute, "default timeout must exceed the old hardcoded 30-minute value")
+	})
+}
