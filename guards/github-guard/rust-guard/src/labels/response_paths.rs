@@ -7,7 +7,7 @@
 //! Returns JSON paths like `/items/0`, `/items/1` pointing to labeled objects
 //! in the response, rather than cloning the entire data.
 
-use super::constants::{field_names, label_constants};
+use super::constants::{field_names, label_constants, scope_names};
 use super::extract_mcp_response;
 use super::helpers::*;
 use serde_json::Value;
@@ -545,7 +545,7 @@ pub fn label_response_paths(
                         labels: crate::ResourceLabels {
                             description: format!("gist:{}", id),
                             secrecy,
-                            integrity: reader_integrity("user", ctx),
+                            integrity: reader_integrity(scope_names::USER, ctx),
                         },
                     });
                 }
@@ -555,7 +555,7 @@ pub fn label_response_paths(
                     default_labels: Some(crate::ResourceLabels {
                         description: "gist".to_string(),
                         secrecy: vec![],
-                        integrity: reader_integrity("user", ctx),
+                        integrity: reader_integrity(scope_names::USER, ctx),
                     }),
                     items_path: None, // Root array
                 });

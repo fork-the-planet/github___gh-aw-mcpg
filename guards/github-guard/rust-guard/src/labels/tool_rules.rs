@@ -5,7 +5,7 @@
 
 use serde_json::Value;
 
-use super::constants::{field_names, SENSITIVE_FILE_KEYWORDS, SENSITIVE_FILE_PATTERNS};
+use super::constants::{field_names, scope_names, SENSITIVE_FILE_KEYWORDS, SENSITIVE_FILE_PATTERNS};
 use super::helpers::{
     author_association_floor_from_str,
     elevate_via_collaborator_permission, ensure_integrity_baseline,
@@ -461,8 +461,8 @@ pub fn apply_tool_labels(
             // S = private:user (conservative — some gists may be secret)
             // I = unapproved (user content, no repo-level trust signal)
             secrecy = private_user_label();
-            baseline_scope = "user".to_string();
-            integrity = reader_integrity("user", ctx);
+            baseline_scope = scope_names::USER.to_string();
+            integrity = reader_integrity(scope_names::USER, ctx);
         }
 
         // === Notifications (user-scoped, private) ===
@@ -482,7 +482,7 @@ pub fn apply_tool_labels(
             // These operations change notification/subscription state and return minimal metadata.
             // S = public (empty); I = project:github
             secrecy = vec![];
-            baseline_scope = "github".to_string();
+            baseline_scope = scope_names::GITHUB.to_string();
             integrity = project_github_label(ctx);
         }
 
@@ -498,7 +498,7 @@ pub fn apply_tool_labels(
             // S = private:user
             // I = project:github (GitHub-controlled metadata)
             secrecy = private_user_label();
-            baseline_scope = "github".to_string();
+            baseline_scope = scope_names::GITHUB.to_string();
             integrity = project_github_label(ctx);
         }
 
@@ -512,7 +512,7 @@ pub fn apply_tool_labels(
             // S = public (empty)
             // I = project:github (GitHub-controlled metadata)
             secrecy = vec![];
-            baseline_scope = "github".to_string();
+            baseline_scope = scope_names::GITHUB.to_string();
             integrity = project_github_label(ctx);
         }
 
@@ -584,8 +584,8 @@ pub fn apply_tool_labels(
             // Creating/forking repositories is account-scoped and does not return repo content.
             // S = public (empty); I = writer(github)
             secrecy = vec![];
-            baseline_scope = "github".to_string();
-            integrity = writer_integrity("github", ctx);
+            baseline_scope = scope_names::GITHUB.to_string();
+            integrity = writer_integrity(scope_names::GITHUB, ctx);
         }
 
         // === Projects write operations (org-scoped) ===
@@ -677,9 +677,9 @@ pub fn apply_tool_labels(
             // Enabling a toolset expands the agent's runtime capability set.
             // Requires writer-level integrity to prevent low-trust agents from
             // self-escalating by enabling additional tool groups.
-            // S = public (empty — no repository-scoped data); I = writer (global)
-            baseline_scope = "github".to_string();
-            integrity = writer_integrity("github", ctx);
+            // S = public (empty — no repository-scoped data); I = writer (github)
+            baseline_scope = scope_names::GITHUB.to_string();
+            integrity = writer_integrity(scope_names::GITHUB, ctx);
         }
 
         // === Star/unstar operations (public metadata) ===
@@ -687,7 +687,7 @@ pub fn apply_tool_labels(
             // Starring is a public action; response is minimal metadata.
             // S = public (empty); I = project:github
             secrecy = vec![];
-            baseline_scope = "github".to_string();
+            baseline_scope = scope_names::GITHUB.to_string();
             integrity = project_github_label(ctx);
         }
 
@@ -714,8 +714,8 @@ pub fn apply_tool_labels(
             // other gist operations that may target secret gists.
             // S = private_user; I = writer(user)
             secrecy = private_user_label();
-            baseline_scope = "user".to_string();
-            integrity = writer_integrity("user", ctx);
+            baseline_scope = scope_names::USER.to_string();
+            integrity = writer_integrity(scope_names::USER, ctx);
         }
 
         _ => {

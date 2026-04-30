@@ -13,6 +13,7 @@ mod labels;
 mod tools;
 
 use labels::constants::policy_integrity;
+use labels::constants::scope_names;
 use labels::{
     blocked_integrity, extract_repo_info, extract_repo_info_from_search_query, MinIntegrity,
     PolicyContext, PolicyScopeEntry, ScopeKind,
@@ -267,7 +268,7 @@ fn infer_scope_for_baseline(tool_name: &str, tool_args: &Value, repo_id: &str) -
         | "manage_notification_subscription"
         | "manage_repository_notification_subscription"
         | "create_repository"
-        | "fork_repository" => "github".to_string(),
+        | "fork_repository" => scope_names::GITHUB.to_string(),
         "search_code" | "search_issues" | "search_pull_requests" => {
             let query = tool_args
                 .get("query")
@@ -693,7 +694,7 @@ pub extern "C" fn label_resource(
             "    tool '{}' is unconditionally blocked — overriding integrity to blocked",
             input.tool_name
         ));
-        let scope = if repo_id.is_empty() { "global" } else { &repo_id };
+        let scope = if repo_id.is_empty() { scope_names::GLOBAL } else { &repo_id };
         blocked_integrity(scope, &ctx)
     } else {
         final_integrity
@@ -894,7 +895,7 @@ pub extern "C" fn label_response(
 
         if is_server_metadata {
             let scope = if baseline_scope.is_empty() {
-                "github"
+                scope_names::GITHUB
             } else {
                 &baseline_scope
             };
@@ -1176,7 +1177,7 @@ mod tests {
             "manage_repository_notification_subscription",
         ] {
             let inferred = infer_scope_for_baseline(tool, &tool_args, "");
-            assert_eq!(inferred, "github", "{} should infer github baseline scope", tool);
+            assert_eq!(inferred, scope_names::GITHUB, "{} should infer github baseline scope", tool);
         }
     }
 
@@ -1185,7 +1186,7 @@ mod tests {
         let tool_args = json!({ "name": "new-repo" });
         for tool in &["create_repository", "fork_repository"] {
             let inferred = infer_scope_for_baseline(tool, &tool_args, "");
-            assert_eq!(inferred, "github", "{} should infer github baseline scope", tool);
+            assert_eq!(inferred, scope_names::GITHUB, "{} should infer github baseline scope", tool);
         }
     }
 
@@ -1227,7 +1228,7 @@ mod tests {
 
             assert_eq!(
                 after_baseline,
-                labels::writer_integrity("github", &ctx),
+                labels::writer_integrity(scope_names::GITHUB, &ctx),
                 "{} integrity should remain github writer-scoped after baseline enforcement",
                 tool
             );
@@ -1263,7 +1264,7 @@ mod tests {
 
         // Simulate the is_blocked_tool override performed in label_resource
         let final_integrity = if tools::is_blocked_tool("transfer_repository") {
-            let scope = if repo_id.is_empty() { "global" } else { repo_id };
+            let scope = if repo_id.is_empty() { scope_names::GLOBAL } else { repo_id };
             blocked_integrity(scope, &ctx)
         } else {
             after_baseline

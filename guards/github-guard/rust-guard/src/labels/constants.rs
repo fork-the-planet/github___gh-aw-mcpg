@@ -31,6 +31,23 @@ pub mod policy_integrity {
     pub const ORDER_HIGH_TO_LOW: [&str; 4] = [MERGED, APPROVED, UNAPPROVED, NONE];
 }
 
+/// Canonical *reserved* scope token strings used for baseline and integrity scoping.
+///
+/// These are the three well-known, fixed scope tokens that represent broad resource
+/// categories (org-level, user-level, and cross-repo). Other scopes exist at runtime
+/// (e.g. `owner` or `owner/repo` for concrete repositories) — those are constructed
+/// dynamically and are not represented here.
+/// Using constants avoids silent typos (e.g. "Github") that produce wrong DIFC labels
+/// with no compiler error.
+pub mod scope_names {
+    /// Owner-scoped policy (GitHub-org-level resources)
+    pub const GITHUB: &str = "github";
+    /// User-scoped policy (personal resources)
+    pub const USER: &str = "user";
+    /// Global-scoped policy (cross-repo / no specific owner)
+    pub const GLOBAL: &str = "global";
+}
+
 /// Field name constants for JSON extraction
 pub mod field_names {
     pub const OWNER: &str = "owner";

@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use serde_json::Value;
 
 use super::backend::GithubMcpCallback;
-use super::constants::{field_names, label_constants};
+use super::constants::{field_names, label_constants, scope_names};
 
 /// Ensures the endorsement gateway-mode warning is emitted at most once per process lifetime.
 static ENDORSEMENT_GATEWAY_WARNING_EMITTED: AtomicBool = AtomicBool::new(false);
@@ -696,7 +696,7 @@ pub fn private_user_label() -> Vec<String> {
 /// Returns a vec with the "approved:github" label
 #[inline]
 pub fn project_github_label(ctx: &PolicyContext) -> Vec<String> {
-    writer_integrity("github", ctx)
+    writer_integrity(scope_names::GITHUB, ctx)
 }
 
 /// Returns a vec with a "private:{scope}" label
