@@ -15,6 +15,7 @@ func normalizePolicyPayload(policy interface{}) (interface{}, error) {
 
 	if policyString, ok := policy.(string); ok {
 		trimmed := strings.TrimSpace(policyString)
+		logWasm.Printf("normalizePolicyPayload: received string policy, len=%d", len(trimmed))
 		if trimmed == "" {
 			return nil, fmt.Errorf("policy string is empty")
 		}
@@ -26,18 +27,21 @@ func normalizePolicyPayload(policy interface{}) (interface{}, error) {
 
 		switch parsed.(type) {
 		case map[string]interface{}:
+			logWasm.Printf("normalizePolicyPayload: string policy parsed successfully as object")
 			return parsed, nil
 		default:
 			return nil, fmt.Errorf("policy JSON must decode to an object")
 		}
 	}
 
+	logWasm.Printf("normalizePolicyPayload: received non-string policy, passing through")
 	return policy, nil
 }
 
 // buildStrictLabelAgentPayload validates the normalised policy and returns a
 // map ready to be serialised as the label_agent input payload.
 func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, error) {
+	logWasm.Printf("buildStrictLabelAgentPayload: validating policy payload")
 	if policy == nil {
 		return nil, fmt.Errorf("invalid guard policy transport shape: expected {\"allow-only\":{\"repos\":...,\"min-integrity\":...}}")
 	}
@@ -219,6 +223,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		}
 	}
 
+	logWasm.Printf("buildStrictLabelAgentPayload: policy validated successfully, repos=%v, min-integrity=%v", reposRaw, integrityRaw)
 	return payload, nil
 }
 
@@ -228,6 +233,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 // both trustedBots and trustedUsers are nil or empty, the returned payload contains only the
 // allow-only policy.
 func BuildLabelAgentPayload(policy interface{}, trustedBots []string, trustedUsers []string) interface{} {
+	logWasm.Printf("BuildLabelAgentPayload: trustedBots=%d, trustedUsers=%d", len(trustedBots), len(trustedUsers))
 	if len(trustedBots) == 0 && len(trustedUsers) == 0 {
 		return policy
 	}
@@ -250,6 +256,7 @@ func BuildLabelAgentPayload(policy interface{}, trustedBots []string, trustedUse
 			bots[i] = b
 		}
 		payload["trusted-bots"] = bots
+		logWasm.Printf("BuildLabelAgentPayload: injected %d trusted-bots into payload", len(trustedBots))
 	}
 
 	if len(trustedUsers) > 0 {
@@ -264,6 +271,7 @@ func BuildLabelAgentPayload(policy interface{}, trustedBots []string, trustedUse
 		// Inject into allow-only object if present
 		if allowOnly, ok := payload["allow-only"].(map[string]interface{}); ok {
 			allowOnly["trusted-users"] = users
+			logWasm.Printf("BuildLabelAgentPayload: injected %d trusted-users into allow-only", len(trustedUsers))
 		}
 	}
 
