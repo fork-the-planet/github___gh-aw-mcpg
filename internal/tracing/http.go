@@ -14,6 +14,8 @@ import (
 )
 
 // statusResponseWriter wraps http.ResponseWriter to capture the HTTP response status code.
+// Unwrap allows http.ResponseController and other callers to access the underlying
+// writer's optional interfaces (e.g. http.Flusher, http.Hijacker) transparently.
 type statusResponseWriter struct {
 	http.ResponseWriter
 	statusCode int
@@ -30,6 +32,12 @@ func (rw *statusResponseWriter) Write(b []byte) (int, error) {
 		rw.statusCode = http.StatusOK
 	}
 	return rw.ResponseWriter.Write(b)
+}
+
+// Unwrap returns the underlying http.ResponseWriter so that callers can type-assert
+// optional interfaces such as http.Flusher or http.Hijacker against the real writer.
+func (rw *statusResponseWriter) Unwrap() http.ResponseWriter {
+	return rw.ResponseWriter
 }
 
 // WrapHTTPHandler wraps an http.Handler with an OpenTelemetry server span.

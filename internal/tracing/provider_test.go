@@ -11,9 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -613,4 +615,129 @@ func TestParentContext_AllZerosTraceID(t *testing.T) {
 	// An all-zeros traceId yields an invalid SpanContext; the function must return ctx unchanged.
 	assert.Equal(t, ctx, parentCtx,
 		"ParentContext with an all-zeros traceId must return the original context unchanged")
+}
+
+// newInMemoryProvider creates a fresh in-process SDK tracer provider with an in-memory
+// exporter and registers it globally. The returned cleanup func restores the noop provider.
+func newInMemoryProvider(t *testing.T) (*sdktrace.TracerProvider, *tracetest.InMemoryExporter, func()) {
+	t.Helper()
+	exporter := tracetest.NewInMemoryExporter()
+	sp := sdktrace.NewSimpleSpanProcessor(exporter)
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSpanProcessor(sp),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+	otel.SetTracerProvider(tp)
+	return tp, exporter, func() { otel.SetTracerProvider(noop.NewTracerProvider()) }
+}
+
+// TestWrapHTTPHandler_RecordsExplicitStatusCode verifies that an explicit WriteHeader call
+// is reflected in the http.response.status_code span attribute.
+func TestWrapHTTPHandler_RecordsExplicitStatusCode(t *testing.T) {
+	ctx := context.Background()
+
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	_, exporter, cleanup := newInMemoryProvider(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
+	rr := httptest.NewRecorder()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound) // explicit 404
+	})
+
+	tracing.WrapHTTPHandler(inner, "test.status").ServeHTTP(rr, req)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1, "expected exactly one span")
+	span := spans[0]
+
+	// Span must carry http.response.status_code = 404
+	var found bool
+	for _, attr := range span.Attributes {
+		if attr.Key == semconv.HTTPResponseStatusCodeKey {
+			assert.Equal(t, int64(http.StatusNotFound), attr.Value.AsInt64(), "status code attribute must be 404")
+			found = true
+		}
+	}
+	assert.True(t, found, "http.response.status_code attribute must be present on the span")
+
+	// 4xx must NOT set span status to Error
+	assert.Equal(t, codes.Unset, span.Status.Code, "4xx responses must not set span status to Error")
+}
+
+// TestWrapHTTPHandler_RecordsImplicit200 verifies that a handler that calls Write
+// without an explicit WriteHeader is recorded as status 200.
+func TestWrapHTTPHandler_RecordsImplicit200(t *testing.T) {
+	ctx := context.Background()
+
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	_, exporter, cleanup := newInMemoryProvider(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
+	rr := httptest.NewRecorder()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("ok")) // implicit 200 — no WriteHeader call
+	})
+
+	tracing.WrapHTTPHandler(inner, "test.implicit200").ServeHTTP(rr, req)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1, "expected exactly one span")
+
+	var found bool
+	for _, attr := range spans[0].Attributes {
+		if attr.Key == semconv.HTTPResponseStatusCodeKey {
+			assert.Equal(t, int64(http.StatusOK), attr.Value.AsInt64(), "implicit Write must record status 200")
+			found = true
+		}
+	}
+	assert.True(t, found, "http.response.status_code attribute must be present on the span")
+}
+
+// TestWrapHTTPHandler_5xxSetsSpanStatusError verifies that a 5xx response sets span
+// status to codes.Error and leaves a non-empty description.
+func TestWrapHTTPHandler_5xxSetsSpanStatusError(t *testing.T) {
+	ctx := context.Background()
+
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	_, exporter, cleanup := newInMemoryProvider(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	rr := httptest.NewRecorder()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError) // 500
+	})
+
+	tracing.WrapHTTPHandler(inner, "test.5xx").ServeHTTP(rr, req)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1, "expected exactly one span")
+	span := spans[0]
+
+	assert.Equal(t, codes.Error, span.Status.Code, "5xx must set span status to Error")
+	assert.NotEmpty(t, span.Status.Description, "5xx must provide a non-empty status description")
+
+	var found bool
+	for _, attr := range span.Attributes {
+		if attr.Key == semconv.HTTPResponseStatusCodeKey {
+			assert.Equal(t, int64(http.StatusInternalServerError), attr.Value.AsInt64())
+			found = true
+		}
+	}
+	assert.True(t, found, "http.response.status_code attribute must be present on the span")
 }
