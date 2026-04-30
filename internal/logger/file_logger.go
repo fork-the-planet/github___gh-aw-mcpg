@@ -118,6 +118,10 @@ func logWithLevel(level LogLevel, category, format string, args ...interface{}) 
 	})
 }
 
+// The var block and exported wrappers below follow the Log-Level Quad-Function Pattern
+// documented in common.go. The four-level set (Info/Warn/Error/Debug) is stable and
+// intentionally repeated across file_logger.go, markdown_logger.go, and
+// server_file_logger.go. See common.go for the rationale and update instructions.
 var (
 	logInfo  = makeLevelLogger(logWithLevel, LogLevelInfo)
 	logWarn  = makeLevelLogger(logWithLevel, LogLevelWarn)

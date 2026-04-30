@@ -215,14 +215,25 @@ import (
 //   - The exported wrappers preserve a stable, non-mutable API surface.
 //   - Internal closure generation removes repetitive level-binding boilerplate.
 //
+// The log levels (Info, Warn, Error, Debug) are stable and not expected to grow.
+// This four-level set maps to standard syslog-style severity and covers all
+// operational needs of the gateway. The pattern is intentionally accepted as
+// idiomatic Go API design rather than collapsed via code generation, because:
+//   - The thin wrappers provide named, documented, discoverable public functions.
+//   - The wrapper layer is passive (no logic) so the duplication risk is negligible.
+//   - Adding a new level would require a deliberate API decision, not a routine change.
+//
 // The shared logFuncs map below centralises the LogLevel → log-function
 // mapping so that the internal helpers (logWithMarkdown, logWithLevelAndServer)
 // do not need their own switch-on-level blocks.
 //
-// When adding a new LogLevel constant (e.g., LogLevelTrace):
-//  1. Add a new entry to the logFuncs map below.
-//  2. Add a new internal per-level closure and exported wrapper in each of the
-//     three files above.
+// If a new LogLevel constant is ever added (e.g., LogLevelTrace), update all
+// three locations to keep the public API consistent:
+//  1. Add a new entry to the logFuncs map in this file.
+//  2. In file_logger.go: add a var entry and exported wrapper (see LogInfo pattern).
+//  3. In markdown_logger.go: add a var entry and exported wrapper (see LogInfoMd pattern).
+//  4. In server_file_logger.go: add a var entry and exported wrapper (see LogInfoWithServer pattern).
+//  5. Update TestLogLevelWrappers_CoverAllRegisteredLevels in log_level_wrappers_test.go.
 //
 // logFuncs maps each LogLevel to its corresponding global log function.
 // This eliminates repeated switch-on-level blocks in logWithMarkdown
