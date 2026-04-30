@@ -861,6 +861,346 @@ func TestBuildStrictLabelAgentPayload(t *testing.T) {
 	})
 }
 
+func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
+	validBase := func() map[string]interface{} {
+		return map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":         "public",
+				"min-integrity": "none",
+			},
+		}
+	}
+
+	t.Run("rejects nil input", func(t *testing.T) {
+		_, err := buildStrictLabelAgentPayload(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid guard policy transport shape")
+	})
+
+	t.Run("accepts legacy allowonly key without hyphen", func(t *testing.T) {
+		input := map[string]interface{}{
+			"allowonly": map[string]interface{}{
+				"repos":     "public",
+				"integrity": "none",
+			},
+		}
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("accepts min-integrity key", func(t *testing.T) {
+		input := validBase()
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("rejects unexpected top-level key", func(t *testing.T) {
+		input := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":     "public",
+				"integrity": "none",
+			},
+			"bad-key": "value",
+		}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `unexpected key "bad-key"`)
+	})
+
+	t.Run("accepts trusted-bots as top-level key", func(t *testing.T) {
+		input := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":     "public",
+				"integrity": "none",
+			},
+			"trusted-bots": []interface{}{"bot1"},
+		}
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("rejects allow-only that is not a map", func(t *testing.T) {
+		input := map[string]interface{}{
+			"allow-only": "not-a-map",
+		}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid guard policy transport shape")
+	})
+
+	t.Run("rejects missing repos in allow-only", func(t *testing.T) {
+		input := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"min-integrity": "none",
+			},
+		}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing required fields")
+	})
+
+	t.Run("rejects missing integrity in allow-only", func(t *testing.T) {
+		input := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos": "public",
+			},
+		}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "missing required fields")
+	})
+
+	t.Run("rejects unexpected allow-only key", func(t *testing.T) {
+		input := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":     "public",
+				"integrity": "none",
+				"bad-field": "value",
+			},
+		}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `unexpected allow-only key "bad-field"`)
+	})
+
+	t.Run("rejects integrity that is not a string", func(t *testing.T) {
+		input := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":     "public",
+				"integrity": 42,
+			},
+		}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid integrity value")
+	})
+
+	t.Run("blocked-users validation - not an array", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["blocked-users"] = "not-array"
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid blocked-users value: expected array of strings")
+	})
+
+	t.Run("blocked-users validation - empty string entry", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["blocked-users"] = []interface{}{"  "}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid blocked-users value: each entry must be a non-empty string")
+	})
+
+	t.Run("blocked-users validation - non-string entry", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["blocked-users"] = []interface{}{42}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid blocked-users value: each entry must be a non-empty string")
+	})
+
+	t.Run("blocked-users validation - valid", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["blocked-users"] = []interface{}{"user1", "user2"}
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("approval-labels validation - not an array", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["approval-labels"] = "approved"
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid approval-labels value: expected array of strings")
+	})
+
+	t.Run("approval-labels validation - empty string entry", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["approval-labels"] = []interface{}{""}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid approval-labels value: each entry must be a non-empty string")
+	})
+
+	t.Run("approval-labels validation - valid", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["approval-labels"] = []interface{}{"approved", "lgtm"}
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("trusted-bots validation - not an array", func(t *testing.T) {
+		input := validBase()
+		input["trusted-bots"] = "my-bot"
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid trusted-bots value: expected non-empty array of strings")
+	})
+
+	t.Run("trusted-bots validation - empty array", func(t *testing.T) {
+		input := validBase()
+		input["trusted-bots"] = []interface{}{}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid trusted-bots value: must be a non-empty array when present")
+	})
+
+	t.Run("trusted-bots validation - empty string entry", func(t *testing.T) {
+		input := validBase()
+		input["trusted-bots"] = []interface{}{""}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid trusted-bots value: each entry must be a non-empty string")
+	})
+
+	t.Run("trusted-bots validation - valid", func(t *testing.T) {
+		input := validBase()
+		input["trusted-bots"] = []interface{}{"dependabot[bot]"}
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("trusted-users validation - not an array", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["trusted-users"] = "user1"
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid trusted-users value: expected array of strings")
+	})
+
+	t.Run("trusted-users validation - empty string entry", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["trusted-users"] = []interface{}{"  "}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid trusted-users value: each entry must be a non-empty string")
+	})
+
+	t.Run("trusted-users validation - valid", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["trusted-users"] = []interface{}{"alice", "bob"}
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("endorsement-reactions validation - not an array", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["endorsement-reactions"] = "+1"
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid endorsement-reactions value: expected array of strings")
+	})
+
+	t.Run("endorsement-reactions validation - empty string entry", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["endorsement-reactions"] = []interface{}{""}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid endorsement-reactions value: each entry must be a non-empty string")
+	})
+
+	t.Run("endorsement-reactions validation - valid", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["endorsement-reactions"] = []interface{}{"+1", "rocket"}
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("disapproval-reactions validation - not an array", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["disapproval-reactions"] = "-1"
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid disapproval-reactions value: expected array of strings")
+	})
+
+	t.Run("disapproval-reactions validation - empty string entry", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["disapproval-reactions"] = []interface{}{"  "}
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid disapproval-reactions value: each entry must be a non-empty string")
+	})
+
+	t.Run("disapproval-reactions validation - valid", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["disapproval-reactions"] = []interface{}{"-1"}
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("disapproval-integrity validation - not a string", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["disapproval-integrity"] = 99
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid disapproval-integrity value: expected one of none|unapproved|approved|merged")
+	})
+
+	t.Run("disapproval-integrity validation - invalid string value", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["disapproval-integrity"] = "high"
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid disapproval-integrity value: expected one of none|unapproved|approved|merged")
+	})
+
+	t.Run("disapproval-integrity validation - valid", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["disapproval-integrity"] = "approved"
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("endorser-min-integrity validation - not a string", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["endorser-min-integrity"] = true
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid endorser-min-integrity value: expected one of none|unapproved|approved|merged")
+	})
+
+	t.Run("endorser-min-integrity validation - invalid string value", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["endorser-min-integrity"] = "critical"
+		_, err := buildStrictLabelAgentPayload(input)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid endorser-min-integrity value: expected one of none|unapproved|approved|merged")
+	})
+
+	t.Run("endorser-min-integrity validation - valid", func(t *testing.T) {
+		input := validBase()
+		input["allow-only"].(map[string]interface{})["endorser-min-integrity"] = "merged"
+		payload, err := buildStrictLabelAgentPayload(input)
+		require.NoError(t, err)
+		require.NotNil(t, payload)
+	})
+
+	t.Run("accepts all valid integrity values", func(t *testing.T) {
+		for _, integ := range []string{"none", "unapproved", "approved", "merged", "NONE", "Approved"} {
+			input := map[string]interface{}{
+				"allow-only": map[string]interface{}{
+					"repos":     "all",
+					"integrity": integ,
+				},
+			}
+			payload, err := buildStrictLabelAgentPayload(input)
+			require.NoError(t, err, "integrity=%s should be valid", integ)
+			require.NotNil(t, payload)
+		}
+	})
+}
+
 func TestParseLabelAgentResponse(t *testing.T) {
 	t.Run("success payload parses", func(t *testing.T) {
 		payload := []byte(`{"agent":{"secrecy":[],"integrity":[]},"difc_mode":"strict","normalized_policy":{"scope_kind":"public","integrity":"none"}}`)
