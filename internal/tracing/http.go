@@ -24,6 +24,14 @@ func (rw *statusResponseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Write captures an implicit 200 status when Write is called without a prior WriteHeader.
+func (rw *statusResponseWriter) Write(b []byte) (int, error) {
+	if rw.statusCode == 0 {
+		rw.statusCode = http.StatusOK
+	}
+	return rw.ResponseWriter.Write(b)
+}
+
 // WrapHTTPHandler wraps an http.Handler with an OpenTelemetry server span.
 // A span named spanName is created for every request, with
 // http.request.method and url.path set automatically. Extra attrs are merged in.
@@ -61,11 +69,12 @@ func WrapHTTPHandler(next http.Handler, spanName string, extraAttrs ...attribute
 		logTracing.Printf("Span started: span=%s, traceID=%s", spanName, span.SpanContext().TraceID())
 
 		srw := &statusResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		defer func() {
+			span.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(srw.statusCode))
+			if srw.statusCode >= 500 {
+				span.SetStatus(codes.Error, http.StatusText(srw.statusCode))
+			}
+		}()
 		next.ServeHTTP(srw, r.WithContext(ctx))
-
-		span.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(srw.statusCode))
-		if srw.statusCode >= 500 {
-			span.SetStatus(codes.Error, http.StatusText(srw.statusCode))
-		}
 	})
 }
