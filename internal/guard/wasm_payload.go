@@ -38,6 +38,27 @@ func normalizePolicyPayload(policy interface{}) (interface{}, error) {
 	return policy, nil
 }
 
+// validateStringArray checks that raw is a []interface{} of non-empty strings.
+// When requireNonEmpty is true, a zero-length array is also rejected.
+func validateStringArray(fieldName string, raw interface{}, requireNonEmpty bool) error {
+	arr, ok := raw.([]interface{})
+	if !ok {
+		if requireNonEmpty {
+			return fmt.Errorf("invalid %s value: expected non-empty array of strings", fieldName)
+		}
+		return fmt.Errorf("invalid %s value: expected array of strings", fieldName)
+	}
+	if requireNonEmpty && len(arr) == 0 {
+		return fmt.Errorf("invalid %s value: must be a non-empty array when present", fieldName)
+	}
+	for _, entry := range arr {
+		if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
+			return fmt.Errorf("invalid %s value: each entry must be a non-empty string", fieldName)
+		}
+	}
+	return nil
+}
+
 // buildStrictLabelAgentPayload validates the normalised policy and returns a
 // map ready to be serialised as the label_agent input payload.
 func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, error) {
@@ -120,74 +141,41 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		return nil, err
 	}
 
-	// Validate blocked-users if present: must be a non-empty array of non-empty strings.
+	// Validate blocked-users if present: must be an array of non-empty strings.
 	if blockedUsersRaw, ok := allowOnly["blocked-users"]; ok {
-		arr, ok := blockedUsersRaw.([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("invalid blocked-users value: expected array of strings")
-		}
-		for _, entry := range arr {
-			if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
-				return nil, fmt.Errorf("invalid blocked-users value: each entry must be a non-empty string")
-			}
+		if err := validateStringArray("blocked-users", blockedUsersRaw, false); err != nil {
+			return nil, err
 		}
 	}
 
-	// Validate approval-labels if present: must be a non-empty array of non-empty strings.
+	// Validate approval-labels if present: must be an array of non-empty strings.
 	if approvalLabelsRaw, ok := allowOnly["approval-labels"]; ok {
-		arr, ok := approvalLabelsRaw.([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("invalid approval-labels value: expected array of strings")
-		}
-		for _, entry := range arr {
-			if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
-				return nil, fmt.Errorf("invalid approval-labels value: each entry must be a non-empty string")
-			}
+		if err := validateStringArray("approval-labels", approvalLabelsRaw, false); err != nil {
+			return nil, err
 		}
 	}
 
 	// Validate trusted-bots if present.
 	// Per spec §4.1.3.4: trustedBots MUST be a non-empty array of strings when present.
 	if trustedBotsRaw, hasTrustedBots := payload["trusted-bots"]; hasTrustedBots {
-		trustedBots, ok := trustedBotsRaw.([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("invalid trusted-bots value: expected non-empty array of strings")
-		}
-		if len(trustedBots) == 0 {
-			return nil, fmt.Errorf("invalid trusted-bots value: must be a non-empty array when present")
-		}
-		for _, entry := range trustedBots {
-			if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
-				return nil, fmt.Errorf("invalid trusted-bots value: each entry must be a non-empty string")
-			}
+		if err := validateStringArray("trusted-bots", trustedBotsRaw, true); err != nil {
+			return nil, err
 		}
 	}
 
 	// Validate trusted-users if present inside allow-only.
-	// Must be a non-empty array of non-empty strings when present.
+	// Must be an array of non-empty strings when present.
 	if trustedUsersRaw, ok := allowOnly["trusted-users"]; ok {
-		arr, ok := trustedUsersRaw.([]interface{})
-		if !ok {
-			return nil, fmt.Errorf("invalid trusted-users value: expected array of strings")
-		}
-		for _, entry := range arr {
-			if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
-				return nil, fmt.Errorf("invalid trusted-users value: each entry must be a non-empty string")
-			}
+		if err := validateStringArray("trusted-users", trustedUsersRaw, false); err != nil {
+			return nil, err
 		}
 	}
 
 	// Validate endorsement-reactions and disapproval-reactions if present.
 	for _, reactionKey := range []string{"endorsement-reactions", "disapproval-reactions"} {
 		if reactionsRaw, ok := allowOnly[reactionKey]; ok {
-			arr, ok := reactionsRaw.([]interface{})
-			if !ok {
-				return nil, fmt.Errorf("invalid %s value: expected array of strings", reactionKey)
-			}
-			for _, entry := range arr {
-				if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
-					return nil, fmt.Errorf("invalid %s value: each entry must be a non-empty string", reactionKey)
-				}
+			if err := validateStringArray(reactionKey, reactionsRaw, false); err != nil {
+				return nil, err
 			}
 		}
 	}
