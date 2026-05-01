@@ -1140,3 +1140,79 @@ func TestNormalizeGuardPolicyReactionEndorsement(t *testing.T) {
 		assert.Equal(t, original.EndorserMinIntegrity, got.EndorserMinIntegrity)
 	})
 }
+
+// TestNormalizeGuardPolicyPromotionDemotionLabels tests NormalizeGuardPolicy with promotion-label and demotion-label.
+func TestNormalizeGuardPolicyPromotionDemotionLabels(t *testing.T) {
+	t.Run("promotion-label round-trips through NormalizeGuardPolicy", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:          "public",
+			MinIntegrity:   "unapproved",
+			PromotionLabel: "agent-approved",
+		}}
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Equal(t, "agent-approved", got.PromotionLabel)
+		assert.Empty(t, got.DemotionLabel)
+	})
+
+	t.Run("demotion-label round-trips through NormalizeGuardPolicy", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:         "public",
+			MinIntegrity:  "unapproved",
+			DemotionLabel: "agent-blocked",
+		}}
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Equal(t, "agent-blocked", got.DemotionLabel)
+		assert.Empty(t, got.PromotionLabel)
+	})
+
+	t.Run("both labels set together", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:          "public",
+			MinIntegrity:   "unapproved",
+			PromotionLabel: "agent-approved",
+			DemotionLabel:  "agent-blocked",
+		}}
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Equal(t, "agent-approved", got.PromotionLabel)
+		assert.Equal(t, "agent-blocked", got.DemotionLabel)
+	})
+
+	t.Run("labels absent → normalized fields empty", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:        "public",
+			MinIntegrity: "none",
+		}}
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Empty(t, got.PromotionLabel)
+		assert.Empty(t, got.DemotionLabel)
+	})
+
+	t.Run("JSON round-trip with promotion-label and demotion-label", func(t *testing.T) {
+		original := AllowOnlyPolicy{
+			Repos:          "public",
+			MinIntegrity:   "unapproved",
+			PromotionLabel: "agent-approved",
+			DemotionLabel:  "agent-blocked",
+		}
+		data, err := json.Marshal(original)
+		require.NoError(t, err)
+
+		var got AllowOnlyPolicy
+		require.NoError(t, json.Unmarshal(data, &got))
+		assert.Equal(t, original.PromotionLabel, got.PromotionLabel)
+		assert.Equal(t, original.DemotionLabel, got.DemotionLabel)
+	})
+
+	t.Run("ParseGuardPolicyJSON accepts promotion-label and demotion-label", func(t *testing.T) {
+		jsonStr := `{"allow-only":{"repos":"public","min-integrity":"unapproved","promotion-label":"agent-approved","demotion-label":"agent-blocked"}}`
+		got, err := ParseGuardPolicyJSON(jsonStr)
+		require.NoError(t, err)
+		require.NotNil(t, got.AllowOnly)
+		assert.Equal(t, "agent-approved", got.AllowOnly.PromotionLabel)
+		assert.Equal(t, "agent-blocked", got.AllowOnly.DemotionLabel)
+	})
+}

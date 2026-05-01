@@ -206,6 +206,14 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 		normalized.EndorserMinIntegrity = v
 	}
 
+	// Pass through promotion-label and demotion-label as-is (validated by Rust guard).
+	if v := strings.TrimSpace(policy.AllowOnly.PromotionLabel); v != "" {
+		normalized.PromotionLabel = v
+	}
+	if v := strings.TrimSpace(policy.AllowOnly.DemotionLabel); v != "" {
+		normalized.DemotionLabel = v
+	}
+
 	switch scope := policy.AllowOnly.Repos.(type) {
 	case string:
 		scopeValue := strings.ToLower(strings.TrimSpace(scope))

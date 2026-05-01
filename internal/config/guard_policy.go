@@ -47,6 +47,8 @@ type AllowOnlyPolicy struct {
 	DisapprovalReactions []string    `toml:"DisapprovalReactions" json:"disapproval-reactions,omitempty"`
 	DisapprovalIntegrity string      `toml:"DisapprovalIntegrity" json:"disapproval-integrity,omitempty"`
 	EndorserMinIntegrity string      `toml:"EndorserMinIntegrity" json:"endorser-min-integrity,omitempty"`
+	PromotionLabel       string      `toml:"PromotionLabel" json:"promotion-label,omitempty"`
+	DemotionLabel        string      `toml:"DemotionLabel" json:"demotion-label,omitempty"`
 }
 
 // NormalizedGuardPolicy is a canonical policy representation for caching and observability.
@@ -61,6 +63,8 @@ type NormalizedGuardPolicy struct {
 	DisapprovalReactions []string `json:"disapproval-reactions,omitempty"`
 	DisapprovalIntegrity string   `json:"disapproval-integrity,omitempty"`
 	EndorserMinIntegrity string   `json:"endorser-min-integrity,omitempty"`
+	PromotionLabel       string   `json:"promotion-label,omitempty"`
+	DemotionLabel        string   `json:"demotion-label,omitempty"`
 }
 
 func (p *GuardPolicy) UnmarshalJSON(data []byte) error {
@@ -168,6 +172,14 @@ func (p *AllowOnlyPolicy) UnmarshalJSON(data []byte) error {
 			if err := json.Unmarshal(value, &p.EndorserMinIntegrity); err != nil {
 				return fmt.Errorf("invalid allow-only.endorser-min-integrity: %w", err)
 			}
+		case "promotion-label":
+			if err := json.Unmarshal(value, &p.PromotionLabel); err != nil {
+				return fmt.Errorf("invalid allow-only.promotion-label: %w", err)
+			}
+		case "demotion-label":
+			if err := json.Unmarshal(value, &p.DemotionLabel); err != nil {
+				return fmt.Errorf("invalid allow-only.demotion-label: %w", err)
+			}
 		default:
 			return fmt.Errorf("allow-only contains unsupported field %q", key)
 		}
@@ -195,6 +207,8 @@ func (p AllowOnlyPolicy) MarshalJSON() ([]byte, error) {
 		DisapprovalReactions []string    `json:"disapproval-reactions,omitempty"`
 		DisapprovalIntegrity string      `json:"disapproval-integrity,omitempty"`
 		EndorserMinIntegrity string      `json:"endorser-min-integrity,omitempty"`
+		PromotionLabel       string      `json:"promotion-label,omitempty"`
+		DemotionLabel        string      `json:"demotion-label,omitempty"`
 	}
 
 	return json.Marshal(serializedAllowOnly(p))
