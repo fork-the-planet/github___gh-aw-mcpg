@@ -47,7 +47,7 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey, h
 	// tools/call before completing the MCP initialize handshake.
 	autoInitHandler := WrapWithSessionAutoInit(streamableHandler)
 
-	// Apply standard middleware stack (SDK logging → shutdown check → auth → HMAC)
+	// Apply standard middleware stack (outermost-first: OTEL tracing → auth → HMAC → shutdown check → SDK logging)
 	finalHandler := wrapWithMiddleware(autoInitHandler, "unified", unifiedServer, apiKey, hmacSecret)
 
 	// Mount handler at /mcp endpoint (logging is done in the callback above)

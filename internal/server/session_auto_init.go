@@ -108,7 +108,7 @@ func performSessionAutoInit(originalReq *http.Request, handler http.Handler) (st
 	initRec := httptest.NewRecorder()
 	handler.ServeHTTP(initRec, initReq)
 
-	sessionID := initRec.Result().Header.Get("Mcp-Session-Id")
+	sessionID := initRec.Header().Get("Mcp-Session-Id")
 	if sessionID == "" {
 		return "", fmt.Errorf("initialize response missing Mcp-Session-Id (status=%d)", initRec.Code)
 	}
