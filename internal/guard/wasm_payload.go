@@ -114,15 +114,8 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		return nil, fmt.Errorf("invalid repos value: expected all, public, or non-empty array of scoped strings")
 	}
 
-	integrity, ok := integrityRaw.(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid integrity value: expected one of none|unapproved|approved|merged")
-	}
-
-	switch strings.ToLower(strings.TrimSpace(integrity)) {
-	case "none", "unapproved", "approved", "merged":
-	default:
-		return nil, fmt.Errorf("invalid integrity value: expected one of none|unapproved|approved|merged")
+	if err := validateIntegrityField("integrity", integrityRaw); err != nil {
+		return nil, err
 	}
 
 	// Validate blocked-users if present: must be a non-empty array of non-empty strings.
@@ -199,27 +192,15 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 
 	// Validate disapproval-integrity if present.
 	if disIntRaw, ok := allowOnly["disapproval-integrity"]; ok {
-		disInt, ok := disIntRaw.(string)
-		if !ok {
-			return nil, fmt.Errorf("invalid disapproval-integrity value: expected one of none|unapproved|approved|merged")
-		}
-		switch strings.ToLower(strings.TrimSpace(disInt)) {
-		case "none", "unapproved", "approved", "merged":
-		default:
-			return nil, fmt.Errorf("invalid disapproval-integrity value: expected one of none|unapproved|approved|merged")
+		if err := validateIntegrityField("disapproval-integrity", disIntRaw); err != nil {
+			return nil, err
 		}
 	}
 
 	// Validate endorser-min-integrity if present.
 	if endMinRaw, ok := allowOnly["endorser-min-integrity"]; ok {
-		endMin, ok := endMinRaw.(string)
-		if !ok {
-			return nil, fmt.Errorf("invalid endorser-min-integrity value: expected one of none|unapproved|approved|merged")
-		}
-		switch strings.ToLower(strings.TrimSpace(endMin)) {
-		case "none", "unapproved", "approved", "merged":
-		default:
-			return nil, fmt.Errorf("invalid endorser-min-integrity value: expected one of none|unapproved|approved|merged")
+		if err := validateIntegrityField("endorser-min-integrity", endMinRaw); err != nil {
+			return nil, err
 		}
 	}
 
