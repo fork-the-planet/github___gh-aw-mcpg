@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -122,9 +123,8 @@ func TestForwardToGitHub_ForwardsRequestBody(t *testing.T) {
 	var capturedBody string
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		buf := new(strings.Builder)
-		_, _ = buf.ReadFrom(r.Body)
-		capturedBody = buf.String()
+		b, _ := io.ReadAll(r.Body)
+		capturedBody = string(b)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer upstream.Close()
