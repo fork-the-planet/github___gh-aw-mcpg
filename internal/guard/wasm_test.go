@@ -358,7 +358,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid integrity value")
+		assert.Contains(t, err.Error(), "invalid min-integrity value")
 	})
 
 	t.Run("valid allow-only policy succeeds", func(t *testing.T) {
