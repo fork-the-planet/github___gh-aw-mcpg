@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockStreamableHandler simulates a subset of the SDK's StreamableHTTPHandler behaviour:
+// mockStreamableHandler simulates a subset of the SDK's StreamableHTTPHandler behavior:
 //   - POST initialize (no session ID) → 200 OK + Mcp-Session-Id header
 //   - POST notifications/initialized (with session ID) → 202 Accepted
 //   - POST tools/call (with valid session ID) → 200 OK with tool result

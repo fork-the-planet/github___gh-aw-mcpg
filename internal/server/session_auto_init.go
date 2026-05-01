@@ -64,7 +64,7 @@ func WrapWithSessionAutoInit(streamableHandler http.Handler) http.Handler {
 		logAutoInit.Printf("tools/call without Mcp-Session-Id, performing auto-init")
 		logger.LogWarn("client",
 			"Gemini-compat: tools/call received before session initialization "+
-				"(known Gemini CLI v0.37.x issue — see gh-aw-mcpg#<issue>), performing auto-init")
+				"(known Gemini CLI v0.37.x issue — see gh-aw-firewall#2348), performing auto-init")
 
 		sessionID, err := performSessionAutoInit(r, streamableHandler)
 		if err != nil {
