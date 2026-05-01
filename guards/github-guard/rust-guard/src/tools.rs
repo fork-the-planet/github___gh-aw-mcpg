@@ -169,6 +169,20 @@ pub const BLOCKED_TOOLS: &[&str] = &[
     "create_agent_task",    // unsupported agent-task creation
 ];
 
+#[cfg(test)]
+mod tests {
+    use super::{BLOCKED_TOOLS, READ_WRITE_OPERATIONS, WRITE_OPERATIONS};
+
+    #[test]
+    fn blocked_tools_are_classified_as_write_or_read_write() {
+        for &tool in BLOCKED_TOOLS {
+            assert!(
+                WRITE_OPERATIONS.contains(&tool) || READ_WRITE_OPERATIONS.contains(&tool),
+                "blocked tool `{tool}` must also be classified in WRITE_OPERATIONS or READ_WRITE_OPERATIONS"
+            );
+        }
+    }
+}
 /// Check if a tool is unconditionally blocked (always denied regardless of agent integrity).
 ///
 /// Blocked tools are listed here when the operation is considered too dangerous
