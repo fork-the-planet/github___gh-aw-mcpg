@@ -43,8 +43,12 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey, h
 		SessionTimeout: envutil.GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour), // Configurable; 6h default matches GitHub Actions default timeout
 	})
 
-	// Apply standard middleware stack (SDK logging → shutdown check → auth → HMAC)
-	finalHandler := wrapWithMiddleware(streamableHandler, "unified", unifiedServer, apiKey, hmacSecret)
+	// Wrap with session auto-init to handle clients (e.g. Gemini CLI v0.37.x) that send
+	// tools/call before completing the MCP initialize handshake.
+	autoInitHandler := WrapWithSessionAutoInit(streamableHandler)
+
+	// Apply standard middleware stack (outermost-first: OTEL tracing → auth → HMAC → shutdown check → SDK logging)
+	finalHandler := wrapWithMiddleware(autoInitHandler, "unified", unifiedServer, apiKey, hmacSecret)
 
 	// Mount handler at /mcp endpoint (logging is done in the callback above)
 	mux.Handle("/mcp/", finalHandler)

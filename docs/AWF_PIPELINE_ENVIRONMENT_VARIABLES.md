@@ -92,6 +92,8 @@ When `--enable-api-proxy` is active, the system is split across two environments
 | `OPENAI_BASE_URL` | `http://172.30.0.30:10000/v1` | Points to sidecar, not the real OpenAI API |
 | `ANTHROPIC_BASE_URL` | `http://172.30.0.30:10001` | Points to sidecar, not the real Anthropic API |
 | `COPILOT_API_URL` | `http://172.30.0.30:10002` | Points to sidecar, not the real Copilot API |
+| `GOOGLE_GEMINI_BASE_URL` | `http://172.30.0.30:10003` | Points to sidecar, not the real Gemini API (see gh-aw-firewall#2348) |
+| `GEMINI_API_BASE_URL` | *(excluded)* | Removed to prevent Gemini CLI from bypassing the sidecar |
 | `COPILOT_GITHUB_TOKEN` | `placeholder-token-for-credential-isolation` | Set early (before `--env-all`) to prevent override by host value |
 | `COPILOT_TOKEN` | `placeholder-token-for-credential-isolation` | For Copilot CLI compatibility |
 | `ANTHROPIC_AUTH_TOKEN` | `placeholder-token-for-credential-isolation` | For Claude Code CLI compatibility |
@@ -106,6 +108,7 @@ When `--enable-api-proxy` is active, the system is split across two environments
 | `OPENAI_API_KEY` | Real key | Injected into upstream OpenAI requests |
 | `ANTHROPIC_API_KEY` | Real key | Injected as `x-api-key` header in upstream Anthropic requests |
 | `COPILOT_GITHUB_TOKEN` | Real token | Injected as Bearer auth in upstream Copilot requests |
+| `GOOGLE_API_KEY` | Real key | Injected into upstream Gemini API requests (port 10003) |
 | `COPILOT_API_TARGET` | Override or auto-derived | See Section 7 for derivation rules |
 | `OPENAI_API_TARGET` | Override (default: `api.openai.com`) | Upstream OpenAI API hostname |
 | `ANTHROPIC_API_TARGET` | Override (default: `api.anthropic.com`) | Upstream Anthropic API hostname |
@@ -260,7 +263,7 @@ Variables in this list are never forwarded to the agent container, even when `--
 |---|-----|-------------|-------------------|
 | 1 | `GITHUB_API_URL` / `GITHUB_GRAPHQL_URL` leakage | These can carry DIFC-rewritten `localhost:18443` values into the agent container via `--env-all`. AWF sanitizes `GH_HOST` (PR github/gh-aw-mcpg#1493) but not these. The Copilot CLI uses `GITHUB_API_URL` for REST API calls. | `GITHUB_API_URL`, `GITHUB_GRAPHQL_URL` |
 | 2 | One-shot token coverage | `GITHUB_MCP_SERVER_TOKEN` and `GH_AW_GITHUB_TOKEN` are absent from the `AWF_ONE_SHOT_TOKENS` list | `GITHUB_MCP_SERVER_TOKEN`, `GH_AW_GITHUB_TOKEN` |
-| 3 | No Gemini API proxy | Gemini traffic goes through Squid directly without API proxy support; there is no `--gemini-api-target` flag equivalent | *(no variable)* |
+| 3 | ~~No Gemini API proxy~~ — **Fixed** | `GOOGLE_GEMINI_BASE_URL` is now set to `http://172.30.0.30:10003` to route Gemini CLI through the API proxy sidecar, and `GEMINI_API_BASE_URL` is excluded. See gh-aw-firewall#2348. An additional MCP protocol compatibility fix was applied to mcpg to handle Gemini CLI v0.37.x calling `tools/call` before completing the session handshake. | `GOOGLE_GEMINI_BASE_URL`, `GEMINI_API_BASE_URL`, `GOOGLE_API_KEY` |
 | 4 | No single reference document | Each component documents its own variables in isolation; interactions across stages (DIFC → AWF → container) were not described anywhere | All |
 
 ---

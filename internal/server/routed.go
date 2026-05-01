@@ -177,8 +177,12 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 			SessionTimeout: routedSessionTimeout,
 		})
 
-		// Apply standard middleware stack (SDK logging → shutdown check → auth → HMAC)
-		finalHandler := wrapWithMiddleware(routeHandler, "routed:"+backendID, unifiedServer, apiKey, hmacSecret)
+		// Wrap with session auto-init to handle clients (e.g. Gemini CLI v0.37.x) that send
+		// tools/call before completing the MCP initialize handshake.
+		autoInitHandler := WrapWithSessionAutoInit(routeHandler)
+
+		// Apply standard middleware stack (outermost-first: OTEL tracing → auth → HMAC → shutdown check → SDK logging)
+		finalHandler := wrapWithMiddleware(autoInitHandler, "routed:"+backendID, unifiedServer, apiKey, hmacSecret)
 
 		// Mount the handler at both /mcp/<server> and /mcp/<server>/
 		mux.Handle(route+"/", finalHandler)
