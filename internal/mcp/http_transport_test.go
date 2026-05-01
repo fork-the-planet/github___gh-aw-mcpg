@@ -1277,3 +1277,46 @@ func TestOIDCRoundTripper_ErrorPropagation(t *testing.T) {
 	require.Error(t, err, "Should return an error when OIDC token acquisition fails")
 	assert.Contains(t, err.Error(), "OIDC token acquisition failed")
 }
+
+// TestResponseHeaderTimeout_NotCappedByConnectTimeout verifies that
+// ResponseHeaderTimeout is NOT set on the HTTP transport. Previously
+// it was set to connectTimeout, which meant slow HTTP MCP backends
+// that took longer than connectTimeout to send response headers would
+// fail with "net/http: timeout awaiting response headers" even when
+// the per-request context deadline (toolTimeout) was much larger.
+// See: https://github.com/github/gh-aw-mcpg/issues/4964
+func TestResponseHeaderTimeout_NotCappedByConnectTimeout(t *testing.T) {
+	const connectTimeout = 100 * time.Millisecond
+
+	// Server delays response headers longer than connectTimeout
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok": true}`))
+	}))
+	defer srv.Close()
+
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: connectTimeout,
+		}).DialContext,
+		MaxIdleConns:        10,
+		IdleConnTimeout:     90 * time.Second,
+		TLSHandshakeTimeout: 10 * time.Second,
+		// ResponseHeaderTimeout intentionally NOT set — this is the fix
+	}
+	client := &http.Client{Transport: transport}
+
+	// Use a generous context deadline (simulating toolTimeout >> connectTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err, "Request should succeed — ResponseHeaderTimeout must not cap slow backends")
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}

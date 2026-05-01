@@ -216,19 +216,20 @@ func NewHTTPConnection(ctx context.Context, serverID, url string, headers map[st
 	logger.LogInfo("backend", "Creating HTTP MCP connection with transport fallback, url=%s, connectTimeout=%v", url, connectTimeout)
 	ctx, cancel := context.WithCancel(ctx)
 
-	// Create an HTTP client with connect/setup timeouts.
-	// Do not set http.Client.Timeout: request execution should be controlled by
-	// per-request context deadlines (for example the gateway tool timeout budget),
-	// while connectTimeout continues to bound transport establishment/fallback.
+	// Create an HTTP client with connect/setup timeouts only.
+	// Do not set http.Client.Timeout or ResponseHeaderTimeout: request execution
+	// should be controlled by per-request context deadlines (for example the gateway
+	// tool timeout budget). connectTimeout bounds transport establishment/fallback
+	// (TCP dial, TLS handshake) but must not cap how long we wait for response
+	// headers during a tools/call — that is governed by toolTimeout via context.
 	httpClient := &http.Client{
 		Transport: &http.Transport{
 			DialContext: (&net.Dialer{
 				Timeout: connectTimeout,
 			}).DialContext,
-			MaxIdleConns:          10,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ResponseHeaderTimeout: connectTimeout,
+			MaxIdleConns:        10,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
 		},
 	}
 
