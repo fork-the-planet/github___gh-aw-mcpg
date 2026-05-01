@@ -386,6 +386,7 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `MCP_GATEWAY_PAYLOAD_PATH_PREFIX` - Path prefix for remapping payloadPath returned to clients (sets default for `--payload-path-prefix` flag, default: empty)
 - `MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD` - Size threshold in bytes for payload storage; payloads larger than this are stored to disk (sets default for `--payload-size-threshold` flag, default: `524288`)
 - `MCP_GATEWAY_SESSION_TIMEOUT` - Session timeout for stateful sessions in both unified mode (`/mcp`) and routed mode (`/mcp/<server>`). Accepts Go duration strings (e.g., `30m`, `1h`, `2h30m`). (default: `6h`)
+- `MCP_GATEWAY_TOOL_TIMEOUT` - Tool invocation timeout in seconds. Fallback when `toolTimeout` is not set in stdin JSON config. Accepts integers in the range `10`–`600`. Priority: stdin config > env var > built-in default. (default: `60`)
 - `DOCKER_HOST` - Docker daemon socket path (default: `/var/run/docker.sock`)
 - `MCP_GATEWAY_GUARDS_SINK_SERVER_IDS` - Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots (sets default for `--guards-sink-server-ids`)
 - `MCP_GATEWAY_GUARDS_MODE` - Guards enforcement mode: `strict` (deny violations), `filter` (remove denied tools), `propagate` (auto-adjust agent labels) (sets default for `--guards-mode`, default: `strict`)

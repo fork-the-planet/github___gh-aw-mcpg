@@ -359,7 +359,7 @@ func validateGatewayConfig(gateway *StdinGatewayConfig) error {
 
 	if gateway.ToolTimeout != nil {
 		logValidation.Printf("Validating tool timeout: %d", *gateway.ToolTimeout)
-		if err := rules.TimeoutPositive(*gateway.ToolTimeout, "toolTimeout", "gateway.toolTimeout"); err != nil {
+		if err := rules.TimeoutRange(*gateway.ToolTimeout, ToolTimeoutMin, ToolTimeoutMax, "toolTimeout", "gateway.toolTimeout"); err != nil {
 			return err
 		}
 	}

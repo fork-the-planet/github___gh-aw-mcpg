@@ -581,13 +581,13 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 			{
 				name:           "valid minimum timeout 1",
 				startupTimeout: intPtr(1),
-				toolTimeout:    intPtr(1),
+				toolTimeout:    intPtr(10),
 				shouldError:    false,
 			},
 			{
 				name:           "valid large timeout",
 				startupTimeout: intPtr(3600),
-				toolTimeout:    intPtr(7200),
+				toolTimeout:    intPtr(600),
 				shouldError:    false,
 			},
 			{

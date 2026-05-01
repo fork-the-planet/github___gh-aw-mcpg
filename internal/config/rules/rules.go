@@ -120,6 +120,22 @@ func TimeoutPositive(timeout int, fieldName, jsonPath string) *ValidationError {
 	return nil
 }
 
+// TimeoutRange validates that a timeout value is within [min, max] (inclusive).
+// Returns nil if valid, *ValidationError if outside the range.
+func TimeoutRange(timeout, min, max int, fieldName, jsonPath string) *ValidationError {
+	log.Printf("Validating timeout range: field=%s, value=%d, min=%d, max=%d, jsonPath=%s", fieldName, timeout, min, max, jsonPath)
+	if timeout < min || timeout > max {
+		log.Printf("Timeout range validation failed: %s=%d is outside [%d, %d]", fieldName, timeout, min, max)
+		return &ValidationError{
+			Field:      fieldName,
+			Message:    fmt.Sprintf("%s must be between %d and %d, got %d", fieldName, min, max, timeout),
+			JSONPath:   jsonPath,
+			Suggestion: fmt.Sprintf("Use a value between %d and %d seconds (e.g., 60)", min, max),
+		}
+	}
+	return nil
+}
+
 // MountFormat validates a mount specification in the format "source:dest:mode"
 // Returns nil if valid, *ValidationError if invalid
 // Per MCP Gateway specification v1.8.0 section 4.1.5:
