@@ -579,7 +579,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 				shouldError:    false,
 			},
 			{
-				name:           "valid minimum timeout 1",
+				name:           "valid minimum startup and tool timeouts",
 				startupTimeout: intPtr(1),
 				toolTimeout:    intPtr(10),
 				shouldError:    false,
