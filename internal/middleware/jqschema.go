@@ -172,6 +172,8 @@ func applyJqSchema(ctx context.Context, jsonData interface{}) (interface{}, erro
 		return nil, fmt.Errorf("jq schema filter not compiled (check startup logs): %w", jqSchemaCompileErr)
 	}
 
+	logMiddleware.Printf("applyJqSchema: starting schema inference, dataType=%T", jsonData)
+
 	// Ensure context has a timeout - add default if none exists
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
@@ -212,6 +214,7 @@ func applyJqSchema(ctx context.Context, jsonData interface{}) (interface{}, erro
 	}
 
 	// Return the schema object directly (no JSON marshaling needed here)
+	logMiddleware.Printf("applyJqSchema: schema inference completed, resultType=%T", v)
 	return v, nil
 }
 
@@ -288,6 +291,8 @@ func WrapToolHandler(
 	sizeThreshold int,
 	getSessionID func(context.Context) string,
 ) func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error) {
+	logMiddleware.Printf("WrapToolHandler: wrapping tool=%s, sizeThreshold=%d bytes, baseDir=%s, pathPrefixSet=%v",
+		toolName, sizeThreshold, baseDir, pathPrefix != "")
 	return func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
 		// Generate random query ID
 		queryID := generateRandomID()
@@ -475,5 +480,7 @@ func WrapToolHandler(
 // Currently applies to all tools, but can be configured to filter specific tools
 func ShouldApplyMiddleware(toolName string) bool {
 	// Apply to all tools except sys tools
-	return !strings.HasPrefix(toolName, "sys___")
+	applies := !strings.HasPrefix(toolName, "sys___")
+	logMiddleware.Printf("ShouldApplyMiddleware: tool=%s, applies=%v", toolName, applies)
+	return applies
 }
