@@ -156,6 +156,19 @@ pub fn is_unlock_operation(tool_name: &str) -> bool {
     tool_name.starts_with("unlock_")
 }
 
+/// Tools that are unconditionally blocked regardless of agent integrity.
+///
+/// These operations are too dangerous or unsupported to ever permit via an agent.
+/// Entries here should also appear in `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS`
+/// so the tool is still subject to all normal write-path checks before being denied.
+pub const BLOCKED_TOOLS: &[&str] = &[
+    "transfer_repository",  // irreversible ownership transfer
+    "archive_repository",   // repo settings change; unsupported
+    "unarchive_repository", // symmetric to archive_repository
+    "rename_repository",    // breaks clone URLs and integrations
+    "create_agent_task",    // unsupported agent-task creation
+];
+
 /// Check if a tool is unconditionally blocked (always denied regardless of agent integrity).
 ///
 /// Blocked tools are listed here when the operation is considered too dangerous
@@ -174,19 +187,22 @@ pub fn is_unlock_operation(tool_name: &str) -> bool {
 /// - `create_agent_task`: creates a Copilot coding-agent job that opens a branch and PR;
 ///   unsupported as a directly invocable agent operation.
 pub fn is_blocked_tool(tool_name: &str) -> bool {
-    matches!(
-        tool_name,
-        "transfer_repository"
-            | "archive_repository"
-            | "unarchive_repository"
-            | "rename_repository"
-            | "create_agent_task"
-    )
+    BLOCKED_TOOLS.contains(&tool_name)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn blocked_tools_are_classified_as_write_or_read_write() {
+        for &tool in BLOCKED_TOOLS {
+            assert!(
+                WRITE_OPERATIONS.contains(&tool) || READ_WRITE_OPERATIONS.contains(&tool),
+                "blocked tool `{tool}` must also be classified in WRITE_OPERATIONS or READ_WRITE_OPERATIONS"
+            );
+        }
+    }
 
     #[test]
     fn test_is_blocked_tool_transfer_repository() {
@@ -418,6 +434,49 @@ mod tests {
                 op
             );
         }
+    }
+
+    #[test]
+    fn test_is_merge_operation() {
+        assert!(is_merge_operation("merge_pull_request"));
+        assert!(is_merge_operation("merge_upstream"));
+        assert!(!is_merge_operation("create_pull_request"));
+        assert!(!is_merge_operation("update_pull_request"));
+        assert!(!is_merge_operation(""));
+    }
+
+    #[test]
+    fn test_is_delete_operation() {
+        assert!(is_delete_operation("delete_file"));
+        assert!(is_delete_operation("delete_branch"));
+        assert!(is_delete_operation("delete_release"));
+        assert!(!is_delete_operation("create_repository"));
+        assert!(!is_delete_operation(""));
+    }
+
+    #[test]
+    fn test_is_lock_operation() {
+        assert!(is_lock_operation("lock_issue"));
+        assert!(is_lock_operation("lock_pull_request"));
+        assert!(!is_lock_operation("unlock_issue"));
+        assert!(!is_lock_operation("create_issue"));
+        assert!(!is_lock_operation(""));
+    }
+
+    #[test]
+    fn test_is_unlock_operation() {
+        assert!(is_unlock_operation("unlock_issue"));
+        assert!(is_unlock_operation("unlock_pull_request"));
+        assert!(!is_unlock_operation("lock_issue"));
+        assert!(!is_unlock_operation("create_issue"));
+        assert!(!is_unlock_operation(""));
+    }
+
+    #[test]
+    fn test_lock_and_unlock_contribute_to_write_operations() {
+        // is_write_operation delegates to is_lock_operation and is_unlock_operation
+        assert!(is_write_operation("lock_issue"));
+        assert!(is_write_operation("unlock_issue"));
     }
 
     #[test]
