@@ -932,42 +932,42 @@ func TestClearServerForRestart_ClearsStartTime(t *testing.T) {
 	l := New(context.Background(), cfg)
 	defer l.Close()
 
-l.recordStart("test-server")
-require.False(t, l.serverStartTimes["test-server"].IsZero(), "start time should be set")
+	l.recordStart("test-server")
+	require.False(t, l.serverStartTimes["test-server"].IsZero(), "start time should be set")
 
-l.clearServerForRestart("test-server")
+	l.clearServerForRestart("test-server")
 
-_, hasStartTime := l.serverStartTimes["test-server"]
-assert.False(t, hasStartTime, "start time should be cleared")
-assert.Equal(t, "stopped", l.GetServerState("test-server").Status)
+	_, hasStartTime := l.serverStartTimes["test-server"]
+	assert.False(t, hasStartTime, "start time should be cleared")
+	assert.Equal(t, "stopped", l.GetServerState("test-server").Status)
 }
 
 func TestClearServerForRestart_IdempotentOnUnknownServer(t *testing.T) {
-cfg := newTestConfig(map[string]*config.ServerConfig{})
-l := New(context.Background(), cfg)
-defer l.Close()
+	cfg := newTestConfig(map[string]*config.ServerConfig{})
+	l := New(context.Background(), cfg)
+	defer l.Close()
 
-// Should not panic on unknown server
-require.NotPanics(t, func() {
-l.clearServerForRestart("nonexistent")
-})
+	// Should not panic on unknown server
+	require.NotPanics(t, func() {
+		l.clearServerForRestart("nonexistent")
+	})
 }
 
 func TestClearServerForRestart_AfterErrorAllowsReLaunch(t *testing.T) {
-cfg := newTestConfig(map[string]*config.ServerConfig{
-"test-server": {Type: "stdio", Command: "echo"},
-})
-l := New(context.Background(), cfg)
-defer l.Close()
+	cfg := newTestConfig(map[string]*config.ServerConfig{
+		"test-server": {Type: "stdio", Command: "echo"},
+	})
+	l := New(context.Background(), cfg)
+	defer l.Close()
 
-// Record error then clear — subsequent recordStart should succeed
-l.recordError("test-server", "crashed")
-l.clearServerForRestart("test-server")
+	// Record error then clear — subsequent recordStart should succeed
+	l.recordError("test-server", "crashed")
+	l.clearServerForRestart("test-server")
 
-l.recordStart("test-server")
-state := l.GetServerState("test-server")
-assert.Equal(t, "running", state.Status)
-assert.Empty(t, state.LastError)
+	l.recordStart("test-server")
+	state := l.GetServerState("test-server")
+	assert.Equal(t, "running", state.Status)
+	assert.Empty(t, state.LastError)
 }
 
 func TestGetServerConfig_KnownServer(t *testing.T) {
@@ -984,11 +984,11 @@ func TestGetServerConfig_KnownServer(t *testing.T) {
 }
 
 func TestGetServerConfig_UnknownServer(t *testing.T) {
-cfg := newTestConfig(map[string]*config.ServerConfig{})
-l := New(context.Background(), cfg)
-defer l.Close()
+	cfg := newTestConfig(map[string]*config.ServerConfig{})
+	l := New(context.Background(), cfg)
+	defer l.Close()
 
-_, err := l.getServerConfig("nonexistent")
-require.Error(t, err)
-assert.ErrorIs(t, err, ErrServerNotFound)
+	_, err := l.getServerConfig("nonexistent")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrServerNotFound)
 }
