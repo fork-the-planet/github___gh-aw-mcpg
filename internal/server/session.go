@@ -181,7 +181,7 @@ func setupSessionCallback(r *http.Request, backendID string) (string, bool) {
 // It calls peekRequestBody (defined in http_helpers.go) which is a shared
 // HTTP utility also used by WithSDKLogging.
 func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
-	logSession.Printf("Checking request body: method=%s, hasBody=%v, sessionID=%s", r.Method, r.Body != nil, sessionID)
+	logSession.Printf("Checking request body: method=%s, hasBody=%v, sessionID=%s", r.Method, r.Body != nil, auth.TruncateSessionID(sessionID))
 
 	bodyBytes, err := peekRequestBody(r)
 	if err != nil {
