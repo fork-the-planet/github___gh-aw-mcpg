@@ -185,21 +185,30 @@ func fixSchemaBytes(schemaBytes []byte) ([]byte, error) {
 			"additionalProperties": true,
 		}
 
+		ensureProperty := func(props map[string]interface{}, key string, value map[string]interface{}) string {
+			action := "Added"
+			if _, exists := props[key]; exists {
+				action = "Updated"
+			}
+			props[key] = value
+			return action
+		}
+
 		// Add registry and guard-policies to stdioServerConfig
 		if stdioConfig, ok := definitions["stdioServerConfig"].(map[string]interface{}); ok {
 			if props, ok := stdioConfig["properties"].(map[string]interface{}); ok {
-				props["registry"] = registryProperty
-				props["guard-policies"] = guardPoliciesProperty
-				logSchema.Print("Added registry and guard-policies fields to stdioServerConfig")
+				registryAction := ensureProperty(props, "registry", registryProperty)
+				guardPoliciesAction := ensureProperty(props, "guard-policies", guardPoliciesProperty)
+				logSchema.Printf("%s registry and %s guard-policies fields in stdioServerConfig", registryAction, guardPoliciesAction)
 			}
 		}
 
 		// Add registry and guard-policies to httpServerConfig
 		if httpConfig, ok := definitions["httpServerConfig"].(map[string]interface{}); ok {
 			if props, ok := httpConfig["properties"].(map[string]interface{}); ok {
-				props["registry"] = registryProperty
-				props["guard-policies"] = guardPoliciesProperty
-				logSchema.Print("Added registry and guard-policies fields to httpServerConfig")
+				registryAction := ensureProperty(props, "registry", registryProperty)
+				guardPoliciesAction := ensureProperty(props, "guard-policies", guardPoliciesProperty)
+				logSchema.Printf("%s registry and %s guard-policies fields in httpServerConfig", registryAction, guardPoliciesAction)
 			}
 		}
 
