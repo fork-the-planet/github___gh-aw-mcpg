@@ -44,6 +44,16 @@ func newNonceCache() *nonceCache {
 	return &nonceCache{entries: make(map[string]time.Time)}
 }
 
+// evictExpired removes entries whose deadline has passed.
+// Caller must hold c.mu.
+func (c *nonceCache) evictExpired(now time.Time) {
+	for n, deadline := range c.entries {
+		if now.After(deadline) {
+			delete(c.entries, n)
+		}
+	}
+}
+
 // checkAndSet returns true (and records the nonce) when the nonce has not been
 // seen before.  Returns false if the nonce is a duplicate.
 func (c *nonceCache) checkAndSet(nonce string) bool {
@@ -54,11 +64,7 @@ func (c *nonceCache) checkAndSet(nonce string) bool {
 
 	// Evict expired nonces on every call.  The nonce set is bounded by
 	// requests within the hmacMaxAgeSecs window, so this stays small.
-	for n, deadline := range c.entries {
-		if now.After(deadline) {
-			delete(c.entries, n)
-		}
-	}
+	c.evictExpired(now)
 
 	if _, seen := c.entries[nonce]; seen {
 		return false
@@ -75,11 +81,7 @@ func (c *nonceCache) seenNonce(nonce string) bool {
 	defer c.mu.Unlock()
 	now := time.Now()
 	// Evict expired entries so the map doesn't grow unboundedly.
-	for n, deadline := range c.entries {
-		if now.After(deadline) {
-			delete(c.entries, n)
-		}
-	}
+	c.evictExpired(now)
 	_, seen := c.entries[nonce]
 	return seen
 }
@@ -182,8 +184,5 @@ func hmacMiddleware(secret string, next http.HandlerFunc) http.HandlerFunc {
 // applyHMACIfConfigured wraps handler with HMAC validation when secret is non-empty.
 // If secret is empty the handler is returned unchanged (backward-compatible plain HTTP).
 func applyHMACIfConfigured(secret string, handler http.HandlerFunc) http.HandlerFunc {
-	if secret != "" {
-		return hmacMiddleware(secret, handler)
-	}
-	return handler
+	return applyIfConfigured(secret, handler, hmacMiddleware)
 }

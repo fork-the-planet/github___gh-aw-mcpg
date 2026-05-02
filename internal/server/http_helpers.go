@@ -218,6 +218,15 @@ func WithOTELTracing(next http.Handler, tag string) http.Handler {
 	return tracing.WrapHTTPHandler(enriched, "gateway.request", attribute.String("gateway.tag", tag))
 }
 
+// applyIfConfigured wraps handler with middleware(key, handler) when key is non-empty.
+// If key is empty the handler is returned unchanged.
+func applyIfConfigured(key string, handler http.HandlerFunc, middleware func(string, http.HandlerFunc) http.HandlerFunc) http.HandlerFunc {
+	if key != "" {
+		return middleware(key, handler)
+	}
+	return handler
+}
+
 // wrapWithMiddleware applies the standard middleware stack to an SDK handler.
 // The middleware is applied in the following order (outermost-first):
 // 1. OTEL tracing (WithOTELTracing) - OpenTelemetry span for the request

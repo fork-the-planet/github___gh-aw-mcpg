@@ -51,8 +51,5 @@ func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
 // applyAuthIfConfigured applies authentication middleware if an API key is provided
 // Returns the handler unchanged if apiKey is empty
 func applyAuthIfConfigured(apiKey string, handler http.HandlerFunc) http.HandlerFunc {
-	if apiKey != "" {
-		return authMiddleware(apiKey, handler)
-	}
-	return handler
+	return applyIfConfigured(apiKey, handler, authMiddleware)
 }
