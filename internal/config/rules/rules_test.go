@@ -1051,3 +1051,184 @@ func TestAbsolutePath(t *testing.T) {
 		})
 	}
 }
+
+func TestTimeoutMinimum(t *testing.T) {
+	tests := []struct {
+		name      string
+		timeout   int
+		min       int
+		fieldName string
+		jsonPath  string
+		shouldErr bool
+		errMsg    string
+	}{
+		{
+			name:      "value equals minimum",
+			timeout:   10,
+			min:       10,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: false,
+		},
+		{
+			name:      "value above minimum",
+			timeout:   30,
+			min:       10,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: false,
+		},
+		{
+			name:      "value below minimum",
+			timeout:   5,
+			min:       10,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: true,
+			errMsg:    "toolTimeout must be at least 10, got 5",
+		},
+		{
+			name:      "zero below positive minimum",
+			timeout:   0,
+			min:       1,
+			fieldName: "startupTimeout",
+			jsonPath:  "gateway.startupTimeout",
+			shouldErr: true,
+			errMsg:    "startupTimeout must be at least 1, got 0",
+		},
+		{
+			name:      "negative value below minimum",
+			timeout:   -5,
+			min:       10,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: true,
+			errMsg:    "toolTimeout must be at least 10, got -5",
+		},
+		{
+			name:      "zero minimum, zero value",
+			timeout:   0,
+			min:       0,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := TimeoutMinimum(tt.timeout, tt.min, tt.fieldName, tt.jsonPath)
+
+			if tt.shouldErr {
+				require.NotNil(t, err, "Expected validation error but got none")
+				assert.Contains(t, err.Message, tt.errMsg, "Error message should contain expected text")
+				assert.Equal(t, tt.jsonPath, err.JSONPath, "JSONPath should match")
+				assert.Equal(t, tt.fieldName, err.Field, "Field name should match")
+				assert.NotEmpty(t, err.Suggestion, "Suggestion should be non-empty")
+			} else {
+				require.NoError(t, validationErrAsError(err), "Unexpected validation error")
+			}
+		})
+	}
+}
+
+func TestTimeoutRange(t *testing.T) {
+	tests := []struct {
+		name      string
+		timeout   int
+		min       int
+		max       int
+		fieldName string
+		jsonPath  string
+		shouldErr bool
+		errMsg    string
+	}{
+		{
+			name:      "value equals minimum",
+			timeout:   10,
+			min:       10,
+			max:       120,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: false,
+		},
+		{
+			name:      "value equals maximum",
+			timeout:   120,
+			min:       10,
+			max:       120,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: false,
+		},
+		{
+			name:      "value within range",
+			timeout:   60,
+			min:       10,
+			max:       120,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: false,
+		},
+		{
+			name:      "value below minimum",
+			timeout:   5,
+			min:       10,
+			max:       120,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: true,
+			errMsg:    "toolTimeout must be between 10 and 120, got 5",
+		},
+		{
+			name:      "value above maximum",
+			timeout:   200,
+			min:       10,
+			max:       120,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: true,
+			errMsg:    "toolTimeout must be between 10 and 120, got 200",
+		},
+		{
+			name:      "negative value below minimum",
+			timeout:   -1,
+			min:       10,
+			max:       120,
+			fieldName: "toolTimeout",
+			jsonPath:  "gateway.toolTimeout",
+			shouldErr: true,
+			errMsg:    "toolTimeout must be between 10 and 120, got -1",
+		},
+		{
+			name:      "suggestion includes midpoint",
+			timeout:   0,
+			min:       10,
+			max:       90,
+			fieldName: "startupTimeout",
+			jsonPath:  "gateway.startupTimeout",
+			shouldErr: true,
+			errMsg:    "startupTimeout must be between 10 and 90, got 0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := TimeoutRange(tt.timeout, tt.min, tt.max, tt.fieldName, tt.jsonPath)
+
+			if tt.shouldErr {
+				require.NotNil(t, err, "Expected validation error but got none")
+				assert.Contains(t, err.Message, tt.errMsg, "Error message should contain expected text")
+				assert.Equal(t, tt.jsonPath, err.JSONPath, "JSONPath should match")
+				assert.Equal(t, tt.fieldName, err.Field, "Field name should match")
+				assert.NotEmpty(t, err.Suggestion, "Suggestion should be non-empty")
+				if tt.name == "suggestion includes midpoint" {
+					expectedMidpoint := tt.min + (tt.max-tt.min)/2
+					assert.Contains(t, err.Suggestion, fmt.Sprintf("%d", expectedMidpoint), "Suggestion should include the midpoint example value")
+				}
+			} else {
+				require.NoError(t, validationErrAsError(err), "Unexpected validation error")
+			}
+		})
+	}
+}
