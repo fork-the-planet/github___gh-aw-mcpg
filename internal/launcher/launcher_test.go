@@ -909,28 +909,28 @@ func TestGetServerState_ErrorTakesPrecedenceOverStart(t *testing.T) {
 }
 
 func TestClearServerForRestart_ClearsErrorState(t *testing.T) {
-cfg := newTestConfig(map[string]*config.ServerConfig{
-"test-server": {Type: "stdio", Command: "echo"},
-})
-l := New(context.Background(), cfg)
-defer l.Close()
+	cfg := newTestConfig(map[string]*config.ServerConfig{
+		"test-server": {Type: "stdio", Command: "echo"},
+	})
+	l := New(context.Background(), cfg)
+	defer l.Close()
 
-l.recordError("test-server", "connection refused")
-require.Equal(t, "error", l.GetServerState("test-server").Status)
+	l.recordError("test-server", "connection refused")
+	require.Equal(t, "error", l.GetServerState("test-server").Status)
 
-l.clearServerForRestart("test-server")
+	l.clearServerForRestart("test-server")
 
-state := l.GetServerState("test-server")
-assert.Equal(t, "stopped", state.Status)
-assert.Empty(t, state.LastError)
+	state := l.GetServerState("test-server")
+	assert.Equal(t, "stopped", state.Status)
+	assert.Empty(t, state.LastError)
 }
 
 func TestClearServerForRestart_ClearsStartTime(t *testing.T) {
-cfg := newTestConfig(map[string]*config.ServerConfig{
-"test-server": {Type: "stdio", Command: "echo"},
-})
-l := New(context.Background(), cfg)
-defer l.Close()
+	cfg := newTestConfig(map[string]*config.ServerConfig{
+		"test-server": {Type: "stdio", Command: "echo"},
+	})
+	l := New(context.Background(), cfg)
+	defer l.Close()
 
 l.recordStart("test-server")
 require.False(t, l.serverStartTimes["test-server"].IsZero(), "start time should be set")
