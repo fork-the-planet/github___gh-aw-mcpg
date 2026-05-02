@@ -124,8 +124,8 @@ func extractAndValidateSession(r *http.Request) string {
 	sessionID := auth.ExtractSessionID(authHeader)
 
 	if sessionID == "" {
-		logSession.Printf("Session extraction failed: no Authorization header, remote=%s", r.RemoteAddr)
-		logger.LogError("client", "Rejected MCP client connection: no Authorization header, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
+		logSession.Printf("Session extraction failed: missing or invalid Authorization header, remote=%s", r.RemoteAddr)
+		logger.LogError("client", "Rejected MCP client connection: missing or invalid Authorization header, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
 		return ""
 	}
 
