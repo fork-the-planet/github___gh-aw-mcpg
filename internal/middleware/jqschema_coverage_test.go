@@ -4,8 +4,7 @@ package middleware
 //   - inferSchema default case (custom types via reflect)
 //   - savePayload error paths (unwritable directories)
 //   - WrapToolHandler with custom struct data (triggers default branch in type switch)
-//   - WrapToolHandler when savePayload fails (continues and returns original on save failure)
-//   - applyJqSchema when iter.Next returns false (no results) via nil compiled code trick
+//   - WrapToolHandler when savePayload fails (continues and returns metadata on save failure)
 
 import (
 	"context"
