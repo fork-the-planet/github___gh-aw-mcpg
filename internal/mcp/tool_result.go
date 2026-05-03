@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -12,118 +13,156 @@ var logToolResult = logger.New("mcp:tool_result")
 
 // ConvertToCallToolResult converts backend result data to SDK CallToolResult format.
 // The backend returns a JSON object with a "content" field containing an array of content items.
+//
+// Fast path: when data is already a deserialized map[string]interface{} (the common case
+// after json.Unmarshal(response.Result, &interface{})), the function skips the redundant
+// marshal/unmarshal round-trip and works with the map directly.
 func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 	logToolResult.Print("Converting backend result to CallToolResult")
-	// Try to marshal and unmarshal to get the structure
+
+	// Fast path: map[string]interface{} — avoids a full marshal+3×unmarshal cycle.
+	if m, ok := data.(map[string]interface{}); ok {
+		return convertMapToCallToolResult(m)
+	}
+
+	// Fast path: []interface{} — some backends return arrays directly.
+	if _, ok := data.([]interface{}); ok {
+		dataBytes, err := json.Marshal(data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal backend result: %w", err)
+		}
+		logToolResult.Printf("Backend returned array, wrapping as text")
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: string(dataBytes)}},
+		}, nil
+	}
+
+	// Slow path: scalar types (string, nil, etc.) and anything else.
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal backend result: %w", err)
 	}
+	logToolResult.Printf("No content field found (scalar type), wrapping raw response as text")
+	return &sdk.CallToolResult{
+		Content: []sdk.Content{&sdk.TextContent{Text: string(dataBytes)}},
+	}, nil
+}
 
-	// First, try to detect if the response is an array (some backends return arrays directly)
-	var rawArray []json.RawMessage
-	if err := json.Unmarshal(dataBytes, &rawArray); err == nil {
-		// It's an array - wrap it as a single text content item
-		logToolResult.Printf("Backend returned array with %d items, wrapping as text", len(rawArray))
-		return &sdk.CallToolResult{
-			Content: []sdk.Content{
-				&sdk.TextContent{
-					Text: string(dataBytes),
-				},
-			},
-			IsError: false,
-		}, nil
-	}
+// convertMapToCallToolResult is the fast path for map[string]interface{} input.
+// It inspects the map directly without marshaling, saving one marshal + up to three
+// unmarshal operations compared to the original JSON round-trip approach.
+func convertMapToCallToolResult(m map[string]interface{}) (*sdk.CallToolResult, error) {
+	isError, _ := m["isError"].(bool)
 
-	// Check if response is an object with a "content" field (standard MCP format)
-	// We need to distinguish between:
-	// 1. {"content": []} - empty array, should preserve as 0 content items
-	// 2. {"content": [...]} - has items, process normally
-	// 3. {"some": "other"} - no content field, wrap as text
-	var hasContentField struct {
-		Content *json.RawMessage `json:"content"`
-		IsError bool             `json:"isError,omitempty"`
-	}
-
-	if err := json.Unmarshal(dataBytes, &hasContentField); err != nil || hasContentField.Content == nil {
-		// No "content" field or parse error - wrap raw response as text
+	contentVal, hasContent := m["content"]
+	if !hasContent || contentVal == nil {
+		dataBytes, err := json.Marshal(m)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal backend result: %w", err)
+		}
 		logToolResult.Printf("No content field found, wrapping raw response as text")
 		return &sdk.CallToolResult{
-			Content: []sdk.Content{
-				&sdk.TextContent{
-					Text: string(dataBytes),
-				},
-			},
-			IsError: false,
+			Content: []sdk.Content{&sdk.TextContent{Text: string(dataBytes)}},
 		}, nil
 	}
 
-	// Parse the backend result structure (standard MCP CallToolResult format)
-	var backendResult struct {
-		Content []struct {
-			Type     string                `json:"type"`
-			Text     string                `json:"text,omitempty"`
-			Data     []byte                `json:"data,omitempty"`     // image/audio binary data (automatically decoded from base64 JSON)
-			MIMEType string                `json:"mimeType,omitempty"` // image/audio MIME type
-			Resource *sdk.ResourceContents `json:"resource,omitempty"` // embedded resource
-		} `json:"content"`
-		IsError bool `json:"isError,omitempty"`
-	}
-
-	if err := json.Unmarshal(dataBytes, &backendResult); err != nil {
-		// If parsing fails, wrap the raw response as text content
-		logToolResult.Printf("Failed to parse as CallToolResult, wrapping raw response: %v", err)
-		return &sdk.CallToolResult{
-			Content: []sdk.Content{
-				&sdk.TextContent{
-					Text: string(dataBytes),
-				},
-			},
-			IsError: false,
-		}, nil
-	}
-
-	// Convert content items to SDK Content format
-	// Note: Empty content array is valid and should be preserved (0 items)
-	content := make([]sdk.Content, 0, len(backendResult.Content))
-	for _, item := range backendResult.Content {
-		switch item.Type {
-		case "text":
-			content = append(content, &sdk.TextContent{
-				Text: item.Text,
-			})
-		case "image":
-			content = append(content, &sdk.ImageContent{
-				Data:     item.Data,
-				MIMEType: item.MIMEType,
-			})
-		case "audio":
-			content = append(content, &sdk.AudioContent{
-				Data:     item.Data,
-				MIMEType: item.MIMEType,
-			})
-		case "resource":
-			if item.Resource != nil {
-				content = append(content, &sdk.EmbeddedResource{
-					Resource: item.Resource,
-				})
-			} else {
-				logToolResult.Printf("Resource content item missing 'resource' field, skipping")
+	// Collect content items from either []interface{} (produced by json.Unmarshal) or
+	// []map[string]interface{} (produced by helpers like BuildMCPTextResponse).
+	var items []map[string]interface{}
+	switch v := contentVal.(type) {
+	case []interface{}:
+		items = make([]map[string]interface{}, 0, len(v))
+		for _, item := range v {
+			if ci, ok := item.(map[string]interface{}); ok {
+				items = append(items, ci)
 			}
-		default:
-			// For unknown types, preserve as text with whatever text field is present
-			logToolResult.Printf("Unknown content type '%s', treating as text", item.Type)
-			content = append(content, &sdk.TextContent{
-				Text: item.Text,
-			})
+		}
+	case []map[string]interface{}:
+		items = v
+	default:
+		// content field exists but is not a recognizable slice type — wrap the whole map as text.
+		dataBytes, err := json.Marshal(m)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal backend result: %w", err)
+		}
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: string(dataBytes)}},
+		}, nil
+	}
+
+	// Note: empty content array is valid and should be preserved (0 items).
+	content := make([]sdk.Content, 0, len(items))
+	for _, ci := range items {
+		c, err := convertContentItem(ci)
+		if err != nil {
+			return nil, err
+		}
+		if c != nil {
+			content = append(content, c)
 		}
 	}
 
-	logToolResult.Printf("Converted result: content_items=%d, is_error=%v", len(content), backendResult.IsError)
-	return &sdk.CallToolResult{
-		Content: content,
-		IsError: backendResult.IsError,
-	}, nil
+	logToolResult.Printf("Converted result: content_items=%d, is_error=%v", len(content), isError)
+	return &sdk.CallToolResult{Content: content, IsError: isError}, nil
+}
+
+// convertContentItem converts a single deserialized content-item map to the SDK Content type.
+func convertContentItem(ci map[string]interface{}) (sdk.Content, error) {
+	itemType, _ := ci["type"].(string)
+	switch itemType {
+	case "text":
+		text, _ := ci["text"].(string)
+		return &sdk.TextContent{Text: text}, nil
+	case "image":
+		mimeType, _ := ci["mimeType"].(string)
+		data, err := decodeContentData(ci)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode image data: %w", err)
+		}
+		return &sdk.ImageContent{Data: data, MIMEType: mimeType}, nil
+	case "audio":
+		mimeType, _ := ci["mimeType"].(string)
+		data, err := decodeContentData(ci)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decode audio data: %w", err)
+		}
+		return &sdk.AudioContent{Data: data, MIMEType: mimeType}, nil
+	case "resource":
+		resVal, hasRes := ci["resource"]
+		if !hasRes || resVal == nil {
+			logToolResult.Printf("Resource content item missing 'resource' field, skipping")
+			return nil, nil
+		}
+		// sdk.ResourceContents is a complex nested struct; use a targeted JSON round-trip
+		// only for this item rather than the whole result.
+		resBytes, err := json.Marshal(resVal)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal resource: %w", err)
+		}
+		var res sdk.ResourceContents
+		if err := json.Unmarshal(resBytes, &res); err != nil {
+			return nil, fmt.Errorf("failed to parse resource: %w", err)
+		}
+		return &sdk.EmbeddedResource{Resource: &res}, nil
+	default:
+		text, _ := ci["text"].(string)
+		logToolResult.Printf("Unknown content type '%s', treating as text", itemType)
+		return &sdk.TextContent{Text: text}, nil
+	}
+}
+
+// decodeContentData decodes the base64-encoded "data" field from a content item map.
+// When data arrives via json.Unmarshal into interface{}, []byte fields are stored as
+// base64 strings; this function handles both the string and pre-decoded []byte forms.
+func decodeContentData(ci map[string]interface{}) ([]byte, error) {
+	switch v := ci["data"].(type) {
+	case []byte:
+		return v, nil
+	case string:
+		return base64.StdEncoding.DecodeString(v)
+	default:
+		return nil, nil
+	}
 }
 
 // ParseToolArguments extracts and unmarshals tool arguments from a CallToolRequest.
