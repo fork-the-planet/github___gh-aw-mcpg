@@ -256,15 +256,18 @@ func TestWrapToolHandler_SavePayloadFailure(t *testing.T) {
 
 	// Assert the observable failure-specific behavior: the wrapper still returns
 	// metadata (schema + preview), but no payload path/file is produced.
-	resultJSON, marshalErr := json.Marshal(result)
-	require.NoError(t, marshalErr)
-	assert.Contains(t, string(resultJSON), `"schema"`, "expected metadata response to include schema when payload saving fails")
-	assert.Contains(t, string(resultJSON), `"preview"`, "expected metadata response to include preview when payload saving fails")
-	assert.NotContains(t, string(resultJSON), `"payload_path"`, "metadata response should not include a saved payload path when savePayload fails")
+	require.Len(t, result.Content, 1)
+	textContent, ok := result.Content[0].(*sdk.TextContent)
+	require.True(t, ok, "expected TextContent in result")
+
+	var meta map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &meta))
+	assert.Contains(t, meta, "payloadSchema", "expected metadata response to include payloadSchema when payload saving fails")
+	assert.Contains(t, meta, "payloadPreview", "expected metadata response to include payloadPreview when payload saving fails")
+	// payloadPath should be empty (no file was saved).
+	assert.Equal(t, "", meta["payloadPath"], "payloadPath should be empty when savePayload fails")
 
 	entries, readErr := os.ReadDir(baseDir)
 	require.NoError(t, readErr)
 	assert.Len(t, entries, 0, "savePayload failure path should not leave any saved payload files or directories behind")
 }
-
-
