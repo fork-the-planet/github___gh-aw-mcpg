@@ -430,3 +430,19 @@ func TestBuildMCPTextResponse(t *testing.T) {
 	assert.Equal("text", content[0]["type"])
 	assert.Equal(text, content[0]["text"])
 }
+
+// BenchmarkConvertToCallToolResult_TextContent benchmarks the common case:
+// a map[string]interface{} with text content items (fast path).
+func BenchmarkConvertToCallToolResult_TextContent(b *testing.B) {
+input := map[string]interface{}{
+"content": []interface{}{
+map[string]interface{}{"type": "text", "text": "response line 1"},
+map[string]interface{}{"type": "text", "text": "response line 2"},
+},
+"isError": false,
+}
+b.ResetTimer()
+for range b.N {
+_, _ = ConvertToCallToolResult(input)
+}
+}
