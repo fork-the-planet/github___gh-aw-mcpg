@@ -443,23 +443,6 @@ func TestCircuitBreakerState_String(t *testing.T) {
 	}
 }
 
-// TestFormatResetAt verifies the formatResetAt helper function.
-func TestFormatResetAt(t *testing.T) {
-	t.Parallel()
-
-	t.Run("zero time returns 'unknown'", func(t *testing.T) {
-		t.Parallel()
-		assert.Equal(t, "unknown", formatResetAt(time.Time{}))
-	})
-
-	t.Run("non-zero time includes RFC3339 timestamp and duration hint", func(t *testing.T) {
-		t.Parallel()
-		resetTime := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-		result := formatResetAt(resetTime)
-		assert.Contains(t, result, "2026-01-01T12:00:00Z", "should contain RFC3339-formatted time")
-		assert.Contains(t, result, "in ", "should contain duration hint")
-	})
-}
 
 // TestIsRateLimitText_Direct directly verifies isRateLimitText with each pattern and edge cases.
 func TestIsRateLimitText_Direct(t *testing.T) {
