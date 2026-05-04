@@ -33,6 +33,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 // SecretPatterns contains regex patterns for detecting potential secrets
@@ -82,12 +84,13 @@ func SanitizeString(message string) string {
 // For strings with 4 or fewer characters, it returns only "...".
 // For empty strings, it returns an empty string.
 func TruncateSecret(input string) string {
-	if len(input) > 4 {
-		return input[:4] + "..."
-	} else if len(input) > 0 {
+	if len(input) == 0 {
+		return ""
+	}
+	if len(input) <= 4 {
 		return "..."
 	}
-	return ""
+	return strutil.TruncateWithSuffix(input, 4, "...")
 }
 
 // TruncateSecretMap returns a sanitized version of environment variables

@@ -145,10 +145,9 @@ func init() {
 	logger.LogInfo("startup", "jq schema filter compiled successfully - native Go walk_schema, array limit: 2^29 elements, timeout: %v", DefaultJqTimeout)
 }
 
-// generateRandomID generates a random ID for payload storage
-func generateRandomID() string {
-	return strutil.RandomHexWithFallback(16)
-}
+// queryIDBytes is the number of random bytes used to generate a query ID.
+// The resulting hex string has length 2*queryIDBytes (32 characters).
+const queryIDBytes = 16
 
 // applyJqSchema applies the jq schema transformation to JSON data
 // Uses pre-compiled query code for better performance (3-10x faster than parsing on each request)
@@ -295,7 +294,7 @@ func WrapToolHandler(
 		toolName, sizeThreshold, baseDir, pathPrefix != "")
 	return func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
 		// Generate random query ID
-		queryID := generateRandomID()
+		queryID := strutil.RandomHexWithFallback(queryIDBytes)
 
 		// Get session ID from context
 		sessionID := getSessionID(ctx)
