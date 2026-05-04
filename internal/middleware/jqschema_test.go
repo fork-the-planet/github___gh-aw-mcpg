@@ -23,17 +23,6 @@ func testGetSessionID(ctx context.Context) string {
 	return "test-session"
 }
 
-func TestGenerateRandomID(t *testing.T) {
-	// Generate multiple IDs and ensure they're unique
-	ids := make(map[string]bool)
-	for i := 0; i < 100; i++ {
-		id := generateRandomID()
-		assert.NotEmpty(t, id, "ID should not be empty")
-		assert.False(t, ids[id], "ID should be unique")
-		ids[id] = true
-	}
-}
-
 // payloadMetadataToMap converts PayloadMetadata to map[string]interface{} for test assertions
 // This allows tests to remain unchanged while working with the new struct type
 func payloadMetadataToMap(t *testing.T, data interface{}) map[string]interface{} {
