@@ -128,7 +128,7 @@ pub fn label_response_items(
                 graphql_single_buf = [obj.clone()];
                 &graphql_single_buf
             } else if actual_response.is_object() && !is_graphql_wrapper(&actual_response) && !is_search_result_wrapper(&actual_response) && !is_mcp_text_wrapper(&actual_response) {
-                single_item_buf = [actual_response.clone()];
+                single_item_buf = [actual_response.as_ref().clone()];
                 &single_item_buf
             } else {
                 &[]
@@ -240,7 +240,7 @@ pub fn label_response_items(
             } else if let Some(obj) = extract_graphql_single_object(&actual_response) {
                 vec![obj]
             } else if actual_response.is_object() && !is_graphql_wrapper(&actual_response) && !is_search_result_wrapper(&actual_response) && !is_mcp_text_wrapper(&actual_response) {
-                vec![&actual_response]
+                vec![actual_response.as_ref()]
             } else {
                 Vec::new()
             };
