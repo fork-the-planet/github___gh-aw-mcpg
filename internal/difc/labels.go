@@ -85,9 +85,7 @@ func (l *Label) Union(other *Label) {
 		return
 	}
 	other.mu.RLock()
-	defer other.mu.RUnlock()
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	added := 0
 	for tag := range other.tags {
 		if _, exists := l.tags[tag]; !exists {
@@ -95,6 +93,8 @@ func (l *Label) Union(other *Label) {
 			added++
 		}
 	}
+	l.mu.Unlock()
+	other.mu.RUnlock()
 	if added > 0 {
 		logLabels.Printf("Label union: merged %d new tags from other label", added)
 	}
@@ -106,30 +106,40 @@ func (l *Label) Intersect(other *Label) {
 	if other == nil {
 		// Intersection with nil/empty is empty
 		l.mu.Lock()
-		defer l.mu.Unlock()
+		before := len(l.tags)
 		l.tags = make(map[Tag]struct{})
+		l.mu.Unlock()
+		logLabels.Printf("Intersect with nil: cleared %d tags", before)
 		return
 	}
 	other.mu.RLock()
-	defer other.mu.RUnlock()
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	// Remove tags not in other
+	removed := 0
 	for tag := range l.tags {
 		if _, ok := other.tags[tag]; !ok {
 			delete(l.tags, tag)
+			removed++
 		}
+	}
+	remaining := len(l.tags)
+	l.mu.Unlock()
+	other.mu.RUnlock()
+	if removed > 0 {
+		logLabels.Printf("Intersect: removed %d tags, %d remaining", removed, remaining)
 	}
 }
 
 // Clone creates a copy of this label
 func (l *Label) Clone() *Label {
 	l.mu.RLock()
-	defer l.mu.RUnlock()
 	newLabel := NewLabel()
 	for tag := range l.tags {
 		newLabel.tags[tag] = struct{}{}
 	}
+	count := len(newLabel.tags)
+	l.mu.RUnlock()
+	logLabels.Printf("Cloned label: %d tags", count)
 	return newLabel
 }
 
@@ -372,6 +382,7 @@ type ViolationError struct {
 }
 
 func (e *ViolationError) Error() string {
+	logLabels.Printf("Formatting %s violation: resource=%s, isWrite=%v", e.Type, e.Resource, e.IsWrite)
 	var msg string
 
 	if e.Type == SecrecyViolation {
@@ -420,6 +431,7 @@ func formatIntegrityLevel(tags []Tag) string {
 		}
 		switch s {
 		case "merged":
+			logLabels.Printf("formatIntegrityLevel: resolved to \"merged\" from tags=%v", tags)
 			return "\"merged\""
 		case "approved":
 			highest = "\"approved\""
@@ -430,6 +442,7 @@ func formatIntegrityLevel(tags []Tag) string {
 		}
 	}
 	if highest != "" {
+		logLabels.Printf("formatIntegrityLevel: resolved to %s from tags=%v", highest, tags)
 		return highest
 	}
 	return fmt.Sprintf("%v", tags)
@@ -460,6 +473,7 @@ func formatSecrecyLevel(tags []Tag) string {
 	}
 
 	if bestScope != "" {
+		logLabels.Printf("formatSecrecyLevel: resolved to private(%s) from tags=%v", bestScope, tags)
 		return fmt.Sprintf("private (%s)", bestScope)
 	}
 	if hasPrivate {
