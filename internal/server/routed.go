@@ -122,8 +122,8 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 }
 
 // getSessionTimeout returns the session timeout by reading MCP_GATEWAY_SESSION_TIMEOUT
-// with a 6-hour default. It is shared by both routed and unified (transport) mode and
-// extracted as a package-level function so tests can assert the env-var wiring directly.
+// with a 6-hour default. It is shared by both routed mode and unified (transport) mode
+// and extracted as a package-level function so tests can assert the env-var wiring directly.
 func getSessionTimeout() time.Duration {
 	return envutil.GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour)
 }
