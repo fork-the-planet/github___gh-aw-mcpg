@@ -382,7 +382,7 @@ func TestHTTPRequest_ErrorResponses(t *testing.T) {
 			if err != nil {
 				require.True(t, tt.expectError, "Unexpected error creating connection: %v", err)
 				if tt.errorSubstring != "" {
-					assert.Contains(t, err.Error(), tt.errorSubstring, "Error should contain expected substring")
+					assert.ErrorContains(t, err, tt.errorSubstring, "Error should contain expected substring")
 				}
 				return
 			}
@@ -393,7 +393,7 @@ func TestHTTPRequest_ErrorResponses(t *testing.T) {
 			if tt.expectError {
 				require.Error(t, err, "Expected an error but got none")
 				if tt.errorSubstring != "" {
-					assert.Contains(t, err.Error(), tt.errorSubstring, "Error should contain expected substring")
+					assert.ErrorContains(t, err, tt.errorSubstring, "Error should contain expected substring")
 				}
 			} else {
 				assert.NoError(t, err)
@@ -472,7 +472,7 @@ func TestHTTPConnection_InvalidURL(t *testing.T) {
 			if tt.expectError {
 				require.Error(t, err, "Expected an error but got none")
 				if tt.errorSubstring != "" {
-					assert.Contains(t, err.Error(), tt.errorSubstring, "Error should contain expected substring")
+					assert.ErrorContains(t, err, tt.errorSubstring, "Error should contain expected substring")
 				}
 			} else {
 				assert.NoError(t, err)
@@ -665,7 +665,7 @@ func TestConnection_RequireSession(t *testing.T) {
 
 			if tt.expectError {
 				assert.Error(t, err, "requireSession should return error when session is nil")
-				assert.Contains(t, err.Error(), "SDK session not available for plain JSON-RPC transport",
+				assert.ErrorContains(t, err, "SDK session not available for plain JSON-RPC transport",
 					"Error message should contain expected text")
 			} else {
 				// This test case can't be fully tested without a real SDK session
@@ -869,7 +869,7 @@ data: {"jsonrpc":"2.0","id":2,"error":{"code":-32601,"message":"Method not found
 			if tt.wantError {
 				assert.Error(t, err)
 				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
+					assert.ErrorContains(t, err, tt.errorContains)
 				}
 				return
 			}
@@ -919,13 +919,13 @@ data:   {"jsonrpc":"2.0","id":2,"result":{}}
 		invalidJSON := strings.Repeat("x", 501)
 		_, err := parseJSONRPCResponseWithSSE([]byte(invalidJSON), 200, "test")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "(truncated)")
+		assert.ErrorContains(t, err, "(truncated)")
 	})
 
 	t.Run("context description appears in error message", func(t *testing.T) {
 		_, err := parseJSONRPCResponseWithSSE([]byte(`invalid`), 200, "initialize response")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "initialize response")
+		assert.ErrorContains(t, err, "initialize response")
 	})
 
 	t.Run("null result is valid", func(t *testing.T) {
@@ -990,8 +990,8 @@ func TestPaginateAll(t *testing.T) {
 			return paginatedPage[string]{Items: []string{"x"}, NextCursor: nextCursor}, nil
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "more than")
-		assert.Contains(t, err.Error(), "pages")
+		assert.ErrorContains(t, err, "more than")
+		assert.ErrorContains(t, err, "pages")
 		// Must stop at the page limit, not run forever.
 		assert.Equal(t, paginateAllMaxPages, callCount)
 	})
@@ -1013,8 +1013,8 @@ func TestPaginateAll(t *testing.T) {
 		})
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cyclical cursor")
-		assert.Contains(t, err.Error(), "page2")
+		assert.ErrorContains(t, err, "cyclical cursor")
+		assert.ErrorContains(t, err, "page2")
 		// Initial page + 2 unique cursor fetches, then cycle detected before another fetch.
 		assert.Equal(t, 3, callCount)
 	})
@@ -1024,7 +1024,7 @@ func TestPaginateAll(t *testing.T) {
 			return paginatedPage[string]{}, fmt.Errorf("backend unavailable")
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "backend unavailable")
+		assert.ErrorContains(t, err, "backend unavailable")
 	})
 
 	t.Run("fetch error on subsequent page propagates", func(t *testing.T) {
@@ -1037,7 +1037,7 @@ func TestPaginateAll(t *testing.T) {
 			return paginatedPage[string]{}, fmt.Errorf("page 2 fetch failed")
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "page 2 fetch failed")
+		assert.ErrorContains(t, err, "page 2 fetch failed")
 		assert.Equal(t, 2, call)
 	})
 
@@ -1063,7 +1063,7 @@ func TestListMCPItems_NilSession(t *testing.T) {
 		func(items []string) []string { return items },
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.ErrorContains(t, err, "SDK session not available")
 	assert.False(t, fetchCalled, "fetch should not be called when session is unavailable")
 }
 
@@ -1081,6 +1081,6 @@ func TestCallParamMethod_NilSession(t *testing.T) {
 		return nil, nil
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.ErrorContains(t, err, "SDK session not available")
 	assert.False(t, fnCalled, "handler should not be called when session is unavailable")
 }

@@ -98,8 +98,8 @@ func TestTCFG011_RejectCustomTypeWithoutRegistration(t *testing.T) {
 	// Validate should fail for unregistered custom type
 	err = validateServerConfigWithCustomSchemas("unregistered-server", server, stdinCfg.CustomSchemas)
 	assert.Error(t, err, "Unregistered custom server type should be rejected")
-	assert.Contains(t, err.Error(), "unregistered")
-	assert.Contains(t, err.Error(), "not registered in customSchemas")
+	assert.ErrorContains(t, err, "unregistered")
+	assert.ErrorContains(t, err, "not registered in customSchemas")
 }
 
 // T-CFG-012: Validate custom configuration against registered schema
@@ -204,7 +204,7 @@ func TestTCFG012_ValidateAgainstCustomSchema(t *testing.T) {
 		server := stdinCfg.MCPServers["invalid-custom"]
 		err = validateServerConfigWithCustomSchemas("invalid-custom", server, stdinCfg.CustomSchemas)
 		assert.Error(t, err, "Configuration missing required fields should fail validation")
-		assert.Contains(t, err.Error(), "does not match custom schema")
+		assert.ErrorContains(t, err, "does not match custom schema")
 	})
 
 	t.Run("empty_string_skips_validation", func(t *testing.T) {
@@ -270,8 +270,8 @@ func TestTCFG013_RejectReservedTypeNames(t *testing.T) {
 			// Validation should reject reserved type names in customSchemas
 			err = validateCustomSchemas(stdinCfg.CustomSchemas)
 			assert.Error(t, err, "Reserved type name %q should be rejected in customSchemas", tt.reservedType)
-			assert.Contains(t, err.Error(), tt.reservedType)
-			assert.Contains(t, err.Error(), "reserved")
+			assert.ErrorContains(t, err, tt.reservedType)
+			assert.ErrorContains(t, err, "reserved")
 		})
 	}
 }
@@ -295,7 +295,7 @@ func TestTCFG013b_RejectNonHTTPSSchemaURLs(t *testing.T) {
 
 			err := validateCustomSchemas(customSchemas)
 			assert.Error(t, err, "Non-HTTPS schema URL %q should be rejected", tt.schemaURL)
-			assert.Contains(t, err.Error(), "must use HTTPS")
+			assert.ErrorContains(t, err, "must use HTTPS")
 		})
 	}
 }

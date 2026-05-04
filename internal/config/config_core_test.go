@@ -40,7 +40,7 @@ func TestLoadFromFile_FileNotFound(t *testing.T) {
 	cfg, err := LoadFromFile("/nonexistent/path/to/config.toml")
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "failed to open config file")
+	assert.ErrorContains(t, err, "failed to open config file")
 }
 
 // TestLoadFromFile_InvalidTOML verifies that LoadFromFile returns an error
@@ -53,7 +53,7 @@ command = "docker"
 	cfg, err := LoadFromFile(path)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "failed to parse TOML")
+	assert.ErrorContains(t, err, "failed to parse TOML")
 }
 
 // TestLoadFromFile_EmptyServers verifies that LoadFromFile returns an error
@@ -67,7 +67,7 @@ api_key = "test-key"
 	cfg, err := LoadFromFile(path)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "no servers defined")
+	assert.ErrorContains(t, err, "no servers defined")
 }
 
 // TestLoadFromFile_StdioNonDockerCommand verifies that LoadFromFile returns an error
@@ -81,8 +81,8 @@ args = ["server.py"]
 	cfg, err := LoadFromFile(path)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "badserver")
-	assert.Contains(t, err.Error(), "docker")
+	assert.ErrorContains(t, err, "badserver")
+	assert.ErrorContains(t, err, "docker")
 }
 
 // TestLoadFromFile_StdioLocalTypeNonDockerCommand verifies that stdio servers
@@ -97,7 +97,7 @@ args = ["server.js"]
 	cfg, err := LoadFromFile(path)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "localserver")
+	assert.ErrorContains(t, err, "localserver")
 }
 
 // TestLoadFromFile_HTTPServerValid verifies that an HTTP server does not require
@@ -206,7 +206,7 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 	cfg, err := LoadFromFile(path)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "unrecognized field")
+	assert.ErrorContains(t, err, "unrecognized field")
 }
 
 // TestLoadFromFile_TrustedBotsEmptyArray verifies that an explicitly set but
@@ -223,7 +223,7 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 	cfg, err := LoadFromFile(path)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "trusted_bots")
+	assert.ErrorContains(t, err, "trusted_bots")
 }
 
 // TestLoadFromFile_TrustedBotsEmptyString verifies that a trusted_bots entry
@@ -240,7 +240,7 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 	cfg, err := LoadFromFile(path)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "trusted_bots")
+	assert.ErrorContains(t, err, "trusted_bots")
 }
 
 // TestLoadFromFile_TrustedBotsValid verifies that a non-empty trusted_bots list
@@ -374,7 +374,7 @@ audience = "https://example.com"
 	cfg, err := LoadFromFile(path)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "ACTIONS_ID_TOKEN_REQUEST_URL")
+	assert.ErrorContains(t, err, "ACTIONS_ID_TOKEN_REQUEST_URL")
 }
 
 // TestLoadFromFile_OIDCAuthWithEnvVarSet verifies that LoadFromFile succeeds
@@ -416,8 +416,8 @@ audience = "https://example.com"
 	cfg, err := LoadFromFile(path)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "auth")
-	assert.Contains(t, err.Error(), "Remove the auth configuration or change the server type to \"http\"")
+	assert.ErrorContains(t, err, "auth")
+	assert.ErrorContains(t, err, "Remove the auth configuration or change the server type to \"http\"")
 }
 
 // TestLoadFromFile_NegativePayloadSizeThresholdRejected verifies that TOML configs with
@@ -434,7 +434,7 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 	cfg, err := LoadFromFile(path)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "payload_size_threshold must be a positive integer")
+	assert.ErrorContains(t, err, "payload_size_threshold must be a positive integer")
 }
 
 // TestHTTPKeepaliveInterval tests all branches of the HTTPKeepaliveInterval method.

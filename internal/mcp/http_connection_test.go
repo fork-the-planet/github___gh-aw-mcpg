@@ -140,7 +140,7 @@ func TestNewHTTPConnection_AllTransportsFail(t *testing.T) {
 	// Should fail after trying all transports
 	require.Error(err, "Should fail when all transports fail")
 	require.Nil(conn, "Connection should be nil on failure")
-	require.Contains(err.Error(), "failed to connect using any HTTP transport")
+	require.ErrorContains(err, "failed to connect using any HTTP transport")
 }
 
 // TestNewHTTPConnection_ContextCancellation tests that context cancellation is handled properly
@@ -279,7 +279,7 @@ func TestTryPlainJSONTransport_InitializeFailure(t *testing.T) {
 			// Should fail with appropriate error
 			require.Error(t, err, "Should fail on initialization error")
 			require.Nil(t, conn, "Connection should be nil")
-			assert.Contains(t, err.Error(), tt.errorSubstring, "Error should contain expected substring")
+			assert.ErrorContains(t, err, tt.errorSubstring, "Error should contain expected substring")
 		})
 	}
 }
@@ -537,7 +537,7 @@ func TestNewHTTPConnection_ConnectionRefused(t *testing.T) {
 	// Should fail with connection error
 	require.Error(err, "Should fail with connection refused")
 	require.Nil(conn, "Connection should be nil")
-	assert.Contains(t, err.Error(), "failed to connect")
+	assert.ErrorContains(t, err, "failed to connect")
 }
 
 // TestNewHTTPConnection_GettersAfterCreation tests that getter methods work correctly

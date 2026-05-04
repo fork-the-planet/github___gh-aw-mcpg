@@ -239,9 +239,9 @@ func TestNewCompletionCmd_DefaultCaseFallback(t *testing.T) {
 	// Bypass Args validation and call RunE directly.
 	err := completionCmd.RunE(completionCmd, []string{"unsupported-shell"})
 	require.Error(t, err, "unsupported shell should return an error")
-	assert.Contains(t, err.Error(), "unsupported shell type",
+	assert.ErrorContains(t, err, "unsupported shell type",
 		"error message should describe the unsupported shell type")
-	assert.Contains(t, err.Error(), "unsupported-shell",
+	assert.ErrorContains(t, err, "unsupported-shell",
 		"error message should include the provided shell name")
 }
 

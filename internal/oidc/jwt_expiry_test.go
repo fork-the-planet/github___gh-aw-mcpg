@@ -29,7 +29,7 @@ func encodePayloadRaw(json string) string {
 func TestExtractJWTExpiry_ValidToken_NoPaddingNeeded(t *testing.T) {
 	// payload raw length = 12, mod4 = 0 → no padding added
 	rawPayload := encodePayloadRaw(`{"exp":1}`)
-	assert.Equal(t, 12, len(rawPayload))
+	assert.Len(t, rawPayload, 12)
 	assert.Equal(t, 0, len(rawPayload)%4)
 
 	token := makeRawJWT(rawPayload)
@@ -45,7 +45,7 @@ func TestExtractJWTExpiry_ValidToken_NoPaddingNeeded(t *testing.T) {
 func TestExtractJWTExpiry_ValidToken_TwoCharPadding(t *testing.T) {
 	// payload raw length = 14, mod4 = 2 → "==" appended
 	rawPayload := encodePayloadRaw(`{"exp":12}`)
-	assert.Equal(t, 14, len(rawPayload))
+	assert.Len(t, rawPayload, 14)
 	assert.Equal(t, 2, len(rawPayload)%4)
 
 	token := makeRawJWT(rawPayload)
@@ -61,7 +61,7 @@ func TestExtractJWTExpiry_ValidToken_TwoCharPadding(t *testing.T) {
 func TestExtractJWTExpiry_ValidToken_OneCharPadding(t *testing.T) {
 	// payload raw length = 15, mod4 = 3 → "=" appended
 	rawPayload := encodePayloadRaw(`{"exp":123}`)
-	assert.Equal(t, 15, len(rawPayload))
+	assert.Len(t, rawPayload, 15)
 	assert.Equal(t, 3, len(rawPayload)%4)
 
 	token := makeRawJWT(rawPayload)
@@ -104,7 +104,7 @@ func TestExtractJWTExpiry_ZeroExp(t *testing.T) {
 
 	_, err := extractJWTExpiry(token)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "JWT has no exp claim")
+	assert.ErrorContains(t, err, "JWT has no exp claim")
 }
 
 // TestExtractJWTExpiry_MissingExpClaim verifies that a JWT without any exp field
@@ -115,7 +115,7 @@ func TestExtractJWTExpiry_MissingExpClaim(t *testing.T) {
 
 	_, err := extractJWTExpiry(token)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "JWT has no exp claim")
+	assert.ErrorContains(t, err, "JWT has no exp claim")
 }
 
 // TestExtractJWTExpiry_WrongPartCount verifies that tokens with a part count
@@ -136,8 +136,8 @@ func TestExtractJWTExpiry_WrongPartCount(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := extractJWTExpiry(tt.token)
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "malformed JWT")
-			assert.Contains(t, err.Error(), fmt.Sprintf("got %d", tt.wantParts))
+			assert.ErrorContains(t, err, "malformed JWT")
+			assert.ErrorContains(t, err, fmt.Sprintf("got %d", tt.wantParts))
 		})
 	}
 }
@@ -150,7 +150,7 @@ func TestExtractJWTExpiry_InvalidBase64Payload(t *testing.T) {
 
 	_, err := extractJWTExpiry(token)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to decode JWT payload")
+	assert.ErrorContains(t, err, "failed to decode JWT payload")
 }
 
 // TestExtractJWTExpiry_InvalidJSONPayload verifies that a JWT whose payload
@@ -161,7 +161,7 @@ func TestExtractJWTExpiry_InvalidJSONPayload(t *testing.T) {
 
 	_, err := extractJWTExpiry(token)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse JWT claims")
+	assert.ErrorContains(t, err, "failed to parse JWT claims")
 }
 
 // TestExtractJWTExpiry_EmptyPayload verifies that an empty payload segment
@@ -172,12 +172,12 @@ func TestExtractJWTExpiry_EmptyPayload(t *testing.T) {
 
 	_, err := extractJWTExpiry(token)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "JWT has no exp claim")
+	assert.ErrorContains(t, err, "JWT has no exp claim")
 }
 
 // TestExtractJWTExpiry_EmptyToken verifies that an empty string is rejected.
 func TestExtractJWTExpiry_EmptyToken(t *testing.T) {
 	_, err := extractJWTExpiry("")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "malformed JWT")
+	assert.ErrorContains(t, err, "malformed JWT")
 }

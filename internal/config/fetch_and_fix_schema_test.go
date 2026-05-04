@@ -39,7 +39,7 @@ func TestFixSchemaBytes_InvalidJSON(t *testing.T) {
 	_, err := fixSchemaBytes([]byte("this is not valid JSON {{{"))
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse schema")
+	assert.ErrorContains(t, err, "failed to parse schema")
 }
 
 // TestFixSchemaBytes_TransformCustomServerConfigType covers the customServerConfig.type

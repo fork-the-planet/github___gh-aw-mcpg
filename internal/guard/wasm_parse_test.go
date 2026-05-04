@@ -202,7 +202,7 @@ func TestParseLabelAgentResponse_Comprehensive(t *testing.T) {
 				require.Error(t, err)
 				assert.Nil(t, result)
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					assert.ErrorContains(t, err, tt.errContains)
 				}
 			} else {
 				require.NoError(t, err)

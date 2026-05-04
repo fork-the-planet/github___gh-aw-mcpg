@@ -151,7 +151,7 @@ func TestParseSSEResponse(t *testing.T) {
 			got, err := parseSSEResponse([]byte(tt.body))
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "no data field found in SSE response")
+				assert.ErrorContains(t, err, "no data field found in SSE response")
 				assert.Nil(t, got)
 			} else {
 				require.NoError(t, err)
@@ -207,7 +207,7 @@ func TestParseJSONRPCResponseWithSSE_InvalidJSONStatus200NoSSE(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
-	assert.Contains(t, err.Error(), "test-context")
+	assert.ErrorContains(t, err, "test-context")
 }
 
 func TestParseJSONRPCResponseWithSSE_InvalidJSONNon200ReturnsSyntheticError(t *testing.T) {
@@ -299,7 +299,7 @@ func TestParseJSONRPCResponseWithSSE_ErrorContainsContextDesc(t *testing.T) {
 	_, err := parseJSONRPCResponseWithSSE(body, http.StatusOK, "my-unique-context-description")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "my-unique-context-description")
+	assert.ErrorContains(t, err, "my-unique-context-description")
 }
 
 func TestParseJSONRPCResponseWithSSE_ErrorContainsBodyPreview(t *testing.T) {
@@ -307,7 +307,7 @@ func TestParseJSONRPCResponseWithSSE_ErrorContainsBodyPreview(t *testing.T) {
 	_, err := parseJSONRPCResponseWithSSE(body, http.StatusOK, "test")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Response body:")
+	assert.ErrorContains(t, err, "Response body:")
 }
 
 func TestParseJSONRPCResponseWithSSE_SyntheticErrorContainsStatusText(t *testing.T) {
@@ -590,7 +590,7 @@ func TestSetupHTTPRequest_InvalidURL(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, req)
-	assert.Contains(t, err.Error(), "failed to create HTTP request")
+	assert.ErrorContains(t, err, "failed to create HTTP request")
 }
 
 func TestSetupHTTPRequest_EmptyBody(t *testing.T) {
@@ -1275,7 +1275,7 @@ func TestOIDCRoundTripper_ErrorPropagation(t *testing.T) {
 
 	_, err = client.Do(req)
 	require.Error(t, err, "Should return an error when OIDC token acquisition fails")
-	assert.Contains(t, err.Error(), "OIDC token acquisition failed")
+	assert.ErrorContains(t, err, "OIDC token acquisition failed")
 }
 
 // TestResponseHeaderTimeout_NotCappedByConnectTimeout verifies that

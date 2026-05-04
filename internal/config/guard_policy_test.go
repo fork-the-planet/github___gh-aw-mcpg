@@ -151,7 +151,7 @@ func TestNormalizeGuardPolicy(t *testing.T) {
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.ErrorContains(t, err, tt.wantErr)
 				assert.Nil(t, got)
 				return
 			}
@@ -254,7 +254,7 @@ func TestNormalizeGuardPolicyBlockedAndApproval(t *testing.T) {
 
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "blocked-users entries must not be empty")
+		assert.ErrorContains(t, err, "blocked-users entries must not be empty")
 	})
 
 	t.Run("empty approval-labels string entry returns error", func(t *testing.T) {
@@ -266,7 +266,7 @@ func TestNormalizeGuardPolicyBlockedAndApproval(t *testing.T) {
 
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "approval-labels entries must not be empty")
+		assert.ErrorContains(t, err, "approval-labels entries must not be empty")
 	})
 
 	t.Run("empty blocked-users slice results in nil normalized list", func(t *testing.T) {
@@ -332,7 +332,7 @@ func TestNormalizeGuardPolicyTrustedUsers(t *testing.T) {
 
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "trusted-users entries must not be empty")
+		assert.ErrorContains(t, err, "trusted-users entries must not be empty")
 	})
 
 	t.Run("empty trusted-users slice results in nil normalized list", func(t *testing.T) {
@@ -356,7 +356,7 @@ func TestNormalizeGuardPolicyTrustedUsers(t *testing.T) {
 
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "trusted-users entries must not be empty")
+		assert.ErrorContains(t, err, "trusted-users entries must not be empty")
 	})
 }
 
@@ -542,7 +542,7 @@ func TestNormalizeAndValidateScopeArray(t *testing.T) {
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.ErrorContains(t, err, tt.wantErr)
 				assert.Nil(t, got)
 				return
 			}
@@ -602,7 +602,7 @@ func TestGuardPolicyUnmarshalJSON(t *testing.T) {
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 
@@ -743,7 +743,7 @@ func TestAllowOnlyPolicyUnmarshalJSON(t *testing.T) {
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.ErrorContains(t, err, tt.wantErr)
 				return
 			}
 
@@ -935,7 +935,7 @@ func TestParseGuardPolicyJSONComprehensive(t *testing.T) {
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.ErrorContains(t, err, tt.wantErr)
 				assert.Nil(t, got)
 				return
 			}
@@ -954,7 +954,7 @@ func TestValidateGuardPolicy(t *testing.T) {
 	t.Run("nil policy returns error", func(t *testing.T) {
 		err := ValidateGuardPolicy(nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "policy must include allow-only")
+		assert.ErrorContains(t, err, "policy must include allow-only")
 	})
 
 	t.Run("valid policy returns nil", func(t *testing.T) {
@@ -1059,7 +1059,7 @@ func TestNormalizeGuardPolicyReactionEndorsement(t *testing.T) {
 		}}
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "disapproval-integrity")
+		assert.ErrorContains(t, err, "disapproval-integrity")
 	})
 
 	t.Run("invalid endorser-min-integrity rejected", func(t *testing.T) {
@@ -1070,7 +1070,7 @@ func TestNormalizeGuardPolicyReactionEndorsement(t *testing.T) {
 		}}
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "endorser-min-integrity")
+		assert.ErrorContains(t, err, "endorser-min-integrity")
 	})
 
 	t.Run("empty endorsement-reactions entry rejected", func(t *testing.T) {
@@ -1081,7 +1081,7 @@ func TestNormalizeGuardPolicyReactionEndorsement(t *testing.T) {
 		}}
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "endorsement-reactions entries must not be empty")
+		assert.ErrorContains(t, err, "endorsement-reactions entries must not be empty")
 	})
 
 	t.Run("empty disapproval-reactions entry rejected", func(t *testing.T) {
@@ -1092,7 +1092,7 @@ func TestNormalizeGuardPolicyReactionEndorsement(t *testing.T) {
 		}}
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "disapproval-reactions entries must not be empty")
+		assert.ErrorContains(t, err, "disapproval-reactions entries must not be empty")
 	})
 
 	t.Run("disapproval-reactions deduplication (case-insensitive)", func(t *testing.T) {

@@ -136,7 +136,7 @@ func TestSavePayload_MkdirAllFailure(t *testing.T) {
 
 	_, err := savePayload(readOnlyDir, "", "session1", "query1", []byte(`{"key":"value"}`))
 	require.Error(t, err, "savePayload should return an error when MkdirAll fails")
-	assert.Contains(t, err.Error(), "failed to create payload directory")
+	assert.ErrorContains(t, err, "failed to create payload directory")
 }
 
 // TestSavePayload_WriteFileFailure covers the os.WriteFile error path by using a
@@ -165,7 +165,7 @@ func TestSavePayload_WriteFileFailure(t *testing.T) {
 	_, err := savePayload(baseDir, "", sessionID, queryID, []byte(`{"key":"value"}`))
 	// On Linux, writing to a 0444 file returns "permission denied"
 	require.Error(t, err, "savePayload should return an error when WriteFile fails")
-	assert.Contains(t, err.Error(), "failed to write payload file")
+	assert.ErrorContains(t, err, "failed to write payload file")
 }
 
 // ---------------------------------------------------------------------------

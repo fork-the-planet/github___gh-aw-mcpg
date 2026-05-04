@@ -410,7 +410,7 @@ func TestContainerProxyUntrustedTLS(t *testing.T) {
 	}
 	_, err := untrustedClient.Get(env.baseURL + "/api/v3/health")
 	assert.Error(t, err, "Connection without CA cert should fail")
-	assert.Contains(t, err.Error(), "certificate", "Error should mention certificate")
+	assert.ErrorContains(t, err, "certificate", "Error should mention certificate")
 	t.Logf("✓ Untrusted connection correctly rejected: %v", err)
 }
 

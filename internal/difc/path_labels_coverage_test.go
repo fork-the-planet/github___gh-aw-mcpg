@@ -22,7 +22,7 @@ func TestGetItems_PathNotFoundInMap(t *testing.T) {
 
 	_, err := NewPathLabeledData(data, pathLabels)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "missing_key")
+	assert.ErrorContains(t, err, "missing_key")
 }
 
 // TestGetItems_FinalPathNotArray covers the error path when items_path navigates
@@ -38,7 +38,7 @@ func TestGetItems_FinalPathNotArray(t *testing.T) {
 
 	_, err := NewPathLabeledData(data, pathLabels)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "does not point to an array")
+	assert.ErrorContains(t, err, "does not point to an array")
 }
 
 // TestGetItems_ArrayNavigationSuccess covers the case where items_path navigates
@@ -93,7 +93,7 @@ func TestGetItems_ArrayIndexOutOfBounds(t *testing.T) {
 
 	_, err := NewPathLabeledData(data, pathLabels)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "out of bounds")
+	assert.ErrorContains(t, err, "out of bounds")
 }
 
 // TestGetItems_NonNumericArrayIndex covers the error path when an array
@@ -111,7 +111,7 @@ func TestGetItems_NonNumericArrayIndex(t *testing.T) {
 
 	_, err := NewPathLabeledData(data, pathLabels)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "expected array index")
+	assert.ErrorContains(t, err, "expected array index")
 }
 
 // TestGetItems_UnexpectedTypeAtPath covers the default case in getItems where
@@ -127,7 +127,7 @@ func TestGetItems_UnexpectedTypeAtPath(t *testing.T) {
 
 	_, err := NewPathLabeledData(data, pathLabels)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unexpected type")
+	assert.ErrorContains(t, err, "unexpected type")
 }
 
 // TestNewPathLabeledData_ResolveError covers the error path in NewPathLabeledData
@@ -144,7 +144,7 @@ func TestNewPathLabeledData_ResolveError(t *testing.T) {
 
 	_, err := NewPathLabeledData(data, pathLabels)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to resolve path labels")
+	assert.ErrorContains(t, err, "failed to resolve path labels")
 }
 
 // TestParsePathLabels_InvalidJSON covers the error path when the input
@@ -152,7 +152,7 @@ func TestNewPathLabeledData_ResolveError(t *testing.T) {
 func TestParsePathLabels_InvalidJSON(t *testing.T) {
 	_, err := ParsePathLabels([]byte(`{invalid json`))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse path labels")
+	assert.ErrorContains(t, err, "failed to parse path labels")
 }
 
 // TestPathEntryToResource_NilEntry covers the branch where pathEntryToResource
@@ -302,7 +302,7 @@ func TestExtractIndexFromPath_NoSlashSeparator(t *testing.T) {
 	pld := &PathLabeledData{}
 	_, err := pld.extractIndexFromPath("items3", "items")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "does not match items path")
+	assert.ErrorContains(t, err, "does not match items path")
 }
 
 // TestExtractIndexFromPath_EmptyRemainder covers the branch where the extracted
@@ -313,7 +313,7 @@ func TestExtractIndexFromPath_EmptyRemainder(t *testing.T) {
 	pld := &PathLabeledData{}
 	_, err := pld.extractIndexFromPath("", "")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no index in path")
+	assert.ErrorContains(t, err, "no index in path")
 }
 
 // TestUnwrapMCPResponse_ContentItemNotMap covers the branch where the first

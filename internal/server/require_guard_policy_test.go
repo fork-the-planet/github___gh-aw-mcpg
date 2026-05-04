@@ -216,7 +216,7 @@ func TestRequireGuardPolicyIfGuardEnabled_WithInvalidGlobalPolicy(t *testing.T) 
 
 	require.Error(t, err, "invalid policy should propagate an error")
 	assert.Nil(t, resultGuard, "guard should be nil when policy validation fails")
-	assert.Contains(t, err.Error(), "min-integrity", "error should mention the invalid field")
+	assert.ErrorContains(t, err, "min-integrity", "error should mention the invalid field")
 }
 
 // TestRequireGuardPolicyIfGuardEnabled_UnknownServerID tests that a non-noop guard

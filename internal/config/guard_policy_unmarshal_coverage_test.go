@@ -134,7 +134,7 @@ func TestGuardPolicyUnmarshalJSON_InvalidInnerJSON(t *testing.T) {
 			p := &GuardPolicy{}
 			err := json.Unmarshal([]byte(tt.json), p)
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
@@ -194,7 +194,7 @@ func TestAllowOnlyPolicyUnmarshalJSON_FieldErrorPaths(t *testing.T) {
 			p := &AllowOnlyPolicy{}
 			err := json.Unmarshal([]byte(tt.json), p)
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }
@@ -285,7 +285,7 @@ func TestAllowOnlyPolicyUnmarshalJSON_EndorsementDisapprovalFields(t *testing.T)
 func TestValidateWriteSinkPolicy_NilInput(t *testing.T) {
 	err := ValidateWriteSinkPolicy(nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "write-sink policy must not be nil")
+	assert.ErrorContains(t, err, "write-sink policy must not be nil")
 }
 
 // TestNormalizeGuardPolicy_WriteSinkPath tests the write-sink path in NormalizeGuardPolicy
@@ -297,7 +297,7 @@ func TestNormalizeGuardPolicy_WriteSinkPath(t *testing.T) {
 	result, err := NormalizeGuardPolicy(policy)
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "policy must include allow-only")
+	assert.ErrorContains(t, err, "policy must include allow-only")
 }
 
 // TestNormalizeGuardPolicy_EndorsementReactionDedup tests that duplicate endorsement
@@ -323,7 +323,7 @@ func TestNormalizeGuardPolicy_EndorsementReactionDedup(t *testing.T) {
 		}}
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "allow-only.endorsement-reactions entries must not be empty")
+		assert.ErrorContains(t, err, "allow-only.endorsement-reactions entries must not be empty")
 	})
 
 	t.Run("deduplicate disapproval-reactions case-insensitively", func(t *testing.T) {
@@ -346,7 +346,7 @@ func TestNormalizeGuardPolicy_EndorsementReactionDedup(t *testing.T) {
 		}}
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "allow-only.disapproval-reactions entries must not be empty")
+		assert.ErrorContains(t, err, "allow-only.disapproval-reactions entries must not be empty")
 	})
 
 	t.Run("invalid disapproval-integrity rejected", func(t *testing.T) {
@@ -357,7 +357,7 @@ func TestNormalizeGuardPolicy_EndorsementReactionDedup(t *testing.T) {
 		}}
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "allow-only.disapproval-integrity must be one of")
+		assert.ErrorContains(t, err, "allow-only.disapproval-integrity must be one of")
 	})
 
 	t.Run("invalid endorser-min-integrity rejected", func(t *testing.T) {
@@ -368,7 +368,7 @@ func TestNormalizeGuardPolicy_EndorsementReactionDedup(t *testing.T) {
 		}}
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "allow-only.endorser-min-integrity must be one of")
+		assert.ErrorContains(t, err, "allow-only.endorser-min-integrity must be one of")
 	})
 
 	t.Run("valid disapproval-integrity normalized to lowercase", func(t *testing.T) {
@@ -404,7 +404,7 @@ func TestNormalizeAndValidateScopeArray_NonStringElement(t *testing.T) {
 	}}
 	_, err := NormalizeGuardPolicy(policy)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "allow-only.repos array values must be strings")
+	assert.ErrorContains(t, err, "allow-only.repos array values must be strings")
 }
 
 // TestAllowOnlyPolicyUnmarshalJSON_FullRoundTrip tests that a fully populated

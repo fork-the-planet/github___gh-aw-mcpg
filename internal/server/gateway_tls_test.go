@@ -269,7 +269,7 @@ func TestLoadGatewayTLS_ServerServesMTLS(t *testing.T) {
 func TestLoadGatewayTLS_InvalidCertPath(t *testing.T) {
 	_, err := LoadGatewayTLS("/nonexistent/cert.pem", "/nonexistent/key.pem", "")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to load server TLS certificate/key")
+	assert.ErrorContains(t, err, "failed to load server TLS certificate/key")
 }
 
 func TestLoadGatewayTLS_InvalidCAPath(t *testing.T) {
@@ -279,7 +279,7 @@ func TestLoadGatewayTLS_InvalidCAPath(t *testing.T) {
 
 	_, err = LoadGatewayTLS(tlsCfg.CertPath, tlsCfg.KeyPath, "/nonexistent/ca.pem")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to read CA certificate")
+	assert.ErrorContains(t, err, "failed to read CA certificate")
 }
 
 func TestLoadGatewayTLS_MalformedCA(t *testing.T) {
@@ -293,5 +293,5 @@ func TestLoadGatewayTLS_MalformedCA(t *testing.T) {
 
 	_, err = LoadGatewayTLS(tlsCfg.CertPath, tlsCfg.KeyPath, badCA)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to parse CA certificate")
+	assert.ErrorContains(t, err, "failed to parse CA certificate")
 }

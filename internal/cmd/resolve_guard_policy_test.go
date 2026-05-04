@@ -156,7 +156,7 @@ func TestResolveGuardPolicyOverride_CLIRepoWithoutOwner(t *testing.T) {
 	policy, source, err := resolveGuardPolicyOverride(cmd)
 
 	require.Error(t, err, "Should return error when repo is set without owner")
-	assert.Contains(t, err.Error(), "owner", "Error should mention owner")
+	assert.ErrorContains(t, err, "owner", "Error should mention owner")
 	assert.Nil(t, policy)
 	assert.Empty(t, source)
 }
@@ -171,7 +171,7 @@ func TestResolveGuardPolicyOverride_CLIAllowOnlyMinIntegrityOnly(t *testing.T) {
 	policy, source, err := resolveGuardPolicyOverride(cmd)
 
 	require.Error(t, err, "Should return error when only min-integrity is set without a scope")
-	assert.Contains(t, err.Error(), "scope", "Error should mention scope")
+	assert.ErrorContains(t, err, "scope", "Error should mention scope")
 	assert.Nil(t, policy)
 	assert.Empty(t, source)
 }
@@ -383,7 +383,7 @@ func TestResolveGuardPolicyOverride_CLIInvalidMinIntegrity(t *testing.T) {
 	policy, source, err := resolveGuardPolicyOverride(cmd)
 
 	require.Error(t, err, "Should error on invalid min-integrity value")
-	assert.Contains(t, err.Error(), "min-integrity")
+	assert.ErrorContains(t, err, "min-integrity")
 	assert.Nil(t, policy)
 	assert.Empty(t, source)
 }

@@ -229,7 +229,7 @@ fn repo_matches_scope(
     }
 }
 
-fn first_matching_scope(owner: &str, repo: &str, ctx: &PolicyContext) -> Option<PolicyScopeEntry> {
+fn first_matching_scope<'a>(owner: &str, repo: &str, ctx: &'a PolicyContext) -> Option<&'a PolicyScopeEntry> {
     ctx.scopes
         .iter()
         .find(|scope| {
@@ -237,7 +237,6 @@ fn first_matching_scope(owner: &str, repo: &str, ctx: &PolicyContext) -> Option<
             let scoped_repo = scope.scope_repo.as_deref().unwrap_or("");
             repo_matches_scope(scope.scope_kind, owner, repo, scoped_owner, scoped_repo)
         })
-        .cloned()
 }
 
 fn format_integrity_label(prefix: &str, scope: &str, base: &str) -> String {

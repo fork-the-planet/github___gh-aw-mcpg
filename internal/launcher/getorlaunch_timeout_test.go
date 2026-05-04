@@ -43,7 +43,7 @@ func TestGetOrLaunch_Timeout(t *testing.T) {
 	// Verify timeout error
 	assert.Error(t, err, "Expected timeout error")
 	assert.Nil(t, conn, "Connection should be nil on timeout")
-	assert.Contains(t, err.Error(), "timeout", "Error should mention timeout")
+	assert.ErrorContains(t, err, "timeout", "Error should mention timeout")
 
 	// Verify timeout duration is approximately correct (within reasonable margin)
 	expectedTimeout := 1 * time.Second
@@ -52,7 +52,7 @@ func TestGetOrLaunch_Timeout(t *testing.T) {
 
 	// Verify no connection was stored
 	l.mu.RLock()
-	assert.Equal(t, 0, len(l.connections), "No connection should be stored on timeout")
+	assert.Empty(t, l.connections, "No connection should be stored on timeout")
 	l.mu.RUnlock()
 }
 
@@ -108,16 +108,16 @@ func TestGetOrLaunch_TimeoutMultipleServers(t *testing.T) {
 	conn1, err1 := GetOrLaunch(l, "timeout-server-1")
 	assert.Error(t, err1)
 	assert.Nil(t, conn1)
-	assert.Contains(t, err1.Error(), "timeout")
+	assert.ErrorContains(t, err1, "timeout")
 
 	conn2, err2 := GetOrLaunch(l, "timeout-server-2")
 	assert.Error(t, err2)
 	assert.Nil(t, conn2)
-	assert.Contains(t, err2.Error(), "timeout")
+	assert.ErrorContains(t, err2, "timeout")
 
 	// Verify no connections were stored
 	l.mu.RLock()
-	assert.Equal(t, 0, len(l.connections))
+	assert.Empty(t, l.connections)
 	l.mu.RUnlock()
 }
 
@@ -160,7 +160,7 @@ func TestGetOrLaunch_ConcurrentTimeout(t *testing.T) {
 	// At least one should timeout, others may get the same timeout error or nil
 	foundTimeout := false
 	for _, err := range errors {
-		if err != nil && assert.Contains(t, err.Error(), "timeout") {
+		if err != nil && assert.ErrorContains(t, err, "timeout") {
 			foundTimeout = true
 		}
 	}
@@ -168,7 +168,7 @@ func TestGetOrLaunch_ConcurrentTimeout(t *testing.T) {
 
 	// Verify no connection was stored
 	l.mu.RLock()
-	assert.Equal(t, 0, len(l.connections))
+	assert.Empty(t, l.connections)
 	l.mu.RUnlock()
 }
 
@@ -201,7 +201,7 @@ func TestGetOrLaunch_TimeoutDoesNotBlockOtherServers(t *testing.T) {
 	conn1, err1 := GetOrLaunch(l, "timeout-server")
 	assert.Error(t, err1)
 	assert.Nil(t, conn1)
-	assert.Contains(t, err1.Error(), "timeout")
+	assert.ErrorContains(t, err1, "timeout")
 
 	// Second server should work independently (HTTP connection)
 	conn2, err2 := GetOrLaunch(l, "working-server")
@@ -237,7 +237,7 @@ func TestGetOrLaunch_ShortTimeout(t *testing.T) {
 	conn, err := GetOrLaunch(l, "instant-timeout-server")
 	assert.Error(t, err)
 	assert.Nil(t, conn)
-	assert.Contains(t, err.Error(), "timeout")
+	assert.ErrorContains(t, err, "timeout")
 }
 
 // TestGetOrLaunch_LongTimeout tests longer timeout (verify it waits appropriately)
@@ -267,7 +267,7 @@ func TestGetOrLaunch_LongTimeout(t *testing.T) {
 	// Should timeout after approximately 2 seconds
 	assert.Error(t, err)
 	assert.Nil(t, conn)
-	assert.Contains(t, err.Error(), "timeout")
+	assert.ErrorContains(t, err, "timeout")
 
 	// Verify we waited approximately 2 seconds, not 10
 	assert.Greater(t, elapsed, 2*time.Second)
@@ -404,7 +404,7 @@ func TestGetOrLaunch_TimeoutRespectsBufferedChannel(t *testing.T) {
 	conn, err := GetOrLaunch(l, "buffered-test-server")
 	require.Error(t, err)
 	require.Nil(t, conn)
-	require.Contains(t, err.Error(), "timeout")
+	require.ErrorContains(t, err, "timeout")
 
 	// Wait a bit longer to ensure the goroutine can complete and send to buffered channel
 	time.Sleep(2 * time.Second)

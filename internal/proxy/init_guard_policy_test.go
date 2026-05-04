@@ -75,7 +75,7 @@ func TestInitGuardPolicy_InvalidJSON(t *testing.T) {
 	err := s.initGuardPolicy(context.Background(), "not-valid-json", nil, nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid policy JSON")
+	assert.ErrorContains(t, err, "invalid policy JSON")
 	assert.False(t, s.guardInitialized, "guardInitialized must stay false on error")
 }
 
@@ -89,7 +89,7 @@ func TestInitGuardPolicy_ValidationFailure(t *testing.T) {
 	err := s.initGuardPolicy(context.Background(), `{}`, nil, nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "policy validation failed")
+	assert.ErrorContains(t, err, "policy validation failed")
 	assert.False(t, s.guardInitialized)
 }
 
@@ -102,7 +102,7 @@ func TestInitGuardPolicy_WriteSinkRejected(t *testing.T) {
 	err := s.initGuardPolicy(context.Background(), validWriteSinkPolicyJSON, nil, nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "write-sink policies are not supported")
+	assert.ErrorContains(t, err, "write-sink policies are not supported")
 	assert.False(t, s.guardInitialized)
 }
 
@@ -117,8 +117,8 @@ func TestInitGuardPolicy_LabelAgentError(t *testing.T) {
 	err := s.initGuardPolicy(context.Background(), validAllowOnlyPolicyJSON, nil, nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "LabelAgent failed")
-	assert.Contains(t, err.Error(), "guard: wasm runtime error")
+	assert.ErrorContains(t, err, "LabelAgent failed")
+	assert.ErrorContains(t, err, "guard: wasm runtime error")
 	assert.False(t, s.guardInitialized)
 }
 
@@ -131,7 +131,7 @@ func TestInitGuardPolicy_LabelAgentNilResult(t *testing.T) {
 	err := s.initGuardPolicy(context.Background(), validAllowOnlyPolicyJSON, nil, nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "nil result")
+	assert.ErrorContains(t, err, "nil result")
 	assert.False(t, s.guardInitialized)
 }
 
@@ -189,7 +189,7 @@ func TestInitGuardPolicy_InvalidDIFCModeError(t *testing.T) {
 	err := s.initGuardPolicy(context.Background(), validAllowOnlyPolicyJSON, nil, nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid difc_mode")
+	assert.ErrorContains(t, err, "invalid difc_mode")
 	assert.False(t, s.guardInitialized,
 		"guard must not be marked initialized when DIFCMode is invalid")
 	assert.Equal(t, difc.EnforcementFilter, s.Mode,

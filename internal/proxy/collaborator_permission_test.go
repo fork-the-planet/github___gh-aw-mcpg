@@ -108,7 +108,7 @@ func TestRestBackendCallerCollaboratorPermission(t *testing.T) {
 			"username": "not-found-user",
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "404")
+		assert.ErrorContains(t, err, "404")
 	})
 
 	t.Run("missing owner", func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestRestBackendCallerCollaboratorPermission(t *testing.T) {
 			"username": "admin-user",
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing owner/repo/username")
+		assert.ErrorContains(t, err, "missing owner/repo/username")
 	})
 
 	t.Run("missing repo", func(t *testing.T) {
@@ -126,7 +126,7 @@ func TestRestBackendCallerCollaboratorPermission(t *testing.T) {
 			"username": "admin-user",
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing owner/repo/username")
+		assert.ErrorContains(t, err, "missing owner/repo/username")
 	})
 
 	t.Run("missing username", func(t *testing.T) {
@@ -135,13 +135,13 @@ func TestRestBackendCallerCollaboratorPermission(t *testing.T) {
 			"repo":  "myrepo",
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing owner/repo/username")
+		assert.ErrorContains(t, err, "missing owner/repo/username")
 	})
 
 	t.Run("invalid args type", func(t *testing.T) {
 		_, err := caller.CallTool(context.Background(), "get_collaborator_permission", "not-a-map")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unexpected args type")
+		assert.ErrorContains(t, err, "unexpected args type")
 	})
 }
 

@@ -903,8 +903,8 @@ func TestNonEmptyString(t *testing.T) {
 
 			if tt.shouldErr {
 				require.NotNil(t, err, "Expected validation error but got none")
-				assert.Contains(t, err.Error(), tt.errMsg)
-				assert.Contains(t, err.Error(), tt.jsonPath)
+				assert.ErrorContains(t, err, tt.errMsg)
+				assert.ErrorContains(t, err, tt.jsonPath)
 			} else {
 				require.NoError(t, validationErrAsError(err), "Unexpected validation error")
 			}
@@ -1043,8 +1043,8 @@ func TestAbsolutePath(t *testing.T) {
 
 			if tt.shouldErr {
 				require.NotNil(t, err, "Expected validation error but got none")
-				assert.Contains(t, err.Error(), tt.errMsg)
-				assert.Contains(t, err.Error(), tt.jsonPath)
+				assert.ErrorContains(t, err, tt.errMsg)
+				assert.ErrorContains(t, err, tt.jsonPath)
 			} else {
 				require.NoError(t, validationErrAsError(err), "Unexpected validation error")
 			}

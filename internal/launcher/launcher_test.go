@@ -307,7 +307,7 @@ func TestGetOrLaunch_InvalidServerID(t *testing.T) {
 	assert.Error(t, err, "Expected error for non-existent server")
 	assert.Nil(t, conn, "Expected nil connection")
 	assert.ErrorIs(t, err, ErrServerNotFound)
-	assert.Contains(t, err.Error(), "not found in config")
+	assert.ErrorContains(t, err, "not found in config")
 }
 
 func TestGetOrLaunch_Reuse(t *testing.T) {
@@ -519,7 +519,7 @@ func TestGetOrLaunchForSession_HTTPBackend(t *testing.T) {
 	assert.Equal(t, conn1, conn2, "HTTP backends should reuse same connection")
 
 	// Should be in regular connections map, not session pool
-	assert.Equal(t, 1, len(l.connections), "Should have one connection in regular map")
+	assert.Len(t, l.connections, 1, "Should have one connection in regular map")
 	assert.Equal(t, 0, l.sessionPool.Size(), "Session pool should be empty for HTTP")
 }
 
@@ -551,7 +551,7 @@ func TestGetOrLaunchForSession_InvalidServer(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, conn)
 	assert.ErrorIs(t, err, ErrServerNotFound)
-	assert.Contains(t, err.Error(), "not found in config")
+	assert.ErrorContains(t, err, "not found in config")
 }
 
 func TestLauncher_StartupTimeout(t *testing.T) {
@@ -698,8 +698,8 @@ func TestGetOrLaunch_OIDCMissingProvider(t *testing.T) {
 
 	_, err := GetOrLaunch(l, "oidc-server")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "OIDC authentication")
-	assert.Contains(t, err.Error(), "ACTIONS_ID_TOKEN_REQUEST_URL")
+	assert.ErrorContains(t, err, "OIDC authentication")
+	assert.ErrorContains(t, err, "ACTIONS_ID_TOKEN_REQUEST_URL")
 }
 
 func TestGetOrLaunch_OIDCAudienceDefaultsToURL(t *testing.T) {

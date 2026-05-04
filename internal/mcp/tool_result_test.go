@@ -342,7 +342,7 @@ func TestParseToolArguments(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Nil(t, args)
-		assert.Contains(t, err.Error(), "failed to parse arguments")
+		assert.ErrorContains(t, err, "failed to parse arguments")
 	})
 
 	t.Run("empty json object returns empty map", func(t *testing.T) {
@@ -430,7 +430,7 @@ func TestConvertToCallToolResult_MarshalError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "failed to marshal backend result")
+	assert.ErrorContains(t, err, "failed to marshal backend result")
 }
 
 func TestBuildMCPTextResponse(t *testing.T) {

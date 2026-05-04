@@ -285,7 +285,7 @@ func TestWriteGatewayConfig_WriteError(t *testing.T) {
 
 	err := writeGatewayConfig(cfg, "127.0.0.1:8080", "routed", false, errWriter{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to encode configuration")
+	assert.ErrorContains(t, err, "failed to encode configuration")
 }
 
 // TestWriteGatewayConfig_PortOnlyAddress tests that a ":port" style address
@@ -349,7 +349,7 @@ func TestWriteGatewayConfig_TLSScheme(t *testing.T) {
 			serverConfig := mcpServers["github"].(map[string]interface{})
 			url := serverConfig["url"].(string)
 
-			assert.True(t, len(url) > 0, "URL should not be empty")
+			assert.NotEmpty(t, url, "URL should not be empty")
 			assert.True(t,
 				(tt.wantScheme == "https://" && url[:8] == "https://") ||
 					(tt.wantScheme == "http://" && url[:7] == "http://"),

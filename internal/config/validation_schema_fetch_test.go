@@ -110,7 +110,7 @@ func TestFetchAndFixSchema_HTTPError(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Nil(t, result)
-			assert.Contains(t, err.Error(), tt.wantErr)
+			assert.ErrorContains(t, err, tt.wantErr)
 			assert.Equal(t, int32(tt.wantRequests), requestCount.Load(),
 				"expected %d HTTP request(s) for status %d", tt.wantRequests, tt.statusCode)
 		})
@@ -126,7 +126,7 @@ func TestFetchAndFixSchema_NetworkError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "failed to fetch schema from")
+	assert.ErrorContains(t, err, "failed to fetch schema from")
 }
 
 // TestFetchAndFixSchema_Timeout tests handling of request timeouts
@@ -145,7 +145,7 @@ func TestFetchAndFixSchema_Timeout(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	// The error should indicate a timeout or context deadline exceeded
-	assert.Contains(t, err.Error(), "failed to fetch schema from")
+	assert.ErrorContains(t, err, "failed to fetch schema from")
 }
 
 // TestFetchAndFixSchema_InvalidJSON tests handling of invalid JSON in response
@@ -160,7 +160,7 @@ func TestFetchAndFixSchema_InvalidJSON(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "failed to parse schema")
+	assert.ErrorContains(t, err, "failed to parse schema")
 }
 
 // TestFetchAndFixSchema_EmptyResponse tests handling of empty response body
@@ -175,7 +175,7 @@ func TestFetchAndFixSchema_EmptyResponse(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "failed to parse schema")
+	assert.ErrorContains(t, err, "failed to parse schema")
 }
 
 // TestFetchAndFixSchema_CustomServerConfigPatternFix tests the negative lookahead fix for customServerConfig.type
@@ -612,7 +612,7 @@ func TestFetchAndFixSchema_LargeSchema(t *testing.T) {
 
 	properties, ok := fixed["properties"].(map[string]interface{})
 	require.True(t, ok)
-	assert.Equal(t, 100, len(properties), "Should preserve all 100 properties")
+	assert.Len(t, properties, 100, "Should preserve all 100 properties")
 }
 
 // TestFetchAndFixSchema_RetrySucceedsAfterTransientError verifies that a transient
@@ -662,5 +662,5 @@ func TestFetchAndFixSchema_ExponentialBackoffDelays(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, int32(maxSchemaFetchRetries), requestCount.Load(),
 		"should make exactly maxSchemaFetchRetries requests before giving up")
-	assert.Contains(t, err.Error(), "failed to fetch schema: HTTP 429")
+	assert.ErrorContains(t, err, "failed to fetch schema: HTTP 429")
 }

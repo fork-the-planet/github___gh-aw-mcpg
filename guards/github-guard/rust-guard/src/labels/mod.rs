@@ -24,6 +24,8 @@
 //! - `unapproved:<repo>` - Lower trust external contribution level
 //! - (none) - Untrusted/external content
 
+use std::borrow::Cow;
+
 use serde_json::Value;
 
 // Sub-modules
@@ -93,7 +95,7 @@ pub fn label_response_paths(
 /// Extract the actual response from MCP wrapper format
 /// MCP responses are wrapped in {"content":[{"type":"text","text":"..."}]}
 /// where the text field contains stringified JSON
-pub(crate) fn extract_mcp_response(response: &Value) -> Value {
+pub(crate) fn extract_mcp_response(response: &Value) -> Cow<'_, Value> {
     // Log the top-level keys to understand the structure
     if let Some(obj) = response.as_object() {
         let keys: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
@@ -128,7 +130,7 @@ pub(crate) fn extract_mcp_response(response: &Value) -> Value {
                 // Try to parse the text as JSON
                 if let Ok(parsed) = serde_json::from_str::<Value>(text) {
                     crate::log_debug("extract_mcp_response: parsed content[0].text as JSON");
-                    return parsed;
+                    return Cow::Owned(parsed);
                 } else {
                     crate::log_debug("extract_mcp_response: failed to parse text as JSON");
                 }
@@ -143,7 +145,7 @@ pub(crate) fn extract_mcp_response(response: &Value) -> Value {
     // If we can't extract from MCP wrapper, return the original response
     // (it might already be unwrapped or in a different format)
     crate::log_debug("extract_mcp_response: using response as-is");
-    response.clone()
+    Cow::Borrowed(response)
 }
 
 // ============================================================================

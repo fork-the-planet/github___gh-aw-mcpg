@@ -137,7 +137,7 @@ func TestEnsureGuardInitialized_PolicyResolveError(t *testing.T) {
 	_, err := us.ensureGuardInitialized(context.Background(), "session-1", "server1", g, &noopBackendCaller{})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to resolve guard policy")
+	assert.ErrorContains(t, err, "failed to resolve guard policy")
 }
 
 // TestEnsureGuardInitialized_CacheHit verifies that when the session already has a
@@ -195,8 +195,8 @@ func TestEnsureGuardInitialized_LabelAgentError(t *testing.T) {
 	_, err := us.ensureGuardInitialized(context.Background(), "session-err", "server1", g, &noopBackendCaller{})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "LabelAgent failed")
-	assert.Contains(t, err.Error(), "backend unreachable")
+	assert.ErrorContains(t, err, "LabelAgent failed")
+	assert.ErrorContains(t, err, "backend unreachable")
 }
 
 // TestEnsureGuardInitialized_LabelAgentNilResult checks the nil-result guard branch.
@@ -216,7 +216,7 @@ func TestEnsureGuardInitialized_LabelAgentNilResult(t *testing.T) {
 	_, err := us.ensureGuardInitialized(context.Background(), "session-nil", "server1", g, &noopBackendCaller{})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "LabelAgent returned nil result")
+	assert.ErrorContains(t, err, "LabelAgent returned nil result")
 }
 
 // TestEnsureGuardInitialized_DIFCModeEmpty verifies that when LabelAgent returns an
@@ -285,7 +285,7 @@ func TestEnsureGuardInitialized_DIFCModeInvalid(t *testing.T) {
 	_, err := us.ensureGuardInitialized(context.Background(), "session-inv", "server1", g, &noopBackendCaller{})
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid difc_mode from label_agent")
+	assert.ErrorContains(t, err, "invalid difc_mode from label_agent")
 }
 
 // TestEnsureGuardInitialized_NewSessionCreated verifies that when no session exists yet

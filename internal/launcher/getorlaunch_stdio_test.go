@@ -30,7 +30,7 @@ func TestGetOrLaunch_StdioServer_InvalidCommand(t *testing.T) {
 	conn, err := GetOrLaunch(l, "stdio-server")
 	assert.Error(t, err, "Expected error for invalid command")
 	assert.Nil(t, conn, "Expected nil connection")
-	assert.Contains(t, err.Error(), "failed to create connection")
+	assert.ErrorContains(t, err, "failed to create connection")
 }
 
 // TestGetOrLaunch_StdioServer_DockerCommand tests stdio server with Docker command
@@ -410,11 +410,11 @@ func TestGetOrLaunch_HTTPConnectionError(t *testing.T) {
 	conn, err := GetOrLaunch(l, "bad-http-server")
 	assert.Error(t, err, "Expected error for invalid HTTP URL")
 	assert.Nil(t, conn)
-	assert.Contains(t, err.Error(), "failed to create HTTP connection")
+	assert.ErrorContains(t, err, "failed to create HTTP connection")
 
 	// Verify no connection was stored
 	l.mu.RLock()
-	assert.Equal(t, 0, len(l.connections), "No connection should be stored on error")
+	assert.Empty(t, l.connections, "No connection should be stored on error")
 	l.mu.RUnlock()
 }
 
@@ -436,11 +436,11 @@ func TestGetOrLaunch_StdioConnectionError(t *testing.T) {
 	conn, err := GetOrLaunch(l, "bad-stdio-server")
 	assert.Error(t, err, "Expected error for nonexistent binary")
 	assert.Nil(t, conn)
-	assert.Contains(t, err.Error(), "failed to create connection")
+	assert.ErrorContains(t, err, "failed to create connection")
 
 	// Verify no connection was stored
 	l.mu.RLock()
-	assert.Equal(t, 0, len(l.connections), "No connection should be stored on error")
+	assert.Empty(t, l.connections, "No connection should be stored on error")
 	l.mu.RUnlock()
 }
 

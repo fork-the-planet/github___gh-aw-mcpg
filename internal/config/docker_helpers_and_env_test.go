@@ -98,7 +98,7 @@ func TestGetGatewayPortFromEnv_Comprehensive(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
+					assert.ErrorContains(t, err, tt.errMsg)
 				}
 				assert.Equal(t, 0, port)
 			} else {
@@ -220,7 +220,7 @@ func TestGetGatewayToolTimeoutFromEnv(t *testing.T) {
 				require.Error(t, err)
 				assert.False(t, ok)
 				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
+					assert.ErrorContains(t, err, tt.errMsg)
 				}
 				assert.Equal(t, 0, timeout)
 			} else {

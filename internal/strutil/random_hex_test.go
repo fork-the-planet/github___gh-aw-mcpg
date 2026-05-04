@@ -65,7 +65,7 @@ func TestRandomHex(t *testing.T) {
 func TestRandomHex_ErrorMessageContainsSize(t *testing.T) {
 	_, err := RandomHex(-5)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "-5", "error message should include the invalid size")
+	assert.ErrorContains(t, err, "-5", "error message should include the invalid size")
 }
 
 // TestRandomHex_IsValidHex verifies the output is a valid lowercase hex-encoded string

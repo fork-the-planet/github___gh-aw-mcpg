@@ -130,7 +130,7 @@ func TestRestBackendCaller_PullRequestRead(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					assert.ErrorContains(t, err, tt.errContains)
 				}
 				return
 			}
@@ -163,7 +163,7 @@ func TestRestBackendCaller_PullRequestRead_404(t *testing.T) {
 		"pullNumber": "999",
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "404")
+	assert.ErrorContains(t, err, "404")
 }
 
 // TestRestBackendCaller_IssueRead tests the issue_read branch of CallTool.
@@ -254,7 +254,7 @@ func TestRestBackendCaller_IssueRead(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					assert.ErrorContains(t, err, tt.errContains)
 				}
 				return
 			}
@@ -287,7 +287,7 @@ func TestRestBackendCaller_IssueRead_404(t *testing.T) {
 		"issue_number": "999",
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "404")
+	assert.ErrorContains(t, err, "404")
 }
 
 // TestRestBackendCaller_SearchRepositories tests the search_repositories branch of CallTool.
@@ -368,7 +368,7 @@ func TestRestBackendCaller_SearchRepositories(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					assert.ErrorContains(t, err, tt.errContains)
 				}
 				return
 			}
@@ -399,7 +399,7 @@ func TestRestBackendCaller_SearchRepositories_APIError(t *testing.T) {
 		"query": "language:go stars:>1000",
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "422")
+	assert.ErrorContains(t, err, "422")
 }
 
 // TestRestBackendCaller_UnsupportedTool verifies that unknown tool names return an error.
@@ -427,7 +427,7 @@ func TestRestBackendCaller_UnsupportedTool(t *testing.T) {
 				"repo":  "myrepo",
 			})
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "unsupported tool")
+			assert.ErrorContains(t, err, "unsupported tool")
 		})
 	}
 }
@@ -451,7 +451,7 @@ func TestRestBackendCaller_InvalidArgsType(t *testing.T) {
 		t.Run(toolName, func(t *testing.T) {
 			_, err := caller.CallTool(context.Background(), toolName, "not-a-map")
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "unexpected args type")
+			assert.ErrorContains(t, err, "unexpected args type")
 		})
 	}
 }

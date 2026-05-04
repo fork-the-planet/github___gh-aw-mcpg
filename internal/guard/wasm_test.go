@@ -197,7 +197,7 @@ func TestNewWasmGuardFromBytes(t *testing.T) {
 		guard, err := NewWasmGuardFromBytes(ctx, "test-guard", []byte{}, backend)
 		assert.Error(t, err)
 		assert.Nil(t, guard)
-		assert.Contains(t, err.Error(), "instantiate WASM module")
+		assert.ErrorContains(t, err, "instantiate WASM module")
 	})
 
 	t.Run("invalid WASM bytes returns error", func(t *testing.T) {
@@ -233,25 +233,25 @@ func TestNormalizePolicyPayloadExtended(t *testing.T) {
 	t.Run("empty string policy returns error", func(t *testing.T) {
 		_, err := normalizePolicyPayload("")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "policy string is empty")
+		assert.ErrorContains(t, err, "policy string is empty")
 	})
 
 	t.Run("whitespace-only string policy returns error", func(t *testing.T) {
 		_, err := normalizePolicyPayload("   ")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "policy string is empty")
+		assert.ErrorContains(t, err, "policy string is empty")
 	})
 
 	t.Run("invalid JSON string returns error", func(t *testing.T) {
 		_, err := normalizePolicyPayload("{invalid json")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not valid JSON")
+		assert.ErrorContains(t, err, "not valid JSON")
 	})
 
 	t.Run("JSON array string returns error", func(t *testing.T) {
 		_, err := normalizePolicyPayload("[1,2,3]")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "must decode to an object")
+		assert.ErrorContains(t, err, "must decode to an object")
 	})
 
 	t.Run("valid JSON object string is parsed", func(t *testing.T) {
@@ -282,7 +282,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 	t.Run("nil policy returns error", func(t *testing.T) {
 		_, err := buildStrictLabelAgentPayload(nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "expected {\"allow-only\"")
+		assert.ErrorContains(t, err, "expected {\"allow-only\"")
 	})
 
 	t.Run("policy with legacy envelope returns error", func(t *testing.T) {
@@ -297,8 +297,8 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "outdated")
-		assert.Contains(t, err.Error(), "remove legacy envelope")
+		assert.ErrorContains(t, err, "outdated")
+		assert.ErrorContains(t, err, "remove legacy envelope")
 	})
 
 	t.Run("policy without allow-only returns error", func(t *testing.T) {
@@ -308,7 +308,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "must use top-level allow-only")
+		assert.ErrorContains(t, err, "must use top-level allow-only")
 	})
 
 	t.Run("allow-only with missing repos returns error", func(t *testing.T) {
@@ -320,7 +320,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing required fields repos and/or min-integrity")
+		assert.ErrorContains(t, err, "missing required fields repos and/or min-integrity")
 	})
 
 	t.Run("allow-only with missing integrity returns error", func(t *testing.T) {
@@ -332,7 +332,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing required fields repos and/or min-integrity")
+		assert.ErrorContains(t, err, "missing required fields repos and/or min-integrity")
 	})
 
 	t.Run("allow-only with empty array repos returns error", func(t *testing.T) {
@@ -345,7 +345,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid repos value")
+		assert.ErrorContains(t, err, "invalid repos value")
 	})
 
 	t.Run("allow-only with invalid integrity value returns error", func(t *testing.T) {
@@ -358,7 +358,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid min-integrity value")
+		assert.ErrorContains(t, err, "invalid min-integrity value")
 	})
 
 	t.Run("valid allow-only policy succeeds", func(t *testing.T) {
@@ -444,7 +444,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unexpected key")
+		assert.ErrorContains(t, err, "unexpected key")
 	})
 
 	t.Run("trusted-bots with non-string entry returns error", func(t *testing.T) {
@@ -458,7 +458,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "non-empty string")
+		assert.ErrorContains(t, err, "non-empty string")
 	})
 
 	t.Run("trusted-bots with empty string entry returns error", func(t *testing.T) {
@@ -472,7 +472,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "non-empty string")
+		assert.ErrorContains(t, err, "non-empty string")
 	})
 
 	t.Run("trusted-bots with wrong type returns error", func(t *testing.T) {
@@ -486,7 +486,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "expected non-empty array")
+		assert.ErrorContains(t, err, "expected non-empty array")
 	})
 
 	t.Run("trusted-bots empty array returns error per spec", func(t *testing.T) {
@@ -501,7 +501,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "non-empty array")
+		assert.ErrorContains(t, err, "non-empty array")
 	})
 
 	t.Run("trusted-bots with whitespace-only entry returns error", func(t *testing.T) {
@@ -515,7 +515,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "non-empty string")
+		assert.ErrorContains(t, err, "non-empty string")
 	})
 
 	t.Run("valid blocked-users in allow-only succeeds", func(t *testing.T) {
@@ -616,8 +616,8 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "trusted-users")
-		assert.Contains(t, err.Error(), "non-empty string")
+		assert.ErrorContains(t, err, "trusted-users")
+		assert.ErrorContains(t, err, "non-empty string")
 	})
 
 	t.Run("trusted-users with empty string entry returns error", func(t *testing.T) {
@@ -631,7 +631,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "trusted-users")
+		assert.ErrorContains(t, err, "trusted-users")
 	})
 
 	t.Run("blocked-users with non-string entry returns error", func(t *testing.T) {
@@ -645,8 +645,8 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "blocked-users")
-		assert.Contains(t, err.Error(), "non-empty string")
+		assert.ErrorContains(t, err, "blocked-users")
+		assert.ErrorContains(t, err, "non-empty string")
 	})
 
 	t.Run("blocked-users with empty string entry returns error", func(t *testing.T) {
@@ -660,7 +660,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "blocked-users")
+		assert.ErrorContains(t, err, "blocked-users")
 	})
 
 	t.Run("approval-labels with non-string entry returns error", func(t *testing.T) {
@@ -674,8 +674,8 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "approval-labels")
-		assert.Contains(t, err.Error(), "non-empty string")
+		assert.ErrorContains(t, err, "approval-labels")
+		assert.ErrorContains(t, err, "non-empty string")
 	})
 
 	t.Run("unknown allow-only key returns error", func(t *testing.T) {
@@ -689,7 +689,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unexpected allow-only key")
+		assert.ErrorContains(t, err, "unexpected allow-only key")
 	})
 
 	t.Run("valid endorsement-reactions succeeds", func(t *testing.T) {
@@ -756,7 +756,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 		}
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "endorsement-reactions")
+		assert.ErrorContains(t, err, "endorsement-reactions")
 	})
 
 	t.Run("invalid disapproval-integrity value returns error", func(t *testing.T) {
@@ -769,7 +769,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 		}
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "disapproval-integrity")
+		assert.ErrorContains(t, err, "disapproval-integrity")
 	})
 
 	t.Run("invalid endorser-min-integrity value returns error", func(t *testing.T) {
@@ -782,7 +782,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 		}
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "endorser-min-integrity")
+		assert.ErrorContains(t, err, "endorser-min-integrity")
 	})
 }
 
@@ -968,7 +968,7 @@ func TestParsePathLabeledResponse(t *testing.T) {
 		result, err := parsePathLabeledResponse(invalidJSON, nil)
 		assert.Error(t, err)
 		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "parse path labels")
+		assert.ErrorContains(t, err, "parse path labels")
 	})
 
 	t.Run("valid path labels with nil original data returns collection labeled data", func(t *testing.T) {
@@ -1189,8 +1189,8 @@ func TestWasmGuardFailedState(t *testing.T) {
 		ctx := context.Background()
 		_, err := g.callWasmFunction(ctx, "label_response", []byte(`{}`))
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unavailable after a previous trap")
-		assert.Contains(t, err.Error(), "test-guard")
+		assert.ErrorContains(t, err, "unavailable after a previous trap")
+		assert.ErrorContains(t, err, "test-guard")
 	})
 
 	t.Run("failed guard wraps original trap error", func(t *testing.T) {

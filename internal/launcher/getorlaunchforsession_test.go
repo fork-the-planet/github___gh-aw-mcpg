@@ -202,7 +202,7 @@ func TestGetOrLaunchForSession_StdioLaunchFailure(t *testing.T) {
 	conn, err := GetOrLaunchForSession(l, "stdio-backend", "session-abc")
 	require.Error(err, "Should return error for invalid command")
 	require.Nil(conn)
-	assert.Contains(t, err.Error(), "failed to create connection")
+	assert.ErrorContains(t, err, "failed to create connection")
 }
 
 // TestGetOrLaunchForSession_DirectCommandWarningInContainer tests that a security warning

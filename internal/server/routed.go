@@ -121,10 +121,10 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 	return server
 }
 
-// getRoutedSessionTimeout returns the session timeout for routed mode by reading
-// MCP_GATEWAY_SESSION_TIMEOUT with a 6-hour default, matching unified mode behaviour.
-// It is extracted as a package-level function so tests can assert the env-var wiring directly.
-func getRoutedSessionTimeout() time.Duration {
+// getSessionTimeout returns the session timeout by reading MCP_GATEWAY_SESSION_TIMEOUT
+// with a 6-hour default. It is shared by both routed mode and unified (transport) mode
+// and extracted as a package-level function so tests can assert the env-var wiring directly.
+func getSessionTimeout() time.Duration {
 	return envutil.GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour)
 }
 
@@ -150,7 +150,7 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 	// TTL matches the SDK SessionTimeout so cache entries expire with sessions.
 	// Long-running agentic workflows (e.g. >30 min GitHub Actions jobs) need this
 	// to be at least as long as the workflow to avoid spurious "session not found" errors.
-	routedSessionTimeout := getRoutedSessionTimeout()
+	routedSessionTimeout := getSessionTimeout()
 	serverCache := newFilteredServerCache(routedSessionTimeout)
 
 	// Create a proxy for each backend server

@@ -111,7 +111,7 @@ func TestMarshalToResponse(t *testing.T) {
 
 		assert.Error(t, err, "Should fail to marshal channel type")
 		assert.Nil(t, response, "Response should be nil on error")
-		assert.Contains(t, err.Error(), "failed to marshal result", "Error should mention marshal failure")
+		assert.ErrorContains(t, err, "failed to marshal result", "Error should mention marshal failure")
 	})
 }
 
@@ -129,7 +129,7 @@ func TestMarshalToResponse_UnmarshalableStruct(t *testing.T) {
 
 	assert.Error(t, err, "Should fail to marshal struct with channel")
 	assert.Nil(t, response, "Response should be nil on error")
-	assert.Contains(t, err.Error(), "failed to marshal result", "Error should mention marshal failure")
+	assert.ErrorContains(t, err, "failed to marshal result", "Error should mention marshal failure")
 }
 
 // TestMarshalToResponse_ResponseStructure validates the Response structure

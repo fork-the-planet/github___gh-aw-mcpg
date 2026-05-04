@@ -154,7 +154,7 @@ func TestValidateDIFCModeFlag(t *testing.T) {
 			err := validateDIFCModeFlag(tt.mode)
 			if tt.wantErr {
 				require.Error(t, err, "expected error for mode %q", tt.mode)
-				assert.Contains(t, err.Error(), "invalid --guards-mode flag")
+				assert.ErrorContains(t, err, "invalid --guards-mode flag")
 			} else {
 				assert.NoError(t, err, "unexpected error for mode %q", tt.mode)
 			}

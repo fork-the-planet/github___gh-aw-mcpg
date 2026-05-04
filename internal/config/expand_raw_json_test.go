@@ -169,7 +169,7 @@ func TestExpandRawJSONVariables(t *testing.T) {
 			if tt.shouldErr {
 				require.Error(t, err)
 				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg, "Error message should mention the undefined variable")
+					assert.ErrorContains(t, err, tt.errMsg, "Error message should mention the undefined variable")
 				}
 				assert.Nil(t, result, "Result should be nil on error")
 			} else {
@@ -439,7 +439,7 @@ func TestExpandRawJSONVariables_RealWorldConfig(t *testing.T) {
 		_, err := ExpandRawJSONVariables([]byte(input))
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "TOTALLY_UNDEFINED_TOKEN_XYZ")
+		assert.ErrorContains(t, err, "TOTALLY_UNDEFINED_TOKEN_XYZ")
 	})
 }
 
@@ -565,7 +565,7 @@ func TestValidateMounts(t *testing.T) {
 			if tt.shouldErr {
 				require.Error(t, err, "Expected an error but got none")
 				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg,
+					assert.ErrorContains(t, err, tt.errMsg,
 						"Error message %q should contain %q", err.Error(), tt.errMsg)
 				}
 			} else {
@@ -585,7 +585,7 @@ func TestValidateMounts_JSONPathInError(t *testing.T) {
 
 	require.Error(t, err)
 	// The error should reference the JSON path
-	assert.Contains(t, err.Error(), "my-server",
+	assert.ErrorContains(t, err, "my-server",
 		"Error should reference the server path to help users locate the issue")
 }
 
@@ -601,6 +601,6 @@ func TestValidateMounts_IndexInError(t *testing.T) {
 
 	require.Error(t, err)
 	// Error should indicate which mount index failed
-	assert.Contains(t, err.Error(), "[1]",
+	assert.ErrorContains(t, err, "[1]",
 		"Error should indicate the mount index that failed")
 }

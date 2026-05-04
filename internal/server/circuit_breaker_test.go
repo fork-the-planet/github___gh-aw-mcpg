@@ -184,16 +184,16 @@ func TestCircuitBreaker_ErrOpenMessage(t *testing.T) {
 	t.Run("no reset time", func(t *testing.T) {
 		t.Parallel()
 		err := &ErrCircuitOpen{ServerID: "github"}
-		assert.Contains(t, err.Error(), "github")
-		assert.Contains(t, err.Error(), "OPEN")
+		assert.ErrorContains(t, err, "github")
+		assert.ErrorContains(t, err, "OPEN")
 	})
 
 	t.Run("with reset time", func(t *testing.T) {
 		t.Parallel()
 		reset := time.Now().Add(30 * time.Second)
 		err := &ErrCircuitOpen{ServerID: "github", ResetAt: reset}
-		assert.Contains(t, err.Error(), "github")
-		assert.Contains(t, err.Error(), "retry after")
+		assert.ErrorContains(t, err, "github")
+		assert.ErrorContains(t, err, "retry after")
 	})
 }
 

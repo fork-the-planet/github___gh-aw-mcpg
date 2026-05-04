@@ -647,7 +647,7 @@ func TestApplyJqSchema_ErrorCases(t *testing.T) {
 
 		// Either succeeds (query completed before cancellation) or fails with context error
 		if err != nil {
-			assert.Contains(t, err.Error(), "context", "Error should mention context if cancelled")
+			assert.ErrorContains(t, err, "context", "Error should mention context if cancelled")
 		}
 	})
 }
@@ -704,7 +704,7 @@ func TestApplyJqSchema_TimeoutBehavior(t *testing.T) {
 
 		// Either completes (if fast enough) or times out
 		if err != nil {
-			assert.Contains(t, err.Error(), "context", "Timeout error should mention context")
+			assert.ErrorContains(t, err, "context", "Timeout error should mention context")
 		}
 	})
 
@@ -788,7 +788,7 @@ func TestApplyJqSchema_TimeoutBehavior(t *testing.T) {
 		_, err := applyJqSchema(context.Background(), input)
 
 		require.Error(t, err, "Should return error when compilation failed")
-		assert.Contains(t, err.Error(), "not compiled", "Error should mention compilation failure")
+		assert.ErrorContains(t, err, "not compiled", "Error should mention compilation failure")
 	})
 }
 
@@ -839,7 +839,7 @@ func TestApplyJqSchema_ContextTimeout(t *testing.T) {
 		// For simple queries, it might complete before cancellation is detected
 		// If error occurs, it should be context-related
 		if err != nil {
-			assert.Contains(t, err.Error(), "context", "Error should mention context cancellation")
+			assert.ErrorContains(t, err, "context", "Error should mention context cancellation")
 		}
 	})
 }

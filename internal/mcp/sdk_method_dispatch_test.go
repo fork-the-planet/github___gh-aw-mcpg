@@ -100,8 +100,8 @@ func TestCallSDKMethod_UnsupportedMethod(t *testing.T) {
 			result, err := conn.callSDKMethod(tt.method, nil)
 			require.Error(t, err)
 			assert.Nil(t, result)
-			assert.Contains(t, err.Error(), "unsupported method")
-			assert.Contains(t, err.Error(), tt.method)
+			assert.ErrorContains(t, err, "unsupported method")
+			assert.ErrorContains(t, err, tt.method)
 		})
 	}
 }
@@ -113,7 +113,7 @@ func TestCallSDKMethod_ResourcesList_NilSession(t *testing.T) {
 	result, err := conn.callSDKMethod("resources/list", nil)
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.ErrorContains(t, err, "SDK session not available")
 }
 
 // TestCallSDKMethod_ResourcesRead_NilSession verifies the resources/read routing
@@ -123,7 +123,7 @@ func TestCallSDKMethod_ResourcesRead_NilSession(t *testing.T) {
 	result, err := conn.callSDKMethod("resources/read", map[string]interface{}{"uri": "file:///test"})
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.ErrorContains(t, err, "SDK session not available")
 }
 
 // TestCallSDKMethod_PromptsList_NilSession verifies the prompts/list routing
@@ -133,7 +133,7 @@ func TestCallSDKMethod_PromptsList_NilSession(t *testing.T) {
 	result, err := conn.callSDKMethod("prompts/list", nil)
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.ErrorContains(t, err, "SDK session not available")
 }
 
 // TestCallSDKMethod_PromptsGet_NilSession verifies the prompts/get routing
@@ -143,7 +143,7 @@ func TestCallSDKMethod_PromptsGet_NilSession(t *testing.T) {
 	result, err := conn.callSDKMethod("prompts/get", map[string]interface{}{"name": "my-prompt"})
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.ErrorContains(t, err, "SDK session not available")
 }
 
 // TestCallSDKMethod_ToolsList_NilSession verifies the tools/list routing
@@ -154,7 +154,7 @@ func TestCallSDKMethod_ToolsList_NilSession(t *testing.T) {
 	result, err := conn.callSDKMethod("tools/list", nil)
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.ErrorContains(t, err, "SDK session not available")
 }
 
 // TestCallSDKMethod_ToolsCall_NilSession verifies the tools/call routing
@@ -164,7 +164,7 @@ func TestCallSDKMethod_ToolsCall_NilSession(t *testing.T) {
 	result, err := conn.callSDKMethod("tools/call", map[string]interface{}{"name": "my-tool"})
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.ErrorContains(t, err, "SDK session not available")
 }
 
 // newPlainJSONTestServer creates an httptest.Server that responds to the MCP
@@ -230,7 +230,7 @@ func TestSendRequestWithServerID_StdioPath_UnsupportedMethod(t *testing.T) {
 	result, err := conn.SendRequestWithServerID(context.Background(), "unsupported/method", nil, "test-server")
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "unsupported method")
+	assert.ErrorContains(t, err, "unsupported method")
 }
 
 // TestSendRequestWithServerID_StdioPath_NilSession verifies that the stdio
@@ -240,7 +240,7 @@ func TestSendRequestWithServerID_StdioPath_NilSession(t *testing.T) {
 	result, err := conn.SendRequestWithServerID(context.Background(), "tools/list", nil, "test-server")
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "SDK session not available")
+	assert.ErrorContains(t, err, "SDK session not available")
 }
 
 // newPlainJSONConn creates a Connection that uses the plain JSON-RPC transport,
@@ -306,7 +306,7 @@ func TestSendRequestWithServerID_AgentTags_StdioUnsupportedMethod(t *testing.T) 
 	result, err := conn.SendRequestWithServerID(ctx, "unsupported/method", nil, "sink-server")
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "unsupported method")
+	assert.ErrorContains(t, err, "unsupported method")
 }
 
 // TestSendRequestWithServerID_AgentTags_NotSinkServer verifies that when the
@@ -327,7 +327,7 @@ func TestSendRequestWithServerID_AgentTags_NotSinkServer(t *testing.T) {
 	result, err := conn.SendRequestWithServerID(ctx, "unsupported/method", nil, "other-server")
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "unsupported method")
+	assert.ErrorContains(t, err, "unsupported method")
 }
 
 // TestSendRequestWithServerID_AgentTags_PlainJSONError exercises the

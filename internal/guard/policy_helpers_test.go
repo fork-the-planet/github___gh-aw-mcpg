@@ -33,18 +33,18 @@ func TestPolicyToMap(t *testing.T) {
 	t.Run("nil policy returns error", func(t *testing.T) {
 		_, err := PolicyToMap(nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "policy is required")
+		assert.ErrorContains(t, err, "policy is required")
 	})
 
 	t.Run("non-object policy returns error", func(t *testing.T) {
 		_, err := PolicyToMap([]string{"not-an-object"})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "policy must decode to a JSON object")
+		assert.ErrorContains(t, err, "policy must decode to a JSON object")
 	})
 
 	t.Run("unmarshalable policy returns error", func(t *testing.T) {
 		_, err := PolicyToMap(math.NaN())
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to serialize policy")
+		assert.ErrorContains(t, err, "failed to serialize policy")
 	})
 }

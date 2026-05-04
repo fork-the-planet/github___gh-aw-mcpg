@@ -153,6 +153,6 @@ func TestCloseAllLoggers_FirstErrorIsReturned(t *testing.T) {
 
 	// The returned error must come from the first closer (FileLogger, using firstLogDir),
 	// not from the second closer (JSONLLogger, using secondLogDir).
-	assert.Contains(t, err.Error(), firstLogDir,
+	assert.ErrorContains(t, err, firstLogDir,
 		"error should originate from the first closer (FileLogger)")
 }

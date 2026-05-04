@@ -313,7 +313,7 @@ func TestValidateJSONSchema(t *testing.T) {
 			if tt.shouldErr {
 				require.Error(t, err)
 				if tt.errorMsg != "" {
-					assert.Contains(t, err.Error(), tt.errorMsg)
+					assert.ErrorContains(t, err, tt.errorMsg)
 				}
 			} else {
 				assert.NoError(t, err, "Unexpected error")
@@ -541,7 +541,7 @@ func TestValidateStringPatterns(t *testing.T) {
 			if tt.shouldErr {
 				require.Error(t, err)
 				if tt.errorMsg != "" {
-					assert.Contains(t, err.Error(), tt.errorMsg)
+					assert.ErrorContains(t, err, tt.errorMsg)
 				}
 			} else {
 				assert.NoError(t, err, "Unexpected error")
@@ -631,7 +631,7 @@ func TestEnhancedErrorMessages(t *testing.T) {
 
 			require.Error(t, err, "Expected validation to fail for: %s", tt.name)
 			for _, expected := range tt.expectInError {
-				assert.Contains(t, err.Error(), expected)
+				assert.ErrorContains(t, err, expected)
 			}
 		})
 	}

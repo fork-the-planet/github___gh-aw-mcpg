@@ -256,7 +256,7 @@ func TestParseResourceResponse(t *testing.T) {
 				require.Error(t, err)
 				assert.Nil(t, resource)
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					assert.ErrorContains(t, err, tt.errContains)
 				}
 				return
 			}

@@ -209,7 +209,7 @@ func TestLoadFromStdin_DirectCommand(t *testing.T) {
 	// Command field is no longer supported in stdin JSON format - schema validation rejects it
 	require.Error(t, err)
 
-	assert.Contains(t, err.Error(), "validation error", "Expected validation error")
+	assert.ErrorContains(t, err, "validation error", "Expected validation error")
 
 	// Config should be nil on validation error
 	assert.Nil(t, cfg, "Config should be nil when validation fails")
@@ -885,7 +885,7 @@ func TestLoadFromStdin_InvalidMountFormat(t *testing.T) {
 			os.Stdin = oldStdin
 
 			require.Error(t, err, "Expected error but got none")
-			assert.Contains(t, err.Error(), tt.errorMsg, "Expected error containing %q", tt.errorMsg)
+			assert.ErrorContains(t, err, tt.errorMsg, "Expected error containing %q", tt.errorMsg)
 		})
 	}
 }
@@ -1024,7 +1024,7 @@ args = ["run"]
 	assert.Nil(t, cfg, "Config should be nil on error")
 
 	// Error should contain line number information
-	assert.Contains(t, err.Error(), "line", "Error should mention line number")
+	assert.ErrorContains(t, err, "line", "Error should mention line number")
 }
 
 func TestLoadFromFile_UnknownKeys(t *testing.T) {
@@ -1046,7 +1046,7 @@ unknown_field = "should trigger error"
 	cfg, err := LoadFromFile(tmpFile)
 	require.Error(t, err, "LoadFromFile() should fail with unknown keys")
 	assert.Nil(t, cfg, "Config should be nil on error")
-	assert.Contains(t, err.Error(), "unrecognized field", "Error should mention unrecognized field")
+	assert.ErrorContains(t, err, "unrecognized field", "Error should mention unrecognized field")
 }
 
 func TestLoadFromFile_NonExistentFile(t *testing.T) {
@@ -1065,7 +1065,7 @@ func TestLoadFromFile_EmptyFile(t *testing.T) {
 	cfg, err := LoadFromFile(tmpFile)
 	require.Error(t, err, "LoadFromFile() should fail with empty file (no servers)")
 	assert.Nil(t, cfg, "Config should be nil on error")
-	assert.Contains(t, err.Error(), "no servers defined", "Error should mention missing servers")
+	assert.ErrorContains(t, err, "no servers defined", "Error should mention missing servers")
 }
 
 // TestLoadFromFile_ParseErrorWithColumnNumber tests that parse errors include column information
@@ -1116,7 +1116,7 @@ args = ["run", "--rm", "-i", "test/container:latest"]
 	cfg, err := LoadFromFile(tmpFile)
 	require.Error(t, err, "LoadFromFile() should fail with unknown keys")
 	assert.Nil(t, cfg, "Config should be nil on error")
-	assert.Contains(t, err.Error(), "unrecognized field", "Error should mention unrecognized field")
+	assert.ErrorContains(t, err, "unrecognized field", "Error should mention unrecognized field")
 }
 
 // TestLoadFromFile_MultipleUnknownKeys tests that multiple unknown keys are rejected
@@ -1144,7 +1144,7 @@ typ = "stdio"
 	cfg, err := LoadFromFile(tmpFile)
 	require.Error(t, err, "LoadFromFile() should fail with multiple unknown keys")
 	assert.Nil(t, cfg, "Config should be nil on error")
-	assert.Contains(t, err.Error(), "unrecognized field", "Error should mention unrecognized field")
+	assert.ErrorContains(t, err, "unrecognized field", "Error should mention unrecognized field")
 }
 
 // TestLoadFromFile_StreamingLargeFile tests that streaming decoder works efficiently
@@ -1196,7 +1196,7 @@ args = ["run", "--rm", "-i", "test/container:latest"]
 	assert.Nil(t, cfg, "Config should be nil on error")
 
 	// Error should mention the duplicate key
-	assert.Contains(t, err.Error(), "line", "Error should mention line number")
+	assert.ErrorContains(t, err, "line", "Error should mention line number")
 }
 
 // TestLoadFromStdin_FilesystemServerConfig tests that filesystem server configuration
@@ -1723,5 +1723,5 @@ func TestLoadFromStdin_WithEmptyTrustedBots(t *testing.T) {
 
 	_, err = LoadFromStdin()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "trustedBots")
+	assert.ErrorContains(t, err, "trustedBots")
 }

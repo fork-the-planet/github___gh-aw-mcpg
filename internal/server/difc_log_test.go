@@ -495,10 +495,10 @@ func TestBuildDIFCSingleItemFilteredError_IntegrityViolation(t *testing.T) {
 	err := buildDIFCSingleItemFilteredError(detail)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "[Filtered]")
-	assert.Contains(t, err.Error(), "issue:org/repo#42")
-	assert.Contains(t, err.Error(), "integrity policy")
-	assert.Contains(t, err.Error(), "integrity too low for agent context")
+	assert.ErrorContains(t, err, "[Filtered]")
+	assert.ErrorContains(t, err, "issue:org/repo#42")
+	assert.ErrorContains(t, err, "integrity policy")
+	assert.ErrorContains(t, err, "integrity too low for agent context")
 }
 
 // TestBuildDIFCSingleItemFilteredError_SecrecyViolation verifies that a secrecy
@@ -509,10 +509,10 @@ func TestBuildDIFCSingleItemFilteredError_SecrecyViolation(t *testing.T) {
 	err := buildDIFCSingleItemFilteredError(detail)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "[Filtered]")
-	assert.Contains(t, err.Error(), "resource:actions_get")
-	assert.Contains(t, err.Error(), "secrecy policy")
-	assert.Contains(t, err.Error(), "secrecy requirements not met")
+	assert.ErrorContains(t, err, "[Filtered]")
+	assert.ErrorContains(t, err, "resource:actions_get")
+	assert.ErrorContains(t, err, "secrecy policy")
+	assert.ErrorContains(t, err, "secrecy requirements not met")
 }
 
 // TestBuildDIFCSingleItemFilteredError_NoDescription verifies that a missing description
@@ -527,9 +527,9 @@ func TestBuildDIFCSingleItemFilteredError_NoDescription(t *testing.T) {
 	err := buildDIFCSingleItemFilteredError(detail)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "[Filtered]")
-	assert.Contains(t, err.Error(), "resource exists but is not accessible")
-	assert.Contains(t, err.Error(), "integrity policy")
+	assert.ErrorContains(t, err, "[Filtered]")
+	assert.ErrorContains(t, err, "resource exists but is not accessible")
+	assert.ErrorContains(t, err, "integrity policy")
 }
 
 // TestBuildDIFCSingleItemFilteredError_NoReason verifies that a missing reason still
@@ -540,8 +540,8 @@ func TestBuildDIFCSingleItemFilteredError_NoReason(t *testing.T) {
 	err := buildDIFCSingleItemFilteredError(detail)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "[Filtered]")
-	assert.Contains(t, err.Error(), "issue:org/repo#7")
+	assert.ErrorContains(t, err, "[Filtered]")
+	assert.ErrorContains(t, err, "issue:org/repo#7")
 	// No trailing "()" should appear when reason is empty.
 	assert.NotContains(t, err.Error(), "()")
 }

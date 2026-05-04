@@ -212,7 +212,7 @@ func TestConvertStdinServerConfig_EnvExpansionError(t *testing.T) {
 	result, err := convertStdinServerConfig("test", server, nil)
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "UNDEFINED_VAR")
+	assert.ErrorContains(t, err, "UNDEFINED_VAR")
 }
 
 // TestConvertStdinServerConfig_HeadersExpansion tests HTTP headers expansion.
@@ -252,7 +252,7 @@ func TestConvertStdinServerConfig_HeadersExpansionError(t *testing.T) {
 	result, err := convertStdinServerConfig("test", server, nil)
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "MISSING_TOKEN")
+	assert.ErrorContains(t, err, "MISSING_TOKEN")
 }
 
 // TestConvertStdinServerConfig_ValidationError tests validation error handling.
@@ -296,7 +296,7 @@ func TestConvertStdinServerConfig_ValidationError(t *testing.T) {
 			result, err := convertStdinServerConfig("test", tc.server, nil)
 			assert.Error(t, err)
 			assert.Nil(t, result)
-			assert.Contains(t, err.Error(), tc.errorContains)
+			assert.ErrorContains(t, err, tc.errorContains)
 		})
 	}
 }
@@ -1035,7 +1035,7 @@ func TestConvertStdinConfig_TrustedBots(t *testing.T) {
 
 		_, err := convertStdinConfig(stdinCfg)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "trusted_bots must be a non-empty array when present")
+		assert.ErrorContains(t, err, "trusted_bots must be a non-empty array when present")
 	})
 
 	t.Run("nil trustedBots not propagated", func(t *testing.T) {
@@ -1214,7 +1214,7 @@ func TestConvertStdinConfig_PayloadSizeThreshold(t *testing.T) {
 
 		err := validateGatewayConfig(gateway)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "payloadSizeThreshold must be a positive integer")
+		assert.ErrorContains(t, err, "payloadSizeThreshold must be a positive integer")
 	})
 
 	t.Run("payloadSizeThreshold negative rejected per spec §4.1.3.3", func(t *testing.T) {
@@ -1224,7 +1224,7 @@ func TestConvertStdinConfig_PayloadSizeThreshold(t *testing.T) {
 
 		err := validateGatewayConfig(gateway)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "payloadSizeThreshold must be a positive integer")
+		assert.ErrorContains(t, err, "payloadSizeThreshold must be a positive integer")
 	})
 
 	t.Run("payloadSizeThreshold one accepted", func(t *testing.T) {

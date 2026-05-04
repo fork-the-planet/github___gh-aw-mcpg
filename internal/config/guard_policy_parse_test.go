@@ -170,7 +170,7 @@ func TestParsePolicyMap(t *testing.T) {
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.ErrorContains(t, err, tt.wantErr)
 				assert.Nil(t, got)
 				return
 			}
@@ -337,7 +337,7 @@ func TestParseServerGuardPolicy(t *testing.T) {
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.ErrorContains(t, err, tt.wantErr)
 				assert.Nil(t, got)
 				return
 			}
@@ -521,7 +521,7 @@ func TestBuildAllowOnlyPolicy(t *testing.T) {
 
 			if tt.wantErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.wantErr)
+				assert.ErrorContains(t, err, tt.wantErr)
 				assert.Nil(t, got)
 				return
 			}

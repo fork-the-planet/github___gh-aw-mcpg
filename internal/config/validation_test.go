@@ -1074,7 +1074,7 @@ func TestValidateAuthConfig(t *testing.T) {
 			if tt.shouldErr {
 				require.Error(t, err)
 				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
+					assert.ErrorContains(t, err, tt.errMsg)
 				}
 			} else {
 				assert.NoError(t, err)

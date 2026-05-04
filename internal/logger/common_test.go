@@ -295,7 +295,7 @@ func TestInitLogFile_InvalidDirectory(t *testing.T) {
 		file.Close()
 	}
 	require.Error(err, "initLogFile should fail when directory can't be created")
-	assert.Contains(err.Error(), "failed to create log directory", "Error should mention directory creation failure")
+	assert.ErrorContains(err, "failed to create log directory", "Error should mention directory creation failure")
 }
 
 func TestInitLogFile_UnwritableDirectory(t *testing.T) {
@@ -315,7 +315,7 @@ func TestInitLogFile_UnwritableDirectory(t *testing.T) {
 	}
 
 	// Verify error message includes "failed to create log directory"
-	assert.Contains(err.Error(), "failed to create log directory", "Error should mention directory creation failure")
+	assert.ErrorContains(err, "failed to create log directory", "Error should mention directory creation failure")
 }
 
 func TestInitLogFile_EmptyFileName(t *testing.T) {
@@ -330,7 +330,7 @@ func TestInitLogFile_EmptyFileName(t *testing.T) {
 		file.Close()
 	}
 	require.Error(err, "initLogFile should fail with empty fileName")
-	assert.Contains(err.Error(), "failed to open log file", "Error should mention file opening failure")
+	assert.ErrorContains(err, "failed to open log file", "Error should mention file opening failure")
 }
 
 func TestInitLogFile_ConcurrentCreation(t *testing.T) {
@@ -679,7 +679,7 @@ func TestInitLogger_NilSetup(t *testing.T) {
 	)
 
 	a.Error(err, "initLogger should return error when factory.setup is nil")
-	a.Contains(err.Error(), "non-nil")
+	a.ErrorContains(err, "non-nil")
 	a.Nil(logger, "logger should be nil when factory.setup is nil")
 }
 
@@ -699,7 +699,7 @@ func TestInitLogger_NilOnError(t *testing.T) {
 	)
 
 	a.Error(err, "initLogger should return error when factory.onError is nil")
-	a.Contains(err.Error(), "non-nil")
+	a.ErrorContains(err, "non-nil")
 	a.Nil(logger, "logger should be nil when factory.onError is nil")
 }
 
@@ -722,7 +722,7 @@ func TestInitLogger_SetupReturnsNilLogger(t *testing.T) {
 	)
 
 	a.Error(err, "initLogger should return error when setup returns nil logger")
-	a.Contains(err.Error(), "nil logger")
+	a.ErrorContains(err, "nil logger")
 	a.Nil(logger, "logger should be nil")
 
 	// The file should have been created (initLogFile succeeded) but then closed.

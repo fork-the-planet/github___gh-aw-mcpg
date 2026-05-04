@@ -472,7 +472,7 @@ func TestCreateGuardFromConfig_WasmType_EmptyPath(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, g)
-	assert.Contains(t, err.Error(), "requires a 'path' field")
+	assert.ErrorContains(t, err, "requires a 'path' field")
 }
 
 // TestCreateGuardFromConfig_WasmType_InvalidPath verifies the wasm branch returns an
@@ -495,7 +495,7 @@ func TestCreateGuardFromConfig_WasmType_InvalidPath(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, g)
-	assert.Contains(t, err.Error(), "failed to load WASM guard")
+	assert.ErrorContains(t, err, "failed to load WASM guard")
 }
 
 // TestCreateGuardFromConfig_Default_UnknownType verifies the default branch for an
@@ -507,7 +507,7 @@ func TestCreateGuardFromConfig_Default_UnknownType(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Nil(t, g)
-	assert.Contains(t, err.Error(), "unknown guard type")
+	assert.ErrorContains(t, err, "unknown guard type")
 }
 
 // TestCreateGuardFromConfig_Default_RegisteredType verifies the default branch

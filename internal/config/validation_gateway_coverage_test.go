@@ -67,7 +67,7 @@ func TestValidateGatewayConfig_PayloadSizeThreshold(t *testing.T) {
 			err := validateGatewayConfig(gw)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				assert.ErrorContains(t, err, tt.errMsg)
 			} else {
 				assert.NoError(t, err)
 			}
@@ -137,7 +137,7 @@ func TestValidateGatewayConfig_TrustedBots(t *testing.T) {
 			err := validateGatewayConfig(gw)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				assert.ErrorContains(t, err, tt.errMsg)
 			} else {
 				assert.NoError(t, err)
 			}
@@ -235,7 +235,7 @@ func TestValidateGatewayConfig_OpenTelemetry(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
+					assert.ErrorContains(t, err, tt.errMsg)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -311,7 +311,7 @@ func TestValidateTrustedBots(t *testing.T) {
 			err := validateTrustedBots(tt.bots)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
+				assert.ErrorContains(t, err, tt.errMsg)
 			} else {
 				assert.NoError(t, err)
 			}

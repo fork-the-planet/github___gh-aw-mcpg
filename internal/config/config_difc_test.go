@@ -438,7 +438,7 @@ func TestGuardPolicy_InvalidRejected(t *testing.T) {
 
 	_, err := convertStdinConfig(stdinCfg)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid policy")
+	assert.ErrorContains(t, err, "invalid policy")
 }
 
 func TestParseGuardPolicyJSON(t *testing.T) {
@@ -481,7 +481,7 @@ func TestParseGuardPolicyJSON_UpdatedRepoRegex(t *testing.T) {
 	t.Run("rejects dot in repo scope", func(t *testing.T) {
 		_, err := ParseGuardPolicyJSON(`{"allow-only":{"repos":["owner/repo.name"],"min-integrity":"unapproved"}}`)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid")
+		assert.ErrorContains(t, err, "invalid")
 	})
 }
 
@@ -517,32 +517,32 @@ func TestParseGuardPolicyJSON_WriteSink(t *testing.T) {
 	t.Run("rejects write-sink with empty accept", func(t *testing.T) {
 		_, err := ParseGuardPolicyJSON(`{"write-sink":{"accept":[]}}`)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "write-sink.accept must contain at least one entry")
+		assert.ErrorContains(t, err, "write-sink.accept must contain at least one entry")
 	})
 
 	t.Run("rejects write-sink with invalid repo scope", func(t *testing.T) {
 		// Use an entry with invalid characters (uppercase not allowed in owner names)
 		_, err := ParseGuardPolicyJSON(`{"write-sink":{"accept":["private:INVALID/repo"]}}`)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid")
+		assert.ErrorContains(t, err, "invalid")
 	})
 
 	t.Run("rejects write-sink with invalid visibility prefix", func(t *testing.T) {
 		_, err := ParseGuardPolicyJSON(`{"write-sink":{"accept":["secret:github/gh-aw*"]}}`)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "visibility prefix")
+		assert.ErrorContains(t, err, "visibility prefix")
 	})
 
 	t.Run("rejects write-sink with duplicate entries", func(t *testing.T) {
 		_, err := ParseGuardPolicyJSON(`{"write-sink":{"accept":["private:github/gh-aw*","private:github/gh-aw*"]}}`)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "duplicates")
+		assert.ErrorContains(t, err, "duplicates")
 	})
 
 	t.Run("rejects both allow-only and write-sink", func(t *testing.T) {
 		_, err := ParseGuardPolicyJSON(`{"allow-only":{"repos":"all","min-integrity":"none"},"write-sink":{"accept":["private:github/gh-aw*"]}}`)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "either allow-only or write-sink, not both")
+		assert.ErrorContains(t, err, "either allow-only or write-sink, not both")
 	})
 
 	t.Run("IsWriteSinkPolicy returns true for write-sink", func(t *testing.T) {

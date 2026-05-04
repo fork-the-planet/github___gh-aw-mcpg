@@ -47,7 +47,7 @@ func TestOTEL003_MissingEndpoint_Error(t *testing.T) {
 	}
 	err := validateOpenTelemetryConfig(cfg, true)
 	require.Error(t, err, "T-OTEL-003: missing endpoint must be rejected")
-	assert.Contains(t, err.Error(), "endpoint", "error must mention the missing field")
+	assert.ErrorContains(t, err, "endpoint", "error must mention the missing field")
 }
 
 // T-OTEL-004: Reject non-HTTPS endpoint.
@@ -57,7 +57,7 @@ func TestOTEL004_NonHTTPSEndpoint_Error(t *testing.T) {
 	}
 	err := validateOpenTelemetryConfig(cfg, true)
 	require.Error(t, err, "T-OTEL-004: non-HTTPS endpoint must be rejected")
-	assert.Contains(t, err.Error(), "HTTPS", "error must mention the HTTPS requirement")
+	assert.ErrorContains(t, err, "HTTPS", "error must mention the HTTPS requirement")
 }
 
 // T-OTEL-005: TracingConfig struct carries all required spec §4.1.3.6 fields.
@@ -110,7 +110,7 @@ func TestOTEL007b_InvalidTraceID_Error(t *testing.T) {
 	}
 	err := validateOpenTelemetryConfig(cfg, true)
 	require.Error(t, err, "T-OTEL-007b: invalid traceId must be rejected")
-	assert.Contains(t, err.Error(), "traceId")
+	assert.ErrorContains(t, err, "traceId")
 }
 
 // T-OTEL-007c: Invalid spanId (wrong length) must be rejected.
@@ -122,7 +122,7 @@ func TestOTEL007c_InvalidSpanID_Error(t *testing.T) {
 	}
 	err := validateOpenTelemetryConfig(cfg, true)
 	require.Error(t, err, "T-OTEL-007c: invalid spanId must be rejected")
-	assert.Contains(t, err.Error(), "spanId")
+	assert.ErrorContains(t, err, "spanId")
 }
 
 // T-OTEL-007d: Uppercase hex in traceId must be rejected (must be lowercase).
@@ -188,7 +188,7 @@ func TestValidateOpenTelemetryConfig_UnexpandedVarExpressions(t *testing.T) {
 	}
 	err := validateOpenTelemetryConfig(cfg, true)
 	require.Error(t, err, "Unexpanded variable expressions must fail hex validation")
-	assert.Contains(t, err.Error(), "traceId")
+	assert.ErrorContains(t, err, "traceId")
 }
 
 // TestExpandTracingVariables verifies that ${VAR} expressions in tracing config
@@ -238,7 +238,7 @@ func TestValidateOpenTelemetryConfig_AllZeroTraceID(t *testing.T) {
 	}
 	err := validateOpenTelemetryConfig(cfg, true)
 	require.Error(t, err, "All-zero traceId must be rejected per W3C Trace Context")
-	assert.Contains(t, err.Error(), "all zeros")
+	assert.ErrorContains(t, err, "all zeros")
 }
 
 // TestValidateOpenTelemetryConfig_AllZeroSpanID verifies that an all-zero spanId
@@ -251,7 +251,7 @@ func TestValidateOpenTelemetryConfig_AllZeroSpanID(t *testing.T) {
 	}
 	err := validateOpenTelemetryConfig(cfg, true)
 	require.Error(t, err, "All-zero spanId must be rejected per W3C Trace Context")
-	assert.Contains(t, err.Error(), "all zeros")
+	assert.ErrorContains(t, err, "all zeros")
 }
 
 // TestGetSampleRate_NewFields verifies that the new fields don't affect GetSampleRate.

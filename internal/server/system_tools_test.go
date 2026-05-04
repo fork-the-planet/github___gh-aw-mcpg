@@ -301,7 +301,7 @@ func TestHandleRequest_ToolsCall_InvalidJSON(t *testing.T) {
 
 			assert.Error(err, "Should return error for invalid params")
 			assert.Nil(result, "Result should be nil on error")
-			assert.Contains(err.Error(), "invalid params", "Error should mention invalid params")
+			assert.ErrorContains(err, "invalid params", "Error should mention invalid params")
 		})
 	}
 }
@@ -344,10 +344,10 @@ func TestHandleRequest_ToolsCall_UnknownTool(t *testing.T) {
 
 			if tt.toolName == "" {
 				assert.Error(err, "Empty tool name should return error")
-				assert.Contains(err.Error(), "invalid params", "Error should mention invalid params for empty name")
+				assert.ErrorContains(err, "invalid params", "Error should mention invalid params for empty name")
 			} else {
 				assert.Error(err, "Should return error for unknown tool")
-				assert.Contains(err.Error(), "unknown tool", "Error should mention unknown tool")
+				assert.ErrorContains(err, "unknown tool", "Error should mention unknown tool")
 			}
 			assert.Nil(result, "Result should be nil on error")
 		})
@@ -391,8 +391,8 @@ func TestHandleRequest_UnsupportedMethod(t *testing.T) {
 
 			assert.Error(err, "Should return error for unsupported method")
 			assert.Nil(result, "Result should be nil on error")
-			assert.Contains(err.Error(), "unsupported method", "Error should mention unsupported method")
-			assert.Contains(err.Error(), tt.method, "Error should include the method name")
+			assert.ErrorContains(err, "unsupported method", "Error should mention unsupported method")
+			assert.ErrorContains(err, tt.method, "Error should include the method name")
 		})
 	}
 }
@@ -512,7 +512,7 @@ func TestCallTool_AllTools(t *testing.T) {
 
 			if tt.expectError {
 				assert.Error(err)
-				assert.Contains(err.Error(), "unknown tool")
+				assert.ErrorContains(err, "unknown tool")
 			} else {
 				require.NoError(err)
 			}

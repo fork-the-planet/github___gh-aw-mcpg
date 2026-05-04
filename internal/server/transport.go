@@ -2,9 +2,7 @@ package server
 
 import (
 	"net/http"
-	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -39,7 +37,7 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey, h
 		return unifiedServer.server
 	}, mcpHandlerConfig{
 		handlerLog:     logTransport,
-		sessionTimeout: envutil.GetEnvDuration("MCP_GATEWAY_SESSION_TIMEOUT", 6*time.Hour), // Configurable; 6h default matches GitHub Actions default timeout
+		sessionTimeout: getSessionTimeout(),
 		logTag:         "unified",
 		unifiedServer:  unifiedServer,
 		apiKey:         apiKey,

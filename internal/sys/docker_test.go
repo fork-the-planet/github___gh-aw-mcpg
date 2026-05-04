@@ -109,7 +109,7 @@ func TestValidateContainerID_SecurityCritical(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
+					assert.ErrorContains(t, err, tt.errMsg)
 				}
 			} else {
 				require.NoError(t, err)

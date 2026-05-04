@@ -645,7 +645,7 @@ func TestValidateWriteSinkPolicy_WildcardWithOtherEntries(t *testing.T) {
 	policy := &WriteSinkPolicy{Accept: []string{"*", "private:org/repo"}}
 	err := ValidateWriteSinkPolicy(policy)
 	assert.Error(t, err, `accept=["*", "private:org/repo"] should be invalid`)
-	assert.Contains(t, err.Error(), "wildcard")
+	assert.ErrorContains(t, err, "wildcard")
 }
 
 // TestValidateWriteSinkPolicy_WildcardNotFirst tests that "*" anywhere in a
@@ -654,5 +654,5 @@ func TestValidateWriteSinkPolicy_WildcardNotFirst(t *testing.T) {
 	policy := &WriteSinkPolicy{Accept: []string{"private:org/repo", "*"}}
 	err := ValidateWriteSinkPolicy(policy)
 	assert.Error(t, err, `accept=["private:org/repo", "*"] should be invalid`)
-	assert.Contains(t, err.Error(), "wildcard")
+	assert.ErrorContains(t, err, "wildcard")
 }

@@ -396,7 +396,7 @@ func TestNoopGuard_BlocksWriteAfterGitHubRead(t *testing.T) {
 
 	// Non-read writes that fail DIFC should always return an error (even in filter mode).
 	require.Error(err)
-	require.Contains(err.Error(), "integrity", "noop should fail on integrity check")
+	require.ErrorContains(err, "integrity", "noop should fail on integrity check")
 }
 
 // TestWriteSinkPolicy_ResolvedForWriteSinkServer verifies that

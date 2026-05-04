@@ -94,7 +94,7 @@ func TestGenerateSelfSignedTLS(t *testing.T) {
 
 		_, err = client.Get(srv.URL)
 		require.Error(t, err, "TLS handshake should fail without CA trust")
-		assert.Contains(t, err.Error(), "certificate")
+		assert.ErrorContains(t, err, "certificate")
 	})
 
 	t.Run("server cert covers localhost, 127.0.0.1, and ::1", func(t *testing.T) {

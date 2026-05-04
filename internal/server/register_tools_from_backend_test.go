@@ -164,7 +164,7 @@ func TestRegisterToolsFromBackend_ConnectionFailure(t *testing.T) {
 	// Attempt to register tools should fail
 	err = us.registerToolsFromBackend("invalid-backend")
 	require.Error(err, "Should fail to connect to invalid backend")
-	require.Contains(err.Error(), "failed to connect", "Error should mention connection failure")
+	require.ErrorContains(err, "failed to connect", "Error should mention connection failure")
 }
 
 // TestRegisterToolsFromBackend_BackendError tests that registration
@@ -236,8 +236,8 @@ func TestRegisterToolsFromBackend_BackendError(t *testing.T) {
 	// Attempt to register tools should fail with backend error
 	err = us.registerToolsFromBackend("error-backend")
 	require.Error(err, "Should fail when backend returns error")
-	require.Contains(err.Error(), "failed to list tools", "Error should mention failed to list tools")
-	require.Contains(err.Error(), "unable to list tools", "Error should include backend error message")
+	require.ErrorContains(err, "failed to list tools", "Error should mention failed to list tools")
+	require.ErrorContains(err, "unable to list tools", "Error should include backend error message")
 }
 
 // TestRegisterToolsFromBackend_InvalidJSON tests that registration
@@ -306,7 +306,7 @@ func TestRegisterToolsFromBackend_InvalidJSON(t *testing.T) {
 	// Attempt to register tools should fail with JSON parsing error
 	err = us.registerToolsFromBackend("invalid-json-backend")
 	require.Error(err, "Should fail to parse invalid JSON")
-	require.Contains(err.Error(), "cannot unmarshal", "Error should mention JSON unmarshal failure")
+	require.ErrorContains(err, "cannot unmarshal", "Error should mention JSON unmarshal failure")
 }
 
 // TestRegisterToolsFromBackend_EmptyToolList tests that registration
@@ -400,7 +400,7 @@ func TestRegisterToolsFromBackend_UnknownServerID(t *testing.T) {
 	// Attempt to register tools from non-existent server
 	err = us.registerToolsFromBackend("nonexistent-server")
 	require.Error(err, "Should fail with unknown server ID")
-	require.Contains(err.Error(), "failed to connect", "Error should indicate connection failure")
+	require.ErrorContains(err, "failed to connect", "Error should indicate connection failure")
 }
 
 // TestRegisterToolsFromBackend_ToolNaming tests that tools are properly

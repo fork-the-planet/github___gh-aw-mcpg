@@ -165,7 +165,7 @@ func TestProvider_HTTPError(t *testing.T) {
 	provider := oidc.NewProvider(server.URL, "bad-token")
 	_, err := provider.Token(context.Background(), "https://example.com")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "401")
+	assert.ErrorContains(t, err, "401")
 }
 
 // TestProvider_InvalidResponse tests that a malformed response is handled gracefully.
@@ -192,7 +192,7 @@ func TestProvider_EmptyTokenValue(t *testing.T) {
 	provider := oidc.NewProvider(server.URL, "test-token")
 	_, err := provider.Token(context.Background(), "https://example.com")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "empty token")
+	assert.ErrorContains(t, err, "empty token")
 }
 
 // TestProvider_NetworkFailure tests that a network failure is returned as an error.
@@ -200,7 +200,7 @@ func TestProvider_NetworkFailure(t *testing.T) {
 	provider := oidc.NewProvider("http://127.0.0.1:1", "test-token")
 	_, err := provider.Token(context.Background(), "https://example.com")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "OIDC token request failed")
+	assert.ErrorContains(t, err, "OIDC token request failed")
 }
 
 // TestProvider_ConcurrentRequests tests that concurrent token requests are handled correctly.

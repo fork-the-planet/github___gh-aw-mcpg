@@ -158,7 +158,7 @@ func TestGuardBackendCallerCollaboratorPermission(t *testing.T) {
 			"username": "not-found-user",
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "404")
+		assert.ErrorContains(t, err, "404")
 	})
 
 	t.Run("403 returns error", func(t *testing.T) {
@@ -168,7 +168,7 @@ func TestGuardBackendCallerCollaboratorPermission(t *testing.T) {
 			"username": "forbidden-user",
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "403")
+		assert.ErrorContains(t, err, "403")
 	})
 
 	t.Run("missing owner returns error", func(t *testing.T) {
@@ -177,7 +177,7 @@ func TestGuardBackendCallerCollaboratorPermission(t *testing.T) {
 			"username": "admin-user",
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing owner/repo/username")
+		assert.ErrorContains(t, err, "missing owner/repo/username")
 	})
 
 	t.Run("missing repo returns error", func(t *testing.T) {
@@ -186,7 +186,7 @@ func TestGuardBackendCallerCollaboratorPermission(t *testing.T) {
 			"username": "admin-user",
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing owner/repo/username")
+		assert.ErrorContains(t, err, "missing owner/repo/username")
 	})
 
 	t.Run("missing username returns error", func(t *testing.T) {
@@ -195,13 +195,13 @@ func TestGuardBackendCallerCollaboratorPermission(t *testing.T) {
 			"repo":  "myrepo",
 		})
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing owner/repo/username")
+		assert.ErrorContains(t, err, "missing owner/repo/username")
 	})
 
 	t.Run("invalid args type returns error", func(t *testing.T) {
 		_, err := caller.CallTool(context.Background(), "get_collaborator_permission", "not-a-map")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "unexpected args type")
+		assert.ErrorContains(t, err, "unexpected args type")
 	})
 }
 
@@ -224,7 +224,7 @@ func TestGuardBackendCallerNoToken(t *testing.T) {
 		"username": "user",
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no GitHub token available")
+	assert.ErrorContains(t, err, "no GitHub token available")
 }
 
 func TestLookupGitHubToken(t *testing.T) {
@@ -417,7 +417,7 @@ func TestCollaboratorPermissionServerError(t *testing.T) {
 		"username": "user",
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "500")
+	assert.ErrorContains(t, err, "500")
 }
 
 // extractMCPText extracts the text field from an MCP response format.

@@ -101,7 +101,7 @@ func TestUnmarshalParams(t *testing.T) {
 		err := unmarshalParams(params, &target)
 
 		assert.Error(t, err, "Should fail to marshal channel type")
-		assert.Contains(t, err.Error(), "failed to marshal params", "Error should mention marshal failure")
+		assert.ErrorContains(t, err, "failed to marshal params", "Error should mention marshal failure")
 	})
 
 	t.Run("fail on invalid JSON structure", func(t *testing.T) {
@@ -116,7 +116,7 @@ func TestUnmarshalParams(t *testing.T) {
 		err := unmarshalParams(params, &target)
 
 		assert.Error(t, err, "Should fail on type mismatch")
-		assert.Contains(t, err.Error(), "invalid params", "Error should mention invalid params")
+		assert.ErrorContains(t, err, "invalid params", "Error should mention invalid params")
 	})
 
 	t.Run("fail with non-pointer target", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestUnmarshalParams(t *testing.T) {
 		err := unmarshalParams(params, target) // Note: not &target
 
 		assert.Error(t, err, "Should fail when target is not a pointer")
-		assert.Contains(t, err.Error(), "invalid params", "Error should mention invalid params")
+		assert.ErrorContains(t, err, "invalid params", "Error should mention invalid params")
 	})
 
 	t.Run("successful unmarshal preserves JSON types", func(t *testing.T) {
@@ -207,9 +207,9 @@ func TestUnmarshalParams_ErrorMessages(t *testing.T) {
 		err := unmarshalParams(params, &target)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to marshal params")
+		assert.ErrorContains(t, err, "failed to marshal params")
 		// Error should wrap the original JSON error
-		assert.Contains(t, err.Error(), "json")
+		assert.ErrorContains(t, err, "json")
 	})
 
 	t.Run("unmarshal error has descriptive message", func(t *testing.T) {
@@ -223,7 +223,7 @@ func TestUnmarshalParams_ErrorMessages(t *testing.T) {
 		err := unmarshalParams(params, &target)
 
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid params")
+		assert.ErrorContains(t, err, "invalid params")
 	})
 }
 

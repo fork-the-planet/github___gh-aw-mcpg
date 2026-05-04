@@ -29,8 +29,8 @@ func TestValidateAgainstCustomSchema_FetchFailure(t *testing.T) {
 	err := validateAgainstCustomSchema("test-server", server, mockServer.URL, "mcpServers.test-server")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to fetch custom schema")
-	assert.Contains(t, err.Error(), "mytype")
+	assert.ErrorContains(t, err, "failed to fetch custom schema")
+	assert.ErrorContains(t, err, "mytype")
 }
 
 // TestValidateAgainstCustomSchema_UnreachableURL covers the fetchAndFixSchema connection
@@ -49,7 +49,7 @@ func TestValidateAgainstCustomSchema_UnreachableURL(t *testing.T) {
 	err := validateAgainstCustomSchema("test-server", server, unreachableURL, "mcpServers.test-server")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to fetch custom schema")
+	assert.ErrorContains(t, err, "failed to fetch custom schema")
 }
 
 // TestValidateAgainstCustomSchema_SchemaWithDifferentID covers the branch at lines 248-257
@@ -129,7 +129,7 @@ func TestValidateAgainstCustomSchema_SchemaWithDifferentID_MissingRequired(t *te
 	err := validateAgainstCustomSchema("test-server", server, mockServer.URL, "mcpServers.test-server")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "does not match custom schema")
+	assert.ErrorContains(t, err, "does not match custom schema")
 }
 
 // TestValidateAgainstCustomSchema_AdditionalPropertiesMerged verifies that fields stored
@@ -213,7 +213,7 @@ func TestValidateAgainstCustomSchema_AdditionalPropertiesMissingRequired(t *test
 	err := validateAgainstCustomSchema("test-server", server, mockServer.URL, "mcpServers.test-server")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "does not match custom schema")
+	assert.ErrorContains(t, err, "does not match custom schema")
 }
 
 // TestValidateCustomServerConfig_NonStringSchemaValue covers the type assertion branch
@@ -272,7 +272,7 @@ func TestValidateCustomServerConfig_NilCustomSchemas(t *testing.T) {
 	err := validateCustomServerConfig("test-server", server, nil, "mcpServers.test-server")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not registered in customSchemas")
+	assert.ErrorContains(t, err, "not registered in customSchemas")
 }
 
 // TestValidateCustomServerConfig_UnregisteredType covers the case where customSchemas
@@ -290,6 +290,6 @@ func TestValidateCustomServerConfig_UnregisteredType(t *testing.T) {
 	err := validateCustomServerConfig("test-server", server, customSchemas, "mcpServers.test-server")
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not registered in customSchemas")
-	assert.Contains(t, err.Error(), "mytype")
+	assert.ErrorContains(t, err, "not registered in customSchemas")
+	assert.ErrorContains(t, err, "mytype")
 }

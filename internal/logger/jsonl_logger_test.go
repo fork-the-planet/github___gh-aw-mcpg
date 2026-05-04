@@ -803,7 +803,7 @@ func TestLogEntry_NilLogFile(t *testing.T) {
 	err := jl.logEntry(map[string]string{"key": "value"})
 
 	require.Error(t, err, "logEntry with nil logFile should return an error")
-	assert.Contains(t, err.Error(), "not initialized", "error message should indicate logger is not initialized")
+	assert.ErrorContains(t, err, "not initialized", "error message should indicate logger is not initialized")
 }
 
 // TestLogEntry_EncodeError verifies that logEntry returns a wrapped error when
@@ -823,7 +823,7 @@ func TestLogEntry_EncodeError(t *testing.T) {
 	err = jl.logEntry(make(chan int))
 
 	require.Error(t, err, "logEntry should return error for un-encodable type")
-	assert.Contains(t, err.Error(), "failed to encode JSON", "error should be wrapped with context")
+	assert.ErrorContains(t, err, "failed to encode JSON", "error should be wrapped with context")
 }
 
 // TestLogEntry_SyncError verifies that logEntry returns a wrapped error when
@@ -855,7 +855,7 @@ func TestLogEntry_SyncError(t *testing.T) {
 	syncErr := jl.logEntry(map[string]string{"event": "test"})
 
 	require.Error(t, syncErr, "logEntry should return an error when Sync fails")
-	assert.Contains(t, syncErr.Error(), "failed to sync log file", "error should be wrapped with sync context")
+	assert.ErrorContains(t, syncErr, "failed to sync log file", "error should be wrapped with sync context")
 }
 
 // TestLogEntry_HappyPath verifies that logEntry succeeds for a valid logger and

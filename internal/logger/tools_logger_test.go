@@ -259,7 +259,7 @@ func TestWriteToFile_WriteFileFails(t *testing.T) {
 
 	err := tl.writeToFile()
 	assert.Error(err, "writeToFile should fail when logDir does not exist")
-	assert.Contains(err.Error(), "failed to write temp file")
+	assert.ErrorContains(err, "failed to write temp file")
 }
 
 // TestWriteToFile_RenameFails verifies the error and cleanup path when os.Rename fails.
@@ -282,7 +282,7 @@ func TestWriteToFile_RenameFails(t *testing.T) {
 
 	err := tl.writeToFile()
 	assert.Error(err, "writeToFile should fail when rename target is a directory")
-	assert.Contains(err.Error(), "failed to rename temp file")
+	assert.ErrorContains(err, "failed to rename temp file")
 
 	// Verify that the cleanup removed the temp file.
 	_, statErr := os.Stat(filepath.Join(tmpDir, "tools.json.tmp"))

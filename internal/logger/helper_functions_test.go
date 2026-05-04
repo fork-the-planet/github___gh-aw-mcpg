@@ -213,5 +213,5 @@ func TestHelperFunctionsConcurrency(t *testing.T) {
 
 	// Count log lines (should be 200: 10 goroutines * 10 messages * 2 levels)
 	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-	assert.Equal(t, 200, len(lines), "Expected 200 log lines from concurrent helper calls")
+	assert.Len(t, lines, 200, "Expected 200 log lines from concurrent helper calls")
 }

@@ -170,7 +170,7 @@ func TestValidateStringArray(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.wantErrContains != "" {
-					assert.Contains(t, err.Error(), tt.wantErrContains)
+					assert.ErrorContains(t, err, tt.wantErrContains)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -298,7 +298,7 @@ func TestValidateIntegrityField(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.wantErrContains != "" {
-					assert.Contains(t, err.Error(), tt.wantErrContains)
+					assert.ErrorContains(t, err, tt.wantErrContains)
 				}
 			} else {
 				assert.NoError(t, err)
@@ -310,6 +310,6 @@ func TestValidateIntegrityField(t *testing.T) {
 func TestInvalidIntegrityFieldError(t *testing.T) {
 	err := invalidIntegrityFieldError("test-field")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "test-field")
-	assert.Contains(t, err.Error(), "none|unapproved|approved|merged")
+	assert.ErrorContains(t, err, "test-field")
+	assert.ErrorContains(t, err, "none|unapproved|approved|merged")
 }

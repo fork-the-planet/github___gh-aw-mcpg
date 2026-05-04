@@ -56,7 +56,7 @@ func TestConnection_SendRequest_UnsupportedMethod(t *testing.T) {
 	result, err := conn.SendRequest("unsupported/method", nil)
 	require.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "unsupported method")
+	assert.ErrorContains(t, err, "unsupported method")
 }
 
 // TestConnection_Close_NilSession verifies that Close does not panic and returns nil

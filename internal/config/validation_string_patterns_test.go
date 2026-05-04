@@ -136,7 +136,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 				if tt.shouldError {
 					require.Error(t, err, "Expected validation error but got none")
-					assert.Contains(t, err.Error(), tt.errorField, "Error should mention the problematic field")
+					assert.ErrorContains(t, err, tt.errorField, "Error should mention the problematic field")
 				} else {
 					assert.NoError(t, err, "Expected no error for valid container pattern")
 				}
@@ -215,7 +215,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 				if tt.shouldError {
 					require.Error(t, err, "Expected validation error but got none")
-					assert.Contains(t, err.Error(), tt.errorField, "Error should mention the problematic field")
+					assert.ErrorContains(t, err, tt.errorField, "Error should mention the problematic field")
 				} else {
 					assert.NoError(t, err, "Expected no error for valid mount pattern")
 				}
@@ -282,7 +282,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 				if tt.shouldError {
 					require.Error(t, err, "Expected validation error but got none")
-					assert.Contains(t, err.Error(), "entrypoint", "Error should mention entrypoint")
+					assert.ErrorContains(t, err, "entrypoint", "Error should mention entrypoint")
 				} else {
 					assert.NoError(t, err, "Expected no error for valid entrypoint")
 				}
@@ -360,7 +360,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 				if tt.shouldError {
 					require.Error(t, err, "Expected validation error but got none")
-					assert.Contains(t, err.Error(), "url", "Error should mention url")
+					assert.ErrorContains(t, err, "url", "Error should mention url")
 				} else {
 					assert.NoError(t, err, "Expected no error for valid URL")
 				}
@@ -444,7 +444,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 				if tt.shouldError {
 					require.Error(t, err, "Expected validation error but got none")
-					assert.Contains(t, err.Error(), "port", "Error should mention port")
+					assert.ErrorContains(t, err, "port", "Error should mention port")
 				} else {
 					assert.NoError(t, err, "Expected no error for valid port")
 				}
@@ -545,7 +545,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 				if tt.shouldError {
 					require.Error(t, err, "Expected validation error but got none")
-					assert.Contains(t, err.Error(), "domain", "Error should mention domain")
+					assert.ErrorContains(t, err, "domain", "Error should mention domain")
 				} else {
 					assert.NoError(t, err, "Expected no error for valid domain")
 				}
@@ -640,7 +640,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 				if tt.shouldError {
 					require.Error(t, err, "Expected validation error but got none")
-					assert.Contains(t, err.Error(), tt.errorField, "Error should mention the problematic field")
+					assert.ErrorContains(t, err, tt.errorField, "Error should mention the problematic field")
 				} else {
 					assert.NoError(t, err, "Expected no error for valid timeouts")
 				}
@@ -688,7 +688,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 			err := validateStringPatterns(config)
 			require.Error(t, err, "Expected validation error for invalid server")
-			assert.Contains(t, err.Error(), "container", "Error should mention container issue")
+			assert.ErrorContains(t, err, "container", "Error should mention container issue")
 		})
 	})
 
@@ -782,8 +782,8 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 			err := validateStringPatterns(config)
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "mcpServers.my-server.container", "Error should include JSON path")
-			assert.Contains(t, err.Error(), "Suggestion", "Error should include suggestion")
+			assert.ErrorContains(t, err, "mcpServers.my-server.container", "Error should include JSON path")
+			assert.ErrorContains(t, err, "Suggestion", "Error should include suggestion")
 		})
 
 		t.Run("mount error includes array index", func(t *testing.T) {
@@ -799,7 +799,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 			err := validateStringPatterns(config)
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "mounts[1]", "Error should include array index")
+			assert.ErrorContains(t, err, "mounts[1]", "Error should include array index")
 		})
 
 		t.Run("domain error includes suggestion", func(t *testing.T) {
@@ -817,8 +817,8 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 
 			err := validateStringPatterns(config)
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "Suggestion", "Error should include suggestion")
-			assert.Contains(t, err.Error(), "localhost", "Suggestion should mention localhost")
+			assert.ErrorContains(t, err, "Suggestion", "Error should include suggestion")
+			assert.ErrorContains(t, err, "localhost", "Suggestion should mention localhost")
 		})
 	})
 }

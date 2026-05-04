@@ -452,6 +452,6 @@ func TestConfigureTLSTrustEnvironment(t *testing.T) {
 	t.Run("rejects CA cert path with newline", func(t *testing.T) {
 		err := configureTLSTrustEnvironment("/tmp/ca.crt\nMALICIOUS=1")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "contains newline")
+		assert.ErrorContains(t, err, "contains newline")
 	})
 }

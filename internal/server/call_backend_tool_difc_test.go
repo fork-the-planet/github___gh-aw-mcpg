@@ -201,7 +201,7 @@ func TestCallBackendTool_Phase1_LabelResourceError(t *testing.T) {
 	require.NotNil(result, "callBackendTool must always return non-nil CallToolResult")
 	assert.True(result.IsError, "result should be marked as error when LabelResource fails")
 	require.Error(err)
-	assert.Contains(err.Error(), "guard labeling failed")
+	assert.ErrorContains(err, "guard labeling failed")
 }
 
 // ─── Phase 2: Coarse-grained access check ────────────────────────────────────
@@ -232,7 +232,7 @@ func TestCallBackendTool_Phase2_WriteOperationBlocked(t *testing.T) {
 	assert.True(result.IsError, "write should be blocked — result should be an error")
 	assert.Nil(data, "no data should be returned when write is blocked")
 	require.Error(err)
-	assert.Contains(err.Error(), "DIFC Violation:",
+	assert.ErrorContains(err, "DIFC Violation:",
 		"error should mention DIFC Violation")
 }
 
@@ -346,7 +346,7 @@ func TestCallBackendTool_Phase4_LabelResponseError(t *testing.T) {
 	require.NotNil(result)
 	assert.True(result.IsError)
 	require.Error(err)
-	assert.Contains(err.Error(), "response labeling failed")
+	assert.ErrorContains(err, "response labeling failed")
 }
 
 // TestCallBackendTool_Phase4_WriteSkipsLabelResponse verifies that for write
@@ -445,7 +445,7 @@ func TestCallBackendTool_Phase5_StrictMode_BlocksFilteredCollection(t *testing.T
 	require.NotNil(result, "must return non-nil CallToolResult")
 	assert.True(result.IsError, "strict mode must block when any item is filtered")
 	require.Error(err)
-	assert.Contains(err.Error(), "DIFC policy violation",
+	assert.ErrorContains(err, "DIFC policy violation",
 		"error should mention DIFC policy violation")
 }
 
@@ -635,7 +635,7 @@ func TestCallBackendTool_Phase5_FilterMode_SingleItemFiltered_ReturnsMCPError(t 
 	require.NotNil(result)
 	assert.True(result.IsError, "single filtered item must produce an IsError MCP result")
 	require.Error(err, "a Go error must accompany the IsError result")
-	assert.Contains(err.Error(), "[Filtered]",
+	assert.ErrorContains(err, "[Filtered]",
 		"error message must contain [Filtered] marker")
 }
 
@@ -818,5 +818,5 @@ func TestCallBackendTool_GuardInitError(t *testing.T) {
 	require.NotNil(result, "callBackendTool must always return non-nil CallToolResult")
 	assert.True(result.IsError, "result should be marked as error when guard init fails")
 	require.Error(err)
-	assert.Contains(err.Error(), "guard session initialization failed")
+	assert.ErrorContains(err, "guard session initialization failed")
 }
