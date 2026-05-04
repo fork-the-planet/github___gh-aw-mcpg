@@ -816,19 +816,19 @@ func TestCreateHTTPServerForRoutedMode_OAuth(t *testing.T) {
 func TestRoutedModeSessionTimeout_ReadsEnvVar(t *testing.T) {
 	t.Run("custom timeout from env", func(t *testing.T) {
 		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "2h")
-		got := getRoutedSessionTimeout()
-		assert.Equal(t, 2*time.Hour, got, "getRoutedSessionTimeout should return the value from MCP_GATEWAY_SESSION_TIMEOUT")
+		got := getSessionTimeout()
+		assert.Equal(t, 2*time.Hour, got, "getSessionTimeout should return the value from MCP_GATEWAY_SESSION_TIMEOUT")
 	})
 
 	t.Run("default 6h timeout when env var is empty", func(t *testing.T) {
 		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "")
-		got := getRoutedSessionTimeout()
-		assert.Equal(t, 6*time.Hour, got, "getRoutedSessionTimeout should default to 6h when MCP_GATEWAY_SESSION_TIMEOUT is empty")
+		got := getSessionTimeout()
+		assert.Equal(t, 6*time.Hour, got, "getSessionTimeout should default to 6h when MCP_GATEWAY_SESSION_TIMEOUT is empty")
 	})
 
 	t.Run("default 6h timeout is not the old 30min value", func(t *testing.T) {
 		t.Setenv("MCP_GATEWAY_SESSION_TIMEOUT", "")
-		got := getRoutedSessionTimeout()
+		got := getSessionTimeout()
 		assert.Greater(t, got, 30*time.Minute, "default timeout must exceed the old hardcoded 30-minute value")
 	})
 }
