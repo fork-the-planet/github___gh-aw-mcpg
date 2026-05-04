@@ -228,7 +228,7 @@ func TestDIFCConfigWithGuards(t *testing.T) {
 		}
 	}`, port)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, binary, "--config-stdin", "--log-dir", logDir)
@@ -242,9 +242,9 @@ func TestDIFCConfigWithGuards(t *testing.T) {
 	err := cmd.Start()
 	require.NoError(t, err, "Failed to start gateway")
 
-	// Wait for full startup — ensures all servers are processed and log files flushed
-	ok := waitForStderr(&stderr, "Starting MCPG", 15*time.Second)
-	require.Truef(t, ok, "timeout waiting for gateway startup within %s; stderr:\n%s", 15*time.Second, stderr.String())
+	// Wait for full startup — allows time for Docker image pulls in CI
+	ok := waitForStderr(&stderr, "Starting MCPG", 50*time.Second)
+	require.Truef(t, ok, "timeout waiting for gateway startup within %s; stderr:\n%s", 50*time.Second, stderr.String())
 
 	// Try health check
 	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/health", port))

@@ -848,7 +848,7 @@ func TestBinaryInvocation_LogFileCreation(t *testing.T) {
 	defer os.Remove(configFile)
 
 	// Start the server process with custom log directory
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
 	port := "13006"
@@ -873,9 +873,9 @@ func TestBinaryInvocation_LogFileCreation(t *testing.T) {
 		}
 	}()
 
-	// Wait for server to start
+	// Wait for server to start — allow time for Docker image pulls in CI
 	serverURL := "http://127.0.0.1:" + port
-	if !waitForServer(t, serverURL+"/health", 5*time.Second) {
+	if !waitForServer(t, serverURL+"/health", 40*time.Second) {
 		t.Logf("STDOUT: %s", stdout.String())
 		t.Logf("STDERR: %s", stderr.String())
 		t.Fatal("Server did not start in time")
@@ -996,7 +996,7 @@ func TestBinaryInvocation_LogDirEnvironmentVariable(t *testing.T) {
 	defer os.Remove(configFile)
 
 	// Start the server process with MCP_GATEWAY_LOG_DIR environment variable (no --log-dir flag)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
 	port := "13007"
@@ -1023,9 +1023,9 @@ func TestBinaryInvocation_LogDirEnvironmentVariable(t *testing.T) {
 		}
 	}()
 
-	// Wait for server to start
+	// Wait for server to start — allow time for Docker image pulls in CI
 	serverURL := "http://127.0.0.1:" + port
-	if !waitForServer(t, serverURL+"/health", 5*time.Second) {
+	if !waitForServer(t, serverURL+"/health", 40*time.Second) {
 		t.Logf("STDOUT: %s", stdout.String())
 		t.Logf("STDERR: %s", stderr.String())
 		t.Fatal("Server did not start in time")
