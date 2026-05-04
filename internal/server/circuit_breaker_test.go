@@ -443,7 +443,6 @@ func TestCircuitBreakerState_String(t *testing.T) {
 	}
 }
 
-
 // TestIsRateLimitText_Direct directly verifies isRateLimitText with each pattern and edge cases.
 func TestIsRateLimitText_Direct(t *testing.T) {
 	t.Parallel()

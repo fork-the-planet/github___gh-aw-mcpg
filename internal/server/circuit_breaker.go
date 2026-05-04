@@ -226,7 +226,6 @@ func (cb *circuitBreaker) State() circuitBreakerState {
 	return cb.state
 }
 
-
 // buildCircuitBreakers creates per-backend circuit breakers from the configuration.
 func buildCircuitBreakers(cfg *config.Config) map[string]*circuitBreaker {
 	cbs := make(map[string]*circuitBreaker)

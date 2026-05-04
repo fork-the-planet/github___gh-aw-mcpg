@@ -50,6 +50,7 @@ pub use helpers::{
 };
 #[cfg(test)]
 pub use helpers::has_approval_label;
+#[cfg(test)]
 pub use helpers::{has_demotion_label, has_promotion_label};
 #[cfg(test)]
 pub use helpers::secret_label;
