@@ -506,25 +506,21 @@ func TestConvertContentItem_ResourceMarshalError(t *testing.T) {
 }
 
 // TestConvertMapToCallToolResult_ContentItemCastFailure verifies that
-// []interface{} items that are not map[string]interface{} are silently skipped
-// (they fail the type assertion and are not appended to items).
+// malformed []interface{} content entries are rejected instead of being
+// silently skipped, to avoid data loss.
 func TestConvertMapToCallToolResult_ContentItemCastFailure(t *testing.T) {
 	// Mix a valid text item with a scalar item (int) that cannot be cast to
-	// map[string]interface{}. The scalar should be silently dropped.
+	// map[string]interface{}. The malformed scalar should cause the entire
+	// conversion to fail rather than be silently dropped.
 	input := map[string]interface{}{
 		"content": []interface{}{
 			map[string]interface{}{"type": "text", "text": "valid"},
-			42, // not a map — will be silently skipped
+			42, // not a map — conversion should fail
 		},
 	}
 	result, err := ConvertToCallToolResult(input)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	// Only the valid text item should appear; the integer is dropped.
-	assert.Len(t, result.Content, 1)
-	text, ok := result.Content[0].(*sdk.TextContent)
-	require.True(t, ok)
-	assert.Equal(t, "valid", text.Text)
+	require.Error(t, err)
+	require.Nil(t, result)
 }
 
 func TestBuildMCPTextResponse(t *testing.T) {
