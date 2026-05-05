@@ -97,11 +97,15 @@ func expandTracingVariables(cfg *TracingConfig) error {
 		return nil
 	}
 
+	logValidation.Printf("Expanding tracing config variables: hasEndpoint=%v, hasTraceID=%v, hasSpanID=%v, hasHeaders=%v",
+		cfg.Endpoint != "", cfg.TraceID != "", cfg.SpanID != "", cfg.Headers != "")
+
 	if cfg.Endpoint != "" {
 		expanded, err := expandVariables(cfg.Endpoint, "gateway.opentelemetry.endpoint")
 		if err != nil {
 			return err
 		}
+		logValidation.Printf("Expanded tracing endpoint variable")
 		cfg.Endpoint = expanded
 	}
 
@@ -110,6 +114,7 @@ func expandTracingVariables(cfg *TracingConfig) error {
 		if err != nil {
 			return err
 		}
+		logValidation.Printf("Expanded tracing traceId variable")
 		cfg.TraceID = expanded
 	}
 
@@ -118,6 +123,7 @@ func expandTracingVariables(cfg *TracingConfig) error {
 		if err != nil {
 			return err
 		}
+		logValidation.Printf("Expanded tracing spanId variable")
 		cfg.SpanID = expanded
 	}
 
@@ -126,8 +132,10 @@ func expandTracingVariables(cfg *TracingConfig) error {
 		if err != nil {
 			return err
 		}
+		logValidation.Printf("Expanded tracing headers variable")
 		cfg.Headers = expanded
 	}
 
+	logValidation.Print("Tracing config variable expansion completed")
 	return nil
 }
