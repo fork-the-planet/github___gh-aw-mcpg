@@ -433,6 +433,95 @@ func TestConvertToCallToolResult_MarshalError(t *testing.T) {
 	assert.ErrorContains(t, err, "failed to marshal backend result")
 }
 
+// TestDecodeContentData exercises all three branches of decodeContentData directly
+// by calling convertContentItem with crafted content-item maps.
+func TestDecodeContentData(t *testing.T) {
+	t.Run("pre-decoded []byte data is returned as-is", func(t *testing.T) {
+		// When data is already a []byte (e.g. assembled by in-process helpers rather
+		// than JSON unmarshalling), decodeContentData must return it unchanged.
+		raw := []byte("binary payload")
+		ci := map[string]interface{}{
+			"type":     "image",
+			"mimeType": "image/png",
+			"data":     raw,
+		}
+		result, err := convertContentItem(ci)
+		require.NoError(t, err)
+		img, ok := result.(*sdk.ImageContent)
+		require.True(t, ok, "expected *sdk.ImageContent")
+		assert.Equal(t, raw, img.Data)
+	})
+
+	t.Run("missing image data returns error", func(t *testing.T) {
+		// Binary content items must include a data payload; accepting a missing
+		// payload would surface corrupted backend responses as empty media.
+		ci := map[string]interface{}{
+			"type":     "image",
+			"mimeType": "image/png",
+			// no "data" key
+		}
+		result, err := convertContentItem(ci)
+		assert.Error(t, err, "missing image data should produce an error")
+		assert.Nil(t, result)
+	})
+
+	t.Run("invalid base64 string in image data returns error", func(t *testing.T) {
+		ci := map[string]interface{}{
+			"type":     "image",
+			"mimeType": "image/png",
+			"data":     "!!!not-valid-base64!!!",
+		}
+		result, err := convertContentItem(ci)
+		assert.Error(t, err, "invalid base64 should produce an error")
+		assert.Nil(t, result)
+		assert.ErrorContains(t, err, "failed to decode image data")
+	})
+
+	t.Run("invalid base64 string in audio data returns error", func(t *testing.T) {
+		ci := map[string]interface{}{
+			"type":     "audio",
+			"mimeType": "audio/wav",
+			"data":     "!!!not-valid-base64!!!",
+		}
+		result, err := convertContentItem(ci)
+		assert.Error(t, err, "invalid base64 should produce an error")
+		assert.Nil(t, result)
+		assert.ErrorContains(t, err, "failed to decode audio data")
+	})
+}
+
+// TestConvertContentItem_ResourceMarshalError verifies that an unmarshalable
+// resource value causes convertContentItem to return an error.
+func TestConvertContentItem_ResourceMarshalError(t *testing.T) {
+	// Channels are not JSON-serializable, so json.Marshal will fail.
+	ci := map[string]interface{}{
+		"type":     "resource",
+		"resource": make(chan int),
+	}
+	result, err := convertContentItem(ci)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorContains(t, err, "failed to marshal resource")
+}
+
+// TestConvertMapToCallToolResult_ContentItemCastFailure verifies that
+// malformed []interface{} content entries are rejected instead of being
+// silently skipped, to avoid data loss.
+func TestConvertMapToCallToolResult_ContentItemCastFailure(t *testing.T) {
+	// Mix a valid text item with a scalar item (int) that cannot be cast to
+	// map[string]interface{}. The malformed scalar should cause the entire
+	// conversion to fail rather than be silently dropped.
+	input := map[string]interface{}{
+		"content": []interface{}{
+			map[string]interface{}{"type": "text", "text": "valid"},
+			42, // not a map — conversion should fail
+		},
+	}
+	result, err := ConvertToCallToolResult(input)
+	require.Error(t, err)
+	require.Nil(t, result)
+}
+
 func TestBuildMCPTextResponse(t *testing.T) {
 	text := `{"permission":"write"}`
 
