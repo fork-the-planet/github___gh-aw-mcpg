@@ -452,18 +452,17 @@ func TestDecodeContentData(t *testing.T) {
 		assert.Equal(t, raw, img.Data)
 	})
 
-	t.Run("nil data field returns nil bytes without error", func(t *testing.T) {
-		// When ci["data"] is absent / nil, decodeContentData should return (nil, nil).
+	t.Run("missing image data returns error", func(t *testing.T) {
+		// Binary content items must include a data payload; accepting a missing
+		// payload would surface corrupted backend responses as empty media.
 		ci := map[string]interface{}{
 			"type":     "image",
 			"mimeType": "image/png",
-			// no "data" key — ci["data"] evaluates to nil
+			// no "data" key
 		}
 		result, err := convertContentItem(ci)
-		require.NoError(t, err)
-		img, ok := result.(*sdk.ImageContent)
-		require.True(t, ok, "expected *sdk.ImageContent")
-		assert.Nil(t, img.Data)
+		assert.Error(t, err, "missing image data should produce an error")
+		assert.Nil(t, result)
 	})
 
 	t.Run("invalid base64 string in image data returns error", func(t *testing.T) {
