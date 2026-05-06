@@ -154,10 +154,16 @@ func makeTestBuildInfo(settings map[string]string) *debug.BuildInfo {
 
 func TestVCSCommitFromBuildInfo(t *testing.T) {
 	tests := []struct {
-		name     string
-		settings map[string]string
-		want     string
+		name      string
+		buildInfo *debug.BuildInfo
+		settings  map[string]string
+		want      string
 	}{
+		{
+			name:      "nil build info returns empty string",
+			buildInfo: nil,
+			want:      "",
+		},
 		{
 			name:     "vcs.revision present with short hash (≤7 chars)",
 			settings: map[string]string{"vcs.revision": "abc1234"},
@@ -197,8 +203,12 @@ func TestVCSCommitFromBuildInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			info := makeTestBuildInfo(tt.settings)
-			got := vcsCommitFromBuildInfo(info)
+			buildInfo := tt.buildInfo
+			if buildInfo == nil && tt.settings != nil {
+				buildInfo = makeTestBuildInfo(tt.settings)
+			}
+
+			got := vcsCommitFromBuildInfo(buildInfo)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -206,10 +216,16 @@ func TestVCSCommitFromBuildInfo(t *testing.T) {
 
 func TestVCSTimeFromBuildInfo(t *testing.T) {
 	tests := []struct {
-		name     string
-		settings map[string]string
-		want     string
+		name      string
+		buildInfo *debug.BuildInfo
+		settings  map[string]string
+		want      string
 	}{
+		{
+			name:      "nil build info returns empty string",
+			buildInfo: nil,
+			want:      "",
+		},
 		{
 			name:     "vcs.time present returns value",
 			settings: map[string]string{"vcs.time": "2024-01-15T10:30:00Z"},
@@ -239,8 +255,12 @@ func TestVCSTimeFromBuildInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			info := makeTestBuildInfo(tt.settings)
-			got := vcsTimeFromBuildInfo(info)
+			buildInfo := tt.buildInfo
+			if buildInfo == nil && tt.settings != nil {
+				buildInfo = makeTestBuildInfo(tt.settings)
+			}
+
+			got := vcsTimeFromBuildInfo(buildInfo)
 			assert.Equal(t, tt.want, got)
 		})
 	}

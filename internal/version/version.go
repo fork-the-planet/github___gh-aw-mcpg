@@ -12,6 +12,10 @@ const shortHashLength = 7
 // truncating it to shortHashLength characters when longer.
 // Returns an empty string when the setting is absent.
 func vcsCommitFromBuildInfo(buildInfo *debug.BuildInfo) string {
+	if buildInfo == nil {
+		return ""
+	}
+
 	for _, setting := range buildInfo.Settings {
 		if setting.Key == "vcs.revision" {
 			commitHash := setting.Value
@@ -27,6 +31,10 @@ func vcsCommitFromBuildInfo(buildInfo *debug.BuildInfo) string {
 // vcsTimeFromBuildInfo extracts the vcs.time setting from build info.
 // Returns an empty string when the setting is absent.
 func vcsTimeFromBuildInfo(buildInfo *debug.BuildInfo) string {
+	if buildInfo == nil {
+		return ""
+	}
+
 	for _, setting := range buildInfo.Settings {
 		if setting.Key == "vcs.time" {
 			return setting.Value
