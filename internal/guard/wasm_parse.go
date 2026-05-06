@@ -176,12 +176,19 @@ func (g *WasmGuard) callWasmFunction(ctx context.Context, funcName string, input
 // Returns (nil, 0, error) on actual error.
 func (g *WasmGuard) tryCallWasmFunction(ctx context.Context, fn api.Function, mem api.Memory, inputJSON []byte, outputSize uint32) ([]byte, uint32, error) {
 	inputSize := uint32(len(inputJSON))
+	functionName := "<unknown>"
+	if def := fn.Definition(); def != nil && def.Name() != "" {
+		functionName = def.Name()
+	}
+	logWasm.Printf("tryCallWasmFunction: guard=%s, func=%s, inputSize=%d, outputSize=%d", g.name, functionName, inputSize, outputSize)
 
-	// Preferred path: use guard allocator if exported to avoid overlapping
-	// host-managed buffers with guard heap allocations.
+	// Preferred path: use guard allocator only when both allocator exports are
+	// available, to avoid overlapping host-managed buffers with guard heap
+	// allocations and to ensure allocated memory can be freed.
 	allocFn := g.module.ExportedFunction("alloc")
 	deallocFn := g.module.ExportedFunction("dealloc")
-	if allocFn != nil {
+	if allocFn != nil && deallocFn != nil {
+		logWasm.Printf("Using guard allocator path: guard=%s", g.name)
 		// Use a non-cancelable context for cleanup to avoid leaking WASM heap
 		// allocations if the request context is canceled or times out.
 		cleanupCtx := context.WithoutCancel(ctx)
@@ -236,6 +243,8 @@ func (g *WasmGuard) tryCallWasmFunction(ctx context.Context, fn api.Function, me
 		resultCopy := append([]byte(nil), outputJSON...)
 		return resultCopy, 0, nil
 	}
+
+	logWasm.Printf("Using direct memory path: guard=%s, inputSize=%d, outputSize=%d", g.name, inputSize, outputSize)
 
 	// Ensure memory is large enough for our buffers
 	// Layout: [...guard memory...][input buffer][output buffer]
@@ -317,6 +326,7 @@ func (g *WasmGuard) wasmAlloc(ctx context.Context, allocFn api.Function, size ui
 	if ptr == 0 {
 		return 0, fmt.Errorf("alloc returned null pointer")
 	}
+	logWasm.Printf("wasmAlloc: guard=%s, size=%d, ptr=%d", g.name, size, ptr)
 	return ptr, nil
 }
 
@@ -382,6 +392,7 @@ func parseResourceResponse(response map[string]interface{}) (*difc.LabeledResour
 		}
 	}
 
+	logWasm.Printf("Parsed resource response: description=%q, operation=%v", resource.Description, operation)
 	return resource, operation, nil
 }
 

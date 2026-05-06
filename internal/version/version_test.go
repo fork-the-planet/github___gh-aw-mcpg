@@ -1,6 +1,7 @@
 package version
 
 import (
+	"runtime/debug"
 	"strings"
 	"testing"
 
@@ -141,4 +142,126 @@ func TestGet(t *testing.T) {
 		gatewayVersion = "v3.1.4"
 		assert.Equal(t, Get(), Get(), "consecutive Get() calls should return the same value")
 	})
+}
+
+func makeTestBuildInfo(settings map[string]string) *debug.BuildInfo {
+	info := &debug.BuildInfo{}
+	for k, v := range settings {
+		info.Settings = append(info.Settings, debug.BuildSetting{Key: k, Value: v})
+	}
+	return info
+}
+
+func TestVCSCommitFromBuildInfo(t *testing.T) {
+	tests := []struct {
+		name      string
+		buildInfo *debug.BuildInfo
+		settings  map[string]string
+		want      string
+	}{
+		{
+			name:      "nil build info returns empty string",
+			buildInfo: nil,
+			want:      "",
+		},
+		{
+			name:     "vcs.revision present with short hash (≤7 chars)",
+			settings: map[string]string{"vcs.revision": "abc1234"},
+			want:     "abc1234",
+		},
+		{
+			name:     "vcs.revision present with full 40-char hash is truncated to 7",
+			settings: map[string]string{"vcs.revision": "abcdef1234567890abcdef1234567890abcdef12"},
+			want:     "abcdef1",
+		},
+		{
+			name:     "vcs.revision present with exactly 7 chars is not truncated",
+			settings: map[string]string{"vcs.revision": "1234567"},
+			want:     "1234567",
+		},
+		{
+			name:     "vcs.revision present with 8 chars is truncated to 7",
+			settings: map[string]string{"vcs.revision": "12345678"},
+			want:     "1234567",
+		},
+		{
+			name:     "vcs.revision absent returns empty string",
+			settings: map[string]string{"vcs.time": "2024-01-01"},
+			want:     "",
+		},
+		{
+			name:     "empty settings returns empty string",
+			settings: map[string]string{},
+			want:     "",
+		},
+		{
+			name:     "vcs.revision with empty value returns empty string",
+			settings: map[string]string{"vcs.revision": ""},
+			want:     "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buildInfo := tt.buildInfo
+			if buildInfo == nil && tt.settings != nil {
+				buildInfo = makeTestBuildInfo(tt.settings)
+			}
+
+			got := vcsCommitFromBuildInfo(buildInfo)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestVCSTimeFromBuildInfo(t *testing.T) {
+	tests := []struct {
+		name      string
+		buildInfo *debug.BuildInfo
+		settings  map[string]string
+		want      string
+	}{
+		{
+			name:      "nil build info returns empty string",
+			buildInfo: nil,
+			want:      "",
+		},
+		{
+			name:     "vcs.time present returns value",
+			settings: map[string]string{"vcs.time": "2024-01-15T10:30:00Z"},
+			want:     "2024-01-15T10:30:00Z",
+		},
+		{
+			name:     "vcs.time absent returns empty string",
+			settings: map[string]string{"vcs.revision": "abc1234"},
+			want:     "",
+		},
+		{
+			name:     "empty settings returns empty string",
+			settings: map[string]string{},
+			want:     "",
+		},
+		{
+			name:     "vcs.time with empty value returns empty string",
+			settings: map[string]string{"vcs.time": ""},
+			want:     "",
+		},
+		{
+			name:     "both vcs settings present returns time",
+			settings: map[string]string{"vcs.revision": "abc1234", "vcs.time": "2024-06-01T00:00:00Z"},
+			want:     "2024-06-01T00:00:00Z",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buildInfo := tt.buildInfo
+			if buildInfo == nil && tt.settings != nil {
+				buildInfo = makeTestBuildInfo(tt.settings)
+			}
+
+			got := vcsTimeFromBuildInfo(buildInfo)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

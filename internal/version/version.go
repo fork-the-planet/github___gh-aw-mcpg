@@ -8,6 +8,41 @@ import (
 
 const shortHashLength = 7
 
+// vcsCommitFromBuildInfo extracts the vcs.revision setting from build info,
+// truncating it to shortHashLength characters when longer.
+// Returns an empty string when the setting is absent.
+func vcsCommitFromBuildInfo(buildInfo *debug.BuildInfo) string {
+	if buildInfo == nil {
+		return ""
+	}
+
+	for _, setting := range buildInfo.Settings {
+		if setting.Key == "vcs.revision" {
+			commitHash := setting.Value
+			if len(commitHash) > shortHashLength {
+				commitHash = commitHash[:shortHashLength]
+			}
+			return commitHash
+		}
+	}
+	return ""
+}
+
+// vcsTimeFromBuildInfo extracts the vcs.time setting from build info.
+// Returns an empty string when the setting is absent.
+func vcsTimeFromBuildInfo(buildInfo *debug.BuildInfo) string {
+	if buildInfo == nil {
+		return ""
+	}
+
+	for _, setting := range buildInfo.Settings {
+		if setting.Key == "vcs.time" {
+			return setting.Value
+		}
+	}
+	return ""
+}
+
 // gatewayVersion stores the gateway version string, used across multiple packages
 // for error reporting, health checks, and MCP client implementation info.
 // It defaults to "0.0.0-dev" (a valid semantic version pre-release identifier) and
@@ -44,26 +79,16 @@ func BuildVersionString(mainVersion, gitCommit, buildDate string) string {
 	if gitCommit != "" {
 		parts = append(parts, fmt.Sprintf("commit: %s", gitCommit))
 	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range buildInfo.Settings {
-			if setting.Key == "vcs.revision" {
-				commitHash := setting.Value
-				if len(commitHash) > shortHashLength {
-					commitHash = commitHash[:shortHashLength]
-				}
-				parts = append(parts, fmt.Sprintf("commit: %s", commitHash))
-				break
-			}
+		if commit := vcsCommitFromBuildInfo(buildInfo); commit != "" {
+			parts = append(parts, fmt.Sprintf("commit: %s", commit))
 		}
 	}
 
 	if buildDate != "" {
 		parts = append(parts, fmt.Sprintf("built: %s", buildDate))
 	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
-		for _, setting := range buildInfo.Settings {
-			if setting.Key == "vcs.time" {
-				parts = append(parts, fmt.Sprintf("built: %s", setting.Value))
-				break
-			}
+		if date := vcsTimeFromBuildInfo(buildInfo); date != "" {
+			parts = append(parts, fmt.Sprintf("built: %s", date))
 		}
 	}
 
