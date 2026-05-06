@@ -1725,3 +1725,122 @@ func TestLoadFromStdin_WithEmptyTrustedBots(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "trustedBots")
 }
+
+// TestLoadFromStdin_HTTPServerWithToolTimeout verifies that tool_timeout is parsed and
+// converted correctly from a stdin JSON HTTP server configuration.
+func TestLoadFromStdin_HTTPServerWithToolTimeout(t *testing.T) {
+	jsonConfig := `{
+"mcpServers": {
+"repo-mind": {
+"type": "http",
+"url": "http://127.0.0.1:8000/mcp",
+"tool_timeout": 600
+}
+},
+"gateway": {
+"port": 3000,
+"domain": "localhost",
+"apiKey": "test-key"
+}
+}`
+
+	oldStdin := os.Stdin
+	defer func() { os.Stdin = oldStdin }()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdin = r
+	go func() {
+		defer w.Close()
+		_, _ = w.Write([]byte(jsonConfig))
+	}()
+
+	cfg, err := LoadFromStdin()
+	require.NoError(t, err, "LoadFromStdin() should succeed with tool_timeout")
+
+	server, ok := cfg.Servers["repo-mind"]
+	require.True(t, ok, "Server 'repo-mind' should be present")
+	assert.Equal(t, 600, server.ToolTimeout, "Per-server tool_timeout should be 600")
+}
+
+// TestLoadFromStdin_HTTPServerToolTimeoutOverridesGlobal verifies that the per-server
+// tool_timeout in a server config takes precedence over gateway.toolTimeout.
+func TestLoadFromStdin_HTTPServerToolTimeoutOverridesGlobal(t *testing.T) {
+	jsonConfig := `{
+"mcpServers": {
+"fast-server": {
+"type": "http",
+"url": "http://127.0.0.1:8001/mcp"
+},
+"slow-server": {
+"type": "http",
+"url": "http://127.0.0.1:8002/mcp",
+"tool_timeout": 300
+}
+},
+"gateway": {
+"port": 3000,
+"domain": "localhost",
+"apiKey": "test-key",
+"toolTimeout": 60
+}
+}`
+
+	oldStdin := os.Stdin
+	defer func() { os.Stdin = oldStdin }()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdin = r
+	go func() {
+		defer w.Close()
+		_, _ = w.Write([]byte(jsonConfig))
+	}()
+
+	cfg, err := LoadFromStdin()
+	require.NoError(t, err, "LoadFromStdin() should succeed")
+
+	// Global timeout
+	assert.Equal(t, 60, cfg.Gateway.ToolTimeout, "Global toolTimeout should be 60")
+
+	// fast-server: no per-server timeout, inherits global via callBackendTool
+	fastServer, ok := cfg.Servers["fast-server"]
+	require.True(t, ok)
+	assert.Equal(t, 0, fastServer.ToolTimeout, "fast-server should have no per-server tool_timeout")
+
+	// slow-server: per-server timeout 300 overrides global 60
+	slowServer, ok := cfg.Servers["slow-server"]
+	require.True(t, ok)
+	assert.Equal(t, 300, slowServer.ToolTimeout, "slow-server should have per-server tool_timeout 300")
+}
+
+// TestLoadFromStdin_HTTPServerToolTimeoutBelowMinimum verifies that a per-server
+// tool_timeout below the minimum (10) is rejected.
+func TestLoadFromStdin_HTTPServerToolTimeoutBelowMinimum(t *testing.T) {
+	jsonConfig := `{
+"mcpServers": {
+"repo-mind": {
+"type": "http",
+"url": "http://127.0.0.1:8000/mcp",
+"tool_timeout": 5
+}
+},
+"gateway": {
+"port": 3000,
+"domain": "localhost",
+"apiKey": "test-key"
+}
+}`
+
+	oldStdin := os.Stdin
+	defer func() { os.Stdin = oldStdin }()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdin = r
+	go func() {
+		defer w.Close()
+		_, _ = w.Write([]byte(jsonConfig))
+	}()
+
+	_, err = LoadFromStdin()
+	require.Error(t, err, "LoadFromStdin() should fail with tool_timeout below minimum")
+	assert.ErrorContains(t, err, "tool_timeout")
+}

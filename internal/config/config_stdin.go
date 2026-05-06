@@ -127,6 +127,12 @@ type StdinServerConfig struct {
 	// Only applies to HTTP server types. Default: 30 seconds.
 	ConnectTimeout *int `json:"connect_timeout,omitempty"`
 
+	// ToolTimeout is the per-server maximum time (seconds) to wait for a single tool invocation.
+	// When set to a positive value, this overrides the global gateway.toolTimeout for calls to
+	// this server only. Minimum: 10. Omit the field (or set to 0) to fall back to the global
+	// gateway.toolTimeout (or MCP_GATEWAY_TOOL_TIMEOUT env fallback).
+	ToolTimeout *int `json:"tool_timeout,omitempty"`
+
 	// AdditionalProperties stores any extra fields for custom server types
 	// This allows custom schemas to define their own fields beyond the standard ones
 	AdditionalProperties map[string]interface{} `json:"-"`
@@ -170,6 +176,7 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 		"guard":           true,
 		"auth":            true,
 		"connect_timeout": true,
+		"tool_timeout":    true,
 	}
 
 	// Store additional properties (fields not in the struct)
@@ -428,6 +435,9 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 		}
 		if server.ConnectTimeout != nil {
 			serverCfg.ConnectTimeout = *server.ConnectTimeout
+		}
+		if server.ToolTimeout != nil {
+			serverCfg.ToolTimeout = *server.ToolTimeout
 		}
 		if server.Auth != nil {
 			serverCfg.Auth = &AuthConfig{

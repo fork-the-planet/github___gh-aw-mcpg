@@ -553,3 +553,136 @@ func TestCallBackendTool_ToolTimeoutEnforcedViaContext(t *testing.T) {
 	require.True(result.IsError, "Result should be marked as error")
 	t.Logf("Tool call correctly timed out: %v", callErr)
 }
+
+// TestCallBackendTool_PerServerToolTimeoutOverridesGlobal verifies that when a per-server
+// tool_timeout is configured, it takes precedence over the global gateway.toolTimeout.
+func TestCallBackendTool_PerServerToolTimeoutOverridesGlobal(t *testing.T) {
+	require := require.New(t)
+
+	// Create a slow backend that delays longer than the per-server timeout but within global
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		method, _ := req["method"].(string)
+		switch method {
+		case "initialize":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]interface{}{},
+					"serverInfo":      map[string]interface{}{"name": "slow-backend", "version": "1.0.0"},
+				},
+			})
+		case "tools/list":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{"tools": []map[string]interface{}{}},
+			})
+		case "tools/call":
+			// Block until the client's context is canceled (per-server timeout fires) or
+			// a generous safety timer elapses.  Using select avoids the 3s unconditional
+			// sleep that previously made the test slow and delayed backend.Close().
+			select {
+			case <-r.Context().Done():
+			case <-time.After(10 * time.Second):
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"content": []map[string]interface{}{{"type": "text", "text": "should not reach here"}},
+				},
+			})
+		}
+	}))
+	defer backend.Close()
+
+	// Configure with a global toolTimeout of 30s but a per-server timeout of 1s
+	cfg := &config.Config{
+		Gateway: &config.GatewayConfig{
+			ToolTimeout: 30, // global is generous
+		},
+		Servers: map[string]*config.ServerConfig{
+			"slow": {Type: "http", URL: backend.URL, ToolTimeout: 1}, // per-server is tight
+		},
+	}
+
+	us, err := NewUnified(context.Background(), cfg)
+	require.NoError(err)
+	defer us.Close()
+
+	ctx := context.WithValue(context.Background(), SessionIDContextKey, "per-server-timeout-test")
+	result, _, callErr := us.callBackendTool(ctx, "slow", "slow_tool", map[string]interface{}{})
+
+	// The call should fail due to the per-server context deadline (1s), not the global (30s)
+	require.Error(callErr, "Tool call should fail due to per-server timeout")
+	require.NotNil(result, "Should return a CallToolResult even on timeout")
+	require.True(result.IsError, "Result should be marked as error")
+	t.Logf("Tool call correctly timed out via per-server timeout: %v", callErr)
+}
+
+// TestCallBackendTool_FallsBackToGlobalWhenNoPerServerTimeout verifies that when no
+// per-server tool_timeout is set, the global gateway.toolTimeout is used.
+func TestCallBackendTool_FallsBackToGlobalWhenNoPerServerTimeout(t *testing.T) {
+	require := require.New(t)
+
+	// Create a fast backend that responds before the global timeout
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		method, _ := req["method"].(string)
+		switch method {
+		case "initialize":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]interface{}{},
+					"serverInfo":      map[string]interface{}{"name": "fast-backend", "version": "1.0.0"},
+				},
+			})
+		case "tools/list":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{"tools": []map[string]interface{}{}},
+			})
+		case "tools/call":
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"content": []map[string]interface{}{{"type": "text", "text": "fast response"}},
+				},
+			})
+		}
+	}))
+	defer backend.Close()
+
+	// Configure with global toolTimeout; no per-server timeout
+	cfg := &config.Config{
+		Gateway: &config.GatewayConfig{
+			ToolTimeout: 10, // global timeout
+		},
+		Servers: map[string]*config.ServerConfig{
+			"fast": {Type: "http", URL: backend.URL}, // ToolTimeout == 0, falls back to global
+		},
+	}
+
+	us, err := NewUnified(context.Background(), cfg)
+	require.NoError(err)
+	defer us.Close()
+
+	ctx := context.WithValue(context.Background(), SessionIDContextKey, "fallback-timeout-test")
+	result, _, callErr := us.callBackendTool(ctx, "fast", "fast_tool", map[string]interface{}{})
+
+	// The call should succeed (fast backend responds before global timeout)
+	require.NoError(callErr, "Tool call should succeed within global timeout")
+	require.NotNil(result, "Should return a non-nil CallToolResult")
+}

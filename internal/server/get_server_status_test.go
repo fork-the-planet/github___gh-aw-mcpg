@@ -158,9 +158,9 @@ func TestGetServerStatus_MultipleServers(t *testing.T) {
 	assert.Equal(0, status["bad-backend"].Uptime, "Error server uptime should be 0")
 }
 
-// TestGetServerStatus_EmptyConfig verifies GetServerStatus handles a unified server
-// with an empty config gracefully.
-func TestGetServerStatus_EmptyConfig(t *testing.T) {
+// TestGetServerStatus_NilServersField verifies GetServerStatus handles a unified server
+// with a fully empty config (nil Servers field) gracefully.
+func TestGetServerStatus_NilServersField(t *testing.T) {
 	require := require.New(t)
 	assert := assert.New(t)
 

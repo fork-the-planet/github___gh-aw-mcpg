@@ -217,6 +217,11 @@ type ServerConfig struct {
 	// slow to initialize. Only applies to HTTP server types. Default: 30 seconds.
 	ConnectTimeout int `toml:"connect_timeout" json:"connect_timeout,omitempty"`
 
+	// ToolTimeout is the per-server maximum time (seconds) to wait for a single tool invocation.
+	// When set, this overrides the global gateway.tool_timeout for calls to this server only.
+	// Minimum: 10. When 0 (unset), the global gateway.tool_timeout is used.
+	ToolTimeout int `toml:"tool_timeout" json:"tool_timeout,omitempty"`
+
 	// RateLimitThreshold is the number of consecutive rate-limit errors from this backend
 	// that will trip the circuit breaker (transition CLOSED → OPEN). When OPEN, requests
 	// are immediately rejected until the cooldown period elapses. Default: 3.

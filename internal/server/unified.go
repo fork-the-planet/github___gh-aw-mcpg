@@ -367,9 +367,19 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// (including HTTP backends) are bounded by toolTimeout rather than hanging
 	// indefinitely.  This is the primary enforcement point for the gateway's
 	// tool execution budget.
-	if us.cfg != nil && us.cfg.Gateway != nil && us.cfg.Gateway.ToolTimeout > 0 {
+	// Per-server tool_timeout takes precedence over the global gateway.tool_timeout.
+	toolTimeout := 0
+	if us.cfg != nil {
+		if serverCfg, ok := us.cfg.Servers[serverID]; ok && serverCfg != nil && serverCfg.ToolTimeout > 0 {
+			toolTimeout = serverCfg.ToolTimeout
+			logUnified.Printf("callBackendTool: using per-server tool_timeout=%d for serverID=%s", toolTimeout, serverID)
+		} else if us.cfg.Gateway != nil && us.cfg.Gateway.ToolTimeout > 0 {
+			toolTimeout = us.cfg.Gateway.ToolTimeout
+		}
+	}
+	if toolTimeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(us.cfg.Gateway.ToolTimeout)*time.Second)
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(toolTimeout)*time.Second)
 		defer cancel()
 	}
 

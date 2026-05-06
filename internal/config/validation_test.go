@@ -1082,3 +1082,101 @@ func TestValidateAuthConfig(t *testing.T) {
 		})
 	}
 }
+
+// TestValidatePerServerToolTimeout tests per-server tool_timeout validation.
+func TestValidatePerServerToolTimeout(t *testing.T) {
+	tests := []struct {
+		name      string
+		server    *StdinServerConfig
+		shouldErr bool
+		errMsg    string
+	}{
+		{
+			name: "valid tool_timeout on http server",
+			server: &StdinServerConfig{
+				Type:        "http",
+				URL:         "https://example.com/mcp",
+				ToolTimeout: intPtr(600),
+			},
+			shouldErr: false,
+		},
+		{
+			name: "valid tool_timeout at minimum (10) on http server",
+			server: &StdinServerConfig{
+				Type:        "http",
+				URL:         "https://example.com/mcp",
+				ToolTimeout: intPtr(10),
+			},
+			shouldErr: false,
+		},
+		{
+			name: "tool_timeout large value (3600 = 1 hour) on http server",
+			server: &StdinServerConfig{
+				Type:        "http",
+				URL:         "https://example.com/mcp",
+				ToolTimeout: intPtr(3600),
+			},
+			shouldErr: false,
+		},
+		{
+			name: "tool_timeout below minimum (9) on http server",
+			server: &StdinServerConfig{
+				Type:        "http",
+				URL:         "https://example.com/mcp",
+				ToolTimeout: intPtr(9),
+			},
+			shouldErr: true,
+			errMsg:    "tool_timeout",
+		},
+		{
+			name: "tool_timeout of 0 on http server (treated as unset, falls back to global)",
+			server: &StdinServerConfig{
+				Type:        "http",
+				URL:         "https://example.com/mcp",
+				ToolTimeout: intPtr(0),
+			},
+			shouldErr: false,
+		},
+		{
+			name: "valid tool_timeout on stdio server",
+			server: &StdinServerConfig{
+				Type:        "stdio",
+				Container:   "ghcr.io/owner/image:latest",
+				ToolTimeout: intPtr(120),
+			},
+			shouldErr: false,
+		},
+		{
+			name: "tool_timeout below minimum on stdio server",
+			server: &StdinServerConfig{
+				Type:        "stdio",
+				Container:   "ghcr.io/owner/image:latest",
+				ToolTimeout: intPtr(5),
+			},
+			shouldErr: true,
+			errMsg:    "tool_timeout",
+		},
+		{
+			name: "no tool_timeout set (omitted)",
+			server: &StdinServerConfig{
+				Type: "http",
+				URL:  "https://example.com/mcp",
+			},
+			shouldErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateStandardServerConfig("test-server", tt.server, "mcpServers.test-server")
+			if tt.shouldErr {
+				require.Error(t, err)
+				if tt.errMsg != "" {
+					assert.ErrorContains(t, err, tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

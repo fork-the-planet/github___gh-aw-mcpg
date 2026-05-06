@@ -125,6 +125,21 @@
           "default": [
             "*"
           ]
+        },
+        "tool_timeout": {
+          "description": "Per-server tool invocation timeout in seconds. When set to a positive value (minimum 10), overrides the global gateway.toolTimeout for tool calls to this server only. Set to 0 or omit the field to fall back to the global gateway.toolTimeout.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "const": 0,
+              "description": "0 means unset: fall back to gateway.toolTimeout."
+            },
+            {
+              "type": "integer",
+              "minimum": 10,
+              "description": "Positive timeout value in seconds (minimum 10)."
+            }
+          ]
         }
       },
       "required": [
@@ -180,6 +195,21 @@
           "type": "object",
           "description": "Guard policies for access control at the MCP gateway level. The structure of guard policies is server-specific. For GitHub MCP server, see the GitHub guard policy schema. For other servers (Jira, WorkIQ), different policy schemas will apply.",
           "additionalProperties": true
+        },
+        "tool_timeout": {
+          "description": "Per-server tool invocation timeout in seconds. When set to a positive value (minimum 10), overrides the global gateway.toolTimeout for tool calls to this server only. Set to 0 or omit the field to fall back to the global gateway.toolTimeout.",
+          "oneOf": [
+            {
+              "type": "integer",
+              "const": 0,
+              "description": "0 means unset: fall back to gateway.toolTimeout."
+            },
+            {
+              "type": "integer",
+              "minimum": 10,
+              "description": "Positive timeout value in seconds (minimum 10)."
+            }
+          ]
         }
       },
       "required": [
