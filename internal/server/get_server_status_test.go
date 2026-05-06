@@ -106,8 +106,9 @@ func TestGetServerStatus_ErrorServer(t *testing.T) {
 
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{
-			// Docker is not available in CI; this stdio server fails to launch.
-			"failing-server": {Type: "stdio", Command: "docker", Args: []string{"run", "nonexistent:image"}},
+			// Use a definitely non-existent executable so startup fails immediately and
+			// deterministically without depending on Docker or runner configuration.
+			"failing-server": {Type: "stdio", Command: "gh-aw-mcpg-test-nonexistent-binary", Args: []string{}},
 		},
 	}
 
