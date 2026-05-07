@@ -5,21 +5,22 @@ import (
 	"strings"
 )
 
-// allowedIntegrityLevels is the single source of truth for valid integrity-level values.
-var allowedIntegrityLevels = []string{"none", "unapproved", "approved", "merged"}
+// AllowedIntegrityLevels is the single source of truth for valid integrity-level values.
+var AllowedIntegrityLevels = []string{"none", "unapproved", "approved", "merged"}
 
-var allowedIntegrityLevelSet = map[string]struct{}{
-	"none":       {},
-	"unapproved": {},
-	"approved":   {},
-	"merged":     {},
-}
+var allowedIntegrityLevelSet = func() map[string]struct{} {
+	m := make(map[string]struct{}, len(AllowedIntegrityLevels))
+	for _, level := range AllowedIntegrityLevels {
+		m[level] = struct{}{}
+	}
+	return m
+}()
 
 func invalidIntegrityFieldError(fieldName string) error {
 	return fmt.Errorf(
 		"invalid %s value: expected one of %s",
 		fieldName,
-		strings.Join(allowedIntegrityLevels, "|"),
+		strings.Join(AllowedIntegrityLevels, "|"),
 	)
 }
 
