@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -305,7 +306,7 @@ func TestNewProxyCmd_GuardsModeCompletion(t *testing.T) {
 
 	assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive,
 		"guards-mode completion should use ShellCompDirectiveNoFileComp directive")
-	assert.ElementsMatch(t, []string{"strict", "filter", "propagate"}, completions,
+	assert.ElementsMatch(t, difc.ValidModes, completions,
 		"guards-mode completion should return all valid enforcement modes")
 }
 

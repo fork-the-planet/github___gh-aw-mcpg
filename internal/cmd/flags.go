@@ -35,6 +35,7 @@
 package cmd
 
 import (
+	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/spf13/cobra"
 )
@@ -76,7 +77,7 @@ func registerFlagCompletions(cmd *cobra.Command) {
 
 	// Enum completions for DIFC flags
 	cmd.RegisterFlagCompletionFunc("guards-mode", cobra.FixedCompletions(
-		[]string{"strict", "filter", "propagate"}, cobra.ShellCompDirectiveNoFileComp))
+		difc.ValidModes, cobra.ShellCompDirectiveNoFileComp))
 	cmd.RegisterFlagCompletionFunc("allowonly-min-integrity", cobra.FixedCompletions(
 		guard.AllowedIntegrityLevels, cobra.ShellCompDirectiveNoFileComp))
 

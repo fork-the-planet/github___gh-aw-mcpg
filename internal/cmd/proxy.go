@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
+	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/proxy"
@@ -141,7 +142,7 @@ Local usage:
 
 	// Enum completions for proxy DIFC flag
 	cmd.RegisterFlagCompletionFunc("guards-mode", cobra.FixedCompletions(
-		[]string{"strict", "filter", "propagate"}, cobra.ShellCompDirectiveNoFileComp))
+		difc.ValidModes, cobra.ShellCompDirectiveNoFileComp))
 
 	return cmd
 }
