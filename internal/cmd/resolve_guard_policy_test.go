@@ -310,6 +310,25 @@ func TestResolveGuardPolicyOverride_CLITakesPrecedenceOverEnv(t *testing.T) {
 	assert.NotEqual(t, "public", policy.AllowOnly.Repos)
 }
 
+// TestResolveGuardPolicyOverride_CLIAllowOnlyTakesPrecedenceOverEnvGuardPolicyJSON
+// verifies that changed AllowOnly CLI flags win over env guard-policy JSON defaults.
+func TestResolveGuardPolicyOverride_CLIAllowOnlyTakesPrecedenceOverEnvGuardPolicyJSON(t *testing.T) {
+	cmd := makeGuardPolicyTestCmd()
+
+	t.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", `{"allow-only":{"repos":"public","min-integrity":"none"}}`)
+	require.NoError(t, cmd.Flags().Set("allowonly-scope-public", "true"))
+	require.NoError(t, cmd.Flags().Set("allowonly-min-integrity", "approved"))
+
+	policy, source, err := resolveGuardPolicyOverride(cmd)
+
+	require.NoError(t, err)
+	require.NotNil(t, policy)
+	assert.Equal(t, "cli", source)
+	require.NotNil(t, policy.AllowOnly)
+	assert.Equal(t, "public", policy.AllowOnly.Repos)
+	assert.Equal(t, "approved", policy.AllowOnly.MinIntegrity)
+}
+
 // TestResolveGuardPolicyOverride_EnvGuardPolicyJSONTakesPrecedenceOverAllowOnly tests that
 // MCP_GATEWAY_GUARD_POLICY_JSON env var takes precedence over AllowOnly env vars.
 func TestResolveGuardPolicyOverride_EnvGuardPolicyJSONTakesPrecedenceOverAllowOnly(t *testing.T) {
