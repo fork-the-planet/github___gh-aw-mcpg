@@ -191,6 +191,25 @@ GITHUB_TOKEN = "mytoken"
 	assert.Equal(t, "mytoken", server.Env["GITHUB_TOKEN"])
 }
 
+func TestLoadFromFile_ToolResponseFilters(t *testing.T) {
+	path := writeTempTOML(t, `
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+
+[servers.github.tool_response_filters]
+list_code_scanning_alerts = "map(del(.rule.help))"
+`)
+
+	cfg, err := LoadFromFile(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Contains(t, cfg.Servers, "github")
+	assert.Equal(t, map[string]string{
+		"list_code_scanning_alerts": "map(del(.rule.help))",
+	}, cfg.Servers["github"].ToolResponseFilters)
+}
+
 // TestLoadFromFile_UnknownKeysDoNotCauseError verifies that unknown configuration
 // keys are rejected with an error per spec §4.3.1.
 func TestLoadFromFile_UnknownKeysDoNotCauseError(t *testing.T) {

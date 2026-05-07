@@ -110,6 +110,10 @@ type StdinServerConfig struct {
 	// Tools is an optional list of tools to filter/expose
 	Tools []string `json:"tools,omitempty"`
 
+	// ToolResponseFilters configures per-tool jq expressions that transform tool
+	// response data before it is returned to the agent.
+	ToolResponseFilters map[string]string `json:"tool_response_filters,omitempty"`
+
 	// Registry is the URI to the installation location in an MCP registry (informational)
 	Registry string `json:"registry,omitempty"`
 
@@ -161,22 +165,23 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 
 	// Known fields in the struct
 	knownFields := map[string]bool{
-		"type":            true,
-		"container":       true,
-		"entrypoint":      true,
-		"entrypointArgs":  true,
-		"args":            true,
-		"mounts":          true,
-		"env":             true,
-		"url":             true,
-		"headers":         true,
-		"tools":           true,
-		"registry":        true,
-		"guard-policies":  true,
-		"guard":           true,
-		"auth":            true,
-		"connect_timeout": true,
-		"tool_timeout":    true,
+		"type":                  true,
+		"container":             true,
+		"entrypoint":            true,
+		"entrypointArgs":        true,
+		"args":                  true,
+		"mounts":                true,
+		"env":                   true,
+		"url":                   true,
+		"headers":               true,
+		"tools":                 true,
+		"tool_response_filters": true,
+		"registry":              true,
+		"guard-policies":        true,
+		"guard":                 true,
+		"auth":                  true,
+		"connect_timeout":       true,
+		"tool_timeout":          true,
 	}
 
 	// Store additional properties (fields not in the struct)
@@ -227,6 +232,7 @@ func stripExtensionFieldsForValidation(data []byte) ([]byte, error) {
 			if serverMap, ok := server.(map[string]interface{}); ok {
 				delete(serverMap, "guard")
 				delete(serverMap, "auth")
+				delete(serverMap, "tool_response_filters")
 			}
 		}
 	}
@@ -425,13 +431,14 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 		logConfig.Printf("Configured HTTP MCP server: name=%s, url=%s", name, server.URL)
 		log.Printf("[CONFIG] Configured HTTP MCP server: %s -> %s", name, server.URL)
 		serverCfg := &ServerConfig{
-			Type:          "http",
-			URL:           server.URL,
-			Headers:       server.Headers,
-			Tools:         server.Tools,
-			Registry:      server.Registry,
-			GuardPolicies: server.GuardPolicies,
-			Guard:         server.Guard,
+			Type:                "http",
+			URL:                 server.URL,
+			Headers:             server.Headers,
+			Tools:               server.Tools,
+			ToolResponseFilters: server.ToolResponseFilters,
+			Registry:            server.Registry,
+			GuardPolicies:       server.GuardPolicies,
+			Guard:               server.Guard,
 		}
 		if server.ConnectTimeout != nil {
 			serverCfg.ConnectTimeout = *server.ConnectTimeout
@@ -511,14 +518,15 @@ func buildStdioServerConfig(name string, server *StdinServerConfig) *ServerConfi
 	logConfig.Printf("Configured stdio MCP server: name=%s, container=%s", name, server.Container)
 
 	return &ServerConfig{
-		Type:          "stdio",
-		Command:       "docker",
-		Args:          args,
-		Env:           make(map[string]string),
-		Tools:         server.Tools,
-		Registry:      server.Registry,
-		GuardPolicies: server.GuardPolicies,
-		Guard:         server.Guard,
+		Type:                "stdio",
+		Command:             "docker",
+		Args:                args,
+		Env:                 make(map[string]string),
+		Tools:               server.Tools,
+		ToolResponseFilters: server.ToolResponseFilters,
+		Registry:            server.Registry,
+		GuardPolicies:       server.GuardPolicies,
+		Guard:               server.Guard,
 	}
 }
 

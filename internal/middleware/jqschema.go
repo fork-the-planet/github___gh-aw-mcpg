@@ -13,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/itchyny/gojq"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -217,6 +218,64 @@ func applyJqSchema(ctx context.Context, jsonData interface{}) (interface{}, erro
 	return v, nil
 }
 
+// CompileToolResponseFilter parses and compiles a jq expression used to transform
+// tool response payloads.
+func CompileToolResponseFilter(filter string) (*gojq.Code, error) {
+	query, err := gojq.Parse(filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse tool response filter: %w", err)
+	}
+
+	code, err := gojq.Compile(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile tool response filter: %w", err)
+	}
+
+	return code, nil
+}
+
+func applyCompiledToolResponseFilter(ctx context.Context, code *gojq.Code, jsonData interface{}) (interface{}, error) {
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, DefaultJqTimeout)
+		defer cancel()
+	}
+
+	iter := code.RunWithContext(ctx, jsonData)
+	v, ok := iter.Next()
+	if !ok {
+		return nil, fmt.Errorf("tool response filter returned no results")
+	}
+
+	if err, ok := v.(error); ok {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("tool response filter execution failed: %w", ctx.Err())
+		}
+		if haltErr, ok := err.(*gojq.HaltError); ok {
+			if haltErr.Value() == nil {
+				return nil, fmt.Errorf("tool response filter halted cleanly with no output")
+			}
+			return nil, fmt.Errorf("tool response filter halted with error (exit code %d): %w", haltErr.ExitCode(), err)
+		}
+		return nil, fmt.Errorf("tool response filter error: %w", err)
+	}
+
+	if extra, ok := iter.Next(); ok {
+		return nil, fmt.Errorf("tool response filter returned multiple results, first=%T extra=%T", v, extra)
+	}
+
+	return v, nil
+}
+
+// ApplyToolResponseFilter compiles and applies a jq expression to tool response data.
+func ApplyToolResponseFilter(ctx context.Context, filter string, jsonData interface{}) (interface{}, error) {
+	code, err := CompileToolResponseFilter(filter)
+	if err != nil {
+		return nil, err
+	}
+	return applyCompiledToolResponseFilter(ctx, code, jsonData)
+}
+
 // savePayload saves the payload to disk and returns the file path
 // The file is saved to {baseDir}/{sessionID}/{queryID}/payload.json
 // The returned path uses pathPrefix if provided, otherwise returns the actual filesystem path
@@ -290,8 +349,45 @@ func WrapToolHandler(
 	sizeThreshold int,
 	getSessionID func(context.Context) string,
 ) func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error) {
+	return wrapToolHandler(handler, toolName, baseDir, pathPrefix, sizeThreshold, getSessionID, "")
+}
+
+// WrapToolHandlerWithFilter wraps a tool handler with jq response filtering followed
+// by the standard large-payload jqschema middleware behavior.
+func WrapToolHandlerWithFilter(
+	handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error),
+	toolName string,
+	baseDir string,
+	pathPrefix string,
+	sizeThreshold int,
+	getSessionID func(context.Context) string,
+	filter string,
+) func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error) {
+	return wrapToolHandler(handler, toolName, baseDir, pathPrefix, sizeThreshold, getSessionID, filter)
+}
+
+func wrapToolHandler(
+	handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error),
+	toolName string,
+	baseDir string,
+	pathPrefix string,
+	sizeThreshold int,
+	getSessionID func(context.Context) string,
+	filter string,
+) func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error) {
 	logMiddleware.Printf("WrapToolHandler: wrapping tool=%s, sizeThreshold=%d bytes, baseDir=%s, pathPrefixSet=%v",
 		toolName, sizeThreshold, baseDir, pathPrefix != "")
+
+	var filterCode *gojq.Code
+	if strings.TrimSpace(filter) != "" {
+		compiled, err := CompileToolResponseFilter(filter)
+		if err != nil {
+			logger.LogWarn("payload", "Failed to compile tool response filter during handler setup: tool=%s, error=%v", toolName, err)
+		} else {
+			filterCode = compiled
+		}
+	}
+
 	return func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
 		// Generate random query ID
 		queryID := strutil.RandomHexWithFallback(queryIDBytes)
@@ -327,6 +423,28 @@ func WrapToolHandler(
 					}
 				}())
 			return result, data, err
+		}
+
+		if filterCode != nil {
+			filteredData, filterErr := applyCompiledToolResponseFilter(ctx, filterCode, data)
+			if filterErr != nil {
+				logger.LogWarn("payload", "Failed to apply tool response filter, returning original response: tool=%s, queryID=%s, error=%v",
+					toolName, queryID, filterErr)
+			} else {
+				filteredResult, convertErr := mcp.ConvertToCallToolResult(filteredData)
+				if convertErr != nil {
+					logger.LogWarn("payload", "Failed to rebuild filtered tool response, returning original response: tool=%s, queryID=%s, error=%v",
+						toolName, queryID, convertErr)
+				} else {
+					if len(result.Content) > 1 {
+						filteredResult.Content = append(filteredResult.Content, result.Content[1:]...)
+					}
+					filteredResult.IsError = result.IsError
+					filteredResult.Meta = result.Meta
+					data = filteredData
+					result = filteredResult
+				}
+			}
 		}
 
 		// Marshal the response data to JSON

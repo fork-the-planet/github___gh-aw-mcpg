@@ -128,6 +128,48 @@ func TestApplyJqSchema_SingleOutputContract(t *testing.T) {
 	}
 }
 
+func TestApplyToolResponseFilter(t *testing.T) {
+	input := []interface{}{
+		map[string]interface{}{
+			"number": 101,
+			"rule": map[string]interface{}{
+				"id":   "go/sql-injection",
+				"help": "Very long CWE guidance that should be removed",
+				"tags": []interface{}{"security", "external/cwe/cwe-89"},
+			},
+			"state": "open",
+		},
+		map[string]interface{}{
+			"number": 102,
+			"rule": map[string]interface{}{
+				"id":   "go/sql-injection",
+				"help": "Very long CWE guidance that should be removed",
+				"tags": []interface{}{"security", "external/cwe/cwe-89"},
+			},
+			"state": "open",
+		},
+	}
+
+	filtered, err := ApplyToolResponseFilter(context.Background(), "map(del(.rule.help))", input)
+	require.NoError(t, err)
+
+	alerts, ok := filtered.([]interface{})
+	require.True(t, ok)
+	require.Len(t, alerts, 2)
+
+	for _, alert := range alerts {
+		alertMap, ok := alert.(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "open", alertMap["state"])
+
+		rule, ok := alertMap["rule"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "go/sql-injection", rule["id"])
+		assert.NotContains(t, rule, "help")
+		assert.Equal(t, []interface{}{"security", "external/cwe/cwe-89"}, rule["tags"])
+	}
+}
+
 func TestSavePayload(t *testing.T) {
 	// Create temporary directory for test
 	baseDir := filepath.Join(os.TempDir(), "test-jq-payloads")
@@ -235,6 +277,66 @@ func TestWrapToolHandler(t *testing.T) {
 
 	// Clean up test directory
 	defer os.RemoveAll(filepath.Join("/tmp", "gh-awmg"))
+}
+
+func TestWrapToolHandlerWithFilter_RewritesInlineResponse(t *testing.T) {
+	baseDir := t.TempDir()
+
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+		payload := []interface{}{
+			map[string]interface{}{
+				"number": 101,
+				"rule": map[string]interface{}{
+					"id":   "go/sql-injection",
+					"help": strings.Repeat("CWE guidance ", 50),
+				},
+			},
+		}
+
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{
+				&sdk.TextContent{Text: string(mustJSONMarshal(t, payload))},
+			},
+		}, payload, nil
+	}
+
+	wrapped := WrapToolHandlerWithFilter(
+		mockHandler,
+		"github___list_code_scanning_alerts",
+		baseDir,
+		"",
+		1024*1024,
+		testGetSessionID,
+		"map(del(.rule.help))",
+	)
+
+	result, data, err := wrapped(context.Background(), &sdk.CallToolRequest{}, map[string]interface{}{})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotEmpty(t, result.Content)
+
+	textContent, ok := result.Content[0].(*sdk.TextContent)
+	require.True(t, ok)
+
+	var alerts []map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &alerts))
+	require.Len(t, alerts, 1)
+	rule, ok := alerts[0]["rule"].(map[string]interface{})
+	require.True(t, ok)
+	assert.NotContains(t, rule, "help")
+
+	filteredAlerts, ok := data.([]interface{})
+	require.True(t, ok)
+	filteredRule, ok := filteredAlerts[0].(map[string]interface{})["rule"].(map[string]interface{})
+	require.True(t, ok)
+	assert.NotContains(t, filteredRule, "help")
+}
+
+func mustJSONMarshal(t *testing.T, value interface{}) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	require.NoError(t, err)
+	return data
 }
 
 func TestWrapToolHandler_ErrorHandling(t *testing.T) {

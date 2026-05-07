@@ -295,7 +295,17 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 		// Wrap handler with jqschema middleware if applicable
 		finalHandler := handler
 		if middleware.ShouldApplyMiddleware(prefixedName) {
-			finalHandler = middleware.WrapToolHandler(handler, prefixedName, us.payloadDir, us.payloadPathPrefix, us.payloadSizeThreshold, us.getSessionID)
+			filter := ""
+			if us.cfg != nil {
+				if serverCfg, ok := us.cfg.Servers[serverIDCopy]; ok && serverCfg != nil {
+					filter = serverCfg.ToolResponseFilters[toolNameCopy]
+				}
+			}
+			if strings.TrimSpace(filter) != "" {
+				finalHandler = middleware.WrapToolHandlerWithFilter(handler, prefixedName, us.payloadDir, us.payloadPathPrefix, us.payloadSizeThreshold, us.getSessionID, filter)
+			} else {
+				finalHandler = middleware.WrapToolHandler(handler, prefixedName, us.payloadDir, us.payloadPathPrefix, us.payloadSizeThreshold, us.getSessionID)
+			}
 		}
 
 		// Store handler for routed mode to reuse

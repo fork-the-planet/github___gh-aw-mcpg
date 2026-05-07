@@ -200,6 +200,11 @@ type ServerConfig struct {
 	// Tools is an optional list of tools to filter/expose
 	Tools []string `toml:"tools" json:"tools,omitempty"`
 
+	// ToolResponseFilters configures per-tool jq expressions that transform tool
+	// response data before it is returned to the agent and before large-payload
+	// preview/schema processing runs.
+	ToolResponseFilters map[string]string `toml:"tool_response_filters" json:"tool_response_filters,omitempty"`
+
 	// Registry is the URI to the installation location in an MCP registry (informational)
 	Registry string `toml:"registry" json:"registry,omitempty"`
 
@@ -417,6 +422,9 @@ func LoadFromFile(path string) (*Config, error) {
 	for name, serverCfg := range cfg.Servers {
 		jsonPath := fmt.Sprintf("servers.%s", name)
 		if err := validateServerAuth(serverCfg.Auth, serverCfg.Type, name, jsonPath); err != nil {
+			return nil, err
+		}
+		if err := validateToolResponseFilters(serverCfg.ToolResponseFilters, jsonPath+".tool_response_filters"); err != nil {
 			return nil, err
 		}
 	}

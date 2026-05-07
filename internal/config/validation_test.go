@@ -1180,3 +1180,59 @@ func TestValidatePerServerToolTimeout(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateToolResponseFilters(t *testing.T) {
+	tests := []struct {
+		name      string
+		server    *StdinServerConfig
+		shouldErr bool
+		errMsg    string
+	}{
+		{
+			name: "valid jq filter",
+			server: &StdinServerConfig{
+				Type: "http",
+				URL:  "https://example.com/mcp",
+				ToolResponseFilters: map[string]string{
+					"list_code_scanning_alerts": "map(del(.rule.help))",
+				},
+			},
+		},
+		{
+			name: "invalid jq filter",
+			server: &StdinServerConfig{
+				Type: "http",
+				URL:  "https://example.com/mcp",
+				ToolResponseFilters: map[string]string{
+					"list_code_scanning_alerts": "map(",
+				},
+			},
+			shouldErr: true,
+			errMsg:    "tool_response_filters.list_code_scanning_alerts",
+		},
+		{
+			name: "empty jq filter",
+			server: &StdinServerConfig{
+				Type: "http",
+				URL:  "https://example.com/mcp",
+				ToolResponseFilters: map[string]string{
+					"list_code_scanning_alerts": "   ",
+				},
+			},
+			shouldErr: true,
+			errMsg:    "must not be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateStandardServerConfig("test-server", tt.server, "mcpServers.test-server")
+			if tt.shouldErr {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
