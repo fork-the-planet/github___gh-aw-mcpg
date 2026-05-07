@@ -100,6 +100,25 @@ func TestConvertToCallToolResult(t *testing.T) {
 		assert.Contains(t, text.Text, "value")
 	})
 
+	t.Run("object with nil content field is wrapped as text", func(t *testing.T) {
+		input := map[string]interface{}{
+			"content": nil,
+			"key":     "value",
+		}
+
+		result, err := ConvertToCallToolResult(input)
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Len(t, result.Content, 1)
+		assert.False(t, result.IsError)
+
+		text, ok := result.Content[0].(*sdk.TextContent)
+		require.True(t, ok)
+		assert.Contains(t, text.Text, `"content":null`)
+		assert.Contains(t, text.Text, `"key":"value"`)
+	})
+
 	t.Run("image content type is converted to ImageContent", func(t *testing.T) {
 		// base64("hello") = "aGVsbG8="
 		input := map[string]interface{}{

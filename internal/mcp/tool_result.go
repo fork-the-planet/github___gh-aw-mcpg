@@ -11,6 +11,16 @@ import (
 
 var logToolResult = logger.New("mcp:tool_result")
 
+func marshalValueToTextContentResult(value interface{}) (*sdk.CallToolResult, error) {
+	dataBytes, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal backend result: %w", err)
+	}
+	return &sdk.CallToolResult{
+		Content: []sdk.Content{&sdk.TextContent{Text: string(dataBytes)}},
+	}, nil
+}
+
 // ConvertToCallToolResult converts backend result data to SDK CallToolResult format.
 // The backend returns a JSON object with a "content" field containing an array of content items.
 //
@@ -27,25 +37,13 @@ func ConvertToCallToolResult(data interface{}) (*sdk.CallToolResult, error) {
 
 	// Fast path: []interface{} — some backends return arrays directly.
 	if _, ok := data.([]interface{}); ok {
-		dataBytes, err := json.Marshal(data)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal backend result: %w", err)
-		}
 		logToolResult.Printf("Backend returned array, wrapping as text")
-		return &sdk.CallToolResult{
-			Content: []sdk.Content{&sdk.TextContent{Text: string(dataBytes)}},
-		}, nil
+		return marshalValueToTextContentResult(data)
 	}
 
 	// Slow path: scalar types (string, nil, etc.) and anything else.
-	dataBytes, err := json.Marshal(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal backend result: %w", err)
-	}
 	logToolResult.Printf("No content field found (scalar type), wrapping raw response as text")
-	return &sdk.CallToolResult{
-		Content: []sdk.Content{&sdk.TextContent{Text: string(dataBytes)}},
-	}, nil
+	return marshalValueToTextContentResult(data)
 }
 
 // convertMapToCallToolResult is the fast path for map[string]interface{} input.
@@ -56,14 +54,8 @@ func convertMapToCallToolResult(m map[string]interface{}) (*sdk.CallToolResult, 
 
 	contentVal, hasContent := m["content"]
 	if !hasContent || contentVal == nil {
-		dataBytes, err := json.Marshal(m)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal backend result: %w", err)
-		}
 		logToolResult.Printf("No content field found, wrapping raw response as text")
-		return &sdk.CallToolResult{
-			Content: []sdk.Content{&sdk.TextContent{Text: string(dataBytes)}},
-		}, nil
+		return marshalValueToTextContentResult(m)
 	}
 
 	// Collect content items from either []interface{} (produced by json.Unmarshal) or
@@ -83,13 +75,7 @@ func convertMapToCallToolResult(m map[string]interface{}) (*sdk.CallToolResult, 
 		items = v
 	default:
 		// content field exists but is not a recognizable slice type — wrap the whole map as text.
-		dataBytes, err := json.Marshal(m)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal backend result: %w", err)
-		}
-		return &sdk.CallToolResult{
-			Content: []sdk.Content{&sdk.TextContent{Text: string(dataBytes)}},
-		}, nil
+		return marshalValueToTextContentResult(m)
 	}
 
 	// Note: empty content array is valid and should be preserved (0 items).
