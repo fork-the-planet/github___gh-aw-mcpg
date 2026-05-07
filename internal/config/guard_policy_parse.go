@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/github/gh-aw-mcpg/internal/guard"
 )
 
 // ParseServerGuardPolicy parses a guard policy from a server-specific raw policy map.
@@ -152,7 +154,7 @@ func BuildAllowOnlyPolicy(public bool, owner, repo, minIntegrity string) (*Guard
 		return nil, fmt.Errorf("min-integrity is required")
 	}
 	if !hasIntegrity {
-		return nil, fmt.Errorf("min-integrity must be one of: none, unapproved, approved, merged")
+		return nil, fmt.Errorf("min-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
 	}
 
 	var repos interface{}

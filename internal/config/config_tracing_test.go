@@ -229,6 +229,23 @@ func TestExpandTracingVariables_UndefinedVar(t *testing.T) {
 	require.Error(t, err, "Undefined variable must cause expansion error")
 }
 
+// TestExpandTracingVariables_PreservesEarlierFieldExpansionOnLaterError verifies
+// that fields expanded before an error remain updated while the failing field is
+// left unchanged.
+func TestExpandTracingVariables_PreservesEarlierFieldExpansionOnLaterError(t *testing.T) {
+	t.Setenv("TEST_OTEL_ENDPOINT", "https://otel.example.com")
+
+	cfg := &TracingConfig{
+		Endpoint: "${TEST_OTEL_ENDPOINT}",
+		TraceID:  "${UNDEFINED_TRACE_ID_XYZZY}",
+	}
+
+	err := expandTracingVariables(cfg)
+	require.Error(t, err)
+	assert.Equal(t, "https://otel.example.com", cfg.Endpoint)
+	assert.Equal(t, "${UNDEFINED_TRACE_ID_XYZZY}", cfg.TraceID)
+}
+
 // TestValidateOpenTelemetryConfig_AllZeroTraceID verifies that an all-zero traceId
 // is rejected per W3C Trace Context specification.
 func TestValidateOpenTelemetryConfig_AllZeroTraceID(t *testing.T) {

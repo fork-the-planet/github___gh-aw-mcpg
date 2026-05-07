@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  issues: write
+  issues: read
 
 engine:
   id: copilot

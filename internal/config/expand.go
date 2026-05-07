@@ -100,40 +100,29 @@ func expandTracingVariables(cfg *TracingConfig) error {
 	logValidation.Printf("Expanding tracing config variables: hasEndpoint=%v, hasTraceID=%v, hasSpanID=%v, hasHeaders=%v",
 		cfg.Endpoint != "", cfg.TraceID != "", cfg.SpanID != "", cfg.Headers != "")
 
-	if cfg.Endpoint != "" {
-		expanded, err := expandVariables(cfg.Endpoint, "gateway.opentelemetry.endpoint")
-		if err != nil {
-			return err
-		}
-		logValidation.Printf("Expanded tracing endpoint variable")
-		cfg.Endpoint = expanded
+	fields := []struct {
+		name     string
+		jsonPath string
+		value    *string
+	}{
+		{name: "endpoint", jsonPath: "gateway.opentelemetry.endpoint", value: &cfg.Endpoint},
+		{name: "traceId", jsonPath: "gateway.opentelemetry.traceId", value: &cfg.TraceID},
+		{name: "spanId", jsonPath: "gateway.opentelemetry.spanId", value: &cfg.SpanID},
+		{name: "headers", jsonPath: "gateway.opentelemetry.headers", value: &cfg.Headers},
 	}
 
-	if cfg.TraceID != "" {
-		expanded, err := expandVariables(cfg.TraceID, "gateway.opentelemetry.traceId")
-		if err != nil {
-			return err
+	for _, field := range fields {
+		if *field.value == "" {
+			continue
 		}
-		logValidation.Printf("Expanded tracing traceId variable")
-		cfg.TraceID = expanded
-	}
 
-	if cfg.SpanID != "" {
-		expanded, err := expandVariables(cfg.SpanID, "gateway.opentelemetry.spanId")
+		expanded, err := expandVariables(*field.value, field.jsonPath)
 		if err != nil {
 			return err
 		}
-		logValidation.Printf("Expanded tracing spanId variable")
-		cfg.SpanID = expanded
-	}
 
-	if cfg.Headers != "" {
-		expanded, err := expandVariables(cfg.Headers, "gateway.opentelemetry.headers")
-		if err != nil {
-			return err
-		}
-		logValidation.Printf("Expanded tracing headers variable")
-		cfg.Headers = expanded
+		logValidation.Printf("Expanded tracing %s variable", field.name)
+		*field.value = expanded
 	}
 
 	logValidation.Print("Tracing config variable expansion completed")

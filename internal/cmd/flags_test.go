@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -162,7 +164,7 @@ func TestRegisterFlagCompletions(t *testing.T) {
 		completions, directive := completionFn(cmd, nil, "")
 		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive,
 			"guards-mode flag should use NoFileComp directive")
-		assert.ElementsMatch(t, []string{"strict", "filter", "propagate"}, completions,
+		assert.ElementsMatch(t, difc.ValidModes, completions,
 			"guards-mode should complete with all valid mode values")
 	})
 
@@ -175,7 +177,7 @@ func TestRegisterFlagCompletions(t *testing.T) {
 		completions, directive := completionFn(cmd, nil, "")
 		assert.Equal(t, cobra.ShellCompDirectiveNoFileComp, directive,
 			"allowonly-min-integrity flag should use NoFileComp directive")
-		assert.ElementsMatch(t, []string{"none", "unapproved", "approved", "merged"}, completions,
+		assert.ElementsMatch(t, guard.AllowedIntegrityLevels, completions,
 			"allowonly-min-integrity should complete with all valid integrity levels")
 	})
 }
