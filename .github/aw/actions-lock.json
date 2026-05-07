@@ -175,20 +175,25 @@
       "version": "v1.24.0",
       "sha": "fc68ffb90438ef2936bbb3251622353b3dcb2f93"
     },
-    "github/codeql-action/upload-sarif@v4.35.2": {
+    "github/codeql-action/upload-sarif@v4.35.3": {
       "repo": "github/codeql-action/upload-sarif",
-      "version": "v4.35.2",
-      "sha": "95e58e9a2cdfd71adc6e0353d5c52f41a045d225"
+      "version": "v4.35.3",
+      "sha": "e46ed2cbd01164d986452f91f178727624ae40d7"
     },
-    "github/gh-aw/actions/setup@v0.71.0": {
+    "github/gh-aw-actions/setup@v0.71.5": {
+      "repo": "github/gh-aw-actions/setup",
+      "version": "v0.71.5",
+      "sha": "b8068426813005612b960b5ab0b8bd2c27142323"
+    },
+    "github/gh-aw/actions/setup@v0.71.5": {
       "repo": "github/gh-aw/actions/setup",
-      "version": "v0.71.0",
-      "sha": "36e5c36809d74d541861dfe2b5d34a072e019ed1"
+      "version": "v0.71.5",
+      "sha": "19ac811a4a85389c33b15128e1d7b7d4507f814a"
     },
-    "github/stale-repos@v9.0.8": {
+    "github/stale-repos@v9.0.9": {
       "repo": "github/stale-repos",
-      "version": "v9.0.8",
-      "sha": "5f2e18fc5432823f96c1feb69327f665c2acab59"
+      "version": "v9.0.9",
+      "sha": "7a69b364e2f8b1fed65af73b418aa6475782ca53"
     },
     "haskell-actions/setup@v2.11.0": {
       "repo": "haskell-actions/setup",
@@ -200,10 +205,10 @@
       "version": "v2.2.0",
       "sha": "0c5077e51419868618aeaa5fe8019c62421857d6"
     },
-    "ruby/setup-ruby@v1.305.0": {
+    "ruby/setup-ruby@v1.306.0": {
       "repo": "ruby/setup-ruby",
-      "version": "v1.305.0",
-      "sha": "0cb964fd540e0a24c900370abf38a33466142735"
+      "version": "v1.306.0",
+      "sha": "c4e5b1316158f92e3d49443a9d58b31d25ac0f8f"
     },
     "super-linter/super-linter@v8.6.0": {
       "repo": "super-linter/super-linter",
