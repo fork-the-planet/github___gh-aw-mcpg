@@ -608,48 +608,6 @@ func TestFilteredServerCache_MaxSize(t *testing.T) {
 	assert.True(session4Exists, "session4 should be cached")
 }
 
-// TestTruncateCacheKeyForLog verifies that cache keys are properly truncated for logging.
-func TestTruncateCacheKeyForLog(t *testing.T) {
-	tests := []struct {
-		name     string
-		key      string
-		expected string
-	}{
-		{
-			name:     "standard key with backendID/sessionID",
-			key:      "github/abc123def456ghi789",
-			expected: "github/abc123de...",
-		},
-		{
-			name:     "key without slash returns as-is",
-			key:      "nodelimiter",
-			expected: "nodelimiter",
-		},
-		{
-			name:     "empty key",
-			key:      "",
-			expected: "",
-		},
-		{
-			name:     "key with short session",
-			key:      "backend/ab",
-			expected: "backend/ab",
-		},
-		{
-			name:     "key with multiple slashes truncates after first",
-			key:      "backend/session/extra",
-			expected: "backend/session/...",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := truncateCacheKeyForLog(tt.key)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 // TestFilteredServerCache_TTLEviction verifies that expired entries are evicted.
 func TestFilteredServerCache_TTLEviction(t *testing.T) {
 	assert := assert.New(t)

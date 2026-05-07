@@ -11,7 +11,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/syncutil"
 )
@@ -173,36 +172,4 @@ func setupSessionCallback(r *http.Request, backendID string) (string, bool) {
 	*r = *injectSessionContext(r, sessionID, backendID)
 
 	return sessionID, true
-}
-
-// logHTTPRequestBody logs the request body for debugging purposes.
-// It reads the body, logs it, and restores it so it can be read again.
-// The backendID parameter is optional and can be empty for unified mode.
-// It calls peekRequestBody (defined in http_helpers.go) which is a shared
-// HTTP utility also used by WithSDKLogging.
-func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
-	logSession.Printf("Checking request body: method=%s, hasBody=%v, sessionID=%s", r.Method, r.Body != nil, auth.TruncateSessionID(sessionID))
-
-	bodyBytes, err := peekRequestBody(r)
-	if err != nil {
-		logSession.Printf("Body read failed: err=%v", err)
-		return
-	}
-	if len(bodyBytes) == 0 {
-		logSession.Printf("Skipping body logging: not a POST request, no body present, or empty body")
-		return
-	}
-
-	logSession.Printf("Request body read: size=%d bytes, sessionID=%s, backendID=%s", len(bodyBytes), auth.TruncateSessionID(sessionID), backendID)
-
-	// Sanitize the body before logging
-	sanitizedBody := sanitize.SanitizeString(string(bodyBytes))
-
-	// Log with backend context if provided (routed mode)
-	if backendID != "" {
-		logger.LogDebug("client", "MCP client request body, backend=%s, body=%s", backendID, sanitizedBody)
-	} else {
-		logger.LogDebug("client", "MCP request body, session=%s, body=%s", auth.TruncateSessionID(sessionID), sanitizedBody)
-	}
-	logSession.Print("Request body logged for debugging")
 }

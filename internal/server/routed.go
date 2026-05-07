@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -19,15 +18,6 @@ import (
 )
 
 var logRouted = logger.New("server:routed")
-
-func truncateCacheKeyForLog(key string) string {
-	backendID, sessionID, found := strings.Cut(key, "/")
-	if !found {
-		return key
-	}
-
-	return fmt.Sprintf("%s/%s", backendID, auth.TruncateSessionID(sessionID))
-}
 
 // rejectIfShutdown is a middleware that rejects requests with HTTP 503 when gateway is shutting down
 // Per spec 5.1.3: "Immediately reject any new RPC requests to /mcp/{server-name} endpoints with HTTP 503"
