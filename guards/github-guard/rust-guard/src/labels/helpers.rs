@@ -229,16 +229,14 @@ fn repo_matches_scope(
     }
 }
 
-fn first_matching_scope<'a>(
-    owner: &str,
-    repo: &str,
-    ctx: &'a PolicyContext,
-) -> Option<&'a PolicyScopeEntry> {
-    ctx.scopes.iter().find(|scope| {
-        let scoped_owner = scope.scope_owner.as_deref().unwrap_or("");
-        let scoped_repo = scope.scope_repo.as_deref().unwrap_or("");
-        repo_matches_scope(scope.scope_kind, owner, repo, scoped_owner, scoped_repo)
-    })
+fn first_matching_scope<'a>(owner: &str, repo: &str, ctx: &'a PolicyContext) -> Option<&'a PolicyScopeEntry> {
+    ctx.scopes
+        .iter()
+        .find(|scope| {
+            let scoped_owner = scope.scope_owner.as_deref().unwrap_or("");
+            let scoped_repo = scope.scope_repo.as_deref().unwrap_or("");
+            repo_matches_scope(scope.scope_kind, owner, repo, scoped_owner, scoped_repo)
+        })
 }
 
 fn format_integrity_label(prefix: &str, scope: &str, base: &str) -> String {
@@ -351,20 +349,12 @@ fn apply_approval_label_promotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if let Some(label) = first_matching_approval_label(item, ctx) {
-        let number = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} promoted to approved (label '{}' in approval-labels)",
             resource_type, repo_full_name, number, label
         ));
-        max_integrity(
-            repo_full_name,
-            integrity,
-            writer_integrity(repo_full_name, ctx),
-            ctx,
-        )
+        max_integrity(repo_full_name, integrity, writer_integrity(repo_full_name, ctx), ctx)
     } else {
         integrity
     }
@@ -408,20 +398,12 @@ fn apply_promotion_label_promotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if has_promotion_label(item, ctx) {
-        let number = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} promoted to approved (built-in promotion-label '{}')",
             resource_type, repo_full_name, number, ctx.promotion_label
         ));
-        max_integrity(
-            repo_full_name,
-            integrity,
-            writer_integrity(repo_full_name, ctx),
-            ctx,
-        )
+        max_integrity(repo_full_name, integrity, writer_integrity(repo_full_name, ctx), ctx)
     } else {
         integrity
     }
@@ -438,20 +420,12 @@ fn apply_demotion_label_demotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if has_demotion_label(item, ctx) {
-        let number = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} demoted to none (built-in demotion-label '{}')",
             resource_type, repo_full_name, number, ctx.demotion_label
         ));
-        cap_integrity(
-            repo_full_name,
-            integrity,
-            none_integrity(repo_full_name, ctx),
-            ctx,
-        )
+        cap_integrity(repo_full_name, integrity, none_integrity(repo_full_name, ctx), ctx)
     } else {
         integrity
     }
@@ -467,21 +441,13 @@ const MAX_REACTIONS_TO_CHECK: usize = 20;
 /// Return the effective `disapproval_integrity` level from context, defaulting to "none".
 fn effective_disapproval_integrity<'a>(ctx: &'a PolicyContext) -> &'a str {
     let v = ctx.disapproval_integrity.trim();
-    if v.is_empty() {
-        "none"
-    } else {
-        v
-    }
+    if v.is_empty() { "none" } else { v }
 }
 
 /// Return the effective `endorser_min_integrity` level from context, defaulting to "approved".
 fn effective_endorser_min_integrity<'a>(ctx: &'a PolicyContext) -> &'a str {
     let v = ctx.endorser_min_integrity.trim();
-    if v.is_empty() {
-        "approved"
-    } else {
-        v
-    }
+    if v.is_empty() { "approved" } else { v }
 }
 
 /// Convert an integrity level name to its rank for comparison.
@@ -517,10 +483,7 @@ fn cap_integrity(
     let normalized_scope = normalize_scope(scope, ctx);
     let current_rank = integrity_rank_normalized(&normalized_scope, &current);
     let cap_rank = integrity_rank_normalized(&normalized_scope, &cap);
-    build_integrity_labels(
-        &normalized_scope,
-        current_rank.min(cap_rank).saturating_sub(1) as usize,
-    )
+    build_integrity_labels(&normalized_scope, current_rank.min(cap_rank).saturating_sub(1) as usize)
 }
 
 /// Build the integrity `Vec<String>` for a given level name over a scope.
@@ -581,12 +544,8 @@ pub fn has_maintainer_reaction_with_callback(
             if item.get("reactions").is_some() {
                 // Use reaction-kind-specific flags so each kind logs its own warning once.
                 let already_warned = match reaction_kind {
-                    "endorsement" => {
-                        ENDORSEMENT_GATEWAY_WARNING_EMITTED.swap(true, Ordering::Relaxed)
-                    }
-                    "disapproval" => {
-                        DISAPPROVAL_GATEWAY_WARNING_EMITTED.swap(true, Ordering::Relaxed)
-                    }
+                    "endorsement" => ENDORSEMENT_GATEWAY_WARNING_EMITTED.swap(true, Ordering::Relaxed),
+                    "disapproval" => DISAPPROVAL_GATEWAY_WARNING_EMITTED.swap(true, Ordering::Relaxed),
                     _ => false,
                 };
                 if !already_warned {
@@ -618,10 +577,7 @@ pub fn has_maintainer_reaction_with_callback(
         };
 
         // Check if this reaction type is in our configured list (case-insensitive).
-        if !reaction_list
-            .iter()
-            .any(|r| r.eq_ignore_ascii_case(content))
-        {
+        if !reaction_list.iter().any(|r| r.eq_ignore_ascii_case(content)) {
             continue;
         }
 
@@ -640,21 +596,26 @@ pub fn has_maintainer_reaction_with_callback(
             .get("createdAt")
             .or_else(|| node.get("created_at"))
             .and_then(|v| v.as_str());
-        if let (Some(item_updated), Some(reaction_created)) = (item_updated_at, reaction_created_at)
-        {
+        if let (Some(item_updated), Some(reaction_created)) = (item_updated_at, reaction_created_at) {
             if item_updated > reaction_created {
                 crate::log_debug(&format!(
                     "[integrity] {}: skipping stale {} reaction {} from @{} \
                      (item updatedAt={} > reaction createdAt={})",
-                    repo_full_name, reaction_kind, content, login, item_updated, reaction_created
+                    repo_full_name,
+                    reaction_kind,
+                    content,
+                    login,
+                    item_updated,
+                    reaction_created
                 ));
                 continue;
             }
         }
 
         // Fetch reactor's collaborator permission to determine their integrity level.
-        let perm =
-            super::backend::get_collaborator_permission_with_callback(callback, owner, repo, login);
+        let perm = super::backend::get_collaborator_permission_with_callback(
+            callback, owner, repo, login,
+        );
         let reactor_integrity = collaborator_permission_floor(
             repo_full_name,
             perm.as_ref().and_then(|p| p.permission.as_deref()),
@@ -730,20 +691,12 @@ fn apply_endorsement_promotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if has_maintainer_endorsement(item, repo_full_name, ctx) {
-        let number = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} promoted to approved (maintainer endorsement reaction)",
             resource_type, repo_full_name, number
         ));
-        max_integrity(
-            repo_full_name,
-            integrity,
-            writer_integrity(repo_full_name, ctx),
-            ctx,
-        )
+        max_integrity(repo_full_name, integrity, writer_integrity(repo_full_name, ctx), ctx)
     } else {
         integrity
     }
@@ -760,10 +713,7 @@ fn apply_disapproval_demotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if has_maintainer_disapproval(item, repo_full_name, ctx) {
-        let number = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         let demote_level = effective_disapproval_integrity(ctx);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} demoted to {} (maintainer disapproval reaction)",
@@ -1009,7 +959,9 @@ pub fn extract_repo_info(tool_args: &Value) -> (String, String, String) {
 
 /// Strip surrounding query punctuation from a search token or repo reference.
 fn strip_query_punctuation(s: &str) -> &str {
-    s.trim_matches(|c: char| c == '"' || c == '\'' || c == ',' || c == '(' || c == ')' || c == ';')
+    s.trim_matches(|c: char| {
+        c == '"' || c == '\'' || c == ',' || c == '(' || c == ')' || c == ';'
+    })
 }
 
 /// Extract owner/repo from a search query containing `repo:owner/repo`
@@ -1047,10 +999,7 @@ pub(crate) fn extract_repo_scope_with_query_fallback(
 ) -> (String, String, String) {
     let (owner, repo, repo_id) = extract_repo_info(tool_args);
     if owner.is_empty() || repo.is_empty() {
-        let query = tool_args
-            .get("query")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let query = tool_args.get("query").and_then(|v| v.as_str()).unwrap_or("");
         let (q_owner, q_repo, q_repo_id) = extract_repo_info_from_search_query(query);
         if !q_repo_id.is_empty() {
             return (q_owner, q_repo, q_repo_id);
@@ -1184,10 +1133,7 @@ const GRAPHQL_COLLECTION_FIELDS: &[(&str, &str)] = &[
     ("issues", "/data/repository/issues/nodes"),
     ("pullRequests", "/data/repository/pullRequests/nodes"),
     ("discussions", "/data/repository/discussions/nodes"),
-    (
-        "discussionCategories",
-        "/data/repository/discussionCategories/nodes",
-    ),
+    ("discussionCategories", "/data/repository/discussionCategories/nodes"),
 ];
 
 /// Private helper: find GraphQL nodes and return both the array and its JSON Pointer path.
@@ -1195,20 +1141,12 @@ fn find_graphql_nodes_with_path(response: &Value) -> Option<(&Vec<Value>, &'stat
     let data = response.get("data")?;
     if let Some(repo) = data.get("repository") {
         for (field, pointer) in GRAPHQL_COLLECTION_FIELDS {
-            if let Some(arr) = repo
-                .get(*field)
-                .and_then(|v| v.get("nodes"))
-                .and_then(|v| v.as_array())
-            {
+            if let Some(arr) = repo.get(*field).and_then(|v| v.get("nodes")).and_then(|v| v.as_array()) {
                 return Some((arr, pointer));
             }
         }
     }
-    if let Some(arr) = data
-        .get("search")
-        .and_then(|v| v.get("nodes"))
-        .and_then(|v| v.as_array())
-    {
+    if let Some(arr) = data.get("search").and_then(|v| v.get("nodes")).and_then(|v| v.as_array()) {
         return Some((arr, "/data/search/nodes"));
     }
     None
@@ -1276,7 +1214,11 @@ pub fn extract_graphql_single_object(response: &Value) -> Option<&Value> {
 }
 
 /// GraphQL singular object fields under data.repository.
-const GRAPHQL_SINGLE_OBJECT_FIELDS: &[&str] = &["issue", "pullRequest", "discussion"];
+const GRAPHQL_SINGLE_OBJECT_FIELDS: &[&str] = &[
+    "issue",
+    "pullRequest",
+    "discussion",
+];
 
 /// Generate JSON Pointer path for an item index in a collection
 /// Returns a path like "/items/0" or "/0" depending on the items_path
@@ -1362,10 +1304,7 @@ pub fn max_integrity(
     let normalized_scope = normalize_scope(scope, ctx);
     let left = integrity_rank_normalized(&normalized_scope, &current);
     let right = integrity_rank_normalized(&normalized_scope, &candidate);
-    build_integrity_labels(
-        &normalized_scope,
-        left.max(right).saturating_sub(1) as usize,
-    )
+    build_integrity_labels(&normalized_scope, left.max(right).saturating_sub(1) as usize)
 }
 
 /// Map a GitHub `author_association` value to initial integrity labels.
@@ -1406,10 +1345,7 @@ pub fn author_association_floor_from_str(
     };
 
     let raw = raw.trim();
-    if ["OWNER", "MEMBER", "COLLABORATOR"]
-        .iter()
-        .any(|value| raw.eq_ignore_ascii_case(value))
-    {
+    if ["OWNER", "MEMBER", "COLLABORATOR"].iter().any(|value| raw.eq_ignore_ascii_case(value)) {
         writer_integrity(scope, ctx)
     } else if ["CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "NONE"]
         .iter()
@@ -1480,15 +1416,9 @@ pub fn collaborator_permission_floor(
     };
 
     let raw = raw.trim();
-    if ["admin", "maintain", "write"]
-        .iter()
-        .any(|value| raw.eq_ignore_ascii_case(value))
-    {
+    if ["admin", "maintain", "write"].iter().any(|value| raw.eq_ignore_ascii_case(value)) {
         writer_integrity(scope, ctx)
-    } else if ["triage", "read"]
-        .iter()
-        .any(|value| raw.eq_ignore_ascii_case(value))
-    {
+    } else if ["triage", "read"].iter().any(|value| raw.eq_ignore_ascii_case(value)) {
         reader_integrity(scope, ctx)
     } else {
         vec![] // "none" or any unrecognised value → no integrity
@@ -1540,15 +1470,11 @@ pub fn elevate_via_collaborator_permission(
         resource_label, resource_id, integrity_rank(repo_full_name, &integrity, ctx), author_login
     ));
     if let Some(collab) = super::backend::get_collaborator_permission(owner, repo, author_login) {
-        let perm_floor =
-            collaborator_permission_floor(repo_full_name, collab.permission.as_deref(), ctx);
+        let perm_floor = collaborator_permission_floor(repo_full_name, collab.permission.as_deref(), ctx);
         let merged = max_integrity(repo_full_name, integrity, perm_floor, ctx);
         crate::log_debug(&format!(
             "[integrity] {}:{}: collaborator permission={:?} → merged rank={}",
-            resource_label,
-            resource_id,
-            collab.permission,
-            integrity_rank(repo_full_name, &merged, ctx)
+            resource_label, resource_id, collab.permission, integrity_rank(repo_full_name, &merged, ctx)
         ));
         merged
     } else {
@@ -1628,10 +1554,7 @@ pub fn pr_integrity(
     // Step 1: Check if author is in blocked_users — takes precedence over all other rules.
     let author_login = extract_author_login(item);
     if !author_login.is_empty() && is_blocked_user(author_login, ctx) {
-        let number = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         crate::log_info(&format!(
             "[integrity] pr:{}#{} → blocked (author '{}' in blocked-users)",
             repo_full_name, number, author_login
@@ -1691,7 +1614,8 @@ pub fn pr_integrity(
                     } else {
                         enriched_floor
                     };
-                    integrity = max_integrity(repo_full_name, integrity, enriched_floor, ctx);
+                    integrity =
+                        max_integrity(repo_full_name, integrity, enriched_floor, ctx);
                     // Use enriched fork/merge status if missing from item
                     if effective_is_forked.is_none() {
                         effective_is_forked = facts.is_forked;
@@ -1712,17 +1636,10 @@ pub fn pr_integrity(
     // Collaborator permission fallback for org repos (handles org owners/admins
     // whose author_association is "NONE" due to inherited org access).
     if !repo_private {
-        let number = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         integrity = elevate_via_collaborator_permission(
-            author_login,
-            repo_full_name,
-            "pr",
-            &format!("{}#{}", repo_full_name, number),
-            integrity,
-            ctx,
+            author_login, repo_full_name, "pr", &format!("{}#{}", repo_full_name, number),
+            integrity, ctx,
         );
     }
 
@@ -1784,10 +1701,7 @@ pub fn issue_integrity(
     // Step 1: Check if author is in blocked_users — takes precedence over all other rules.
     let author_login = extract_author_login(item);
     if !author_login.is_empty() && is_blocked_user(author_login, ctx) {
-        let number = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         crate::log_info(&format!(
             "[integrity] issue:{}#{} → blocked (author '{}' in blocked-users)",
             repo_full_name, number, author_login
@@ -1820,7 +1734,8 @@ pub fn issue_integrity(
                     // Re-check trusted bot status with enriched login
                     let enriched_floor =
                         author_association_floor_from_str(repo_full_name, Some(&association), ctx);
-                    integrity = max_integrity(repo_full_name, integrity, enriched_floor, ctx);
+                    integrity =
+                        max_integrity(repo_full_name, integrity, enriched_floor, ctx);
                 } else {
                     crate::log_debug(&format!(
                         "[integrity] issue:{}#{} enrichment failed (backend returned None)",
@@ -1834,17 +1749,10 @@ pub fn issue_integrity(
     // Collaborator permission fallback for org repos (handles org owners/admins
     // whose author_association is "NONE" due to inherited org access).
     if !repo_private {
-        let number = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
         integrity = elevate_via_collaborator_permission(
-            author_login,
-            repo_full_name,
-            "issue",
-            &format!("{}#{}", repo_full_name, number),
-            integrity,
-            ctx,
+            author_login, repo_full_name, "issue", &format!("{}#{}", repo_full_name, number),
+            integrity, ctx,
         );
     }
 
@@ -1882,10 +1790,7 @@ pub fn commit_integrity(
     // Step 1: Check if author is in blocked_users — takes precedence over all other rules.
     let author_login = extract_author_login(item);
     if !author_login.is_empty() && is_blocked_user(author_login, ctx) {
-        let sha = item
-            .get("sha")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
+        let sha = item.get("sha").and_then(|v| v.as_str()).unwrap_or("unknown");
         let short_sha = if sha.len() > 8 { &sha[..8] } else { sha };
         crate::log_info(&format!(
             "[integrity] commit:{}@{} → blocked (author '{}' in blocked-users)",
@@ -1914,18 +1819,11 @@ pub fn commit_integrity(
     // Collaborator permission fallback for public repos (handles owners/admins
     // whose author_association is missing or "NONE").
     if !repo_private {
-        let sha = item
-            .get("sha")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
+        let sha = item.get("sha").and_then(|v| v.as_str()).unwrap_or("unknown");
         let short_sha = if sha.len() > 8 { &sha[..8] } else { sha };
         integrity = elevate_via_collaborator_permission(
-            author_login,
-            repo_full_name,
-            "commit",
-            &format!("{}@{}", repo_full_name, short_sha),
-            integrity,
-            ctx,
+            author_login, repo_full_name, "commit", &format!("{}@{}", repo_full_name, short_sha),
+            integrity, ctx,
         );
     }
 
@@ -2015,6 +1913,7 @@ pub(crate) fn is_any_trusted_actor(username: &str, ctx: &PolicyContext) -> bool 
         || is_trusted_user(username, ctx)
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2042,75 +1941,49 @@ mod tests {
         let ctx = test_ctx();
         let result = collaborator_permission_floor("owner/repo", Some("admin"), &ctx);
         assert!(!result.is_empty(), "admin should give approved integrity");
-        assert_eq!(
-            result.len(),
-            3,
-            "writer integrity has 3 tags (none+reader+writer)"
-        );
+        assert_eq!(result.len(), 3, "writer integrity has 3 tags (none+reader+writer)");
     }
 
     #[test]
     fn test_collaborator_permission_floor_maintain() {
         let ctx = test_ctx();
         let result = collaborator_permission_floor("owner/repo", Some("maintain"), &ctx);
-        assert_eq!(
-            result.len(),
-            3,
-            "maintain should give writer/approved integrity"
-        );
+        assert_eq!(result.len(), 3, "maintain should give writer/approved integrity");
     }
 
     #[test]
     fn test_collaborator_permission_floor_write() {
         let ctx = test_ctx();
         let result = collaborator_permission_floor("owner/repo", Some("write"), &ctx);
-        assert_eq!(
-            result.len(),
-            3,
-            "write should give writer/approved integrity"
-        );
+        assert_eq!(result.len(), 3, "write should give writer/approved integrity");
     }
 
     #[test]
     fn test_collaborator_permission_floor_triage() {
         let ctx = test_ctx();
         let result = collaborator_permission_floor("owner/repo", Some("triage"), &ctx);
-        assert_eq!(
-            result.len(),
-            2,
-            "triage should give reader/unapproved integrity"
-        );
+        assert_eq!(result.len(), 2, "triage should give reader/unapproved integrity");
     }
 
     #[test]
     fn test_collaborator_permission_floor_read() {
         let ctx = test_ctx();
         let result = collaborator_permission_floor("owner/repo", Some("read"), &ctx);
-        assert_eq!(
-            result.len(),
-            2,
-            "read should give reader/unapproved integrity"
-        );
+        assert_eq!(result.len(), 2, "read should give reader/unapproved integrity");
     }
 
     #[test]
     fn test_collaborator_permission_floor_none() {
         let ctx = test_ctx();
         let result = collaborator_permission_floor("owner/repo", Some("none"), &ctx);
-        assert!(
-            result.is_empty(),
-            "none permission should give empty integrity"
-        );
+        assert!(result.is_empty(), "none permission should give empty integrity");
     }
 
     #[test]
     fn test_collaborator_permission_floor_missing() {
         let ctx = test_ctx();
         let result = collaborator_permission_floor("owner/repo", None, &ctx);
-        assert!(
-            result.is_empty(),
-            "missing permission should give empty integrity"
-        );
+        assert!(result.is_empty(), "missing permission should give empty integrity");
     }
 
     #[test]
@@ -2135,44 +2008,30 @@ mod tests {
     fn test_collaborator_permission_floor_unknown() {
         let ctx = test_ctx();
         let result = collaborator_permission_floor("owner/repo", Some("unknown"), &ctx);
-        assert!(
-            result.is_empty(),
-            "unknown permission should give empty integrity"
-        );
+        assert!(result.is_empty(), "unknown permission should give empty integrity");
     }
 
     #[test]
     fn test_collaborator_permission_matches_author_association_writer() {
         let ctx = test_ctx();
         let perm_result = collaborator_permission_floor("owner/repo", Some("write"), &ctx);
-        let assoc_result =
-            author_association_floor_from_str("owner/repo", Some("COLLABORATOR"), &ctx);
-        assert_eq!(
-            perm_result, assoc_result,
-            "write permission and COLLABORATOR association should produce same integrity"
-        );
+        let assoc_result = author_association_floor_from_str("owner/repo", Some("COLLABORATOR"), &ctx);
+        assert_eq!(perm_result, assoc_result, "write permission and COLLABORATOR association should produce same integrity");
     }
 
     #[test]
     fn test_collaborator_permission_matches_author_association_reader() {
         let ctx = test_ctx();
         let perm_result = collaborator_permission_floor("owner/repo", Some("read"), &ctx);
-        let assoc_result =
-            author_association_floor_from_str("owner/repo", Some("CONTRIBUTOR"), &ctx);
-        assert_eq!(
-            perm_result, assoc_result,
-            "read permission and CONTRIBUTOR association should produce same integrity"
-        );
+        let assoc_result = author_association_floor_from_str("owner/repo", Some("CONTRIBUTOR"), &ctx);
+        assert_eq!(perm_result, assoc_result, "read permission and CONTRIBUTOR association should produce same integrity");
     }
 
     #[test]
     fn test_min_integrity_as_str() {
         use super::super::constants::policy_integrity;
         assert_eq!(MinIntegrity::None.as_str(), policy_integrity::NONE);
-        assert_eq!(
-            MinIntegrity::Unapproved.as_str(),
-            policy_integrity::UNAPPROVED
-        );
+        assert_eq!(MinIntegrity::Unapproved.as_str(), policy_integrity::UNAPPROVED);
         assert_eq!(MinIntegrity::Approved.as_str(), policy_integrity::APPROVED);
         assert_eq!(MinIntegrity::Merged.as_str(), policy_integrity::MERGED);
     }
@@ -2220,13 +2079,8 @@ mod tests {
             "reactions": {"nodes": [{"user": {"login": "alice"}, "content": "THUMBS_UP"}]}
         });
         assert!(!has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2238,13 +2092,8 @@ mod tests {
             "reactions": {"nodes": [{"user": {"login": "alice"}, "content": "THUMBS_UP"}]}
         });
         assert!(has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2257,13 +2106,8 @@ mod tests {
         });
         // read permission → unapproved integrity, below "approved" threshold
         assert!(!has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            read_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            read_permission_callback, "endorsement"
         ));
     }
 
@@ -2276,13 +2120,8 @@ mod tests {
         });
         // Reaction content "THUMBS_UP" is not in endorsement list ["HEART"]
         assert!(!has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2295,13 +2134,8 @@ mod tests {
         });
         // Case-insensitive match between "thumbs_up" (config) and "THUMBS_UP" (data)
         assert!(has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2315,13 +2149,8 @@ mod tests {
         });
         // Should return false (graceful degradation)
         assert!(!has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2331,13 +2160,8 @@ mod tests {
         let item = serde_json::json!({"number": 42, "title": "no reactions"});
         // No reactions field → skip silently
         assert!(!has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2346,13 +2170,8 @@ mod tests {
         let ctx = ctx_with_endorsement_reactions(vec!["THUMBS_UP"]);
         let item = serde_json::json!({"number": 42, "reactions": {"nodes": []}});
         assert!(!has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2367,13 +2186,8 @@ mod tests {
         });
         // Backend error → can't confirm permission → should not count as endorsement
         assert!(!has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            error_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            error_callback, "endorsement"
         ));
     }
 
@@ -2390,13 +2204,8 @@ mod tests {
             }]}
         });
         assert!(has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2413,13 +2222,8 @@ mod tests {
             }]}
         });
         assert!(!has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2436,13 +2240,8 @@ mod tests {
             }]}
         });
         assert!(has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2466,13 +2265,8 @@ mod tests {
             ]}
         });
         assert!(has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2487,13 +2281,8 @@ mod tests {
             }]}
         });
         assert!(has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, "owner/repo", &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
     }
 
@@ -2504,11 +2293,7 @@ mod tests {
         let current = writer_integrity(scope, &ctx);
         let cap = none_integrity(scope, &ctx);
         let result = cap_integrity(scope, current, cap, &ctx);
-        assert_eq!(
-            result,
-            none_integrity(scope, &ctx),
-            "capping approved at none should give none"
-        );
+        assert_eq!(result, none_integrity(scope, &ctx), "capping approved at none should give none");
     }
 
     #[test]
@@ -2519,10 +2304,7 @@ mod tests {
         let cap = writer_integrity(scope, &ctx);
         // cap > current → should stay at current (min(reader, writer) = reader)
         let result = cap_integrity(scope, current.clone(), cap, &ctx);
-        assert_eq!(
-            result, current,
-            "cap higher than current should not change integrity"
-        );
+        assert_eq!(result, current, "cap higher than current should not change integrity");
     }
 
     #[test]
@@ -2532,37 +2314,19 @@ mod tests {
         let current = reader_integrity(scope, &ctx);
         let candidate = merged_integrity(scope, &ctx);
         let result = max_integrity(scope, current, candidate.clone(), &ctx);
-        assert_eq!(
-            result, candidate,
-            "max_integrity should keep the higher integrity rank"
-        );
+        assert_eq!(result, candidate, "max_integrity should keep the higher integrity rank");
     }
 
     #[test]
     fn test_integrity_for_level_mapping() {
         let ctx = test_ctx();
         let scope = "owner/repo";
-        assert_eq!(
-            integrity_for_level("none", scope, &ctx),
-            none_integrity(scope, &ctx)
-        );
-        assert_eq!(
-            integrity_for_level("unapproved", scope, &ctx),
-            reader_integrity(scope, &ctx)
-        );
-        assert_eq!(
-            integrity_for_level("approved", scope, &ctx),
-            writer_integrity(scope, &ctx)
-        );
-        assert_eq!(
-            integrity_for_level("merged", scope, &ctx),
-            merged_integrity(scope, &ctx)
-        );
+        assert_eq!(integrity_for_level("none", scope, &ctx), none_integrity(scope, &ctx));
+        assert_eq!(integrity_for_level("unapproved", scope, &ctx), reader_integrity(scope, &ctx));
+        assert_eq!(integrity_for_level("approved", scope, &ctx), writer_integrity(scope, &ctx));
+        assert_eq!(integrity_for_level("merged", scope, &ctx), merged_integrity(scope, &ctx));
         // Unknown should default to none (safe)
-        assert_eq!(
-            integrity_for_level("unknown", scope, &ctx),
-            none_integrity(scope, &ctx)
-        );
+        assert_eq!(integrity_for_level("unknown", scope, &ctx), none_integrity(scope, &ctx));
     }
 
     #[test]
@@ -2643,41 +2407,23 @@ mod tests {
 
         // Both endorsement and disapproval should match with admin callback
         assert!(has_maintainer_reaction_with_callback(
-            &item,
-            repo,
-            &ctx.endorsement_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "endorsement"
+            &item, repo, &ctx.endorsement_reactions, "approved", &ctx,
+            admin_permission_callback, "endorsement"
         ));
         assert!(has_maintainer_reaction_with_callback(
-            &item,
-            repo,
-            &ctx.disapproval_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "disapproval"
+            &item, repo, &ctx.disapproval_reactions, "approved", &ctx,
+            admin_permission_callback, "disapproval"
         ));
 
         // Simulate the integrity chain: start with none (external contributor),
         // apply endorsement (promotes to approved), then apply disapproval (caps to none).
         let base = none_integrity(repo, &ctx);
         let after_endorsement = max_integrity(repo, base, writer_integrity(repo, &ctx), &ctx);
-        assert_eq!(
-            after_endorsement,
-            writer_integrity(repo, &ctx),
-            "endorsement should promote to approved"
-        );
+        assert_eq!(after_endorsement, writer_integrity(repo, &ctx), "endorsement should promote to approved");
 
         let demote_cap = integrity_for_level("none", repo, &ctx);
         let after_disapproval = cap_integrity(repo, after_endorsement, demote_cap, &ctx);
-        assert_eq!(
-            after_disapproval,
-            none_integrity(repo, &ctx),
-            "disapproval should override endorsement back to none"
-        );
+        assert_eq!(after_disapproval, none_integrity(repo, &ctx), "disapproval should override endorsement back to none");
     }
 
     #[test]
@@ -2692,13 +2438,8 @@ mod tests {
             "reactions": {"nodes": [{"user": {"login": "alice"}, "content": "THUMBS_DOWN"}]}
         });
         assert!(has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.disapproval_reactions,
-            "approved",
-            &ctx,
-            admin_permission_callback,
-            "disapproval"
+            &item, "owner/repo", &ctx.disapproval_reactions, "approved", &ctx,
+            admin_permission_callback, "disapproval"
         ));
     }
 
@@ -2714,13 +2455,8 @@ mod tests {
             "reactions": {"nodes": [{"user": {"login": "external"}, "content": "THUMBS_DOWN"}]}
         });
         assert!(!has_maintainer_reaction_with_callback(
-            &item,
-            "owner/repo",
-            &ctx.disapproval_reactions,
-            "approved",
-            &ctx,
-            read_permission_callback,
-            "disapproval"
+            &item, "owner/repo", &ctx.disapproval_reactions, "approved", &ctx,
+            read_permission_callback, "disapproval"
         ));
     }
 
@@ -2811,26 +2547,11 @@ mod tests {
     fn test_integrity_for_level_mixed_case() {
         let ctx = test_ctx();
         let scope = "owner/repo";
-        assert_eq!(
-            integrity_for_level("None", scope, &ctx),
-            none_integrity(scope, &ctx)
-        );
-        assert_eq!(
-            integrity_for_level("NONE", scope, &ctx),
-            none_integrity(scope, &ctx)
-        );
-        assert_eq!(
-            integrity_for_level("Unapproved", scope, &ctx),
-            reader_integrity(scope, &ctx)
-        );
-        assert_eq!(
-            integrity_for_level("APPROVED", scope, &ctx),
-            writer_integrity(scope, &ctx)
-        );
-        assert_eq!(
-            integrity_for_level("Merged", scope, &ctx),
-            merged_integrity(scope, &ctx)
-        );
+        assert_eq!(integrity_for_level("None", scope, &ctx), none_integrity(scope, &ctx));
+        assert_eq!(integrity_for_level("NONE", scope, &ctx), none_integrity(scope, &ctx));
+        assert_eq!(integrity_for_level("Unapproved", scope, &ctx), reader_integrity(scope, &ctx));
+        assert_eq!(integrity_for_level("APPROVED", scope, &ctx), writer_integrity(scope, &ctx));
+        assert_eq!(integrity_for_level("Merged", scope, &ctx), merged_integrity(scope, &ctx));
     }
 
     // -------------------------------------------------------------------------
@@ -2882,14 +2603,16 @@ mod tests {
 
     #[test]
     fn test_extract_repo_info_from_search_query_paren_wrapped() {
-        let (owner, repo, _) = extract_repo_info_from_search_query("(repo:myorg/myrepo) is:open");
+        let (owner, repo, _) =
+            extract_repo_info_from_search_query("(repo:myorg/myrepo) is:open");
         assert_eq!(owner, "myorg");
         assert_eq!(repo, "myrepo");
     }
 
     #[test]
     fn test_extract_repo_info_from_search_query_no_repo_token() {
-        let (owner, repo, repo_id) = extract_repo_info_from_search_query("is:open label:bug");
+        let (owner, repo, repo_id) =
+            extract_repo_info_from_search_query("is:open label:bug");
         assert_eq!(owner, "");
         assert_eq!(repo, "");
         assert_eq!(repo_id, "");
