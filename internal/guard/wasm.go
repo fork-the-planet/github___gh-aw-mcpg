@@ -52,9 +52,6 @@ func ConfigureGlobalCompilationCache(ctx context.Context, dir string) error {
 
 	if err := oldCache.Close(ctx); err != nil {
 		closeReplacementErr := cache.Close(ctx)
-		globalCompilationCacheMu.Lock()
-		globalCompilationCache = oldCache
-		globalCompilationCacheMu.Unlock()
 		if closeReplacementErr != nil {
 			return errors.Join(
 				fmt.Errorf("failed to close previous compilation cache: %w", err),

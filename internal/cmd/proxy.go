@@ -170,8 +170,9 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	if err := guard.ConfigureGlobalCompilationCache(ctx, resolvedWasmCacheDir); err != nil {
 		return fmt.Errorf("failed to configure WASM compilation cache: %w", err)
 	}
+	cleanupCtx := context.WithoutCancel(ctx)
 	defer func() {
-		if err := guard.CloseGlobalCompilationCache(context.Background()); err != nil {
+		if err := guard.CloseGlobalCompilationCache(cleanupCtx); err != nil {
 			logger.LogError("shutdown", "Failed to close WASM compilation cache: %v", err)
 		}
 	}()
