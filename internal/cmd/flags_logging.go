@@ -23,21 +23,17 @@ var (
 	wasmCacheDir         string
 )
 
-func trimmedValue(value string) string {
-	return strings.TrimSpace(value)
-}
-
 func defaultWasmCacheDir(logDir string) string {
 	return filepath.Join(logDir, config.DefaultWasmCacheDirName)
 }
 
 func resolveWasmCacheDir(flagChanged bool, flagValue, effectiveLogDir string) string {
-	if trimmed := trimmedValue(flagValue); flagChanged && trimmed != "" {
+	if trimmed := strings.TrimSpace(flagValue); flagChanged && trimmed != "" {
 		return trimmed
 	}
 
 	if envValue, exists := os.LookupEnv(wasmCacheDirEnvVar); exists {
-		if trimmed := trimmedValue(envValue); trimmed != "" {
+		if trimmed := strings.TrimSpace(envValue); trimmed != "" {
 			return trimmed
 		}
 	}
