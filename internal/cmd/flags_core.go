@@ -39,7 +39,7 @@ func registerCoreFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&unifiedMode, "unified", defaultUnifiedMode, "Run in unified mode (all backends at /mcp)")
 	cmd.Flags().StringVar(&envFile, "env", defaultEnvFile, "Path to .env file to load environment variables")
 	cmd.Flags().BoolVar(&validateEnv, "validate-env", false, "Validate execution environment (Docker, env vars) before starting")
-	cmd.Flags().CountVarP(&verbosity, "verbose", "v", "Increase verbosity level (use -v for info, -vv for debug, -vvv for trace)")
+	cmd.Flags().CountVarP(&verbosity, "verbose", "v", "Increase verbosity level: -v (info), -vv (debug), -vvv (trace)")
 
 	// Flag validation groups
 	cmd.MarkFlagsMutuallyExclusive("routed", "unified")

@@ -78,7 +78,9 @@ func registerFlagCompletions(cmd *cobra.Command) {
 		return []string{"env"}, cobra.ShellCompDirectiveFilterFileExt
 	})
 
-	// Enum completions for DIFC flags
+	// Enum completions for DIFC flags.
+	// Note: the proxy subcommand registers its own guards-mode completion for its
+	// separately-declared flag; keep both registrations in place.
 	cmd.RegisterFlagCompletionFunc("guards-mode", cobra.FixedCompletions(
 		difc.ValidModes, cobra.ShellCompDirectiveNoFileComp))
 	cmd.RegisterFlagCompletionFunc("allowonly-min-integrity", cobra.FixedCompletions(

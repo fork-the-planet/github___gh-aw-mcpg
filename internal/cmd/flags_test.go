@@ -180,6 +180,16 @@ func TestRegisterFlagCompletions(t *testing.T) {
 		assert.ElementsMatch(t, guard.AllowedIntegrityLevels, completions,
 			"allowonly-min-integrity should complete with all valid integrity levels")
 	})
+
+	t.Run("verbose flag help documents each verbosity level", func(t *testing.T) {
+		cmd := setupCmd(t)
+
+		flag := cmd.Flags().Lookup("verbose")
+		require.NotNil(t, flag, "verbose flag should be registered")
+		assert.Contains(t, flag.Usage, "-v (info)")
+		assert.Contains(t, flag.Usage, "-vv (debug)")
+		assert.Contains(t, flag.Usage, "-vvv (trace)")
+	})
 }
 
 func TestRegisterFlag(t *testing.T) {
