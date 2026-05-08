@@ -234,7 +234,7 @@ func CompileToolResponseFilter(filter string) (*gojq.Code, error) {
 	return code, nil
 }
 
-func applyCompiledToolResponseFilter(ctx context.Context, code *gojq.Code, jsonData interface{}) (interface{}, error) {
+func applyToolResponseFilter(ctx context.Context, code *gojq.Code, jsonData interface{}) (interface{}, error) {
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, DefaultJqTimeout)
@@ -273,7 +273,7 @@ func ApplyToolResponseFilter(ctx context.Context, filter string, jsonData interf
 	if err != nil {
 		return nil, err
 	}
-	return applyCompiledToolResponseFilter(ctx, code, jsonData)
+	return applyToolResponseFilter(ctx, code, jsonData)
 }
 
 func tryApplyToolResponseFilter(
@@ -288,7 +288,30 @@ func tryApplyToolResponseFilter(
 		return result, data
 	}
 
-	filteredData, filterErr := applyCompiledToolResponseFilter(ctx, filterCode, data)
+	if result != nil && len(result.Content) > 0 {
+		if textContent, ok := result.Content[0].(*sdk.TextContent); ok {
+			var payload interface{}
+			if err := json.Unmarshal([]byte(textContent.Text), &payload); err == nil {
+				filteredPayload, filterErr := applyToolResponseFilter(ctx, filterCode, payload)
+				if filterErr != nil {
+					logger.LogWarn("payload", "Failed to apply tool response filter to text payload, returning original response: tool=%s, queryID=%s, error=%v",
+						toolName, queryID, filterErr)
+					return result, data
+				}
+
+				filteredJSON, marshalErr := json.Marshal(filteredPayload)
+				if marshalErr != nil {
+					logger.LogWarn("payload", "Failed to marshal filtered text payload, returning original response: tool=%s, queryID=%s, error=%v",
+						toolName, queryID, marshalErr)
+					return result, data
+				}
+
+				return rewriteFilteredTextPayload(result, data, string(filteredJSON))
+			}
+		}
+	}
+
+	filteredData, filterErr := applyToolResponseFilter(ctx, filterCode, data)
 	if filterErr != nil {
 		logger.LogWarn("payload", "Failed to apply tool response filter, returning original response: tool=%s, queryID=%s, error=%v",
 			toolName, queryID, filterErr)
@@ -303,8 +326,9 @@ func tryApplyToolResponseFilter(
 	}
 
 	// Filtering rewrites the primary serialized JSON payload from the first
-	// text content item only. Preserve any trailing content items (such as
-	// DIFC notices) only when the original leading item was a text payload.
+	// text content item only. Preserve metadata fields unconditionally, and
+	// preserve trailing content items (such as DIFC notices) when the leading
+	// item is the rewritten JSON text payload.
 	if len(result.Content) > 1 {
 		if _, ok := result.Content[0].(*sdk.TextContent); ok {
 			filteredResult.Content = append(filteredResult.Content, result.Content[1:]...)
@@ -314,6 +338,82 @@ func tryApplyToolResponseFilter(
 	filteredResult.Meta = result.Meta
 
 	return filteredResult, filteredData
+}
+
+func rewriteFilteredTextPayload(result *sdk.CallToolResult, data interface{}, filteredText string) (*sdk.CallToolResult, interface{}) {
+	rewrittenContent := make([]sdk.Content, 0, len(result.Content))
+	rewrittenContent = append(rewrittenContent, &sdk.TextContent{Text: filteredText})
+	if len(result.Content) > 1 {
+		rewrittenContent = append(rewrittenContent, result.Content[1:]...)
+	}
+
+	rewrittenResult := &sdk.CallToolResult{
+		Content: rewrittenContent,
+		IsError: result.IsError,
+		Meta:    result.Meta,
+	}
+
+	if rewrittenData, ok := rewriteEnvelopeTextPayload(data, filteredText); ok {
+		return rewrittenResult, rewrittenData
+	}
+
+	var filteredPayload interface{}
+	if err := json.Unmarshal([]byte(filteredText), &filteredPayload); err == nil {
+		return rewrittenResult, filteredPayload
+	}
+
+	return rewrittenResult, data
+}
+
+func rewriteEnvelopeTextPayload(data interface{}, filteredText string) (interface{}, bool) {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		contentValue, ok := v["content"]
+		if !ok {
+			return nil, false
+		}
+		rewrittenMap := make(map[string]interface{}, len(v))
+		for key, value := range v {
+			rewrittenMap[key] = value
+		}
+
+		switch content := contentValue.(type) {
+		case []map[string]interface{}:
+			if len(content) == 0 {
+				return nil, false
+			}
+			rewrittenContent := append([]map[string]interface{}(nil), content...)
+			firstItem := make(map[string]interface{}, len(rewrittenContent[0]))
+			for key, value := range rewrittenContent[0] {
+				firstItem[key] = value
+			}
+			firstItem["text"] = filteredText
+			rewrittenContent[0] = firstItem
+			rewrittenMap["content"] = rewrittenContent
+			return rewrittenMap, true
+		case []interface{}:
+			if len(content) == 0 {
+				return nil, false
+			}
+			rewrittenContent := append([]interface{}(nil), content...)
+			firstItem, ok := rewrittenContent[0].(map[string]interface{})
+			if !ok {
+				return nil, false
+			}
+			rewrittenFirstItem := make(map[string]interface{}, len(firstItem))
+			for key, value := range firstItem {
+				rewrittenFirstItem[key] = value
+			}
+			rewrittenFirstItem["text"] = filteredText
+			rewrittenContent[0] = rewrittenFirstItem
+			rewrittenMap["content"] = rewrittenContent
+			return rewrittenMap, true
+		default:
+			return nil, false
+		}
+	default:
+		return nil, false
+	}
 }
 
 // savePayload saves the payload to disk and returns the file path

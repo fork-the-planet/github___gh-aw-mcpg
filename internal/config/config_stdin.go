@@ -214,6 +214,7 @@ func intPtrOrDefault(ptr *int, defaultValue int) int {
 //   - Top-level "guards": gateway-specific guard configuration
 //   - Per-server "guard": reference to a named guard
 //   - Per-server "auth": upstream authentication configuration (OIDC etc.)
+//   - Per-server "tool_response_filters": gateway-side jq response shaping config
 //
 // Note: "guard-policies" and "registry" are already injected into the upstream schema
 // by fetchAndFixSchema, so they do not need to be stripped here.

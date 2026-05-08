@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/github/gh-aw-mcpg/internal/mcp"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -332,6 +333,67 @@ func TestWrapToolHandlerWithFilter_RewritesInlineResponse(t *testing.T) {
 	filteredRule, ok := filteredAlerts[0].(map[string]interface{})["rule"].(map[string]interface{})
 	require.True(t, ok)
 	assert.NotContains(t, filteredRule, "help")
+}
+
+func TestWrapToolHandlerWithFilter_RewritesMCPTextEnvelope(t *testing.T) {
+	baseDir := t.TempDir()
+
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+		payload := []interface{}{
+			map[string]interface{}{
+				"number": 101,
+				"rule": map[string]interface{}{
+					"id":   "go/sql-injection",
+					"help": strings.Repeat("CWE guidance ", 50),
+				},
+			},
+		}
+
+		payloadJSON, err := json.Marshal(payload)
+		require.NoError(t, err)
+
+		return &sdk.CallToolResult{
+			Content: []sdk.Content{
+				&sdk.TextContent{Text: string(payloadJSON)},
+			},
+		}, mcp.BuildMCPTextResponse(string(payloadJSON)), nil
+	}
+
+	wrapped := WrapToolHandlerWithFilter(
+		mockHandler,
+		"github___list_code_scanning_alerts",
+		baseDir,
+		"",
+		1024*1024,
+		testGetSessionID,
+		"map(del(.rule.help))",
+	)
+
+	result, data, err := wrapped(context.Background(), &sdk.CallToolRequest{}, map[string]interface{}{})
+	require.NoError(t, err)
+
+	textContent, ok := result.Content[0].(*sdk.TextContent)
+	require.True(t, ok)
+
+	var alerts []map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &alerts))
+	require.Len(t, alerts, 1)
+	rule, ok := alerts[0]["rule"].(map[string]interface{})
+	require.True(t, ok)
+	assert.NotContains(t, rule, "help")
+
+	dataMap, ok := data.(map[string]interface{})
+	require.True(t, ok)
+	contentItems, ok := dataMap["content"].([]map[string]interface{})
+	require.True(t, ok)
+	require.Len(t, contentItems, 1)
+
+	var dataAlerts []map[string]interface{}
+	require.NoError(t, json.Unmarshal([]byte(contentItems[0]["text"].(string)), &dataAlerts))
+	require.Len(t, dataAlerts, 1)
+	dataRule, ok := dataAlerts[0]["rule"].(map[string]interface{})
+	require.True(t, ok)
+	assert.NotContains(t, dataRule, "help")
 }
 
 func TestWrapToolHandler_ErrorHandling(t *testing.T) {
