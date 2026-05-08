@@ -284,7 +284,7 @@ func TestWrapToolHandlerWithFilter_RewritesInlineResponse(t *testing.T) {
 	baseDir := t.TempDir()
 
 	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
-		payload := []interface{}{
+		alertsPayload := []interface{}{
 			map[string]interface{}{
 				"number": 101,
 				"rule": map[string]interface{}{
@@ -294,13 +294,13 @@ func TestWrapToolHandlerWithFilter_RewritesInlineResponse(t *testing.T) {
 			},
 		}
 
-		payloadJSON, err := json.Marshal(payload)
+		payloadJSON, err := json.Marshal(alertsPayload)
 		require.NoError(t, err)
 		return &sdk.CallToolResult{
 			Content: []sdk.Content{
 				&sdk.TextContent{Text: string(payloadJSON)},
 			},
-		}, payload, nil
+		}, alertsPayload, nil
 	}
 
 	wrapped := WrapToolHandlerWithFilter(
@@ -339,7 +339,7 @@ func TestWrapToolHandlerWithFilter_RewritesMCPTextEnvelope(t *testing.T) {
 	baseDir := t.TempDir()
 
 	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
-		payload := []interface{}{
+		alertsPayload := []interface{}{
 			map[string]interface{}{
 				"number": 101,
 				"rule": map[string]interface{}{
@@ -349,7 +349,7 @@ func TestWrapToolHandlerWithFilter_RewritesMCPTextEnvelope(t *testing.T) {
 			},
 		}
 
-		payloadJSON, err := json.Marshal(payload)
+		payloadJSON, err := json.Marshal(alertsPayload)
 		require.NoError(t, err)
 
 		return &sdk.CallToolResult{

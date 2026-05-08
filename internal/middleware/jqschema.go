@@ -290,9 +290,9 @@ func tryApplyToolResponseFilter(
 
 	if result != nil && len(result.Content) > 0 {
 		if textContent, ok := result.Content[0].(*sdk.TextContent); ok {
-			var payload interface{}
-			if err := json.Unmarshal([]byte(textContent.Text), &payload); err == nil {
-				filteredPayload, filterErr := applyToolResponseFilter(ctx, filterCode, payload)
+			var textPayload interface{}
+			if err := json.Unmarshal([]byte(textContent.Text), &textPayload); err == nil {
+				filteredPayload, filterErr := applyToolResponseFilter(ctx, filterCode, textPayload)
 				if filterErr != nil {
 					logger.LogWarn("payload", "Failed to apply tool response filter to text payload, returning original response: tool=%s, queryID=%s, error=%v",
 						toolName, queryID, filterErr)
@@ -361,6 +361,7 @@ func rewriteFilteredTextPayload(result *sdk.CallToolResult, data interface{}, fi
 	if err := json.Unmarshal([]byte(filteredText), &filteredPayload); err == nil {
 		return rewrittenResult, filteredPayload
 	}
+	logger.LogWarn("payload", "Failed to unmarshal filtered text payload for rewritten data, returning original backing data")
 
 	return rewrittenResult, data
 }
