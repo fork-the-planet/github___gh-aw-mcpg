@@ -83,7 +83,9 @@ func isSessionNotFoundError(err error) bool {
 	}
 	// Plain JSON-RPC fallback requests bypass SDK session types, so they cannot
 	// return sdk.ErrSessionMissing and are matched by backend error text instead.
-	// TODO: remove this string-matching fallback when the plain JSON-RPC transport is retired.
+	// TODO(tech-debt): remove this string-matching fallback once the plain JSON-RPC
+	// transport (HTTPTransportPlainJSON) is retired. The plain JSON-RPC path exists
+	// only for compatibility with backends that pre-date the 2024-11-05 MCP spec.
 	return strings.Contains(strings.ToLower(err.Error()), "session not found")
 }
 
@@ -453,7 +455,11 @@ func tryStreamableHTTPTransport(ctx context.Context, cancel context.CancelFunc, 
 			return &sdk.StreamableClientTransport{
 				Endpoint:   url,
 				HTTPClient: httpClient,
-				MaxRetries: -1, // Disable retries (-1 = 0 retries; SDK treats 0 as "use default: 5"). We try other transports on failure.
+				// MaxRetries: -1 disables SDK-level reconnect retries (0 = SDK default 5 retries;
+				// negative = 0 retries). We fall through to SSE or plain JSON-RPC on failure.
+				// Verified against go-sdk v1.5.0 streamable.go:1547-1552.
+				// See TestMaxRetriesSentinelCanary for an automated guard against SDK changes.
+				MaxRetries: -1,
 				// DisableStandaloneSSE prevents the SDK from issuing a GET request for a
 				// persistent server-sent events stream immediately after initialization.
 				// Some HTTP MCP servers (e.g. cloud APIs) return 5xx or keep the GET
