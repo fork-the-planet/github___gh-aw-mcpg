@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"runtime/debug"
 	"strings"
+
+	"github.com/github/gh-aw-mcpg/internal/logger"
 )
+
+var logVersion = logger.New("version:version")
 
 const shortHashLength = 7
 
@@ -13,6 +17,7 @@ const shortHashLength = 7
 // Returns an empty string when the setting is absent.
 func vcsCommitFromBuildInfo(buildInfo *debug.BuildInfo) string {
 	if buildInfo == nil {
+		logVersion.Print("vcsCommitFromBuildInfo: no build info available")
 		return ""
 	}
 
@@ -22,9 +27,11 @@ func vcsCommitFromBuildInfo(buildInfo *debug.BuildInfo) string {
 			if len(commitHash) > shortHashLength {
 				commitHash = commitHash[:shortHashLength]
 			}
+			logVersion.Printf("vcsCommitFromBuildInfo: found vcs.revision, commit=%s", commitHash)
 			return commitHash
 		}
 	}
+	logVersion.Print("vcsCommitFromBuildInfo: vcs.revision not found in build settings")
 	return ""
 }
 
@@ -57,6 +64,7 @@ var gatewayVersion = "0.0.0-dev"
 // This should be called once at application startup from main.
 func Set(v string) {
 	if v != "" {
+		logVersion.Printf("Setting gateway version: %s", v)
 		gatewayVersion = v
 	}
 }
@@ -68,11 +76,13 @@ func Get() string {
 
 // BuildVersionString constructs a detailed version string with optional build metadata.
 func BuildVersionString(mainVersion, gitCommit, buildDate string) string {
+	logVersion.Printf("BuildVersionString: mainVersion=%q, gitCommit=%q, buildDate=%q", mainVersion, gitCommit, buildDate)
 	var parts []string
 
 	if mainVersion != "" {
 		parts = append(parts, mainVersion)
 	} else {
+		logVersion.Print("BuildVersionString: no mainVersion provided, using 'dev'")
 		parts = append(parts, "dev")
 	}
 
@@ -92,5 +102,7 @@ func BuildVersionString(mainVersion, gitCommit, buildDate string) string {
 		}
 	}
 
-	return strings.Join(parts, ", ")
+	result := strings.Join(parts, ", ")
+	logVersion.Printf("BuildVersionString: result=%q", result)
+	return result
 }
