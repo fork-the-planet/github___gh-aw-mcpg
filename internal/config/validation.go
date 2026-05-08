@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/config/rules"
@@ -143,17 +142,11 @@ func validateToolResponseFilters(filters map[string]string, jsonPath string) err
 		return nil
 	}
 
-	toolNames := make([]string, 0, len(filters))
-	for toolName := range filters {
-		toolNames = append(toolNames, toolName)
-	}
-	slices.Sort(toolNames)
-
-	for _, toolName := range toolNames {
+	for toolName, rawFilter := range filters {
 		if strings.TrimSpace(toolName) == "" {
 			return fmt.Errorf("%s contains an empty tool name", jsonPath)
 		}
-		filter := strings.TrimSpace(filters[toolName])
+		filter := strings.TrimSpace(rawFilter)
 		if filter == "" {
 			return fmt.Errorf("%s.%s must not be empty", jsonPath, toolName)
 		}

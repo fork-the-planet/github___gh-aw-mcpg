@@ -276,6 +276,46 @@ func ApplyToolResponseFilter(ctx context.Context, filter string, jsonData interf
 	return applyCompiledToolResponseFilter(ctx, code, jsonData)
 }
 
+func tryApplyToolResponseFilter(
+	ctx context.Context,
+	filterCode *gojq.Code,
+	result *sdk.CallToolResult,
+	data interface{},
+	toolName string,
+	queryID string,
+) (*sdk.CallToolResult, interface{}) {
+	if filterCode == nil {
+		return result, data
+	}
+
+	filteredData, filterErr := applyCompiledToolResponseFilter(ctx, filterCode, data)
+	if filterErr != nil {
+		logger.LogWarn("payload", "Failed to apply tool response filter, returning original response: tool=%s, queryID=%s, error=%v",
+			toolName, queryID, filterErr)
+		return result, data
+	}
+
+	filteredResult, convertErr := mcp.ConvertToCallToolResult(filteredData)
+	if convertErr != nil {
+		logger.LogWarn("payload", "Failed to rebuild filtered tool response, returning original response: tool=%s, queryID=%s, error=%v",
+			toolName, queryID, convertErr)
+		return result, data
+	}
+
+	// Filtering rewrites the primary serialized JSON payload from the first
+	// text content item only. Preserve any trailing content items (such as
+	// DIFC notices) only when the original leading item was a text payload.
+	if len(result.Content) > 1 {
+		if _, ok := result.Content[0].(*sdk.TextContent); ok {
+			filteredResult.Content = append(filteredResult.Content, result.Content[1:]...)
+		}
+	}
+	filteredResult.IsError = result.IsError
+	filteredResult.Meta = result.Meta
+
+	return filteredResult, filteredData
+}
+
 // savePayload saves the payload to disk and returns the file path
 // The file is saved to {baseDir}/{sessionID}/{queryID}/payload.json
 // The returned path uses pathPrefix if provided, otherwise returns the actual filesystem path
@@ -425,27 +465,7 @@ func wrapToolHandler(
 			return result, data, err
 		}
 
-		if filterCode != nil {
-			filteredData, filterErr := applyCompiledToolResponseFilter(ctx, filterCode, data)
-			if filterErr != nil {
-				logger.LogWarn("payload", "Failed to apply tool response filter, returning original response: tool=%s, queryID=%s, error=%v",
-					toolName, queryID, filterErr)
-			} else {
-				filteredResult, convertErr := mcp.ConvertToCallToolResult(filteredData)
-				if convertErr != nil {
-					logger.LogWarn("payload", "Failed to rebuild filtered tool response, returning original response: tool=%s, queryID=%s, error=%v",
-						toolName, queryID, convertErr)
-				} else {
-					if len(result.Content) > 1 {
-						filteredResult.Content = append(filteredResult.Content, result.Content[1:]...)
-					}
-					filteredResult.IsError = result.IsError
-					filteredResult.Meta = result.Meta
-					data = filteredData
-					result = filteredResult
-				}
-			}
-		}
+		result, data = tryApplyToolResponseFilter(ctx, filterCode, result, data, toolName, queryID)
 
 		// Marshal the response data to JSON
 		payloadJSON, marshalErr := json.Marshal(data)

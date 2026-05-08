@@ -293,9 +293,11 @@ func TestWrapToolHandlerWithFilter_RewritesInlineResponse(t *testing.T) {
 			},
 		}
 
+		payloadJSON, err := json.Marshal(payload)
+		require.NoError(t, err)
 		return &sdk.CallToolResult{
 			Content: []sdk.Content{
-				&sdk.TextContent{Text: string(mustJSONMarshal(t, payload))},
+				&sdk.TextContent{Text: string(payloadJSON)},
 			},
 		}, payload, nil
 	}
@@ -330,13 +332,6 @@ func TestWrapToolHandlerWithFilter_RewritesInlineResponse(t *testing.T) {
 	filteredRule, ok := filteredAlerts[0].(map[string]interface{})["rule"].(map[string]interface{})
 	require.True(t, ok)
 	assert.NotContains(t, filteredRule, "help")
-}
-
-func mustJSONMarshal(t *testing.T, value interface{}) []byte {
-	t.Helper()
-	data, err := json.Marshal(value)
-	require.NoError(t, err)
-	return data
 }
 
 func TestWrapToolHandler_ErrorHandling(t *testing.T) {
