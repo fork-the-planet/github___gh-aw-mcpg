@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
-	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/version"
@@ -119,57 +118,52 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 // HMAC-SHA256 signature (ASI-07); common endpoints (e.g. /health, /close) are not HMAC-protected.
 func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, apiKey, hmacSecret string) *http.Server {
 	logRouted.Printf("Creating HTTP server for routed mode: addr=%s", addr)
-	mux := http.NewServeMux()
-
-	// Register common endpoints (OAuth discovery, health, close)
-	registerCommonEndpoints(mux, unifiedServer, apiKey)
 
 	// Create routes for all configured backend servers.
 	// Sys tools are deprecated and intentionally not exposed via /mcp/sys.
 	allBackends := unifiedServer.GetServerIDs()
 	logRouted.Printf("Registering routes for %d backends: %v", len(allBackends), allBackends)
 
-	// Create server cache for session-aware server instances.
-	// TTL matches the SDK SessionTimeout so cache entries expire with sessions.
-	// Long-running agentic workflows (e.g. >30 min GitHub Actions jobs) need this
-	// to be at least as long as the workflow to avoid spurious "session not found" errors.
-	routedSessionTimeout := config.GetGatewaySessionTimeoutFromEnv()
-	serverCache := newFilteredServerCache(routedSessionTimeout)
+	return buildMCPHTTPServer(addr, unifiedServer, apiKey, hmacSecret, func(mux *http.ServeMux, sessionTimeout time.Duration) {
+		// Create server cache for session-aware server instances.
+		// TTL matches the SDK SessionTimeout so cache entries expire with sessions.
+		// Long-running agentic workflows (e.g. >30 min GitHub Actions jobs) need this
+		// to be at least as long as the workflow to avoid spurious "session not found" errors.
+		serverCache := newFilteredServerCache(sessionTimeout)
 
-	// Create a proxy for each backend server
-	for _, serverID := range allBackends {
-		// Capture serverID for the closure
-		backendID := serverID
-		route := fmt.Sprintf("/mcp/%s", backendID)
+		// Create a proxy for each backend server
+		for _, serverID := range allBackends {
+			// Capture serverID for the closure
+			backendID := serverID
+			route := fmt.Sprintf("/mcp/%s", backendID)
 
-		// Create the standard MCP handler stack (StreamableHTTP + session auto-init + middleware).
-		finalHandler := buildMCPHandler(func(r *http.Request) *sdk.Server {
-			if _, ok := setupSessionCallback(r, backendID); !ok {
-				return nil
-			}
+			// Create the standard MCP handler stack (StreamableHTTP + session auto-init + middleware).
+			finalHandler := buildMCPHandler(func(r *http.Request) *sdk.Server {
+				if _, ok := setupSessionCallback(r, backendID); !ok {
+					return nil
+				}
 
-			// Return a cached filtered proxy server for this backend and session
-			// This ensures the same server instance is reused for all requests in a session
-			sessionID := SessionIDFromContext(r.Context())
-			return serverCache.getOrCreate(backendID, sessionID, func() *sdk.Server {
-				return createFilteredServer(unifiedServer, backendID)
+				// Return a cached filtered proxy server for this backend and session
+				// This ensures the same server instance is reused for all requests in a session
+				sessionID := SessionIDFromContext(r.Context())
+				return serverCache.getOrCreate(backendID, sessionID, func() *sdk.Server {
+					return createFilteredServer(unifiedServer, backendID)
+				})
+			}, mcpHandlerConfig{
+				handlerLog:     logRouted,
+				sessionTimeout: sessionTimeout,
+				logTag:         "routed:" + backendID,
+				unifiedServer:  unifiedServer,
+				apiKey:         apiKey,
+				hmacSecret:     hmacSecret,
 			})
-		}, mcpHandlerConfig{
-			handlerLog:     logRouted,
-			sessionTimeout: routedSessionTimeout,
-			logTag:         "routed:" + backendID,
-			unifiedServer:  unifiedServer,
-			apiKey:         apiKey,
-			hmacSecret:     hmacSecret,
-		})
 
-		// Mount the handler at both /mcp/<server> and /mcp/<server>/
-		mux.Handle(route+"/", finalHandler)
-		mux.Handle(route, finalHandler)
-		log.Printf("Registered route: %s", route)
-	}
-
-	return newHTTPServer(addr, mux)
+			// Mount the handler at both /mcp/<server> and /mcp/<server>/
+			mux.Handle(route+"/", finalHandler)
+			mux.Handle(route, finalHandler)
+			log.Printf("Registered route: %s", route)
+		}
+	})
 }
 
 // createFilteredServer creates an MCP server that only exposes tools for a specific backend
