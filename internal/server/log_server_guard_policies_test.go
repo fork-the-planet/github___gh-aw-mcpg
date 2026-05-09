@@ -11,6 +11,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // captureServerLog initializes the file logger to a temp directory, runs fn,
@@ -19,12 +20,8 @@ import (
 func captureServerLog(t *testing.T, fn func()) string {
 	t.Helper()
 	logDir := t.TempDir()
-	if err := logger.InitFileLogger(logDir, "mcp-gateway.log"); err != nil {
-		t.Fatalf("failed to init file logger: %v", err)
-	}
-	if err := logger.InitServerFileLogger(logDir); err != nil {
-		t.Fatalf("failed to init server file logger: %v", err)
-	}
+	require.NoError(t, logger.InitFileLogger(logDir, "mcp-gateway.log"), "failed to init file logger")
+	require.NoError(t, logger.InitServerFileLogger(logDir), "failed to init server file logger")
 	t.Cleanup(func() {
 		logger.CloseGlobalLogger()
 		logger.CloseServerFileLogger()

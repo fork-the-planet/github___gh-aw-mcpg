@@ -219,17 +219,13 @@ func TestHealthEndpoint_ResponseFields(t *testing.T) {
 	httpServer.Handler.ServeHTTP(w, req)
 
 	var response map[string]interface{}
-	if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-		t.Fatalf("Failed to decode JSON response: %v", err)
-	}
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&response), "Failed to decode JSON response")
 
 	// Run field validation tests
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			value, exists := response[tt.fieldName]
-			if !exists {
-				t.Fatalf("Expected field '%s' to exist in response", tt.fieldName)
-			}
+			require.True(t, exists, "Expected field '%s' to exist in response", tt.fieldName)
 			tt.validate(t, value)
 		})
 	}
