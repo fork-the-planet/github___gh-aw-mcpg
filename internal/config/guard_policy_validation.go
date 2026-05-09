@@ -106,88 +106,32 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 
 	logGuardPolicy.Printf("Normalizing guard policy: integrity=%s, reposType=%T", integrity, policy.AllowOnly.Repos)
 
-	// Validate and normalize blocked-users.
-	// Dedup uses lowercased keys to match Rust guard's case-insensitive comparison.
-	if len(policy.AllowOnly.BlockedUsers) > 0 {
-		seen := make(map[string]struct{}, len(policy.AllowOnly.BlockedUsers))
-		for _, u := range policy.AllowOnly.BlockedUsers {
-			u = strings.TrimSpace(u)
-			if u == "" {
-				return nil, fmt.Errorf("allow-only.blocked-users entries must not be empty")
-			}
-			key := strings.ToLower(u)
-			if _, exists := seen[key]; !exists {
-				seen[key] = struct{}{}
-				normalized.BlockedUsers = append(normalized.BlockedUsers, u)
-			}
-		}
+	var err error
+
+	// Validate and normalize blocked-users, approval-labels, trusted-users.
+	// Dedup uses lowercased keys; original trimmed values are stored.
+	normalized.BlockedUsers, err = normalizeStringSlice("blocked-users", policy.AllowOnly.BlockedUsers, strings.ToLower, false)
+	if err != nil {
+		return nil, err
+	}
+	normalized.ApprovalLabels, err = normalizeStringSlice("approval-labels", policy.AllowOnly.ApprovalLabels, strings.ToLower, false)
+	if err != nil {
+		return nil, err
+	}
+	normalized.TrustedUsers, err = normalizeStringSlice("trusted-users", policy.AllowOnly.TrustedUsers, strings.ToLower, false)
+	if err != nil {
+		return nil, err
 	}
 
-	// Validate and normalize approval-labels.
-	// Dedup uses lowercased keys to match Rust guard's case-insensitive comparison.
-	if len(policy.AllowOnly.ApprovalLabels) > 0 {
-		seen := make(map[string]struct{}, len(policy.AllowOnly.ApprovalLabels))
-		for _, l := range policy.AllowOnly.ApprovalLabels {
-			l = strings.TrimSpace(l)
-			if l == "" {
-				return nil, fmt.Errorf("allow-only.approval-labels entries must not be empty")
-			}
-			key := strings.ToLower(l)
-			if _, exists := seen[key]; !exists {
-				seen[key] = struct{}{}
-				normalized.ApprovalLabels = append(normalized.ApprovalLabels, l)
-			}
-		}
+	// Validate and normalize endorsement-reactions and disapproval-reactions.
+	// Dedup uses uppercased keys; uppercased values are stored to match the GraphQL ReactionContent enum.
+	normalized.EndorsementReactions, err = normalizeStringSlice("endorsement-reactions", policy.AllowOnly.EndorsementReactions, strings.ToUpper, true)
+	if err != nil {
+		return nil, err
 	}
-
-	// Validate and normalize trusted-users.
-	// Dedup uses lowercased keys to match Rust guard's case-insensitive comparison.
-	if len(policy.AllowOnly.TrustedUsers) > 0 {
-		seen := make(map[string]struct{}, len(policy.AllowOnly.TrustedUsers))
-		for _, u := range policy.AllowOnly.TrustedUsers {
-			u = strings.TrimSpace(u)
-			if u == "" {
-				return nil, fmt.Errorf("allow-only.trusted-users entries must not be empty")
-			}
-			key := strings.ToLower(u)
-			if _, exists := seen[key]; !exists {
-				seen[key] = struct{}{}
-				normalized.TrustedUsers = append(normalized.TrustedUsers, u)
-			}
-		}
-	}
-
-	// Validate and normalize endorsement-reactions.
-	// Dedup uses uppercased keys to match the GraphQL ReactionContent enum.
-	if len(policy.AllowOnly.EndorsementReactions) > 0 {
-		seen := make(map[string]struct{}, len(policy.AllowOnly.EndorsementReactions))
-		for _, r := range policy.AllowOnly.EndorsementReactions {
-			r = strings.TrimSpace(r)
-			if r == "" {
-				return nil, fmt.Errorf("allow-only.endorsement-reactions entries must not be empty")
-			}
-			key := strings.ToUpper(r)
-			if _, exists := seen[key]; !exists {
-				seen[key] = struct{}{}
-				normalized.EndorsementReactions = append(normalized.EndorsementReactions, key)
-			}
-		}
-	}
-
-	// Validate and normalize disapproval-reactions.
-	if len(policy.AllowOnly.DisapprovalReactions) > 0 {
-		seen := make(map[string]struct{}, len(policy.AllowOnly.DisapprovalReactions))
-		for _, r := range policy.AllowOnly.DisapprovalReactions {
-			r = strings.TrimSpace(r)
-			if r == "" {
-				return nil, fmt.Errorf("allow-only.disapproval-reactions entries must not be empty")
-			}
-			key := strings.ToUpper(r)
-			if _, exists := seen[key]; !exists {
-				seen[key] = struct{}{}
-				normalized.DisapprovalReactions = append(normalized.DisapprovalReactions, key)
-			}
-		}
+	normalized.DisapprovalReactions, err = normalizeStringSlice("disapproval-reactions", policy.AllowOnly.DisapprovalReactions, strings.ToUpper, true)
+	if err != nil {
+		return nil, err
 	}
 
 	// Validate and normalize disapproval-integrity (optional; empty means feature
@@ -359,4 +303,32 @@ func isValidRepoName(repo string) bool {
 
 func isScopeTokenChar(char byte) bool {
 	return (char >= 'a' && char <= 'z') || (char >= '0' && char <= '9') || char == '_' || char == '-'
+}
+
+// normalizeStringSlice trims, validates, deduplicates, and normalizes entries
+// for the named allow-only field. caseNorm maps each trimmed entry to its
+// deduplication key. When storeNorm is true the normalized key is stored;
+// otherwise the original trimmed value is stored.
+func normalizeStringSlice(field string, input []string, caseNorm func(string) string, storeNorm bool) ([]string, error) {
+	if len(input) == 0 {
+		return nil, nil
+	}
+	seen := make(map[string]struct{}, len(input))
+	out := make([]string, 0, len(input))
+	for _, v := range input {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			return nil, fmt.Errorf("allow-only.%s entries must not be empty", field)
+		}
+		key := caseNorm(v)
+		if _, exists := seen[key]; !exists {
+			seen[key] = struct{}{}
+			if storeNorm {
+				out = append(out, key)
+			} else {
+				out = append(out, v)
+			}
+		}
+	}
+	return out, nil
 }
