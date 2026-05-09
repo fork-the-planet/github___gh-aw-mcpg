@@ -356,9 +356,10 @@ func TestPerformSessionAutoInit_Success(t *testing.T) {
 	assert.Equal(t, "happy-path-session", sessionID)
 
 	// Both initialize and notifications/initialized must have been sent.
-	assert.Equal(t, []string{"initialize", "notifications/initialized"}, receivedMethods)
+	require.Equal(t, []string{"initialize", "notifications/initialized"}, receivedMethods)
 
 	// The notifications/initialized request must carry the established session ID.
+	require.Len(t, receivedSessionIDs, 2)
 	assert.Equal(t, "happy-path-session", receivedSessionIDs[1])
 }
 
