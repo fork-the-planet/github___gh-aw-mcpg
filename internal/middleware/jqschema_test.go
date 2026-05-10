@@ -171,6 +171,20 @@ func TestApplyToolResponseFilter(t *testing.T) {
 	}
 }
 
+func TestApplyToolResponseFilter_NoResults(t *testing.T) {
+	filtered, err := ApplyToolResponseFilter(context.Background(), "empty", map[string]interface{}{"a": 1})
+	require.Error(t, err)
+	require.Nil(t, filtered)
+	require.EqualError(t, err, "tool response filter returned no results")
+}
+
+func TestApplyToolResponseFilter_MultipleResults(t *testing.T) {
+	filtered, err := ApplyToolResponseFilter(context.Background(), ".[]", []interface{}{1, 2})
+	require.Error(t, err)
+	require.Nil(t, filtered)
+	require.ErrorContains(t, err, "tool response filter returned multiple results")
+}
+
 func TestSavePayload(t *testing.T) {
 	// Create temporary directory for test
 	baseDir := filepath.Join(os.TempDir(), "test-jq-payloads")
