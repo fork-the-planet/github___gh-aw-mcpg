@@ -174,43 +174,12 @@ func applyJqSchema(ctx context.Context, jsonData interface{}) (interface{}, erro
 
 	logMiddleware.Printf("applyJqSchema: starting schema inference, dataType=%T", jsonData)
 
-	// Ensure context has a timeout - add default if none exists
-	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, DefaultJqTimeout)
-		defer cancel()
-		logMiddleware.Printf("Applied default timeout of %v to jq query execution", DefaultJqTimeout)
-	}
-
-	// Run the pre-compiled query with context support (much faster than Parse+Run)
-	// The iterator is consumed only once because the walk_schema filter produces exactly
-	// one output value (the fully-transformed schema). No further drain is needed because
-	// gojq iterators are synchronous and do not leave background goroutines running.
-	iter := jqSchemaCode.RunWithContext(ctx, jsonData)
-	v, ok := iter.Next()
-	if !ok {
-		return nil, fmt.Errorf("jq schema filter returned no results")
-	}
-
-	// Check for errors with type-specific handling
-	if err, ok := v.(error); ok {
-		// Check for context errors first (timeout or cancellation)
-		if ctx.Err() != nil {
-			return nil, fmt.Errorf("jq query execution failed: %w", ctx.Err())
-		}
-
-		// Check for HaltError - a clean halt with exit code
-		if haltErr, ok := err.(*gojq.HaltError); ok {
-			// HaltError with nil value means clean halt (not an error)
-			if haltErr.Value() == nil {
-				return nil, fmt.Errorf("jq schema filter halted cleanly with no output")
-			}
-			// HaltError with non-nil value is an actual error
-			return nil, fmt.Errorf("jq schema filter halted with error (exit code %d): %w", haltErr.ExitCode(), err)
-		}
-
-		// Generic error case (includes enhanced gojq type error messages when available)
-		return nil, fmt.Errorf("jq schema filter error: %w", err)
+	// Run the pre-compiled query with context support (much faster than Parse+Run).
+	// The walk_schema filter produces exactly one output value (the fully-transformed schema).
+	v, _, cancel, err := runJqCode(ctx, jqSchemaCode, jsonData, "jq schema filter")
+	defer cancel()
+	if err != nil {
+		return nil, err
 	}
 
 	// Return the schema object directly (no JSON marshaling needed here)
@@ -234,30 +203,45 @@ func CompileToolResponseFilter(filter string) (*gojq.Code, error) {
 	return code, nil
 }
 
-func applyToolResponseFilter(ctx context.Context, code *gojq.Code, jsonData interface{}) (interface{}, error) {
+// runJqCode applies a pre-compiled gojq code object to jsonData and returns the first result.
+// When ctx has no deadline, it wraps ctx with DefaultJqTimeout; the returned CancelFunc must
+// be called by the caller (a no-op is returned when no timeout was added). errPrefix is used
+// to namespace returned error messages (e.g. "jq schema filter").
+func runJqCode(ctx context.Context, code *gojq.Code, jsonData interface{}, errPrefix string) (interface{}, gojq.Iter, context.CancelFunc, error) {
+	cancel := context.CancelFunc(func() {})
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, DefaultJqTimeout)
-		defer cancel()
 	}
 
 	iter := code.RunWithContext(ctx, jsonData)
 	v, ok := iter.Next()
 	if !ok {
-		return nil, fmt.Errorf("tool response filter returned no results")
+		cancel()
+		return nil, nil, func() {}, fmt.Errorf("%s returned no results", errPrefix)
 	}
 
 	if err, ok := v.(error); ok {
+		cancel()
 		if ctx.Err() != nil {
-			return nil, fmt.Errorf("tool response filter execution failed: %w", ctx.Err())
+			return nil, nil, func() {}, fmt.Errorf("%s execution failed: %w", errPrefix, ctx.Err())
 		}
 		if haltErr, ok := err.(*gojq.HaltError); ok {
 			if haltErr.Value() == nil {
-				return nil, fmt.Errorf("tool response filter halted cleanly with no output")
+				return nil, nil, func() {}, fmt.Errorf("%s halted cleanly with no output", errPrefix)
 			}
-			return nil, fmt.Errorf("tool response filter halted with error (exit code %d): %w", haltErr.ExitCode(), err)
+			return nil, nil, func() {}, fmt.Errorf("%s halted with error (exit code %d): %w", errPrefix, haltErr.ExitCode(), err)
 		}
-		return nil, fmt.Errorf("tool response filter error: %w", err)
+		return nil, nil, func() {}, fmt.Errorf("%s error: %w", errPrefix, err)
+	}
+
+	return v, iter, cancel, nil
+}
+
+func applyToolResponseFilter(ctx context.Context, code *gojq.Code, jsonData interface{}) (interface{}, error) {
+	v, iter, cancel, err := runJqCode(ctx, code, jsonData, "tool response filter")
+	defer cancel()
+	if err != nil {
+		return nil, err
 	}
 
 	if extra, ok := iter.Next(); ok {
