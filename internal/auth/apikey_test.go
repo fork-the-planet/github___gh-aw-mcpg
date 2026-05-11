@@ -26,7 +26,7 @@ func TestGenerateRandomAPIKey(t *testing.T) {
 }
 
 // TestGenerateRandomAPIKey_IsValidHex verifies the returned key is a valid
-// lowercase hex-encoded string that decodes to exactly 32 bytes.
+// hex-encoded string that decodes to exactly 32 bytes.
 func TestGenerateRandomAPIKey_IsValidHex(t *testing.T) {
 	key, err := auth.GenerateRandomAPIKey()
 	require.NoError(t, err)
