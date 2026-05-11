@@ -5,10 +5,10 @@ import (
 	"time"
 )
 
-// FormatResetAt returns a human-readable representation of a reset time,
+// FormatFutureTime returns a human-readable representation of a future time,
 // combining an RFC3339 timestamp with a relative countdown (e.g. "2026-05-03T12:00:00Z (in 5.0m)").
 // Returns "unknown" when t is the zero value.
-func FormatResetAt(t time.Time) string {
+func FormatFutureTime(t time.Time) string {
 	if t.IsZero() {
 		return "unknown"
 	}

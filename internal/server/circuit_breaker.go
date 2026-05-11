@@ -195,12 +195,12 @@ func (cb *circuitBreaker) RecordRateLimit(resetAt time.Time) {
 			cb.openedAt = cb.nowFunc()
 			logger.LogError("backend",
 				"circuit breaker for server %q OPENED after %d consecutive rate-limit errors; resets at %s",
-				cb.serverID, cb.consecutiveErrors, strutil.FormatResetAt(cb.resetAt))
+				cb.serverID, cb.consecutiveErrors, strutil.FormatFutureTime(cb.resetAt))
 			logCircuitBreaker.Printf("server %q circuit breaker CLOSED → OPEN (errors=%d)", cb.serverID, cb.consecutiveErrors)
 		} else {
 			logger.LogWarn("backend",
 				"rate-limit error for server %q (consecutive=%d/%d); resets at %s",
-				cb.serverID, cb.consecutiveErrors, cb.threshold, strutil.FormatResetAt(cb.resetAt))
+				cb.serverID, cb.consecutiveErrors, cb.threshold, strutil.FormatFutureTime(cb.resetAt))
 		}
 
 	case circuitHalfOpen:
@@ -209,13 +209,13 @@ func (cb *circuitBreaker) RecordRateLimit(resetAt time.Time) {
 		cb.openedAt = cb.nowFunc()
 		logger.LogError("backend",
 			"circuit breaker for server %q re-OPENED after probe was rate-limited; resets at %s",
-			cb.serverID, strutil.FormatResetAt(cb.resetAt))
+			cb.serverID, strutil.FormatFutureTime(cb.resetAt))
 		logCircuitBreaker.Printf("server %q circuit breaker HALF-OPEN → OPEN (probe rate-limited)", cb.serverID)
 
 	case circuitOpen:
 		// Already open — update reset time.
 		logger.LogWarn("backend", "server %q circuit breaker still OPEN; resets at %s",
-			cb.serverID, strutil.FormatResetAt(cb.resetAt))
+			cb.serverID, strutil.FormatFutureTime(cb.resetAt))
 	}
 }
 

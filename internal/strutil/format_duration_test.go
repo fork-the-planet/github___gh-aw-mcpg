@@ -165,16 +165,16 @@ func TestFormatDuration(t *testing.T) {
 	}
 }
 
-func TestFormatResetAt(t *testing.T) {
+func TestFormatFutureTime(t *testing.T) {
 	t.Run("zero time returns unknown", func(t *testing.T) {
-		result := FormatResetAt(time.Time{})
+		result := FormatFutureTime(time.Time{})
 		assert.Equal(t, "unknown", result)
 	})
 
 	t.Run("non-zero time includes RFC3339 timestamp and relative countdown", func(t *testing.T) {
 		// Use a fixed future time so the test is deterministic.
 		future := time.Date(2030, 1, 1, 12, 0, 0, 0, time.UTC)
-		result := FormatResetAt(future)
+		result := FormatFutureTime(future)
 		assert.Contains(t, result, "2030-01-01T12:00:00Z")
 		assert.Contains(t, result, " (in ")
 	})
