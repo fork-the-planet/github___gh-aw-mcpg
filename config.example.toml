@@ -75,6 +75,13 @@ GITHUB_PERSONAL_ACCESS_TOKEN = ""  # Pass through from host
 # tools = ["*"]                    # Allow all tools (default)
 # tools = ["read_file", "list_files"]  # Allow specific tools only
 
+# Optional: Per-tool response filters (jq expressions)
+# Transforms tool response payloads before they are returned and before large-payload
+# preview/schema processing runs.
+# [servers.github.tool_response_filters]
+# search_code = ".results[:20]"
+# get_file_contents = "{path: .path, sha: .sha}"
+
 # Optional: Guard policies for access control at the MCP gateway level
 # The structure is server-specific. For GitHub MCP server, this controls repository access.
 # Example: Restrict access to specific GitHub organization and repositories
@@ -143,6 +150,11 @@ args = [
 # (The [gateway.opentelemetry] and [gateway.tracing] sections DO support ${VAR} expansion.)
 [servers.custom]
 command = "docker"
+# Optional: Working directory for server process (currently parsed but not used by launcher)
+# working_directory = "/workspace"
+#
+# Optional: Informational URI to this server entry in an MCP registry
+# registry = "https://example.com/mcp-registry/servers/custom"
 args = [
     "run",
     "--rm",
@@ -157,11 +169,21 @@ args = [
 # [servers.http-example]
 # type = "http"
 # url = "https://example.com/mcp"
+# connect_timeout = 45       # Optional: Per-transport connect timeout in seconds (default: 30)
+# tool_timeout = 600         # Optional: Per-server tool timeout in seconds (default: gateway.tool_timeout)
+# rate_limit_threshold = 3   # Optional: Consecutive rate-limit errors before circuit opens
+# rate_limit_cooldown = 60   # Optional: Seconds before OPEN→HALF-OPEN probe
+# registry = "https://example.com/mcp-registry/servers/http-example"
 # 
 # Optional: HTTP headers for authentication
 # [servers.http-example.headers]
 # Authorization = "Bearer token123"
 # X-API-Key = "api-key-123"
+#
+# Optional: GitHub Actions OIDC auth for upstream HTTP server
+# [servers.http-example.auth]
+# type = "github-oidc"
+# audience = "https://example.com/mcp"
 
 # ============================================================================
 # Advanced Options

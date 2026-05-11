@@ -376,9 +376,9 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `GITHUB_SERVER_URL` - GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `copilot-api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com`
 - `ACTIONS_ID_TOKEN_REQUEST_URL` - GitHub Actions OIDC token endpoint URL; required for `github-oidc` auth type
 - `ACTIONS_ID_TOKEN_REQUEST_TOKEN` - GitHub Actions OIDC request token; required for `github-oidc` auth type
-- `MCP_GATEWAY_PORT` - Gateway listen port (overrides config `port` field; validated 1-65535)
-- `MCP_GATEWAY_DOMAIN` - Gateway domain name (overrides config `domain` field)
-- `MCP_GATEWAY_API_KEY` - Gateway API key (overrides config `api_key` field)
+- `MCP_GATEWAY_PORT` - Used by environment validation (`--validate-env`) for container port-mapping checks (validated 1-65535); does not override the gateway listen address
+- `MCP_GATEWAY_DOMAIN` - Used by environment validation (`--validate-env`) and containerized startup checks; to set config values use `gateway.domain` (or `"${MCP_GATEWAY_DOMAIN}"` in JSON stdin config)
+- `MCP_GATEWAY_API_KEY` - Used by environment validation (`--validate-env`) and containerized startup checks; to enable auth set `gateway.apiKey` (commonly `"${MCP_GATEWAY_API_KEY}"` in JSON stdin config)
 - `DEBUG` - Enable debug logging (e.g., `DEBUG=*`, `DEBUG=server:*,launcher:*`)
 - `DEBUG_COLORS` - Control colored output (0 to disable, auto-disabled when piping)
 - `MCP_GATEWAY_LOG_DIR` - Log file directory (sets default for `--log-dir` flag, default: `/tmp/gh-aw/mcp-logs`)
@@ -403,7 +403,7 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `MCP_GATEWAY_HMAC_SECRET` - Shared HMAC-SHA256 secret for request signing and replay protection; when set, requests to MCP handlers must carry valid `X-MCP-Timestamp`, `X-MCP-Nonce`, and `X-MCP-Signature` headers (sets default for `--hmac-secret`)
 - `RUNNING_IN_CONTAINER` - Set to `"true"` to force container detection when `/.dockerenv` and cgroup detection are unavailable
 
-**Note:** `PORT`, `HOST`, and `MODE` are not read by the `awmg` binary directly. However, `run.sh` does use `HOST` (default: `0.0.0.0`) and `MODE` (default: `--routed`) to set the bind address and routing mode. Use the `--listen` and `--routed`/`--unified` flags when running `awmg` directly.
+**Note:** `MCP_GATEWAY_PORT` is read by the `awmg` binary for environment validation (`--validate-env`) only. Plain `PORT`, `HOST`, and `MODE` are not read by `awmg` directly. However, `run.sh` uses `PORT`, `HOST` (default: `0.0.0.0`), and `MODE` (default: `--routed`) to set the bind address and routing mode. Use the `--listen` and `--routed`/`--unified` flags when running `awmg` directly.
 
 **File Logging:**
 - Operational logs are always written to log files in the configured log directory

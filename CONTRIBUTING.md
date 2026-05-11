@@ -247,7 +247,7 @@ make clean
 ## Project Structure
 
 ```
-awmg/
+gh-aw-mcpg/
 ├── main.go                    # Entry point
 ├── go.mod                     # Dependencies
 ├── Dockerfile                 # Container image
@@ -425,6 +425,7 @@ DEBUG=server:* ./awmg --config config.toml   # Enable specific package
 The project uses:
 
 - `github.com/spf13/cobra` - CLI framework
+- `github.com/spf13/pflag` - POSIX/GNU-style flag parsing used by tracing and CLI integrations
 - `github.com/BurntSushi/toml` - TOML parser
 - `github.com/modelcontextprotocol/go-sdk` - MCP protocol implementation
 - `github.com/itchyny/gojq` - JQ schema processing

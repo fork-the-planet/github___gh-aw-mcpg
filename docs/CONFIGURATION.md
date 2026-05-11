@@ -166,6 +166,17 @@ Run `./awmg --help` for full CLI options. Key flags:
   - Use `["*"]` (wildcard) to allow all tools (default behavior when field is omitted)
   - Example: `["get_file_contents", "search_code"]` (only these tools are accessible)
 
+- **`tool_response_filters`** (optional): Per-tool jq expressions that transform tool response data before it is returned to the agent and before large-payload preview/schema processing runs
+  - Map key: tool name; map value: jq expression string
+  - Expressions are validated at startup (compile check); invalid jq causes startup/config validation failure
+  - Example:
+    ```json
+    "tool_response_filters": {
+      "search_code": ".results[:20]",
+      "get_file_contents": "{path: .path, sha: .sha, content: .content}"
+    }
+    ```
+
 - **`registry`** (optional): Informational URI to the server's entry in an MCP registry
   - Used for documentation and discoverability purposes only; not used at runtime
 
