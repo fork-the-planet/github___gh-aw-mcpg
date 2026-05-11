@@ -562,6 +562,129 @@ func TestFindParentField_NoEnclosingBrace(t *testing.T) {
 	assert.Equal(t, "", got)
 }
 
+// TestInjectFieldsIntoQuery tests the injectFieldsIntoQuery function directly,
+// covering all four code paths: named fragment spread, inline fragment, direct
+// nodes injection with safe/unsafe parents, and no-match fallback.
+func TestInjectFieldsIntoQuery(t *testing.T) {
+	tests := []struct {
+		name        string
+		query       string
+		fields      []string
+		safeParents map[string]bool
+		wantContain []string
+		wantAbsent  []string
+		wantEqualTo string // if set, result must equal input (no-op)
+	}{
+		{
+			name:        "named fragment spread — delegates to injectIntoFragment",
+			query:       `fragment pr on PullRequest{number,title} query { repository { pullRequests(first:10) { nodes { ...pr } } } }`,
+			fields:      []string{"author{login}", "authorAssociation"},
+			safeParents: map[string]bool{"pullRequests": true},
+			wantContain: []string{
+				"fragment pr on PullRequest{number,title,author{login},authorAssociation}",
+			},
+			wantAbsent: []string{
+				// Injection must go into the fragment, not into nodes directly.
+				"nodes { ...pr author{login}",
+			},
+		},
+		{
+			name:        "inline fragment — injects after ... on Type {",
+			query:       `query { search(first:10) { nodes { ... on PullRequest { number title } } } }`,
+			fields:      []string{"author{login}", "authorAssociation"},
+			safeParents: map[string]bool{"search": true},
+			wantContain: []string{
+				"... on PullRequest {author{login},authorAssociation,",
+			},
+		},
+		{
+			name:        "direct nodes with safe parent — injects fields",
+			query:       `query { repository { pullRequests(first:10) { nodes { number title } } } }`,
+			fields:      []string{"author{login}", "authorAssociation"},
+			safeParents: map[string]bool{"pullRequests": true},
+			wantContain: []string{
+				"nodes {author{login},authorAssociation,",
+				"number title",
+			},
+		},
+		{
+			name:        "direct nodes with unsafe parent — no injection",
+			query:       `query { user { followers(first:5) { nodes { login } } } }`,
+			fields:      []string{"author{login}"},
+			safeParents: map[string]bool{"pullRequests": true},
+			// query should come back unchanged since "followers" is not in safeParents
+			wantAbsent: []string{"author{login}"},
+		},
+		{
+			name: "multiple nodes blocks — only safe parent receives injection",
+			query: `query { repository {
+				pullRequests(first:10) { nodes { number } }
+				assignees(first:5) { nodes { login } }
+			} }`,
+			fields:      []string{"authorAssociation"},
+			safeParents: map[string]bool{"pullRequests": true},
+			wantContain: []string{
+				// pullRequests.nodes gets injection
+				"nodes {authorAssociation,",
+			},
+			wantAbsent: []string{
+				// assignees.nodes must NOT get the field appended right after {
+				"login } }",
+			},
+		},
+		{
+			name:        "no nodes block — returns query unchanged",
+			query:       `query { repository { pullRequest(number:1) { title body } } }`,
+			fields:      []string{"author{login}"},
+			safeParents: map[string]bool{"pullRequest": true},
+			wantEqualTo: `query { repository { pullRequest(number:1) { title body } } }`,
+		},
+		{
+			name:        "empty query — returns empty unchanged",
+			query:       ``,
+			fields:      []string{"author{login}"},
+			safeParents: map[string]bool{"anything": true},
+			wantEqualTo: ``,
+		},
+		{
+			name:        "nil safeParents — no direct injection (all parents unsafe)",
+			query:       `query { repository { issues(first:5) { nodes { title } } } }`,
+			fields:      []string{"author{login}"},
+			safeParents: nil,
+			wantAbsent:  []string{"author{login}"},
+		},
+		{
+			name:        "empty safeParents map — no direct injection",
+			query:       `query { repository { issues(first:5) { nodes { title } } } }`,
+			fields:      []string{"author{login}"},
+			safeParents: map[string]bool{},
+			wantAbsent:  []string{"author{login}"},
+		},
+		{
+			name:        "single field injection preserves original content",
+			query:       `query { repository { pullRequests(first:3) { nodes { number } } } }`,
+			fields:      []string{"authorAssociation"},
+			safeParents: map[string]bool{"pullRequests": true},
+			wantContain: []string{"nodes {authorAssociation,", "number"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := injectFieldsIntoQuery(tt.query, tt.fields, tt.safeParents)
+			if tt.wantEqualTo != "" {
+				assert.Equal(t, tt.wantEqualTo, got)
+			}
+			for _, want := range tt.wantContain {
+				assert.Contains(t, got, want)
+			}
+			for _, absent := range tt.wantAbsent {
+				assert.NotContains(t, got, absent)
+			}
+		})
+	}
+}
+
 func countOccurrences(s, substr string) int {
 	count := 0
 	for i := 0; i+len(substr) <= len(s); i++ {
