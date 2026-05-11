@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/syncutil"
 	"github.com/stretchr/testify/assert"
@@ -128,4 +129,107 @@ func TestGetOrCreate_RaceDetector(t *testing.T) {
 		}(key)
 	}
 	wg.Wait()
+}
+
+// TestGetOrCreate_DoubleCheckPreventsRedundantCreate verifies the double-check locking
+// branch in GetOrCreate: when two goroutines both observe a cache miss under the read lock
+// and then race for the write lock, the second goroutine must find the key already
+// populated after acquiring the write lock and must NOT call create a second time.
+//
+// Coordination strategy:
+//  1. The test holds the write lock before starting the goroutines; this forces both G1
+//     and G2 to block at their first mu.RLock() call, guaranteeing both will see a miss
+//     when the write lock is eventually released.
+//  2. After a small delay the test releases the write lock; both goroutines unblock,
+//     acquire the read lock concurrently, observe a cache miss, and release the read lock.
+//  3. Both goroutines then race for the write lock. The winner (say G1) acquires it,
+//     calls create(), and blocks on the firstCreate channel.
+//  4. G2 is now blocked on mu.Lock() behind G1.
+//  5. The test closes firstCreate; G1's create returns, stores the value, and releases
+//     the write lock. G2 then acquires the write lock, executes the double-check, finds
+//     the key already present, and returns without invoking create a second time.
+func TestGetOrCreate_DoubleCheckPreventsRedundantCreate(t *testing.T) {
+	var mu sync.RWMutex
+	cache := map[string]int{}
+
+	// Hold the write lock before starting goroutines so that both G1 and G2 block at
+	// mu.RLock() and are guaranteed to see a cache miss when released.
+	mu.Lock()
+
+	// firstCreate is closed by the test goroutine after one worker has entered create().
+	// It blocks the write-lock winner inside create() so the other worker can queue
+	// behind the write lock.
+	firstCreate := make(chan struct{})
+	createEntered := make(chan struct{})
+	start := make(chan struct{})
+	callStarted := make(chan struct{}, 2)
+	results := make(chan struct {
+		v   int
+		err error
+	}, 2)
+	var createEnteredOnce sync.Once
+
+	var createCount atomic.Int32
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	for range 2 {
+		go func() {
+			defer wg.Done()
+			<-start
+			callStarted <- struct{}{}
+			v, err := syncutil.GetOrCreate(&mu, cache, "key", func() (int, error) {
+				// Only the first goroutine to win the write lock reaches here.
+				// It blocks on firstCreate so that the other goroutine queues on mu.Lock().
+				createCount.Add(1)
+				createEnteredOnce.Do(func() { close(createEntered) })
+				<-firstCreate
+				return 42, nil
+			})
+			results <- struct {
+				v   int
+				err error
+			}{v: v, err: err}
+		}()
+	}
+
+	close(start)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-callStarted:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for goroutines to start GetOrCreate")
+		}
+	}
+
+	// Release the test's write lock. Both goroutines unblock from mu.RLock(), observe a
+	// cache miss, release the read lock, and race for the write lock.
+	mu.Unlock()
+
+	select {
+	case <-createEntered:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for create() to be entered")
+	}
+
+	// Unblock the create function. The winning goroutine stores the value and releases the
+	// write lock. The other goroutine then acquires the write lock, executes the
+	// double-check at the top of the write-locked section, finds the key already present,
+	// and returns without calling create a second time.
+	close(firstCreate)
+
+	wg.Wait()
+	for i := 0; i < 2; i++ {
+		select {
+		case result := <-results:
+			require.NoError(t, result.err)
+			assert.Equal(t, 42, result.v)
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for goroutine result")
+		}
+	}
+
+	assert.Equal(t, int32(1), createCount.Load(),
+		"create must be called exactly once; the double-check must prevent the second goroutine from calling it")
+	assert.Equal(t, 42, cache["key"])
 }
