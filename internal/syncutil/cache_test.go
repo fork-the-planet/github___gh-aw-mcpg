@@ -156,10 +156,18 @@ func TestGetOrCreate_DoubleCheckPreventsRedundantCreate(t *testing.T) {
 	// mu.RLock() and are guaranteed to see a cache miss when released.
 	mu.Lock()
 
-	// firstCreate is closed once, by whichever goroutine wins the write lock and enters
-	// create(). It blocks that goroutine inside create() so the other goroutine has time
-	// to queue behind the write lock.
+	// firstCreate is closed by the test goroutine after one worker has entered create().
+	// It blocks the write-lock winner inside create() so the other worker can queue
+	// behind the write lock.
 	firstCreate := make(chan struct{})
+	createEntered := make(chan struct{})
+	start := make(chan struct{})
+	callStarted := make(chan struct{}, 2)
+	results := make(chan struct {
+		v   int
+		err error
+	}, 2)
+	var createEnteredOnce sync.Once
 
 	var createCount atomic.Int32
 	var wg sync.WaitGroup
@@ -168,28 +176,41 @@ func TestGetOrCreate_DoubleCheckPreventsRedundantCreate(t *testing.T) {
 	for range 2 {
 		go func() {
 			defer wg.Done()
+			<-start
+			callStarted <- struct{}{}
 			v, err := syncutil.GetOrCreate(&mu, cache, "key", func() (int, error) {
 				// Only the first goroutine to win the write lock reaches here.
 				// It blocks on firstCreate so that the other goroutine queues on mu.Lock().
 				createCount.Add(1)
+				createEnteredOnce.Do(func() { close(createEntered) })
 				<-firstCreate
 				return 42, nil
 			})
-			require.NoError(t, err)
-			assert.Equal(t, 42, v)
+			results <- struct {
+				v   int
+				err error
+			}{v: v, err: err}
 		}()
 	}
 
-	// Give both goroutines time to reach mu.RLock() and block waiting for the write lock.
-	time.Sleep(10 * time.Millisecond)
+	close(start)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-callStarted:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for goroutines to start GetOrCreate")
+		}
+	}
 
 	// Release the test's write lock. Both goroutines unblock from mu.RLock(), observe a
 	// cache miss, release the read lock, and race for the write lock.
 	mu.Unlock()
 
-	// Give the write-lock winner time to enter create() and start blocking on firstCreate,
-	// while the other goroutine queues on mu.Lock().
-	time.Sleep(10 * time.Millisecond)
+	select {
+	case <-createEntered:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for create() to be entered")
+	}
 
 	// Unblock the create function. The winning goroutine stores the value and releases the
 	// write lock. The other goroutine then acquires the write lock, executes the
@@ -198,6 +219,15 @@ func TestGetOrCreate_DoubleCheckPreventsRedundantCreate(t *testing.T) {
 	close(firstCreate)
 
 	wg.Wait()
+	for i := 0; i < 2; i++ {
+		select {
+		case result := <-results:
+			require.NoError(t, result.err)
+			assert.Equal(t, 42, result.v)
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for goroutine result")
+		}
+	}
 
 	assert.Equal(t, int32(1), createCount.Load(),
 		"create must be called exactly once; the double-check must prevent the second goroutine from calling it")
