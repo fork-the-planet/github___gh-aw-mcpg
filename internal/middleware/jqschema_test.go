@@ -185,6 +185,22 @@ func TestApplyToolResponseFilter_MultipleResults(t *testing.T) {
 	require.ErrorContains(t, err, "tool response filter returned multiple results")
 }
 
+func TestApplyToolResponseFilter_HaltError(t *testing.T) {
+	t.Run("halt produces clean halt error", func(t *testing.T) {
+		filtered, err := ApplyToolResponseFilter(context.Background(), "halt", map[string]interface{}{"a": 1})
+		require.Error(t, err)
+		require.Nil(t, filtered)
+		require.ErrorContains(t, err, "halted cleanly with no output")
+	})
+
+	t.Run("halt_error produces halt error with exit code", func(t *testing.T) {
+		filtered, err := ApplyToolResponseFilter(context.Background(), "halt_error(2)", map[string]interface{}{"a": 1})
+		require.Error(t, err)
+		require.Nil(t, filtered)
+		require.ErrorContains(t, err, "halted with error (exit code 2)")
+	})
+}
+
 func TestSavePayload(t *testing.T) {
 	// Create temporary directory for test
 	baseDir := filepath.Join(os.TempDir(), "test-jq-payloads")

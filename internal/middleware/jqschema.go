@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -231,7 +232,8 @@ func runJqCode(
 		if ctx.Err() != nil {
 			return nil, fmt.Errorf("%s execution failed: %w", executionPrefix, ctx.Err())
 		}
-		if haltErr, ok := err.(*gojq.HaltError); ok {
+		var haltErr *gojq.HaltError
+		if errors.As(err, &haltErr) {
 			if haltErr.Value() == nil {
 				return nil, fmt.Errorf("%s halted cleanly with no output", errPrefix)
 			}
