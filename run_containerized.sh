@@ -109,6 +109,7 @@ check_docker_socket() {
     # sidecar hasn't created the socket yet when the gateway starts.
     local max_retries=10
     local retry_delay=1
+    local max_wait_seconds=$((max_retries * retry_delay))
     local attempt=0
     while [ ! -S "$socket_path" ] && [ $attempt -lt $max_retries ]; do
         attempt=$((attempt + 1))
@@ -119,14 +120,15 @@ check_docker_socket() {
     done
 
     if [ ! -S "$socket_path" ]; then
-        log_error "Docker socket not found at $socket_path after ${max_retries}s"
+        log_error "Docker socket not found at $socket_path after ${max_wait_seconds}s (${max_retries} attempts)"
         log_error "Mount the Docker socket: -v /var/run/docker.sock:/var/run/docker.sock"
         log_error "For ARC/DinD with a custom socket path, set DOCKER_HOST and mount accordingly"
         exit 1
     fi
 
     if [ $attempt -gt 0 ]; then
-        log_info "Docker socket appeared after ${attempt}s"
+        local waited_seconds=$((attempt * retry_delay))
+        log_info "Docker socket appeared after ${waited_seconds}s (${attempt} attempt(s))"
     fi
 
     if ! docker info > /dev/null 2>&1; then
