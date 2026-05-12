@@ -169,10 +169,30 @@ func cloneLabelOrNew(inner *Label) *Label {
 	return inner.Clone()
 }
 
-// secrecyKind and integrityKind are unexported phantom types used as type parameters
-// for FlowLabel to create type-safe secrecy and integrity label variants.
+// labelKind is the constraint that phantom kind types must satisfy.
+// Each concrete kind type encodes its flow semantics directly via these methods,
+// avoiding runtime type assertions inside the hot path of CanFlowTo/CheckFlow.
+type labelKind interface {
+	// isSubset returns true for secrecy semantics (l ⊆ target) and false for
+	// integrity semantics (l ⊇ target).
+	isSubset() bool
+	// typeName returns the display name used in log messages ("Secrecy" or "Integrity").
+	typeName() string
+}
+
+// secrecyKind is the phantom type parameter for SecrecyLabel.
+// Secrecy flow: l ⊆ target (source must be a subset of target).
 type secrecyKind struct{}
+
+func (secrecyKind) isSubset() bool   { return true }
+func (secrecyKind) typeName() string { return "Secrecy" }
+
+// integrityKind is the phantom type parameter for IntegrityLabel.
+// Integrity flow: l ⊇ target (source must be a superset of target).
 type integrityKind struct{}
+
+func (integrityKind) isSubset() bool   { return false }
+func (integrityKind) typeName() string { return "Integrity" }
 
 // FlowLabel is a generic label type parameterized by a phantom kind type T.
 // Use the SecrecyLabel and IntegrityLabel type aliases rather than FlowLabel directly.
@@ -180,7 +200,7 @@ type integrityKind struct{}
 // The kind type T determines flow direction:
 //   - FlowLabel[secrecyKind]   — secrecy semantics: l ⊆ target (source ⊆ target)
 //   - FlowLabel[integrityKind] — integrity semantics: l ⊇ target (source ⊇ target)
-type FlowLabel[T any] struct {
+type FlowLabel[T labelKind] struct {
 	Label *Label
 }
 
@@ -214,29 +234,6 @@ func NewIntegrityLabelWithTags(tags []Tag) *IntegrityLabel {
 	return &IntegrityLabel{Label: newLabelWithTags(tags)}
 }
 
-// flowIsSubset returns true when FlowLabel[T] uses subset (secrecy) semantics,
-// and false when it uses superset (integrity) semantics.
-func flowIsSubset[T any]() bool {
-	var zero T
-	switch any(zero).(type) {
-	case secrecyKind:
-		return true
-	default:
-		return false
-	}
-}
-
-// flowTypeName returns the display name of the label kind for use in log messages.
-func flowTypeName[T any]() string {
-	var zero T
-	switch any(zero).(type) {
-	case secrecyKind:
-		return "Secrecy"
-	default:
-		return "Integrity"
-	}
-}
-
 // getLabel returns the underlying Label, or nil if the receiver is nil.
 func (l *FlowLabel[T]) getLabel() *Label {
 	if l == nil {
@@ -249,7 +246,8 @@ func (l *FlowLabel[T]) getLabel() *Label {
 // For SecrecyLabel: l ⊆ target (source must have no tags absent from target).
 // For IntegrityLabel: l ⊇ target (source must have all tags that target has).
 func (l *FlowLabel[T]) CanFlowTo(target *FlowLabel[T]) bool {
-	ok, _ := checkFlowHelper(l.getLabel(), target.getLabel(), flowIsSubset[T](), flowTypeName[T]())
+	var kind T
+	ok, _ := checkFlowHelper(l.getLabel(), target.getLabel(), kind.isSubset(), kind.typeName())
 	return ok
 }
 
@@ -344,7 +342,8 @@ func checkFlowHelper(srcLabel *Label, targetLabel *Label, checkSubset bool, labe
 
 // CheckFlow checks if this label can flow to target and returns violation details if not.
 func (l *FlowLabel[T]) CheckFlow(target *FlowLabel[T]) (bool, []Tag) {
-	return checkFlowHelper(l.getLabel(), target.getLabel(), flowIsSubset[T](), flowTypeName[T]())
+	var kind T
+	return checkFlowHelper(l.getLabel(), target.getLabel(), kind.isSubset(), kind.typeName())
 }
 
 // Clone creates an independent copy of the label.
