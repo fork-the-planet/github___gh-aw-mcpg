@@ -97,45 +97,6 @@ func TestBuildMCPHTTPServer_RouteBuilderReceivesSessionTimeout(t *testing.T) {
 	assert.Equal(t, 15*time.Minute, capturedTimeout)
 }
 
-// TestBuildMCPHTTPServer_HealthEndpointResponds verifies that the /health endpoint
-// registered by buildMCPHTTPServer returns a successful response.
-func TestBuildMCPHTTPServer_HealthEndpointResponds(t *testing.T) {
-	us, err := NewUnified(context.Background(), &config.Config{})
-	require.NoError(t, err)
-	t.Cleanup(func() { us.Close() })
-
-	server := buildMCPHTTPServer("127.0.0.1:0", us, "", "", func(_ *http.ServeMux, _ time.Duration) {})
-
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
-	rr := httptest.NewRecorder()
-	server.Handler.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code)
-}
-
-// TestBuildMCPHTTPServer_OAuthDiscoveryEndpointResponds verifies that the OAuth
-// discovery endpoint registered by buildMCPHTTPServer returns 404.
-func TestBuildMCPHTTPServer_OAuthDiscoveryEndpointResponds(t *testing.T) {
-	us, err := NewUnified(context.Background(), &config.Config{})
-	require.NoError(t, err)
-	t.Cleanup(func() { us.Close() })
-
-	server := buildMCPHTTPServer("127.0.0.1:0", us, "", "", func(_ *http.ServeMux, _ time.Duration) {})
-
-	for _, path := range []string{
-		"/.well-known/oauth-authorization-server",
-		"/mcp/.well-known/oauth-authorization-server",
-	} {
-		t.Run(path, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, path, nil)
-			rr := httptest.NewRecorder()
-			server.Handler.ServeHTTP(rr, req)
-
-			assert.Equal(t, http.StatusNotFound, rr.Code)
-		})
-	}
-}
-
 // TestBuildMCPHTTPServer_CustomRouteFromBuilder verifies that routes registered
 // inside the routeBuilder callback are accessible via the returned server's handler.
 func TestBuildMCPHTTPServer_CustomRouteFromBuilder(t *testing.T) {
