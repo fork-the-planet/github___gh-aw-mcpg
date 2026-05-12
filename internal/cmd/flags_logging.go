@@ -29,16 +29,20 @@ func defaultWasmCacheDir(logDir string) string {
 
 func resolveWasmCacheDir(flagChanged bool, flagValue, effectiveLogDir string) string {
 	if trimmed := strings.TrimSpace(flagValue); flagChanged && trimmed != "" {
+		debugLog.Printf("WASM cache dir resolved from CLI flag: %q", trimmed)
 		return trimmed
 	}
 
 	if envValue, exists := os.LookupEnv(wasmCacheDirEnvVar); exists {
 		if trimmed := strings.TrimSpace(envValue); trimmed != "" {
+			debugLog.Printf("WASM cache dir resolved from %s: %q", wasmCacheDirEnvVar, trimmed)
 			return trimmed
 		}
 	}
 
-	return defaultWasmCacheDir(effectiveLogDir)
+	resolved := defaultWasmCacheDir(effectiveLogDir)
+	debugLog.Printf("WASM cache dir resolved from default (logDir=%q): %q", effectiveLogDir, resolved)
+	return resolved
 }
 
 func init() {
