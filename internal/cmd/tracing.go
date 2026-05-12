@@ -39,6 +39,14 @@ func registerTracingFlags(flags *pflag.FlagSet, endpoint *string, serviceName *s
 		sampleUsage)
 }
 
+// ensureTracingConfig returns cfg.Gateway.Tracing, initializing it if nil.
+func ensureTracingConfig(cfg *config.Config) *config.TracingConfig {
+	if cfg.Gateway.Tracing == nil {
+		cfg.Gateway.Tracing = &config.TracingConfig{}
+	}
+	return cfg.Gateway.Tracing
+}
+
 func initTracingProviderWithFallback(
 	ctx context.Context,
 	tracingCfg *config.TracingConfig,

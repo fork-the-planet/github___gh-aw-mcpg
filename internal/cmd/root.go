@@ -455,14 +455,6 @@ func run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// ensureTracingConfig returns cfg.Gateway.Tracing, initializing it if nil.
-func ensureTracingConfig(cfg *config.Config) *config.TracingConfig {
-	if cfg.Gateway.Tracing == nil {
-		cfg.Gateway.Tracing = &config.TracingConfig{}
-	}
-	return cfg.Gateway.Tracing
-}
-
 // Execute runs the root command
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {

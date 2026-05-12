@@ -7,8 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetStringField exercises all code paths of the getStringField helper.
-func TestGetStringField(t *testing.T) {
+// TestGetFilteredItemStringField exercises all code paths of the
+// getFilteredItemStringField helper.
+func TestGetFilteredItemStringField(t *testing.T) {
 	tests := []struct {
 		name   string
 		m      map[string]interface{}
@@ -97,7 +98,7 @@ func TestGetStringField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getStringField(tt.m, tt.fields...)
+			got := getFilteredItemStringField(tt.m, tt.fields...)
 			assert.Equal(t, tt.want, got)
 		})
 	}

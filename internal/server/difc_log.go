@@ -48,20 +48,20 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 	// Extract identifying metadata from the raw item data.
 	// Data is interface{} from JSON parsing — typically map[string]interface{}.
 	if m, ok := detail.Item.Data.(map[string]interface{}); ok {
-		entry.AuthorAssociation = getStringField(m, "author_association", "authorAssociation")
+		entry.AuthorAssociation = getFilteredItemStringField(m, "author_association", "authorAssociation")
 		entry.AuthorLogin = extractAuthorLogin(m)
-		entry.HTMLURL = getStringField(m, "html_url", "htmlUrl")
+		entry.HTMLURL = getFilteredItemStringField(m, "html_url", "htmlUrl")
 		entry.Number = extractNumberField(m)
-		entry.SHA = getStringField(m, "sha")
+		entry.SHA = getFilteredItemStringField(m, "sha")
 		logDifcLog.Printf("Filtered item metadata: author=%s, number=%s, url=%s", entry.AuthorLogin, entry.Number, entry.HTMLURL)
 	}
 
 	return entry
 }
 
-// getStringField returns the first non-empty string value from the map
+// getFilteredItemStringField returns the first non-empty string value from the map
 // matching any of the given field names.
-func getStringField(m map[string]interface{}, fields ...string) string {
+func getFilteredItemStringField(m map[string]interface{}, fields ...string) string {
 	for _, f := range fields {
 		if v, ok := m[f]; ok {
 			if s, ok := v.(string); ok && s != "" {
