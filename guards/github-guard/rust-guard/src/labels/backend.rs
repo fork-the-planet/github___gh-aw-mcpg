@@ -1243,6 +1243,47 @@ mod tests {
         });
         assert_eq!(extract_owner_is_org(&response, "myorg/myrepo"), None);
     }
+
+    #[test]
+    fn test_extract_owner_is_org_plain_array_response() {
+        let response = serde_json::json!([{
+            "full_name": "myorg/myrepo",
+            "private": false,
+            "owner": { "login": "myorg", "type": "Organization" }
+        }]);
+        assert_eq!(extract_owner_is_org(&response, "myorg/myrepo"), Some(true));
+    }
+
+    #[test]
+    fn test_extract_owner_is_org_first_match_missing_type_returns_none() {
+        let response = serde_json::json!({
+            "items": [
+                {
+                    "full_name": "myorg/myrepo",
+                    "private": false,
+                    "owner": { "login": "myorg" }
+                },
+                {
+                    "full_name": "myorg/myrepo",
+                    "private": false,
+                    "owner": { "login": "myorg", "type": "Organization" }
+                }
+            ]
+        });
+        assert_eq!(extract_owner_is_org(&response, "myorg/myrepo"), None);
+    }
+
+    #[test]
+    fn test_repo_id_from_repo_object_full_name_camelcase() {
+        let item = serde_json::json!({
+            "fullName": "myorg/myrepo",
+            "owner": { "login": "myorg", "type": "Organization" }
+        });
+        assert_eq!(
+            repo_id_from_repo_object(&item),
+            Some("myorg/myrepo".to_string())
+        );
+    }
 }
 
 fn repo_visibility_from_items(value: &Value, repo_id: &str) -> Option<bool> {
@@ -1384,7 +1425,7 @@ fn owner_type_from_repo_object(item: &Value) -> Option<bool> {
 }
 
 fn repo_id_from_repo_object(item: &Value) -> Option<String> {
-    for field in &["full_name", "fullName"] {
+    for field in ["full_name", "fullName"] {
         if let Some(full_name) = item.get(field).and_then(|v| v.as_str()) {
             if !full_name.is_empty() {
                 return Some(full_name.to_string());
