@@ -1243,6 +1243,28 @@ mod tests {
         });
         assert_eq!(extract_owner_is_org(&response, "myorg/myrepo"), None);
     }
+
+    #[test]
+    fn test_extract_owner_is_org_plain_array_response() {
+        let response = serde_json::json!([{
+            "full_name": "myorg/myrepo",
+            "private": false,
+            "owner": { "login": "myorg", "type": "Organization" }
+        }]);
+        assert_eq!(extract_owner_is_org(&response, "myorg/myrepo"), Some(true));
+    }
+
+    #[test]
+    fn test_repo_id_from_repo_object_full_name_camel_case() {
+        let item = serde_json::json!({
+            "fullName": "myorg/myrepo",
+            "owner": { "login": "myorg", "type": "Organization" }
+        });
+        assert_eq!(
+            repo_id_from_repo_object(&item),
+            Some("myorg/myrepo".to_string())
+        );
+    }
 }
 
 fn repo_visibility_from_items(value: &Value, repo_id: &str) -> Option<bool> {
@@ -1336,29 +1358,15 @@ fn extract_owner_is_org(response: &Value, repo_id: &str) -> Option<bool> {
 fn owner_is_org_from_items(value: &Value, repo_id: &str) -> Option<bool> {
     // search_repositories shape: { items: [...] }
     if let Some(items) = value.get("items").and_then(|v| v.as_array()) {
-        for item in items {
-            let item_repo_id = repo_id_from_repo_object(item);
-            if item_repo_id
-                .as_deref()
-                .map(|id| id.eq_ignore_ascii_case(repo_id))
-                .unwrap_or(false)
-            {
-                return owner_type_from_repo_object(item);
-            }
+        if let Some(is_org) = find_org_in_items(items, repo_id) {
+            return Some(is_org);
         }
     }
 
     // Plain array response
     if let Some(items) = value.as_array() {
-        for item in items {
-            let item_repo_id = repo_id_from_repo_object(item);
-            if item_repo_id
-                .as_deref()
-                .map(|id| id.eq_ignore_ascii_case(repo_id))
-                .unwrap_or(false)
-            {
-                return owner_type_from_repo_object(item);
-            }
+        if let Some(is_org) = find_org_in_items(items, repo_id) {
+            return Some(is_org);
         }
     }
 
@@ -1375,6 +1383,17 @@ fn owner_is_org_from_items(value: &Value, repo_id: &str) -> Option<bool> {
     None
 }
 
+fn find_org_in_items(items: &[Value], repo_id: &str) -> Option<bool> {
+    items.iter().find_map(|item| {
+        let item_repo_id = repo_id_from_repo_object(item)?;
+        if item_repo_id.eq_ignore_ascii_case(repo_id) {
+            owner_type_from_repo_object(item)
+        } else {
+            None
+        }
+    })
+}
+
 /// Extract owner type from a repository object.
 /// GitHub API returns owner.type as "Organization" or "User".
 fn owner_type_from_repo_object(item: &Value) -> Option<bool> {
@@ -1387,15 +1406,11 @@ fn owner_type_from_repo_object(item: &Value) -> Option<bool> {
 }
 
 fn repo_id_from_repo_object(item: &Value) -> Option<String> {
-    if let Some(full_name) = item.get("full_name").and_then(|v| v.as_str()) {
-        if !full_name.is_empty() {
-            return Some(full_name.to_string());
-        }
-    }
-
-    if let Some(full_name) = item.get("fullName").and_then(|v| v.as_str()) {
-        if !full_name.is_empty() {
-            return Some(full_name.to_string());
+    for field in ["full_name", "fullName"] {
+        if let Some(full_name) = item.get(field).and_then(|v| v.as_str()) {
+            if !full_name.is_empty() {
+                return Some(full_name.to_string());
+            }
         }
     }
 
