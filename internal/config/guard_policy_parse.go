@@ -224,7 +224,7 @@ func ResolveGuardPolicyOverride(
 		return policy, "cli", nil
 	}
 
-	if envPolicyJSON := strings.TrimSpace(os.Getenv("MCP_GATEWAY_GUARD_POLICY_JSON")); envPolicyJSON != "" {
+	if envPolicyJSON := strings.TrimSpace(envutil.GetEnvString(EnvGuardPolicyJSON, "")); envPolicyJSON != "" {
 		policy, err := ParseGuardPolicyJSON(envPolicyJSON)
 		if err != nil {
 			return nil, "", err
@@ -232,17 +232,17 @@ func ResolveGuardPolicyOverride(
 		return policy, "env", nil
 	}
 
-	_, hasScopePublic := os.LookupEnv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC")
-	_, hasScopeOwner := os.LookupEnv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER")
-	_, hasScopeRepo := os.LookupEnv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO")
-	_, hasMinIntegrity := os.LookupEnv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY")
+	_, hasScopePublic := os.LookupEnv(EnvAllowOnlyScopePublic)
+	_, hasScopeOwner := os.LookupEnv(EnvAllowOnlyScopeOwner)
+	_, hasScopeRepo := os.LookupEnv(EnvAllowOnlyScopeRepo)
+	_, hasMinIntegrity := os.LookupEnv(EnvAllowOnlyMinIntegrity)
 
 	if hasScopePublic || hasScopeOwner || hasScopeRepo || hasMinIntegrity {
 		policy, err := BuildAllowOnlyPolicy(
-			envutil.GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false),
-			os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER"),
-			os.Getenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO"),
-			os.Getenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY"),
+			envutil.GetEnvBool(EnvAllowOnlyScopePublic, false),
+			envutil.GetEnvString(EnvAllowOnlyScopeOwner, ""),
+			envutil.GetEnvString(EnvAllowOnlyScopeRepo, ""),
+			envutil.GetEnvString(EnvAllowOnlyMinIntegrity, ""),
 		)
 		if err != nil {
 			return nil, "", err

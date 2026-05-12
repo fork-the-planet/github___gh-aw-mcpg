@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
@@ -28,11 +29,11 @@ func init() {
 	RegisterFlag(func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&difcMode, "guards-mode", getDefaultDIFCMode(), "Guards enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads)")
 		cmd.Flags().StringVar(&difcSinkServerIDs, "guards-sink-server-ids", envutil.GetEnvString("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", ""), "Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots")
-		cmd.Flags().StringVar(&guardPolicyJSON, "guard-policy-json", envutil.GetEnvString("MCP_GATEWAY_GUARD_POLICY_JSON", ""), "Guard policy JSON (e.g. {\"allow-only\":{\"repos\":\"public\",\"min-integrity\":\"none\"}})")
-		cmd.Flags().BoolVar(&allowOnlyPublic, "allowonly-scope-public", envutil.GetEnvBool("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", false), "Use public AllowOnly scope")
-		cmd.Flags().StringVar(&allowOnlyOwner, "allowonly-scope-owner", envutil.GetEnvString("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER", ""), "AllowOnly owner scope value")
-		cmd.Flags().StringVar(&allowOnlyRepo, "allowonly-scope-repo", envutil.GetEnvString("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", ""), "AllowOnly repo name (requires owner)")
-		cmd.Flags().StringVar(&allowOnlyMinInt, "allowonly-min-integrity", envutil.GetEnvString("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", ""), "AllowOnly integrity: none|unapproved|approved|merged")
+		cmd.Flags().StringVar(&guardPolicyJSON, "guard-policy-json", envutil.GetEnvString(config.EnvGuardPolicyJSON, ""), "Guard policy JSON (e.g. {\"allow-only\":{\"repos\":\"public\",\"min-integrity\":\"none\"}})")
+		cmd.Flags().BoolVar(&allowOnlyPublic, "allowonly-scope-public", envutil.GetEnvBool(config.EnvAllowOnlyScopePublic, false), "Use public AllowOnly scope")
+		cmd.Flags().StringVar(&allowOnlyOwner, "allowonly-scope-owner", envutil.GetEnvString(config.EnvAllowOnlyScopeOwner, ""), "AllowOnly owner scope value")
+		cmd.Flags().StringVar(&allowOnlyRepo, "allowonly-scope-repo", envutil.GetEnvString(config.EnvAllowOnlyScopeRepo, ""), "AllowOnly repo name (requires owner)")
+		cmd.Flags().StringVar(&allowOnlyMinInt, "allowonly-min-integrity", envutil.GetEnvString(config.EnvAllowOnlyMinIntegrity, ""), "AllowOnly integrity: none|unapproved|approved|merged")
 	})
 }
 
