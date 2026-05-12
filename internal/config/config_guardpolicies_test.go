@@ -2,7 +2,6 @@ package config
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -130,10 +129,7 @@ func TestGuardPolicies_AllMinIntegrityLevels(t *testing.T) {
 
 // TestGuardPolicies_TOML_ReposAllFormat tests TOML format with repos="all"
 func TestGuardPolicies_TOML_ReposAllFormat(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
+	path := writeTempTOML(t, `
 [servers.github]
 command = "docker"
 args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
@@ -141,12 +137,9 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 [servers.github.guard_policies.github]
 repos = "all"
 min-integrity = "unapproved"
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err, "LoadFromFile() should succeed with repos='all'")
 	require.NotNil(t, cfg, "Config should not be nil")
 
@@ -160,10 +153,7 @@ min-integrity = "unapproved"
 
 // TestGuardPolicies_TOML_ReposWithWildcards tests TOML format with wildcard patterns
 func TestGuardPolicies_TOML_ReposWithWildcards(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
+	path := writeTempTOML(t, `
 [servers.github]
 command = "docker"
 args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
@@ -171,12 +161,9 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 [servers.github.guard_policies.github]
 repos = ["myorg/*", "partner/shared-repo", "docs/api-*"]
 min-integrity = "approved"
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err, "LoadFromFile() should succeed with wildcard patterns")
 	require.NotNil(t, cfg, "Config should not be nil")
 
@@ -206,23 +193,17 @@ func TestGuardPolicies_TOML_AllMinIntegrityLevels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			tmpDir := t.TempDir()
-			tmpFile := filepath.Join(tmpDir, "config.toml")
-
-			tomlContent := `
+			path := writeTempTOML(t, `
 [servers.github]
 command = "docker"
 args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 
 [servers.github.guard_policies.github]
 repos = "all"
-min-integrity = "` + tc.minIntegrity + `"
-`
+min-integrity = "`+tc.minIntegrity+`"
+`)
 
-			err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-			require.NoError(t, err, "Failed to write temp TOML file")
-
-			cfg, err := LoadFromFile(tmpFile)
+			cfg, err := LoadFromFile(path)
 			require.NoError(t, err, "LoadFromFile() should succeed with min-integrity='%s' in TOML", tc.minIntegrity)
 			require.NotNil(t, cfg, "Config should not be nil")
 
@@ -412,7 +393,7 @@ func TestGuardPolicies_WriteSink(t *testing.T) {
 
 // TestGuardPolicies_WriteSinkTOML tests write-sink guard policy via TOML file
 func TestGuardPolicies_WriteSinkTOML(t *testing.T) {
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 port = 3000
 api_key = "test-key"
@@ -425,14 +406,9 @@ args = ["run", "--rm", "-i", "ghcr.io/github/safe-outputs:latest"]
 
 [servers.safeoutputs.guard_policies.write-sink]
 Accept = ["private:github/gh-aw*"]
-`
+`)
 
-	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.toml")
-	err := os.WriteFile(configPath, []byte(tomlContent), 0644)
-	require.NoError(t, err)
-
-	cfg, err := LoadFromFile(configPath)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err, "LoadFromFile() should succeed with write-sink TOML config")
 	require.NotNil(t, cfg)
 

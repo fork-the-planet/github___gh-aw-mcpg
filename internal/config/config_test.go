@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -893,23 +892,16 @@ func TestLoadFromStdin_InvalidMountFormat(t *testing.T) {
 // Tests for LoadFromFile function with TOML files
 
 func TestLoadFromFile_ValidTOML(t *testing.T) {
-	// Create a temporary TOML file
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
+	path := writeTempTOML(t, `
 [servers.test]
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
 
 [servers.test.env]
 TEST_VAR = "value"
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err, "LoadFromFile() failed")
 	require.NotNil(t, cfg, "LoadFromFile() returned nil config")
 
@@ -922,10 +914,7 @@ TEST_VAR = "value"
 }
 
 func TestLoadFromFile_WithGatewayConfig(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 port = 8080
 api_key = "test-key-123"
@@ -936,12 +925,9 @@ tool_timeout = 60
 [servers.test]
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err, "LoadFromFile() failed")
 	require.NotNil(t, cfg, "LoadFromFile() returned nil config")
 	require.NotNil(t, cfg.Gateway, "Gateway config should not be nil")
@@ -954,10 +940,7 @@ args = ["run", "--rm", "-i", "test/container:latest"]
 }
 
 func TestLoadFromFile_WithGatewayPayloadDir(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 port = 8080
 api_key = "test-key-123"
@@ -967,12 +950,9 @@ payload_dir = "/custom/payload/path"
 [servers.test]
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err, "LoadFromFile() failed")
 	require.NotNil(t, cfg, "LoadFromFile() returned nil config")
 	require.NotNil(t, cfg.Gateway, "Gateway config should not be nil")
@@ -981,10 +961,7 @@ args = ["run", "--rm", "-i", "test/container:latest"]
 }
 
 func TestLoadFromFile_WithoutGatewayPayloadDir(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 port = 8080
 api_key = "test-key-123"
@@ -993,12 +970,9 @@ domain = "localhost"
 [servers.test]
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err, "LoadFromFile() failed")
 	require.NotNil(t, cfg, "LoadFromFile() returned nil config")
 	require.NotNil(t, cfg.Gateway, "Gateway config should not be nil")
@@ -1007,19 +981,10 @@ args = ["run", "--rm", "-i", "test/container:latest"]
 }
 
 func TestLoadFromFile_InvalidTOMLWithLineNumber(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
 	// Invalid TOML: unterminated string on line 2
-	tomlContent := `[servers.test]
-command = "docker
-args = ["run"]
-`
+	path := writeTempTOML(t, "[servers.test]\ncommand = \"docker\nargs = [\"run\"]\n")
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.Error(t, err, "Expected error for invalid TOML")
 	assert.Nil(t, cfg, "Config should be nil on error")
 
@@ -1028,22 +993,15 @@ args = ["run"]
 }
 
 func TestLoadFromFile_UnknownKeys(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	// TOML with unknown key "unknown_field"
-	tomlContent := `
+	path := writeTempTOML(t, `
 [servers.test]
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
 unknown_field = "should trigger error"
-`
-
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
+`)
 
 	// Must now return an error per spec §4.3.1: unknown fields MUST be rejected
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.Error(t, err, "LoadFromFile() should fail with unknown keys")
 	assert.Nil(t, cfg, "Config should be nil on error")
 	assert.ErrorContains(t, err, "unrecognized field", "Error should mention unrecognized field")
@@ -1056,13 +1014,9 @@ func TestLoadFromFile_NonExistentFile(t *testing.T) {
 }
 
 func TestLoadFromFile_EmptyFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "empty.toml")
+	path := writeTempTOML(t, "")
 
-	err := os.WriteFile(tmpFile, []byte(""), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.Error(t, err, "LoadFromFile() should fail with empty file (no servers)")
 	assert.Nil(t, cfg, "Config should be nil on error")
 	assert.ErrorContains(t, err, "no servers defined", "Error should mention missing servers")
@@ -1070,18 +1024,10 @@ func TestLoadFromFile_EmptyFile(t *testing.T) {
 
 // TestLoadFromFile_ParseErrorWithColumnNumber tests that parse errors include column information
 func TestLoadFromFile_ParseErrorWithColumnNumber(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
 	// Invalid TOML: missing equals sign
-	tomlContent := `[gateway]
-port 3000
-`
+	path := writeTempTOML(t, "[gateway]\nport 3000\n")
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.Error(t, err, "Expected error for invalid TOML")
 	assert.Nil(t, cfg, "Config should be nil on error")
 
@@ -1095,11 +1041,8 @@ port 3000
 
 // TestLoadFromFile_UnknownKeysInGateway tests that unknown keys in gateway section are rejected
 func TestLoadFromFile_UnknownKeysInGateway(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
 	// TOML with typo in gateway field: "prot" instead of "port"
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 prot = 3000
 api_key = "test-key"
@@ -1107,13 +1050,10 @@ api_key = "test-key"
 [servers.test]
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
-`
-
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
+`)
 
 	// Must return an error per spec §4.3.1: unknown fields MUST be rejected
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.Error(t, err, "LoadFromFile() should fail with unknown keys")
 	assert.Nil(t, cfg, "Config should be nil on error")
 	assert.ErrorContains(t, err, "unrecognized field", "Error should mention unrecognized field")
@@ -1121,11 +1061,8 @@ args = ["run", "--rm", "-i", "test/container:latest"]
 
 // TestLoadFromFile_MultipleUnknownKeys tests that multiple unknown keys are rejected
 func TestLoadFromFile_MultipleUnknownKeys(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
 	// TOML with multiple typos
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 port = 8080
 startup_timout = 30
@@ -1135,13 +1072,10 @@ tool_timout = 60
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
 typ = "stdio"
-`
-
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
+`)
 
 	// Must return an error per spec §4.3.1: unknown fields MUST be rejected
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.Error(t, err, "LoadFromFile() should fail with multiple unknown keys")
 	assert.Nil(t, cfg, "Config should be nil on error")
 	assert.ErrorContains(t, err, "unrecognized field", "Error should mention unrecognized field")
@@ -1149,10 +1083,7 @@ typ = "stdio"
 
 // TestLoadFromFile_StreamingLargeFile tests that streaming decoder works efficiently
 func TestLoadFromFile_StreamingLargeFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "large-config.toml")
-
-	// Create a TOML file with many servers
+	// Create a TOML config with many servers
 	var tomlContent strings.Builder
 	tomlContent.WriteString("[gateway]\nport = 3000\n\n")
 
@@ -1162,11 +1093,10 @@ func TestLoadFromFile_StreamingLargeFile(t *testing.T) {
 		tomlContent.WriteString(fmt.Sprintf("args = [\"run\", \"--rm\", \"-i\", \"test/server%d:latest\"]\n\n", i))
 	}
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent.String()), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
+	path := writeTempTOML(t, tomlContent.String())
 
 	// Should load successfully using streaming decoder
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err, "LoadFromFile() should handle large files")
 	require.NotNil(t, cfg, "Config should not be nil")
 	assert.Len(t, cfg.Servers, 100, "Expected 100 servers")
@@ -1174,11 +1104,8 @@ func TestLoadFromFile_StreamingLargeFile(t *testing.T) {
 
 // TestLoadFromFile_InvalidTOMLDuplicateKey tests handling of duplicate keys
 func TestLoadFromFile_InvalidTOMLDuplicateKey(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
 	// TOML 1.1+ should detect duplicate keys (available in v1.6.0)
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 port = 3000
 port = 8080
@@ -1186,12 +1113,9 @@ port = 8080
 [servers.test]
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.Error(t, err, "Expected error for duplicate key")
 	assert.Nil(t, cfg, "Config should be nil on error")
 
@@ -1460,10 +1384,7 @@ func TestLoadFromStdin_WithRegistryField(t *testing.T) {
 
 // TestLoadFromFile_WithRegistryField tests that the registry field works with TOML files
 func TestLoadFromFile_WithRegistryField(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 port = 8080
 api_key = "test-key"
@@ -1472,12 +1393,9 @@ api_key = "test-key"
 command = "docker"
 args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 registry = "https://api.mcp.github.com/v0/servers/github/github-mcp-server"
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err, "Failed to write temp TOML file")
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err, "LoadFromFile() failed")
 	require.NotNil(t, cfg, "Config should not be nil")
 
@@ -1583,10 +1501,7 @@ func TestGetAPIKey(t *testing.T) {
 // TestLoadFromFile_WithTrustedBots verifies TOML parsing of trusted_bots.
 // Covers spec §4.1.3.4 (Trusted Bot Identity Configuration).
 func TestLoadFromFile_WithTrustedBots(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 port = 8080
 api_key = "test-key-123"
@@ -1595,12 +1510,9 @@ trusted_bots = ["copilot-swe-agent[bot]", "my-org-bot"]
 [servers.test]
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err)
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err)
 	require.NotNil(t, cfg.Gateway)
 
@@ -1609,10 +1521,7 @@ args = ["run", "--rm", "-i", "test/container:latest"]
 
 // TestLoadFromFile_WithoutTrustedBots verifies TOML parsing when trusted_bots is absent.
 func TestLoadFromFile_WithoutTrustedBots(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 port = 8080
 api_key = "test-key-123"
@@ -1620,12 +1529,9 @@ api_key = "test-key-123"
 [servers.test]
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err)
-
-	cfg, err := LoadFromFile(tmpFile)
+	cfg, err := LoadFromFile(path)
 	require.NoError(t, err)
 	require.NotNil(t, cfg.Gateway)
 
@@ -1633,10 +1539,7 @@ args = ["run", "--rm", "-i", "test/container:latest"]
 }
 
 func TestLoadFromFile_WithEmptyTrustedBotsToml(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "config.toml")
-
-	tomlContent := `
+	path := writeTempTOML(t, `
 [gateway]
 port = 8080
 api_key = "test-key-123"
@@ -1645,12 +1548,9 @@ trusted_bots = []
 [servers.test]
 command = "docker"
 args = ["run", "--rm", "-i", "test/container:latest"]
-`
+`)
 
-	err := os.WriteFile(tmpFile, []byte(tomlContent), 0644)
-	require.NoError(t, err)
-
-	_, err = LoadFromFile(tmpFile)
+	_, err := LoadFromFile(path)
 	require.Error(t, err)
 }
 

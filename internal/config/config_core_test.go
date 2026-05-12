@@ -20,6 +20,17 @@ func writeTempTOML(t *testing.T, content string) string {
 	return path
 }
 
+// mustUnmarshalTOML parses a TOML string directly into v using toml.Unmarshal.
+// This is useful for unit tests that need a populated struct without going
+// through the full LoadFromFile validation pipeline (e.g., testing
+// applyGatewayDefaults or other functions that operate on an already-parsed
+// Config). For integration tests that need validation, use writeTempTOML +
+// LoadFromFile instead.
+func mustUnmarshalTOML(t *testing.T, content string, v interface{}) {
+	t.Helper()
+	require.NoError(t, toml.Unmarshal([]byte(content), v))
+}
+
 // validDockerServerTOML is a minimal valid TOML config with a single stdio (docker) server.
 const validDockerServerTOML = `
 [servers.github]
