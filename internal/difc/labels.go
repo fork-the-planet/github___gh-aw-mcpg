@@ -162,7 +162,6 @@ func (l *Label) IsEmpty() bool {
 }
 
 // cloneLabelOrNew clones inner if it is non-nil, otherwise returns a new empty Label.
-// This helper centralizes the nil-guard logic shared by SecrecyLabel.Clone and IntegrityLabel.Clone.
 func cloneLabelOrNew(inner *Label) *Label {
 	if inner == nil {
 		return NewLabel()
@@ -170,12 +169,49 @@ func cloneLabelOrNew(inner *Label) *Label {
 	return inner.Clone()
 }
 
-// SecrecyLabel wraps Label with secrecy-specific flow semantics
-// Secrecy flow: data can only flow to contexts with equal or more secrecy tags
-// l ⊆ target (this has no tags that target doesn't have)
-type SecrecyLabel struct {
+// labelKind is the constraint that phantom kind types must satisfy.
+// Each concrete kind type encodes its flow semantics directly via these methods,
+// avoiding runtime type assertions inside the hot path of CanFlowTo/CheckFlow.
+type labelKind interface {
+	// isSubset returns true for secrecy semantics (l ⊆ target) and false for
+	// integrity semantics (l ⊇ target).
+	isSubset() bool
+	// typeName returns the display name used in log messages ("Secrecy" or "Integrity").
+	typeName() string
+}
+
+// secrecyKind is the phantom type parameter for SecrecyLabel.
+// Secrecy flow: l ⊆ target (source must be a subset of target).
+type secrecyKind struct{}
+
+func (secrecyKind) isSubset() bool   { return true }
+func (secrecyKind) typeName() string { return "Secrecy" }
+
+// integrityKind is the phantom type parameter for IntegrityLabel.
+// Integrity flow: l ⊇ target (source must be a superset of target).
+type integrityKind struct{}
+
+func (integrityKind) isSubset() bool   { return false }
+func (integrityKind) typeName() string { return "Integrity" }
+
+// flowLabel is the internal generic label implementation parameterized by a phantom kind type T.
+//
+// The kind type T determines flow direction:
+//   - flowLabel[secrecyKind]   — secrecy semantics: l ⊆ target (source ⊆ target)
+//   - flowLabel[integrityKind] — integrity semantics: l ⊇ target (source ⊇ target)
+type flowLabel[T labelKind] struct {
 	Label *Label
 }
+
+// SecrecyLabel wraps Label with secrecy-specific flow semantics.
+// Secrecy flow: data can only flow to contexts with equal or more secrecy tags.
+// l ⊆ target (this has no tags that target doesn't have)
+type SecrecyLabel = flowLabel[secrecyKind]
+
+// IntegrityLabel wraps Label with integrity-specific flow semantics.
+// Integrity flow: data can flow from high integrity to low integrity.
+// l ⊇ target (this has all tags that target has)
+type IntegrityLabel = flowLabel[integrityKind]
 
 // NewSecrecyLabel creates a new empty secrecy label
 func NewSecrecyLabel() *SecrecyLabel {
@@ -187,23 +223,34 @@ func NewSecrecyLabelWithTags(tags []Tag) *SecrecyLabel {
 	return &SecrecyLabel{Label: newLabelWithTags(tags)}
 }
 
-// getLabel returns the underlying Label, or nil if the receiver or its underlying Label is nil.
-func (l *SecrecyLabel) getLabel() *Label {
+// NewIntegrityLabel creates a new empty integrity label
+func NewIntegrityLabel() *IntegrityLabel {
+	return &IntegrityLabel{Label: NewLabel()}
+}
+
+// NewIntegrityLabelWithTags creates an integrity label with the given tags
+func NewIntegrityLabelWithTags(tags []Tag) *IntegrityLabel {
+	return &IntegrityLabel{Label: newLabelWithTags(tags)}
+}
+
+// getLabel returns the underlying Label, or nil if the receiver is nil.
+func (l *flowLabel[T]) getLabel() *Label {
 	if l == nil {
 		return nil
 	}
 	return l.Label
 }
 
-// CanFlowTo checks if this secrecy label can flow to target
-// Secrecy semantics: l ⊆ target (this has no tags that target doesn't have)
-// Data can only flow to contexts with equal or more secrecy tags
-func (l *SecrecyLabel) CanFlowTo(target *SecrecyLabel) bool {
-	ok, _ := checkFlowHelper(l.getLabel(), target.getLabel(), true, "Secrecy")
+// CanFlowTo checks if this label can flow to target.
+// For SecrecyLabel: l ⊆ target (source must have no tags absent from target).
+// For IntegrityLabel: l ⊇ target (source must have all tags that target has).
+func (l *flowLabel[T]) CanFlowTo(target *flowLabel[T]) bool {
+	var kind T
+	ok, _ := checkFlowHelper(l.getLabel(), target.getLabel(), kind.isSubset(), kind.typeName())
 	return ok
 }
 
-// checkFlowHelper is a generic helper that implements the common CheckFlow pattern.
+// checkFlowHelper implements the common flow-check logic shared by SecrecyLabel and IntegrityLabel.
 // It checks if tags can flow from source to target according to the specified flow semantics.
 //
 // Parameters:
@@ -292,58 +339,15 @@ func checkFlowHelper(srcLabel *Label, targetLabel *Label, checkSubset bool, labe
 	return len(violatingTags) == 0, violatingTags
 }
 
-// CheckFlow checks if this secrecy label can flow to target and returns violation details if not
-func (l *SecrecyLabel) CheckFlow(target *SecrecyLabel) (bool, []Tag) {
-	return checkFlowHelper(l.getLabel(), target.getLabel(), true, "Secrecy")
+// CheckFlow checks if this label can flow to target and returns violation details if not.
+func (l *flowLabel[T]) CheckFlow(target *flowLabel[T]) (bool, []Tag) {
+	var kind T
+	return checkFlowHelper(l.getLabel(), target.getLabel(), kind.isSubset(), kind.typeName())
 }
 
-// Clone creates a copy of the secrecy label
-func (l *SecrecyLabel) Clone() *SecrecyLabel {
-	return &SecrecyLabel{Label: cloneLabelOrNew(l.getLabel())}
-}
-
-// IntegrityLabel wraps Label with integrity-specific flow semantics
-// Integrity flow: data can flow from high integrity to low integrity
-// l ⊇ target (this has all tags that target has)
-type IntegrityLabel struct {
-	Label *Label
-}
-
-// NewIntegrityLabel creates a new empty integrity label
-func NewIntegrityLabel() *IntegrityLabel {
-	return &IntegrityLabel{Label: NewLabel()}
-}
-
-// NewIntegrityLabelWithTags creates an integrity label with the given tags
-func NewIntegrityLabelWithTags(tags []Tag) *IntegrityLabel {
-	return &IntegrityLabel{Label: newLabelWithTags(tags)}
-}
-
-// getLabel returns the underlying Label, or nil if the receiver is nil.
-func (l *IntegrityLabel) getLabel() *Label {
-	if l == nil {
-		return nil
-	}
-	return l.Label
-}
-
-// CanFlowTo checks if this integrity label can flow to target
-// Integrity semantics: l ⊇ target (this has all tags that target has)
-// For writes: agent must have >= integrity than endpoint
-// For reads: endpoint must have >= integrity than agent
-func (l *IntegrityLabel) CanFlowTo(target *IntegrityLabel) bool {
-	ok, _ := checkFlowHelper(l.getLabel(), target.getLabel(), false, "Integrity")
-	return ok
-}
-
-// CheckFlow checks if this integrity label can flow to target and returns violation details if not
-func (l *IntegrityLabel) CheckFlow(target *IntegrityLabel) (bool, []Tag) {
-	return checkFlowHelper(l.getLabel(), target.getLabel(), false, "Integrity")
-}
-
-// Clone creates a copy of the integrity label
-func (l *IntegrityLabel) Clone() *IntegrityLabel {
-	return &IntegrityLabel{Label: cloneLabelOrNew(l.getLabel())}
+// Clone creates an independent copy of the label.
+func (l *flowLabel[T]) Clone() *flowLabel[T] {
+	return &flowLabel[T]{Label: cloneLabelOrNew(l.getLabel())}
 }
 
 // ViolationType indicates what kind of DIFC violation occurred
