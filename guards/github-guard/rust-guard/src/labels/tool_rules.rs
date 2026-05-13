@@ -405,11 +405,11 @@ pub fn apply_tool_labels(
             // I(code) = approved - code from repository
             let (s_owner, s_repo, s_repo_id) = resolve_search_scope(tool_args, &owner, &repo);
             if !s_repo_id.is_empty() {
-                baseline_scope = Cow::Owned(s_repo_id.clone());
                 desc = format!("search_code:{}", s_repo_id);
                 secrecy =
                     apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
                 integrity = writer_integrity(&s_repo_id, ctx);
+                baseline_scope = Cow::Owned(s_repo_id);
             } else {
                 secrecy =
                     apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
@@ -450,7 +450,7 @@ pub fn apply_tool_labels(
             // S = empty by default (public project); per-item secrecy for items is refined in
             //     label_response_paths for list_project_items
             if !owner.is_empty() {
-                baseline_scope = Cow::Owned(owner.clone());
+                baseline_scope = Cow::Borrowed(owner.as_str());
                 integrity = writer_integrity(&baseline_scope, ctx);
             }
         }
@@ -596,7 +596,7 @@ pub fn apply_tool_labels(
             // Projects are org-scoped; write responses carry the same labels as reads.
             // I = approved:<owner>
             if !owner.is_empty() {
-                baseline_scope = Cow::Owned(owner.clone());
+                baseline_scope = Cow::Borrowed(owner.as_str());
                 integrity = writer_integrity(&baseline_scope, ctx);
             }
         }
