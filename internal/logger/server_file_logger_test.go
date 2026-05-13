@@ -464,3 +464,33 @@ func TestServerFileLoggerGetOrCreate_FileCreationError(t *testing.T) {
 	sfl.mu.RUnlock()
 	assert.False(t, exists, "files map should not contain server1 after creation failure")
 }
+
+// TestLogWithServerBackwardCompatWrappers verifies the backward-compatibility wrappers
+// (LogInfoWithServer, LogWarnWithServer, LogErrorWithServer, LogDebugWithServer) delegate
+// to their canonical counterparts and produce visible output in the log file.
+func TestLogWithServerBackwardCompatWrappers(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "server-logs")
+
+	err := InitServerFileLogger(logDir)
+	require.NoError(t, err)
+
+	serverID := "compat-server"
+
+	LogInfoWithServer(serverID, "test", "compat info %s", "msg")
+	LogWarnWithServer(serverID, "test", "compat warn %s", "msg")
+	LogErrorWithServer(serverID, "test", "compat error %s", "msg")
+	LogDebugWithServer(serverID, "test", "compat debug %s", "msg")
+
+	err = CloseServerFileLogger()
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(logDir, serverID+".log"))
+	require.NoError(t, err)
+
+	contentStr := string(content)
+	assert.Contains(t, contentStr, "compat info msg", "LogInfoWithServer should write to server log")
+	assert.Contains(t, contentStr, "compat warn msg", "LogWarnWithServer should write to server log")
+	assert.Contains(t, contentStr, "compat error msg", "LogErrorWithServer should write to server log")
+	assert.Contains(t, contentStr, "compat debug msg", "LogDebugWithServer should write to server log")
+}

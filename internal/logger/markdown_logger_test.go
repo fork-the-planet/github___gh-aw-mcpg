@@ -377,3 +377,31 @@ func TestGetEmojiForLevel(t *testing.T) {
 		})
 	}
 }
+
+// TestLogMdBackwardCompatWrappers verifies the backward-compatibility wrappers
+// (LogInfoMd, LogWarnMd, LogErrorMd, LogDebugMd) delegate to their canonical
+// counterparts and produce visible output in the markdown log file.
+func TestLogMdBackwardCompatWrappers(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "md-logs")
+
+	err := InitMarkdownLogger(logDir, "gateway.md")
+	require.NoError(t, err)
+
+	LogInfoMd("test", "md compat info %s", "msg")
+	LogWarnMd("test", "md compat warn %s", "msg")
+	LogErrorMd("test", "md compat error %s", "msg")
+	LogDebugMd("test", "md compat debug %s", "msg")
+
+	err = CloseMarkdownLogger()
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filepath.Join(logDir, "gateway.md"))
+	require.NoError(t, err)
+
+	contentStr := string(content)
+	assert.Contains(t, contentStr, "md compat info msg", "LogInfoMd should write to markdown log")
+	assert.Contains(t, contentStr, "md compat warn msg", "LogWarnMd should write to markdown log")
+	assert.Contains(t, contentStr, "md compat error msg", "LogErrorMd should write to markdown log")
+	assert.Contains(t, contentStr, "md compat debug msg", "LogDebugMd should write to markdown log")
+}
