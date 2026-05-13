@@ -240,7 +240,7 @@ func TestSafeinputsHTTPBackend(t *testing.T) {
 	}
 
 	// Verify request count and session IDs
-	assert.False(t, requestCount == 0, "Expected at least one request to safeinputs server during initialization")
+	assert.NotZero(t, requestCount, "Expected at least one request to safeinputs server during initialization")
 	t.Logf("✓ Received %d request(s) to safeinputs server", requestCount)
 
 	// The gateway now tries Streamable HTTP and SSE transports before falling back to
