@@ -240,7 +240,7 @@ struct PathLabeledOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     default_labels: Option<ResourceLabels>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    items_path: Option<String>,
+    items_path: Option<&'static str>,
 }
 
 /// Labeled item for legacy response format (used for singletons)

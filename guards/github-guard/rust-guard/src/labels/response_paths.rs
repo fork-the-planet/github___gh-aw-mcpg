@@ -24,7 +24,7 @@ pub struct PathLabelEntry {
 pub struct PathLabelResult {
     pub labeled_paths: Vec<PathLabelEntry>,
     pub default_labels: Option<crate::ResourceLabels>,
-    pub items_path: Option<String>,
+    pub items_path: Option<&'static str>,
 }
 
 /// Generate path-based labels for collection responses (preferred format per GUARD_RESPONSE_LABELING.md)
@@ -102,7 +102,7 @@ pub fn label_response_paths(
                         secrecy: vec![],
                         integrity: none_integrity("", ctx),
                     }),
-                    items_path: Some(format!("/{}", items_key)),
+                    items_path: Some(match items_key { "repositories" => "/repositories", _ => "/items" }),
                 });
             }
         }
@@ -213,7 +213,7 @@ pub fn label_response_paths(
                     items_path: if items_path.is_empty() {
                         None
                     } else {
-                        Some(items_path.to_string())
+                        Some(items_path)
                     },
                 });
             }
@@ -311,7 +311,7 @@ pub fn label_response_paths(
                     items_path: if items_path.is_empty() {
                         None
                     } else {
-                        Some(items_path.to_string())
+                        Some(items_path)
                     },
                 });
             }
@@ -628,7 +628,7 @@ pub fn label_response_paths(
                     items_path: if items_path.is_empty() {
                         None
                     } else {
-                        Some(items_path.to_string())
+                        Some(items_path)
                     },
                 });
             }

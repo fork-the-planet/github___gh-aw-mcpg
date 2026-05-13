@@ -4212,7 +4212,7 @@ mod tests {
         assert_eq!(result.labeled_paths.len(), 2, "both items must be labeled");
         assert_eq!(
             result.items_path,
-            Some("/repositories".to_string()),
+            Some("/repositories"),
             "items_path must reflect the actual key used"
         );
         assert_eq!(
@@ -4246,7 +4246,7 @@ mod tests {
         assert_eq!(result.labeled_paths.len(), 1);
         assert_eq!(
             result.items_path,
-            Some("/items".to_string()),
+            Some("/items"),
             "items_path must be /items for REST format"
         );
         assert_eq!(

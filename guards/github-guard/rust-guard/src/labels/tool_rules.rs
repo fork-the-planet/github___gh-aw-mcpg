@@ -5,6 +5,7 @@
 
 use serde_json::Value;
 
+use std::borrow::Cow;
 use super::constants::{field_names, scope_names, SENSITIVE_FILE_KEYWORDS, SENSITIVE_FILE_PATTERNS};
 use super::helpers::{
     author_association_floor_from_str,
@@ -122,7 +123,7 @@ pub fn apply_tool_labels(
     ctx: &PolicyContext,
 ) -> (Vec<String>, Vec<String>, String) {
     let (owner, repo, _) = extract_repo_info(tool_args);
-    let mut baseline_scope = repo_id.to_string();
+    let mut baseline_scope: Cow<'_, str> = Cow::Borrowed(repo_id);
     let repo_private = if owner.is_empty() || repo.is_empty() {
         None
     } else {
@@ -404,11 +405,11 @@ pub fn apply_tool_labels(
             // I(code) = approved - code from repository
             let (s_owner, s_repo, s_repo_id) = resolve_search_scope(tool_args, &owner, &repo);
             if !s_repo_id.is_empty() {
-                baseline_scope = s_repo_id.clone();
                 desc = format!("search_code:{}", s_repo_id);
                 secrecy =
                     apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
                 integrity = writer_integrity(&s_repo_id, ctx);
+                baseline_scope = Cow::Owned(s_repo_id);
             } else {
                 secrecy =
                     apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
@@ -449,7 +450,7 @@ pub fn apply_tool_labels(
             // S = empty by default (public project); per-item secrecy for items is refined in
             //     label_response_paths for list_project_items
             if !owner.is_empty() {
-                baseline_scope = owner.clone();
+                baseline_scope = Cow::Borrowed(owner.as_str());
                 integrity = writer_integrity(&baseline_scope, ctx);
             }
         }
@@ -461,7 +462,7 @@ pub fn apply_tool_labels(
             // S = private:user (conservative — some gists may be secret)
             // I = unapproved (user content, no repo-level trust signal)
             secrecy = private_user_label();
-            baseline_scope = scope_names::USER.to_string();
+            baseline_scope = Cow::Borrowed(scope_names::USER);
             integrity = reader_integrity(scope_names::USER, ctx);
         }
 
@@ -482,7 +483,7 @@ pub fn apply_tool_labels(
             // These operations change notification/subscription state and return minimal metadata.
             // S = public (empty); I = project:github
             secrecy = vec![];
-            baseline_scope = scope_names::GITHUB.to_string();
+            baseline_scope = Cow::Borrowed(scope_names::GITHUB);
             integrity = project_github_label(ctx);
         }
 
@@ -498,7 +499,7 @@ pub fn apply_tool_labels(
             // S = private:user
             // I = project:github (GitHub-controlled metadata)
             secrecy = private_user_label();
-            baseline_scope = scope_names::GITHUB.to_string();
+            baseline_scope = Cow::Borrowed(scope_names::GITHUB);
             integrity = project_github_label(ctx);
         }
 
@@ -512,7 +513,7 @@ pub fn apply_tool_labels(
             // S = public (empty)
             // I = project:github (GitHub-controlled metadata)
             secrecy = vec![];
-            baseline_scope = scope_names::GITHUB.to_string();
+            baseline_scope = Cow::Borrowed(scope_names::GITHUB);
             integrity = project_github_label(ctx);
         }
 
@@ -584,7 +585,7 @@ pub fn apply_tool_labels(
             // Creating/forking repositories is account-scoped and does not return repo content.
             // S = public (empty); I = writer(github)
             secrecy = vec![];
-            baseline_scope = scope_names::GITHUB.to_string();
+            baseline_scope = Cow::Borrowed(scope_names::GITHUB);
             integrity = writer_integrity(scope_names::GITHUB, ctx);
         }
 
@@ -595,7 +596,7 @@ pub fn apply_tool_labels(
             // Projects are org-scoped; write responses carry the same labels as reads.
             // I = approved:<owner>
             if !owner.is_empty() {
-                baseline_scope = owner.clone();
+                baseline_scope = Cow::Borrowed(owner.as_str());
                 integrity = writer_integrity(&baseline_scope, ctx);
             }
         }
@@ -678,7 +679,7 @@ pub fn apply_tool_labels(
             // Requires writer-level integrity to prevent low-trust agents from
             // self-escalating by enabling additional tool groups.
             // S = public (empty — no repository-scoped data); I = writer (github)
-            baseline_scope = scope_names::GITHUB.to_string();
+            baseline_scope = Cow::Borrowed(scope_names::GITHUB);
             integrity = writer_integrity(scope_names::GITHUB, ctx);
         }
 
@@ -687,7 +688,7 @@ pub fn apply_tool_labels(
             // Starring is a public action; response is minimal metadata.
             // S = public (empty); I = project:github
             secrecy = vec![];
-            baseline_scope = scope_names::GITHUB.to_string();
+            baseline_scope = Cow::Borrowed(scope_names::GITHUB);
             integrity = project_github_label(ctx);
         }
 
@@ -714,7 +715,7 @@ pub fn apply_tool_labels(
             // other gist operations that may target secret gists.
             // S = private_user; I = writer(user)
             secrecy = private_user_label();
-            baseline_scope = scope_names::USER.to_string();
+            baseline_scope = Cow::Borrowed(scope_names::USER);
             integrity = writer_integrity(scope_names::USER, ctx);
         }
 
