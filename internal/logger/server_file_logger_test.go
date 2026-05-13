@@ -474,7 +474,6 @@ func TestLogWithServerBackwardCompatWrappers(t *testing.T) {
 
 	err := InitServerFileLogger(logDir)
 	require.NoError(t, err)
-	defer CloseServerFileLogger()
 
 	serverID := "compat-server"
 

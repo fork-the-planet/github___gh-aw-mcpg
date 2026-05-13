@@ -387,7 +387,6 @@ func TestLogMdBackwardCompatWrappers(t *testing.T) {
 
 	err := InitMarkdownLogger(logDir, "gateway.md")
 	require.NoError(t, err)
-	defer CloseMarkdownLogger()
 
 	LogInfoMd("test", "md compat info %s", "msg")
 	LogWarnMd("test", "md compat warn %s", "msg")
