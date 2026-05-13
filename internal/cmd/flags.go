@@ -54,13 +54,16 @@ func RegisterFlag(fn FlagRegistrar) {
 
 // registerAllFlags calls all registered flag registrars
 func registerAllFlags(cmd *cobra.Command) {
+	debugLog.Printf("Registering %d flag groups", len(flagRegistrars))
 	for _, fn := range flagRegistrars {
 		fn(cmd)
 	}
+	debugLog.Print("Flag group registration complete")
 }
 
 // registerFlagCompletions registers custom completion functions for flags
 func registerFlagCompletions(cmd *cobra.Command) {
+	debugLog.Print("Registering flag completion functions")
 	// File and directory completions
 	cmd.RegisterFlagCompletionFunc("config", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return []string{"toml"}, cobra.ShellCompDirectiveFilterFileExt
