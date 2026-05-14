@@ -139,4 +139,4 @@ strict: false
 ---
 
 <!-- Edit the file linked below to modify the agent without recompilation. Feel free to move the entire markdown body to that file. -->
-@./agentics/large-payload-tester.md
+@.github/agentics/large-payload-tester.md

@@ -180,10 +180,10 @@
       "version": "v4.35.3",
       "sha": "e46ed2cbd01164d986452f91f178727624ae40d7"
     },
-    "github/gh-aw-actions/setup@v0.71.5": {
+    "github/gh-aw-actions/setup@v0.72.1": {
       "repo": "github/gh-aw-actions/setup",
-      "version": "v0.71.5",
-      "sha": "b8068426813005612b960b5ab0b8bd2c27142323"
+      "version": "v0.72.1",
+      "sha": "bc56a0cad2f450c562810785ef38649c04db812a"
     },
     "github/gh-aw/actions/setup@v0.71.5": {
       "repo": "github/gh-aw/actions/setup",
@@ -296,6 +296,26 @@
       "image": "node:lts-alpine",
       "digest": "sha256:01743339035a5c3c11a373cd7c83aeab6ed1457b55da6a69e014a95ac4e4700b",
       "pinned_image": "node:lts-alpine@sha256:01743339035a5c3c11a373cd7c83aeab6ed1457b55da6a69e014a95ac4e4700b"
+    },
+    "ghcr.io/github/gh-aw-firewall/agent:0.25.41": {
+      "image": "ghcr.io/github/gh-aw-firewall/agent:0.25.41",
+      "digest": "sha256:cb2b565d070116d4b67e355775340528b5a2c3cb18b2c9049638bcc2df681770",
+      "pinned_image": "ghcr.io/github/gh-aw-firewall/agent:0.25.41@sha256:cb2b565d070116d4b67e355775340528b5a2c3cb18b2c9049638bcc2df681770"
+    },
+    "ghcr.io/github/gh-aw-firewall/api-proxy:0.25.41": {
+      "image": "ghcr.io/github/gh-aw-firewall/api-proxy:0.25.41",
+      "digest": "sha256:fadd0de387209f69a9a7a1b8722bb5e7fdfb80ba9749a5c60f0e4cd7582a74d0",
+      "pinned_image": "ghcr.io/github/gh-aw-firewall/api-proxy:0.25.41@sha256:fadd0de387209f69a9a7a1b8722bb5e7fdfb80ba9749a5c60f0e4cd7582a74d0"
+    },
+    "ghcr.io/github/gh-aw-firewall/squid:0.25.41": {
+      "image": "ghcr.io/github/gh-aw-firewall/squid:0.25.41",
+      "digest": "sha256:1260445d25968dbf3ae70143964177a0e5914cf2ce07a6117f7d3caec6c3e3c4",
+      "pinned_image": "ghcr.io/github/gh-aw-firewall/squid:0.25.41@sha256:1260445d25968dbf3ae70143964177a0e5914cf2ce07a6117f7d3caec6c3e3c4"
+    },
+    "ghcr.io/github/gh-aw-firewall/cli-proxy:0.25.41": {
+      "image": "ghcr.io/github/gh-aw-firewall/cli-proxy:0.25.41",
+      "digest": "sha256:62171f2fa508667b8b0a9e096f826983f312e3da0ce894f80c0f83a875af60fe",
+      "pinned_image": "ghcr.io/github/gh-aw-firewall/cli-proxy:0.25.41@sha256:62171f2fa508667b8b0a9e096f826983f312e3da0ce894f80c0f83a875af60fe"
     }
   }
 }
