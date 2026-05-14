@@ -21,6 +21,7 @@ use labels::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::alloc::{alloc as std_alloc, dealloc as std_dealloc, Layout};
+use std::borrow::Cow;
 use std::slice;
 use std::sync::Mutex;
 
@@ -257,9 +258,13 @@ struct LabelResponseOutput {
     items: Vec<LabeledItem>,
 }
 
-fn infer_scope_for_baseline(tool_name: &str, tool_args: &Value, repo_id: &str) -> String {
+fn infer_scope_for_baseline<'a>(
+    tool_name: &str,
+    tool_args: &Value,
+    repo_id: &'a str,
+) -> Cow<'a, str> {
     if !repo_id.is_empty() {
-        return repo_id.to_string();
+        return Cow::Borrowed(repo_id);
     }
 
     match tool_name {
@@ -268,16 +273,16 @@ fn infer_scope_for_baseline(tool_name: &str, tool_args: &Value, repo_id: &str) -
         | "manage_notification_subscription"
         | "manage_repository_notification_subscription"
         | "create_repository"
-        | "fork_repository" => scope_names::GITHUB.to_string(),
+        | "fork_repository" => Cow::Borrowed(scope_names::GITHUB),
         "search_code" | "search_issues" | "search_pull_requests" => {
             let query = tool_args
                 .get("query")
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             let (_, _, repo_from_query) = extract_repo_info_from_search_query(query);
-            repo_from_query
+            Cow::Owned(repo_from_query)
         }
-        _ => String::new(),
+        _ => Cow::Borrowed(""),
     }
 }
 
@@ -1096,7 +1101,16 @@ mod tests {
         let tool_args = json!({"query": "repo:lpcox/github-guard README"});
 
         let inferred = infer_scope_for_baseline("search_code", &tool_args, "");
+        assert!(matches!(inferred, Cow::Owned(_)));
         assert_eq!(inferred, "lpcox/github-guard");
+    }
+
+    #[test]
+    fn infer_scope_for_baseline_borrows_repo_id_when_present() {
+        let tool_args = json!({});
+        let inferred = infer_scope_for_baseline("get_file_contents", &tool_args, "octocat/hello-world");
+
+        assert!(matches!(inferred, Cow::Borrowed("octocat/hello-world")));
     }
 
     #[test]
