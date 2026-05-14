@@ -16,7 +16,7 @@ import (
 
 // captureServerLog initializes the file logger to a temp directory, runs fn,
 // then reads the unified log file to return captured output. This works with
-// logger.LogInfoWithServer / logger.LogWarnWithServer which write to file loggers.
+// logger.LogInfoToServer / logger.LogWarnToServer which write to file loggers.
 func captureServerLog(t *testing.T, fn func()) string {
 	t.Helper()
 	logDir := t.TempDir()

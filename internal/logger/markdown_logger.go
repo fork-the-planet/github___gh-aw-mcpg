@@ -217,26 +217,6 @@ func LogDebugToMarkdown(category, format string, args ...interface{}) {
 	logDebugToMarkdown(category, format, args...)
 }
 
-// LogInfoMd is kept for backward compatibility.
-func LogInfoMd(category, format string, args ...interface{}) {
-	LogInfoToMarkdown(category, format, args...)
-}
-
-// LogWarnMd is kept for backward compatibility.
-func LogWarnMd(category, format string, args ...interface{}) {
-	LogWarnToMarkdown(category, format, args...)
-}
-
-// LogErrorMd is kept for backward compatibility.
-func LogErrorMd(category, format string, args ...interface{}) {
-	LogErrorToMarkdown(category, format, args...)
-}
-
-// LogDebugMd is kept for backward compatibility.
-func LogDebugMd(category, format string, args ...interface{}) {
-	LogDebugToMarkdown(category, format, args...)
-}
-
 // CloseMarkdownLogger closes the global markdown logger
 func CloseMarkdownLogger() error {
 	return closeGlobalLogger(&globalMarkdownMu, &globalMarkdownLogger)

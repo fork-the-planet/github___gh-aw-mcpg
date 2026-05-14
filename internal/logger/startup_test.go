@@ -148,7 +148,7 @@ func TestStartupWarn_WritesToStandardLoggerWithWarningPrefix(t *testing.T) {
 }
 
 // TestStartupWarn_DoesNotWriteToMarkdownLogger verifies that StartupWarn uses
-// LogWarn (file-only) and not LogInfoMd, so warnings are NOT mirrored to the
+// LogWarn (file-only) and not LogInfoToMarkdown, so warnings are NOT mirrored to the
 // markdown log. This is intentional: markdown logs are for informational
 // startup summaries shown in CI previews, not for warnings.
 func TestStartupWarn_DoesNotWriteToMarkdownLogger(t *testing.T) {

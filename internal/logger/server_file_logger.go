@@ -139,7 +139,7 @@ func (sfl *ServerFileLogger) Close() error {
 
 // logWithLevelAndServer is a helper that reduces code duplication for per-server logging at different levels.
 // It uses the withGlobalLogger helper from global_helpers.go to handle mutex locking and nil-checking,
-// eliminating repeated patterns across LogInfoWithServer, LogWarnWithServer, LogErrorWithServer, and LogDebugWithServer.
+// eliminating repeated patterns across LogInfoToServer, LogWarnToServer, LogErrorToServer, and LogDebugToServer.
 // It uses the logFuncs map (common.go) for the unified log dispatch, avoiding a repeated switch-on-level block.
 func logWithLevelAndServer(serverID string, level LogLevel, category, format string, args ...interface{}) {
 	withGlobalLogger(&globalServerLoggerMu, &globalServerFileLogger, func(logger *ServerFileLogger) {
@@ -183,26 +183,6 @@ func LogErrorToServer(serverID, category, format string, args ...interface{}) {
 // LogDebugToServer logs a debug message to the server-specific log file.
 func LogDebugToServer(serverID, category, format string, args ...interface{}) {
 	logDebugToServer(serverID, category, format, args...)
-}
-
-// LogInfoWithServer is kept for backward compatibility.
-func LogInfoWithServer(serverID, category, format string, args ...interface{}) {
-	LogInfoToServer(serverID, category, format, args...)
-}
-
-// LogWarnWithServer is kept for backward compatibility.
-func LogWarnWithServer(serverID, category, format string, args ...interface{}) {
-	LogWarnToServer(serverID, category, format, args...)
-}
-
-// LogErrorWithServer is kept for backward compatibility.
-func LogErrorWithServer(serverID, category, format string, args ...interface{}) {
-	LogErrorToServer(serverID, category, format, args...)
-}
-
-// LogDebugWithServer is kept for backward compatibility.
-func LogDebugWithServer(serverID, category, format string, args ...interface{}) {
-	LogDebugToServer(serverID, category, format, args...)
 }
 
 // CloseServerFileLogger closes the global server file logger

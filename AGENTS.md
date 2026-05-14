@@ -420,7 +420,6 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 **Per-ServerID Logging:**
 - Each backend MCP server gets its own log file for easier troubleshooting
 - Use the canonical `LogInfoToServer`, `LogWarnToServer`, `LogErrorToServer`, and `LogDebugToServer` functions
-- `LogInfoWithServer`, `LogWarnWithServer`, `LogErrorWithServer`, and `LogDebugWithServer` remain available as backward-compatible wrappers
 - Example: `logger.LogInfoToServer("github", "backend", "Server started successfully")`
 - Logs are written to both the server-specific file and the unified `mcp-gateway.log`
 - Thread-safe concurrent logging with automatic fallback

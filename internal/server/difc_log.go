@@ -13,7 +13,7 @@ var logDifcLog = logger.New("server:difc_log")
 
 // logFilteredItems logs structured details for every item removed by DIFC filtering.
 // Each item is written as a [DIFC-FILTERED] JSON entry to both the unified and
-// per-server text log files (via LogInfoWithServer), and as a DIFC_FILTERED entry
+// per-server text log files (via LogInfoToServer), and as a DIFC_FILTERED entry
 // in the JSONL log.
 func logFilteredItems(serverID, toolName string, filtered *difc.FilteredCollectionLabeledData) {
 	logDifcLog.Printf("Logging filtered items: serverID=%s, toolName=%s, count=%d", serverID, toolName, len(filtered.Filtered))

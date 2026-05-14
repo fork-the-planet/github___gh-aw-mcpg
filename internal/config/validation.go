@@ -24,13 +24,13 @@ func logValidateServerStart(name, serverType string) {
 }
 
 // logValidateServerPassed logs a successful server config validation.
-func logValidateServerPassed(name string) {
-	logValidation.Printf("Server config validation passed: name=%s", name)
+func logValidateServerPassed(name, serverType string) {
+	logValidation.Printf("Server config validation passed: name=%s, type=%s", name, serverType)
 }
 
 // logValidateServerFailed logs a failed server config validation with the given reason.
-func logValidateServerFailed(name, reason string) {
-	logValidation.Printf("Validation failed: %s, name=%s", reason, name)
+func logValidateServerFailed(name, serverType, reason string) {
+	logValidation.Printf("Validation failed: %s, name=%s, type=%s", reason, name, serverType)
 }
 
 // validateMounts validates mount specifications using centralized rules
@@ -74,7 +74,7 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 	// For stdio servers, container is required
 	if server.Type == "stdio" || server.Type == "local" {
 		if server.Container == "" {
-			logValidateServerFailed(name, "stdio server missing container field")
+			logValidateServerFailed(name, server.Type, "stdio server missing container field")
 			return rules.MissingRequired("container", "stdio", jsonPath, "Add a 'container' field (e.g., \"ghcr.io/owner/image:tag\")")
 		}
 
@@ -95,11 +95,11 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 	// For HTTP servers, url is required and mounts are not allowed
 	if server.Type == "http" {
 		if server.URL == "" {
-			logValidateServerFailed(name, "HTTP server missing url field")
+			logValidateServerFailed(name, server.Type, "HTTP server missing url field")
 			return rules.MissingRequired("url", "HTTP", jsonPath, "Add a 'url' field (e.g., \"https://example.com/mcp\")")
 		}
 		if len(server.Mounts) > 0 {
-			logValidateServerFailed(name, "HTTP server has mounts field")
+			logValidateServerFailed(name, server.Type, "HTTP server has mounts field")
 			return rules.UnsupportedField("mounts", "mounts are only supported for stdio (containerized) servers", jsonPath, "Remove the 'mounts' field from HTTP server configuration; mounts only apply to stdio servers")
 		}
 
@@ -113,17 +113,17 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 	// A value of 0 means "unset – fall back to the global gateway timeout".
 	if server.ToolTimeout != nil && *server.ToolTimeout != 0 {
 		if err := rules.TimeoutMinimum(*server.ToolTimeout, ToolTimeoutMin, "tool_timeout", jsonPath+".tool_timeout"); err != nil {
-			logValidateServerFailed(name, fmt.Sprintf("tool_timeout %d is below minimum %d", *server.ToolTimeout, ToolTimeoutMin))
+			logValidateServerFailed(name, server.Type, fmt.Sprintf("tool_timeout %d is below minimum %d", *server.ToolTimeout, ToolTimeoutMin))
 			return err
 		}
 	}
 
 	if err := validateToolResponseFilters(server.ToolResponseFilters, jsonPath+".tool_response_filters"); err != nil {
-		logValidateServerFailed(name, fmt.Sprintf("tool_response_filters invalid: %v", err))
+		logValidateServerFailed(name, server.Type, fmt.Sprintf("tool_response_filters invalid: %v", err))
 		return err
 	}
 
-	logValidateServerPassed(name)
+	logValidateServerPassed(name, server.Type)
 	return nil
 }
 
@@ -162,7 +162,7 @@ func validateServerAuth(auth *AuthConfig, serverType, name, jsonPath string) err
 		return nil
 	}
 	if serverType != "http" {
-		logValidateServerFailed(name, fmt.Sprintf("auth is set on non-HTTP server type: %s", serverType))
+		logValidateServerFailed(name, serverType, fmt.Sprintf("auth is set on non-HTTP server type: %s", serverType))
 		return rules.UnsupportedField(
 			"auth",
 			fmt.Sprintf("server type %q", serverType),
@@ -178,12 +178,12 @@ func validateAuthConfig(auth *AuthConfig, serverName, jsonPath string) error {
 	logValidation.Printf("Validating auth config: server=%s, type=%s", serverName, auth.Type)
 
 	if auth.Type == "" {
-		logValidateServerFailed(serverName, "auth.type is empty")
+		logValidateServerFailed(serverName, "http", "auth.type is empty")
 		return rules.MissingRequired("type", "auth", authPath, "Specify the authentication type (currently only \"github-oidc\" is supported)")
 	}
 
 	if auth.Type != "github-oidc" {
-		logValidateServerFailed(serverName, fmt.Sprintf("unsupported auth.type: %s", auth.Type))
+		logValidateServerFailed(serverName, "http", fmt.Sprintf("unsupported auth.type: %s", auth.Type))
 		return rules.UnsupportedType("type", auth.Type, authPath, fmt.Sprintf("Unsupported auth type %q. Currently only \"github-oidc\" is supported", auth.Type))
 	}
 
@@ -191,7 +191,7 @@ func validateAuthConfig(auth *AuthConfig, serverName, jsonPath string) error {
 	// This catches misconfigurations at config-load time rather than deferring
 	// the error to the first request against this server.
 	if os.Getenv("ACTIONS_ID_TOKEN_REQUEST_URL") == "" {
-		logValidateServerFailed(serverName, "ACTIONS_ID_TOKEN_REQUEST_URL is not set")
+		logValidateServerFailed(serverName, "http", "ACTIONS_ID_TOKEN_REQUEST_URL is not set")
 		return rules.MissingRequired(
 			"ACTIONS_ID_TOKEN_REQUEST_URL", "github-oidc", authPath,
 			oidc.ErrMissingOIDCEnvVar(serverName).Error())
@@ -460,7 +460,7 @@ func validateTOMLStdioContainerization(servers map[string]*ServerConfig) error {
 
 			// Check if command is Docker
 			if cfg.Command != "docker" {
-				logValidateServerFailed(name, fmt.Sprintf("stdio server using non-Docker command, command=%s", cfg.Command))
+				logValidateServerFailed(name, "stdio", fmt.Sprintf("stdio server using non-Docker command, command=%s", cfg.Command))
 				return fmt.Errorf(
 					"server '%s': stdio servers must use containerized execution (command must be 'docker', got '%s'). "+
 						"This is required by MCP Gateway Specification Section 3.2.1 (Containerization Requirement). "+
