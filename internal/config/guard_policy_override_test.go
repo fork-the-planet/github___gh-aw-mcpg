@@ -70,4 +70,85 @@ func TestResolveGuardPolicyOverride(t *testing.T) {
 		assert.Equal(t, "public", policy.AllowOnly.Repos)
 		assert.Equal(t, "merged", policy.AllowOnly.MinIntegrity)
 	})
+
+	t.Run("cli changed with allowonly flags builds policy from cli args", func(t *testing.T) {
+		policy, source, err := ResolveGuardPolicyOverride(
+			true,
+			"",
+			true,
+			"",
+			"",
+			"none",
+		)
+		require.NoError(t, err)
+		require.NotNil(t, policy)
+		assert.Equal(t, "cli", source)
+		assert.Equal(t, "public", policy.AllowOnly.Repos)
+		assert.Equal(t, "none", policy.AllowOnly.MinIntegrity)
+	})
+
+	t.Run("cli changed with owner and repo builds scoped policy", func(t *testing.T) {
+		policy, source, err := ResolveGuardPolicyOverride(
+			true,
+			"",
+			false,
+			"myorg",
+			"myrepo",
+			"approved",
+		)
+		require.NoError(t, err)
+		require.NotNil(t, policy)
+		assert.Equal(t, "cli", source)
+		require.NotNil(t, policy.AllowOnly)
+		assert.Equal(t, "myorg/myrepo", policy.AllowOnly.Repos)
+		assert.Equal(t, "approved", policy.AllowOnly.MinIntegrity)
+	})
+
+	t.Run("cli changed with invalid json returns error", func(t *testing.T) {
+		policy, source, err := ResolveGuardPolicyOverride(
+			true,
+			`{invalid json}`,
+			false,
+			"",
+			"",
+			"",
+		)
+		require.Error(t, err)
+		assert.Nil(t, policy)
+		assert.Empty(t, source)
+	})
+
+	t.Run("cli changed with invalid allowonly args returns error", func(t *testing.T) {
+		// repo without owner is invalid
+		policy, source, err := ResolveGuardPolicyOverride(
+			true,
+			"",
+			false,
+			"",
+			"myrepo",
+			"approved",
+		)
+		require.Error(t, err)
+		assert.Nil(t, policy)
+		assert.Empty(t, source)
+	})
+
+	t.Run("env policy json invalid returns error", func(t *testing.T) {
+		t.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", `{not valid json}`)
+
+		policy, source, err := ResolveGuardPolicyOverride(false, "", false, "", "", "")
+		require.Error(t, err)
+		assert.Nil(t, policy)
+		assert.Empty(t, source)
+	})
+
+	t.Run("env allowonly vars with invalid config returns error", func(t *testing.T) {
+		// repo without owner is invalid via env vars
+		t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", "myrepo")
+
+		policy, source, err := ResolveGuardPolicyOverride(false, "", false, "", "", "")
+		require.Error(t, err)
+		assert.Nil(t, policy)
+		assert.Empty(t, source)
+	})
 }
