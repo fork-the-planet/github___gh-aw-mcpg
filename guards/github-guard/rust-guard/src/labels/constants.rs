@@ -28,6 +28,7 @@ pub mod policy_integrity {
     pub const APPROVED: &str = "approved";
     pub const MERGED: &str = "merged";
 
+    #[cfg(test)]
     pub const ORDER_HIGH_TO_LOW: [&str; 4] = [MERGED, APPROVED, UNAPPROVED, NONE];
     /// Low-to-high order joined with `|`, ready for use in error messages.
     pub const ORDER_LOW_TO_HIGH_PIPED: &str = "none|unapproved|approved|merged";
