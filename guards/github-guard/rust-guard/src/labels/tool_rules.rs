@@ -747,12 +747,19 @@ fn check_file_secrecy(
     let path_lower = path.to_lowercase();
 
     // Check for sensitive file extensions/names
-    for pattern in SENSITIVE_FILE_PATTERNS {
-        if path_lower.ends_with(pattern)
-            || path_lower.split('/').any(|seg| seg.starts_with(*pattern))
-        {
-            return policy_private_scope_label(owner, repo, repo_id, ctx);
-        }
+    if SENSITIVE_FILE_PATTERNS
+        .iter()
+        .any(|pattern| path_lower.ends_with(pattern))
+    {
+        return policy_private_scope_label(owner, repo, repo_id, ctx);
+    }
+
+    if path_lower.split('/').any(|seg| {
+        SENSITIVE_FILE_PATTERNS
+            .iter()
+            .any(|pattern| seg.starts_with(*pattern))
+    }) {
+        return policy_private_scope_label(owner, repo, repo_id, ctx);
     }
 
     // Get filename
