@@ -763,6 +763,17 @@ func TestBuildStdioServerConfig_ToolsPreserved(t *testing.T) {
 	assert.Equal(t, tools, result.Tools)
 }
 
+func TestBuildStdioServerConfig_ToolTimeoutPreserved(t *testing.T) {
+	server := &StdinServerConfig{
+		Container:   "my/image:latest",
+		ToolTimeout: intPtr(120),
+	}
+
+	result := buildStdioServerConfig("test-server", server)
+
+	assert.Equal(t, 120, result.ToolTimeout)
+}
+
 // TestBuildStdioServerConfig_RegistryPreserved verifies that Registry field is passed through.
 func TestBuildStdioServerConfig_RegistryPreserved(t *testing.T) {
 	server := &StdinServerConfig{

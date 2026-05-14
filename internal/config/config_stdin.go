@@ -141,6 +141,8 @@ type StdinServerConfig struct {
 	// AdditionalProperties stores any extra fields for custom server types
 	// This allows custom schemas to define their own fields beyond the standard ones
 	AdditionalProperties map[string]interface{} `json:"-"`
+
+	toolTimeoutFieldName string `json:"-"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling to capture additional properties
@@ -161,6 +163,13 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 	var rawFields map[string]json.RawMessage
 	if err := json.Unmarshal(data, &rawFields); err != nil {
 		return err
+	}
+
+	s.toolTimeoutFieldName = "toolTimeout"
+	if _, ok := rawFields["toolTimeout"]; !ok {
+		if _, legacyOK := rawFields["tool_timeout"]; legacyOK {
+			s.toolTimeoutFieldName = "tool_timeout"
+		}
 	}
 
 	if err := assignLegacyIntAlias(rawFields, "connect_timeout", &s.ConnectTimeout); err != nil {
@@ -208,6 +217,13 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
+}
+
+func (s *StdinServerConfig) toolTimeoutField() string {
+	if s.toolTimeoutFieldName != "" {
+		return s.toolTimeoutFieldName
+	}
+	return "toolTimeout"
 }
 
 func assignLegacyIntAlias(rawFields map[string]json.RawMessage, alias string, target **int) error {
@@ -553,7 +569,7 @@ func buildStdioServerConfig(name string, server *StdinServerConfig) *ServerConfi
 	logStdin.Printf("Server %q: configured stdio container=%s, env_vars=%d, mounts=%d", name, server.Container, len(server.Env), len(server.Mounts))
 	logConfig.Printf("Configured stdio MCP server: name=%s, container=%s", name, server.Container)
 
-	return &ServerConfig{
+	serverCfg := &ServerConfig{
 		Type:                "stdio",
 		Command:             "docker",
 		Args:                args,
@@ -564,6 +580,10 @@ func buildStdioServerConfig(name string, server *StdinServerConfig) *ServerConfi
 		GuardPolicies:       server.GuardPolicies,
 		Guard:               server.Guard,
 	}
+	if server.ToolTimeout != nil {
+		serverCfg.ToolTimeout = *server.ToolTimeout
+	}
+	return serverCfg
 }
 
 // normalizeLocalType normalizes "local" type to "stdio" for backward compatibility.

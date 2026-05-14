@@ -487,16 +487,23 @@ func TestLoadFromStdin_GatewayWithPayloadPathPrefix(t *testing.T) {
 		}
 	}`
 
-	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
+	defer func() { os.Stdin = oldStdin }()
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	defer func() { _ = r.Close() }()
+
 	os.Stdin = r
+	writeErrCh := make(chan error, 1)
 	go func() {
-		w.Write([]byte(jsonConfig))
-		w.Close()
+		defer func() { _ = w.Close() }()
+		_, err := w.Write([]byte(jsonConfig))
+		writeErrCh <- err
 	}()
 
 	cfg, err := LoadFromStdin()
-	os.Stdin = oldStdin
+	require.NoError(t, <-writeErrCh)
 
 	require.NoError(t, err, "LoadFromStdin() failed")
 	require.NotNil(t, cfg, "Config should not be nil")
@@ -1818,4 +1825,39 @@ func TestLoadFromStdin_HTTPServerWithLegacySnakeCaseTimeoutFields(t *testing.T) 
 	require.True(t, ok, "Server 'repo-mind' should be present")
 	assert.Equal(t, 30, server.ConnectTimeout, "Legacy connect_timeout should still populate connectTimeout")
 	assert.Equal(t, 120, server.ToolTimeout, "Legacy tool_timeout should still populate toolTimeout")
+}
+
+func TestLoadFromStdin_HTTPServerWithLegacySnakeCaseToolTimeoutBelowMinimum(t *testing.T) {
+	jsonConfig := `{
+"mcpServers": {
+"repo-mind": {
+"type": "http",
+"url": "http://127.0.0.1:8000/mcp",
+"tool_timeout": 5
+}
+},
+"gateway": {
+"port": 3000,
+"domain": "localhost",
+"apiKey": "test-key"
+}
+}`
+
+	oldStdin := os.Stdin
+	defer func() { os.Stdin = oldStdin }()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	defer func() { _ = r.Close() }()
+	os.Stdin = r
+	writeErrCh := make(chan error, 1)
+	go func() {
+		defer w.Close()
+		_, err := w.Write([]byte(jsonConfig))
+		writeErrCh <- err
+	}()
+
+	_, err = LoadFromStdin()
+	require.NoError(t, <-writeErrCh)
+	require.Error(t, err, "LoadFromStdin() should fail with tool_timeout below minimum")
+	assert.ErrorContains(t, err, "tool_timeout")
 }
