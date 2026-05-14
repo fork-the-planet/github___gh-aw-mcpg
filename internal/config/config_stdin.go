@@ -39,6 +39,7 @@ type StdinGatewayConfig struct {
 	ToolTimeout          *int                      `json:"toolTimeout,omitempty"`
 	KeepaliveInterval    *int                      `json:"keepaliveInterval,omitempty"`
 	PayloadDir           string                    `json:"payloadDir,omitempty"`
+	PayloadPathPrefix    *string                   `json:"payloadPathPrefix,omitempty"`
 	PayloadSizeThreshold *int                      `json:"payloadSizeThreshold,omitempty"`
 	TrustedBots          []string                  `json:"trustedBots,omitempty"`
 	OpenTelemetry        *StdinOpenTelemetryConfig `json:"opentelemetry,omitempty"`
@@ -129,13 +130,13 @@ type StdinServerConfig struct {
 
 	// ConnectTimeout is the per-transport timeout (in seconds) for connecting to HTTP backends.
 	// Only applies to HTTP server types. Default: 30 seconds.
-	ConnectTimeout *int `json:"connect_timeout,omitempty"`
+	ConnectTimeout *int `json:"connectTimeout,omitempty"`
 
 	// ToolTimeout is the per-server maximum time (seconds) to wait for a single tool invocation.
 	// When set to a positive value, this overrides the global gateway.toolTimeout for calls to
 	// this server only. Minimum: 10. Omit the field (or set to 0) to fall back to the global
 	// gateway.toolTimeout (or MCP_GATEWAY_TOOL_TIMEOUT env fallback).
-	ToolTimeout *int `json:"tool_timeout,omitempty"`
+	ToolTimeout *int `json:"toolTimeout,omitempty"`
 
 	// AdditionalProperties stores any extra fields for custom server types
 	// This allows custom schemas to define their own fields beyond the standard ones
@@ -154,6 +155,18 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 
 	// Unmarshal into the auxiliary struct first
 	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawFields); err != nil {
+		return err
+	}
+
+	if err := assignLegacyIntAlias(rawFields, "connect_timeout", &s.ConnectTimeout); err != nil {
+		return err
+	}
+	if err := assignLegacyIntAlias(rawFields, "tool_timeout", &s.ToolTimeout); err != nil {
 		return err
 	}
 
@@ -180,7 +193,9 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 		"guard-policies":        true,
 		"guard":                 true,
 		"auth":                  true,
+		"connectTimeout":        true,
 		"connect_timeout":       true,
+		"toolTimeout":           true,
 		"tool_timeout":          true,
 	}
 
@@ -192,6 +207,23 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	return nil
+}
+
+func assignLegacyIntAlias(rawFields map[string]json.RawMessage, alias string, target **int) error {
+	if *target != nil {
+		return nil
+	}
+	raw, ok := rawFields[alias]
+	if !ok {
+		return nil
+	}
+
+	var value int
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return fmt.Errorf("invalid %s value: %w", alias, err)
+	}
+	*target = &value
 	return nil
 }
 
@@ -332,6 +364,9 @@ func convertStdinConfig(stdinCfg *StdinConfig) (*Config, error) {
 		}
 		if stdinCfg.Gateway.PayloadDir != "" {
 			cfg.Gateway.PayloadDir = stdinCfg.Gateway.PayloadDir
+		}
+		if stdinCfg.Gateway.PayloadPathPrefix != nil {
+			cfg.Gateway.PayloadPathPrefix = *stdinCfg.Gateway.PayloadPathPrefix
 		}
 		if stdinCfg.Gateway.PayloadSizeThreshold != nil {
 			cfg.Gateway.PayloadSizeThreshold = *stdinCfg.Gateway.PayloadSizeThreshold

@@ -1083,7 +1083,7 @@ func TestValidateAuthConfig(t *testing.T) {
 	}
 }
 
-// TestValidatePerServerToolTimeout tests per-server tool_timeout validation.
+// TestValidatePerServerToolTimeout tests per-server toolTimeout validation.
 func TestValidatePerServerToolTimeout(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -1092,7 +1092,7 @@ func TestValidatePerServerToolTimeout(t *testing.T) {
 		errMsg    string
 	}{
 		{
-			name: "valid tool_timeout on http server",
+			name: "valid toolTimeout on http server",
 			server: &StdinServerConfig{
 				Type:        "http",
 				URL:         "https://example.com/mcp",
@@ -1101,7 +1101,7 @@ func TestValidatePerServerToolTimeout(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name: "valid tool_timeout at minimum (10) on http server",
+			name: "valid toolTimeout at minimum (10) on http server",
 			server: &StdinServerConfig{
 				Type:        "http",
 				URL:         "https://example.com/mcp",
@@ -1110,7 +1110,7 @@ func TestValidatePerServerToolTimeout(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name: "tool_timeout large value (3600 = 1 hour) on http server",
+			name: "toolTimeout large value (3600 = 1 hour) on http server",
 			server: &StdinServerConfig{
 				Type:        "http",
 				URL:         "https://example.com/mcp",
@@ -1119,17 +1119,17 @@ func TestValidatePerServerToolTimeout(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name: "tool_timeout below minimum (9) on http server",
+			name: "toolTimeout below minimum (9) on http server",
 			server: &StdinServerConfig{
 				Type:        "http",
 				URL:         "https://example.com/mcp",
 				ToolTimeout: intPtr(9),
 			},
 			shouldErr: true,
-			errMsg:    "tool_timeout",
+			errMsg:    "toolTimeout",
 		},
 		{
-			name: "tool_timeout of 0 on http server (treated as unset, falls back to global)",
+			name: "toolTimeout of 0 on http server (treated as unset, falls back to global)",
 			server: &StdinServerConfig{
 				Type:        "http",
 				URL:         "https://example.com/mcp",
@@ -1138,7 +1138,7 @@ func TestValidatePerServerToolTimeout(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name: "valid tool_timeout on stdio server",
+			name: "valid toolTimeout on stdio server",
 			server: &StdinServerConfig{
 				Type:        "stdio",
 				Container:   "ghcr.io/owner/image:latest",
@@ -1147,17 +1147,17 @@ func TestValidatePerServerToolTimeout(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name: "tool_timeout below minimum on stdio server",
+			name: "toolTimeout below minimum on stdio server",
 			server: &StdinServerConfig{
 				Type:        "stdio",
 				Container:   "ghcr.io/owner/image:latest",
 				ToolTimeout: intPtr(5),
 			},
 			shouldErr: true,
-			errMsg:    "tool_timeout",
+			errMsg:    "toolTimeout",
 		},
 		{
-			name: "no tool_timeout set (omitted)",
+			name: "no toolTimeout set (omitted)",
 			server: &StdinServerConfig{
 				Type: "http",
 				URL:  "https://example.com/mcp",

@@ -12,6 +12,7 @@ port = 3000
 api_key = "your-api-key-here"
 
 # Payload directory for storing large tool responses
+# Must be an absolute path
 # Can also be set via:
 # - Flag: --payload-dir /custom/path
 # - Env:  MCP_GATEWAY_PAYLOAD_DIR=/custom/path

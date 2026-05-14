@@ -24,8 +24,11 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 
 - `internal/auth/` - Authentication header parsing and middleware
 - `internal/cmd/` - CLI (Cobra)
-- `internal/config/` - Config parsing (TOML/JSON) with validation
-  - `validation.go` - Variable expansion and fail-fast validation
+- `internal/config/` - Config parsing (TOML/JSON) with validation; the package is split across multiple files
+  - `config_core.go` - Core `Config`, `GatewayConfig`, and `ServerConfig` types plus TOML loading
+  - `config_stdin.go` - JSON stdin structs and stdin→internal config conversion
+  - `config_env.go`, `config_feature.go`, `config_tracing.go` - Environment- and feature-specific config helpers
+  - `validation.go`, `validation_env.go`, `validation_schema.go` - Fail-fast field, environment, and schema validation
   - `validation_test.go` - Comprehensive validation tests
 - `internal/difc/` - Decentralized Information Flow Control
 - `internal/envutil/` - Environment variable utilities
@@ -64,7 +67,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 [gateway]
 port = 3000
 api_key = "your-api-key"
-payload_dir = "/tmp/jq-payloads"  # Optional: directory for large payload storage
+payload_dir = "/tmp/jq-payloads"  # Optional: directory for large payload storage (must be absolute)
 
 [servers.github]
 command = "docker"
@@ -383,8 +386,8 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `DEBUG_COLORS` - Control colored output (0 to disable, auto-disabled when piping)
 - `MCP_GATEWAY_LOG_DIR` - Log file directory (sets default for `--log-dir` flag, default: `/tmp/gh-aw/mcp-logs`)
 - `MCP_GATEWAY_WASM_CACHE_DIR` - Disk-backed wazero compilation cache directory (sets default for `--wasm-cache-dir`, default: `<log-dir>/wazero-cache`)
-- `MCP_GATEWAY_PAYLOAD_DIR` - Large payload storage directory (sets default for `--payload-dir` flag, default: `/tmp/jq-payloads`)
-- `MCP_GATEWAY_PAYLOAD_PATH_PREFIX` - Path prefix for remapping payloadPath returned to clients (sets default for `--payload-path-prefix` flag, default: empty)
+- `MCP_GATEWAY_PAYLOAD_DIR` - Large payload storage directory (sets default for `--payload-dir` flag, default: `/tmp/jq-payloads`). Must be an absolute path.
+- `MCP_GATEWAY_PAYLOAD_PATH_PREFIX` - Path prefix for remapping payloadPath returned to clients (sets default for `--payload-path-prefix` flag, default: empty). In JSON stdin config use `gateway.payloadPathPrefix`.
 - `MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD` - Size threshold in bytes for payload storage; payloads larger than this are stored to disk (sets default for `--payload-size-threshold` flag, default: `524288`)
 - `MCP_GATEWAY_SESSION_TIMEOUT` - Session timeout for stateful sessions in both unified mode (`/mcp`) and routed mode (`/mcp/<server>`). Accepts Go duration strings (e.g., `30m`, `1h`, `2h30m`). (default: `6h`)
 - `MCP_GATEWAY_TOOL_TIMEOUT` - Tool invocation timeout in seconds. Fallback when `gateway.toolTimeout` is not set in stdin JSON config. Accepts any integer ≥ 10 (no upper bound). Priority: stdin config > env var > built-in default. (default: `60`)
@@ -427,7 +430,7 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 
 **Large Payload Handling:**
 - Large tool response payloads are stored in the configured payload directory
-- Default payload directory: `/tmp/jq-payloads` (configurable via `--payload-dir` flag, `MCP_GATEWAY_PAYLOAD_DIR` env var, or `payload_dir` in config)
+- Default payload directory: `/tmp/jq-payloads` (configurable via `--payload-dir` flag, `MCP_GATEWAY_PAYLOAD_DIR` env var, or `payload_dir` in config). The configured path must be absolute.
 - Payloads are organized by session ID: `{payload_dir}/{sessionID}/{queryID}/payload.json`
 - This allows agents to mount their session-specific subdirectory to access full payloads
 - The jq middleware returns: preview (first `PayloadPreviewSize` chars, default 500), schema, payloadPath, queryID, originalSize, truncated flag

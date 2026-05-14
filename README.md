@@ -47,6 +47,7 @@ The gateway starts in routed mode on `http://0.0.0.0:8000`, proxying MCP request
 - `-i`: Enables stdin for passing JSON configuration
 - `-v /var/run/docker.sock`: Required for spawning backend MCP servers
 - `-p 8000:8000`: Port mapping must match `MCP_GATEWAY_PORT`
+- If you configure `payloadDir` / `MCP_GATEWAY_PAYLOAD_DIR`, use an absolute path (for example `/tmp/jq-payloads`)
 
 ## Guard Policies
 

@@ -31,6 +31,7 @@ startup_timeout = 60
 tool_timeout = 120
 
 # Directory for storing large payload files (default: /tmp/jq-payloads)
+# Must be an absolute path
 # Payloads are segmented by session ID: {payload_dir}/{sessionID}/{queryID}/payload.json
 # Can also be set via MCP_GATEWAY_PAYLOAD_DIR environment variable or --payload-dir flag
 # payload_dir = "/tmp/jq-payloads"
@@ -39,6 +40,11 @@ tool_timeout = 120
 # Prevents remote servers from expiring idle sessions by sending periodic pings.
 # Set to -1 to disable keepalive pings entirely.
 # keepalive_interval = 1500
+#
+# OpenTelemetry TOML key migration:
+# - Prefer [gateway.opentelemetry] for new configs.
+# - Legacy [gateway.tracing] is still accepted for TOML migrations.
+# - If both sections are present, [gateway.opentelemetry] takes precedence.
 
 # ============================================================================
 # MCP Server Configurations

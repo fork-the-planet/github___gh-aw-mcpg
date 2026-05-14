@@ -107,6 +107,11 @@ make test-container-proxy
 
 This target builds a Docker image and tests proxy mode with TLS. It requires a GitHub token available via the `gh` CLI (`gh auth login`) or the `GITHUB_TOKEN`/`GH_TOKEN` environment variable.
 
+#### Testing Environment Variables
+
+- `AWMG_BINARY_PATH` — Override the binary path used by integration tests when you want to run tests against a prebuilt `awmg` binary.
+- `AWMG_WASM_GUARD_PATH` — Override the GitHub guard WASM path used by proxy integration tests when the default build output path is not available.
+
 #### Race Detection Tests
 Run unit tests with Go's race detector to catch concurrent data races:
 ```bash
@@ -170,8 +175,8 @@ echo '{"mcpServers": {...}}' | ./awmg --config-stdin
 # Increase verbosity
 ./awmg --config config.toml -v
 
-# Custom payload directory and size threshold
-./awmg --config config.toml --payload-dir ./payloads --payload-size-threshold 1048576
+# Custom payload directory and size threshold (payload dir must be absolute)
+./awmg --config config.toml --payload-dir /tmp/payloads --payload-size-threshold 1048576
 ```
 
 See [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) for the full list of environment variable overrides.
