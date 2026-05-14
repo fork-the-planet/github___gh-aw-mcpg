@@ -1101,7 +1101,7 @@ mod tests {
         let tool_args = json!({"query": "repo:lpcox/github-guard README"});
 
         let inferred = infer_scope_for_baseline("search_code", &tool_args, "");
-        assert!(matches!(inferred, Cow::Owned(_)));
+        assert!(matches!(&inferred, Cow::Owned(_)));
         assert_eq!(inferred, "lpcox/github-guard");
     }
 
