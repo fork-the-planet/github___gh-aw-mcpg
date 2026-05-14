@@ -217,8 +217,12 @@ func ResolveGuardPolicyOverride(
 	allowOnlyPublic bool,
 	allowOnlyOwner, allowOnlyRepo, allowOnlyMinIntegrity string,
 ) (*GuardPolicy, string, error) {
+	logGuardPolicy.Printf("ResolveGuardPolicyOverride: cliChanged=%v, hasCLIPolicyJSON=%v, allowOnlyPublic=%v, owner=%q, repo=%q, minIntegrity=%q",
+		cliChanged, strings.TrimSpace(cliPolicyJSON) != "", allowOnlyPublic, allowOnlyOwner, allowOnlyRepo, allowOnlyMinIntegrity)
+
 	if cliChanged {
 		if strings.TrimSpace(cliPolicyJSON) != "" {
+			logGuardPolicy.Print("ResolveGuardPolicyOverride: using CLI-provided guard policy JSON")
 			policy, err := ParseGuardPolicyJSON(cliPolicyJSON)
 			if err != nil {
 				return nil, "", err
@@ -226,6 +230,8 @@ func ResolveGuardPolicyOverride(
 			return policy, "cli", nil
 		}
 
+		logGuardPolicy.Printf("ResolveGuardPolicyOverride: using CLI-provided AllowOnly scope: public=%v, owner=%q, repo=%q, minIntegrity=%q",
+			allowOnlyPublic, allowOnlyOwner, allowOnlyRepo, allowOnlyMinIntegrity)
 		policy, err := BuildAllowOnlyPolicy(allowOnlyPublic, allowOnlyOwner, allowOnlyRepo, allowOnlyMinIntegrity)
 		if err != nil {
 			return nil, "", err
@@ -234,6 +240,7 @@ func ResolveGuardPolicyOverride(
 	}
 
 	if envPolicyJSON := strings.TrimSpace(envutil.GetEnvString(EnvGuardPolicyJSON, "")); envPolicyJSON != "" {
+		logGuardPolicy.Printf("ResolveGuardPolicyOverride: using %s env var for guard policy JSON", EnvGuardPolicyJSON)
 		policy, err := ParseGuardPolicyJSON(envPolicyJSON)
 		if err != nil {
 			return nil, "", err
@@ -247,6 +254,8 @@ func ResolveGuardPolicyOverride(
 	_, hasMinIntegrity := os.LookupEnv(EnvAllowOnlyMinIntegrity)
 
 	if hasScopePublic || hasScopeOwner || hasScopeRepo || hasMinIntegrity {
+		logGuardPolicy.Printf("ResolveGuardPolicyOverride: using env vars for AllowOnly scope: hasScopePublic=%v, hasScopeOwner=%v, hasScopeRepo=%v, hasMinIntegrity=%v",
+			hasScopePublic, hasScopeOwner, hasScopeRepo, hasMinIntegrity)
 		policy, err := BuildAllowOnlyPolicy(
 			envutil.GetEnvBool(EnvAllowOnlyScopePublic, false),
 			envutil.GetEnvString(EnvAllowOnlyScopeOwner, ""),
@@ -259,6 +268,7 @@ func ResolveGuardPolicyOverride(
 		return policy, "env", nil
 	}
 
+	logGuardPolicy.Print("ResolveGuardPolicyOverride: no guard policy configured (nil)")
 	return nil, "", nil
 }
 
