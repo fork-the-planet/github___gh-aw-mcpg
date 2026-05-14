@@ -12,7 +12,7 @@ import (
 )
 
 func TestDefaultWasmCacheDir(t *testing.T) {
-	assert.Equal(t, "/tmp/logs/"+config.DefaultWasmCacheDirName, defaultWasmCacheDir("/tmp/logs"))
+	assert.Equal(t, "/tmp/"+config.DefaultWasmCacheDirName, defaultWasmCacheDir("/tmp/logs"))
 }
 
 func TestDefaultWasmCacheDir_EmptyLogDir(t *testing.T) {
@@ -23,7 +23,7 @@ func TestDefaultWasmCacheDir_EmptyLogDir(t *testing.T) {
 }
 
 func TestResolveWasmCacheDir(t *testing.T) {
-	t.Run("defaults beneath log dir when no override is set", func(t *testing.T) {
+	t.Run("defaults next to log dir when no override is set", func(t *testing.T) {
 		t.Setenv(wasmCacheDirEnvVar, "")
 		assert.Equal(t, defaultWasmCacheDir("/tmp/logs"), resolveWasmCacheDir(false, "", "/tmp/logs"))
 	})

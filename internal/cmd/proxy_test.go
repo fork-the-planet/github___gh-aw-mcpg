@@ -339,7 +339,7 @@ func TestNewProxyCmd_LogDirDefault(t *testing.T) {
 		"--log-dir should default to config.DefaultLogDir when MCP_GATEWAY_LOG_DIR is unset")
 }
 
-// TestNewProxyCmd_WasmCacheDirDefault verifies --wasm-cache-dir defaults beneath --log-dir.
+// TestNewProxyCmd_WasmCacheDirDefault verifies --wasm-cache-dir defaults next to --log-dir.
 func TestNewProxyCmd_WasmCacheDirDefault(t *testing.T) {
 	t.Setenv("MCP_GATEWAY_LOG_DIR", "")
 	t.Setenv(wasmCacheDirEnvVar, "")
@@ -350,7 +350,7 @@ func TestNewProxyCmd_WasmCacheDirDefault(t *testing.T) {
 	val, err := cmd.Flags().GetString("wasm-cache-dir")
 	require.NoError(t, err)
 	assert.Equal(t, defaultWasmCacheDir(config.DefaultLogDir), val,
-		"--wasm-cache-dir should default beneath config.DefaultLogDir when env vars are unset")
+		"--wasm-cache-dir should default adjacent to config.DefaultLogDir when env vars are unset")
 }
 
 // TestNewProxyCmd_ListenFlag verifies --listen, -l shorthand and default value.

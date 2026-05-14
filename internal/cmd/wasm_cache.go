@@ -13,7 +13,10 @@ import (
 )
 
 func defaultWasmCacheDir(logDir string) string {
-	return filepath.Join(logDir, config.DefaultWasmCacheDirName)
+	if logDir == "" {
+		return config.DefaultWasmCacheDirName
+	}
+	return filepath.Join(filepath.Dir(logDir), config.DefaultWasmCacheDirName)
 }
 
 func resolveWasmCacheDir(flagChanged bool, flagValue, effectiveLogDir string) string {
