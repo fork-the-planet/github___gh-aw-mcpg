@@ -27,7 +27,7 @@ func makeTextResult(text string, trailing ...sdk.Content) *sdk.CallToolResult {
 }
 
 func makeNonTextResult(trailing ...sdk.Content) *sdk.CallToolResult {
-	content := []sdk.Content{&sdk.ImageContent{Data: "abc", MIMEType: "image/png"}}
+	content := []sdk.Content{&sdk.ImageContent{Data: []byte("abc"), MIMEType: "image/png"}}
 	content = append(content, trailing...)
 	return &sdk.CallToolResult{Content: content}
 }
@@ -416,7 +416,7 @@ func TestTryApplyToolResponseFilter(t *testing.T) {
 		code, err := CompileToolResponseFilter(".")
 		require.NoError(t, err)
 		result := &sdk.CallToolResult{
-			Content: []sdk.Content{&sdk.ImageContent{Data: "x", MIMEType: "image/png"}},
+			Content: []sdk.Content{&sdk.ImageContent{Data: []byte("x"), MIMEType: "image/png"}},
 			IsError: true,
 		}
 		data := map[string]interface{}{
