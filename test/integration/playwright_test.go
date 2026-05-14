@@ -388,7 +388,14 @@ CMD ["node", "mock-mcp-server.js"]
 	buildCmd := exec.Command("docker", "build", "-t", imageName, tmpDir)
 	buildOutput, err := buildCmd.CombinedOutput()
 	if err != nil {
-		t.Logf("Build output:\n%s", string(buildOutput))
+		outputStr := string(buildOutput)
+		t.Logf("Build output:\n%s", outputStr)
+		// Skip if the failure is due to network issues (can't pull base image)
+		if strings.Contains(outputStr, "failed to resolve source metadata") ||
+			strings.Contains(outputStr, "i/o timeout") ||
+			strings.Contains(outputStr, "connection refused") {
+			t.Skipf("Skipping test: Docker build failed due to network issues: %v", err)
+		}
 		t.Fatalf("Failed to build test image: %v", err)
 	}
 
