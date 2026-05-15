@@ -529,7 +529,6 @@ pub extern "C" fn label_agent(
         })
         .collect();
 
-    let token = labels::helpers::policy_scope_token(&scopes);
     let scope_kind_str = normalized_scope_kind(&scopes);
 
     let ctx = PolicyContext {
@@ -547,6 +546,7 @@ pub extern "C" fn label_agent(
     };
 
     // Compute integrity before moving ctx into the global — borrows ctx, no clone needed.
+    let token = labels::helpers::policy_scope_token(&ctx.scopes);
     let integrity = match integrity_floor {
         MinIntegrity::None => labels::none_integrity(&token, &ctx),
         MinIntegrity::Unapproved => labels::reader_integrity(&token, &ctx),

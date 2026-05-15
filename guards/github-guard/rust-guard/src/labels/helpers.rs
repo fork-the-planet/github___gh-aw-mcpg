@@ -3,6 +3,7 @@
 //! This module contains utility functions used across the labeling system,
 //! including JSON extraction, integrity determination, and common operations.
 
+use std::borrow::Cow;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde_json::Value;
@@ -156,10 +157,10 @@ pub struct PolicyContext {
     pub demotion_label: String,
 }
 
-fn normalize_scope(scope: &str, ctx: &PolicyContext) -> String {
+fn normalize_scope<'a>(scope: &'a str, ctx: &'a PolicyContext) -> Cow<'a, str> {
     let token = policy_scope_token(&ctx.scopes);
     if token.is_empty() {
-        scope.to_string()
+        Cow::Borrowed(scope)
     } else if ctx
         .scopes
         .iter()
@@ -176,10 +177,10 @@ fn normalize_scope(scope: &str, ctx: &PolicyContext) -> String {
         if matches_any_scope {
             token
         } else {
-            scope.to_string()
+            Cow::Borrowed(scope)
         }
     } else {
-        scope.to_string()
+        Cow::Borrowed(scope)
     }
 }
 
@@ -191,16 +192,24 @@ fn split_repo_id(repo_id: &str) -> Option<(&str, &str)> {
     Some((owner, repo))
 }
 
-pub(crate) fn policy_scope_token(scopes: &[PolicyScopeEntry]) -> String {
-    let labels: Vec<&str> = scopes
+pub(crate) fn policy_scope_token(scopes: &[PolicyScopeEntry]) -> Cow<'_, str> {
+    let mut labels = scopes
         .iter()
         .map(|s| s.scope_label.as_str())
-        .filter(|s| !s.is_empty())
-        .collect();
-    if labels.is_empty() {
-        String::new()
-    } else {
-        labels.join(" | ")
+        .filter(|s| !s.is_empty());
+    match (labels.next(), labels.next()) {
+        (None, _) => Cow::Borrowed(""),
+        (Some(first), None) => Cow::Borrowed(first),
+        (Some(first), Some(second)) => {
+            let mut value = String::from(first);
+            value.push_str(" | ");
+            value.push_str(second);
+            for rest in labels {
+                value.push_str(" | ");
+                value.push_str(rest);
+            }
+            Cow::Owned(value)
+        }
     }
 }
 
@@ -1284,14 +1293,41 @@ fn integrity_rank(scope: &str, labels: &[String], ctx: &PolicyContext) -> u8 {
 }
 
 fn integrity_rank_normalized(normalized_scope: &str, labels: &[String]) -> u8 {
-    // Check from highest to lowest, allocating one label at a time.
+    if normalized_scope.contains('|') {
+        // Multi-scope uses canonical "integrity=<base>;scopes=..." encoding.
+        for (rank, (prefix, base)) in INTEGRITY_LEVELS.iter().enumerate().rev() {
+            let expected = format_integrity_label(prefix, normalized_scope, base);
+            if labels.iter().any(|label| label == &expected) {
+                return (rank + 1) as u8;
+            }
+        }
+        return 0;
+    }
+
+    // Check from highest to lowest.
     for (rank, (prefix, base)) in INTEGRITY_LEVELS.iter().enumerate().rev() {
-        let tag = format_integrity_label(prefix, normalized_scope, base);
-        if labels.iter().any(|l| l == &tag) {
+        if labels
+            .iter()
+            .any(|label| label_matches_normalized(label, prefix, normalized_scope, base))
+        {
             return (rank + 1) as u8;
         }
     }
     0
+}
+
+#[inline]
+fn label_matches_normalized(
+    label: &str,
+    prefix: &str,
+    scope: &str,
+    base: &str,
+) -> bool {
+    if scope.is_empty() {
+        label == base
+    } else {
+        label.strip_prefix(prefix) == Some(scope)
+    }
 }
 
 /// Elevate integrity to the max of current and candidate levels for a scope.
@@ -1917,9 +1953,52 @@ pub(crate) fn is_any_trusted_actor(username: &str, ctx: &PolicyContext) -> bool 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::borrow::Cow;
 
     fn test_ctx() -> PolicyContext {
         PolicyContext::default()
+    }
+
+    #[test]
+    fn test_policy_scope_token_borrows_for_single_scope() {
+        let scopes = vec![PolicyScopeEntry {
+            scope_kind: ScopeKind::Owner,
+            scope_owner: Some("octocat".to_string()),
+            scope_repo: None,
+            scope_label: "octocat".to_string(),
+        }];
+        let token = policy_scope_token(&scopes);
+        assert_eq!(token, "octocat");
+        assert!(matches!(token, Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn test_policy_scope_token_owns_for_multi_scope() {
+        let scopes = vec![
+            PolicyScopeEntry {
+                scope_kind: ScopeKind::Owner,
+                scope_owner: Some("octocat".to_string()),
+                scope_repo: None,
+                scope_label: "octocat".to_string(),
+            },
+            PolicyScopeEntry {
+                scope_kind: ScopeKind::RepoPrefix,
+                scope_owner: Some("octocat".to_string()),
+                scope_repo: Some("hello".to_string()),
+                scope_label: "octocat/hello*".to_string(),
+            },
+        ];
+        let token = policy_scope_token(&scopes);
+        assert_eq!(token, "octocat | octocat/hello*");
+        assert!(matches!(token, Cow::Owned(_)));
+    }
+
+    #[test]
+    fn test_normalize_scope_borrows_input_when_no_scopes() {
+        let ctx = test_ctx();
+        let normalized = normalize_scope("owner/repo", &ctx);
+        assert_eq!(normalized, "owner/repo");
+        assert!(matches!(normalized, Cow::Borrowed(_)));
     }
 
     #[test]
@@ -2315,6 +2394,39 @@ mod tests {
         let candidate = merged_integrity(scope, &ctx);
         let result = max_integrity(scope, current, candidate.clone(), &ctx);
         assert_eq!(result, candidate, "max_integrity should keep the higher integrity rank");
+    }
+
+    #[test]
+    fn test_label_matches_normalized_common_paths() {
+        assert!(label_matches_normalized(
+            "approved:owner/repo",
+            label_constants::WRITER_PREFIX,
+            "owner/repo",
+            label_constants::WRITER_BASE
+        ));
+        assert!(label_matches_normalized(
+            label_constants::READER_BASE,
+            label_constants::READER_PREFIX,
+            "",
+            label_constants::READER_BASE
+        ));
+        assert!(!label_matches_normalized(
+            "approved:owner/repo",
+            label_constants::MERGED_PREFIX,
+            "owner/repo",
+            label_constants::MERGED_BASE
+        ));
+    }
+
+    #[test]
+    fn test_integrity_rank_normalized_multiscope_path() {
+        let scope = "owner/repo | owner/tool*";
+        let labels = vec![format_integrity_label(
+            label_constants::WRITER_PREFIX,
+            scope,
+            label_constants::WRITER_BASE,
+        )];
+        assert_eq!(integrity_rank_normalized(scope, &labels), 3);
     }
 
     #[test]
