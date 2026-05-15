@@ -261,8 +261,6 @@ func TestHandleRequest_ToolsCall_ListServers(t *testing.T) {
 }
 
 func TestHandleRequest_ToolsCall_InvalidJSON(t *testing.T) {
-	assert := assert.New(t)
-
 	server := NewSysServer([]string{"github"})
 
 	tests := []struct {
@@ -297,6 +295,7 @@ func TestHandleRequest_ToolsCall_InvalidJSON(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
 			result, err := server.HandleRequest("tools/call", tt.params)
 
 			assert.Error(err, "Should return error for invalid params")
@@ -307,8 +306,6 @@ func TestHandleRequest_ToolsCall_InvalidJSON(t *testing.T) {
 }
 
 func TestHandleRequest_ToolsCall_UnknownTool(t *testing.T) {
-	assert := assert.New(t)
-
 	server := NewSysServer([]string{"github"})
 
 	tests := []struct {
@@ -335,6 +332,7 @@ func TestHandleRequest_ToolsCall_UnknownTool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
 			params := json.RawMessage(`{
 "name": "` + tt.toolName + `",
 "arguments": {}
@@ -355,8 +353,6 @@ func TestHandleRequest_ToolsCall_UnknownTool(t *testing.T) {
 }
 
 func TestHandleRequest_UnsupportedMethod(t *testing.T) {
-	assert := assert.New(t)
-
 	server := NewSysServer([]string{"github"})
 
 	tests := []struct {
@@ -387,6 +383,7 @@ func TestHandleRequest_UnsupportedMethod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			assert := assert.New(t)
 			result, err := server.HandleRequest(tt.method, nil)
 
 			assert.Error(err, "Should return error for unsupported method")
