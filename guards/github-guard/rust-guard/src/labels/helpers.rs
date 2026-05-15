@@ -1293,11 +1293,16 @@ fn integrity_rank(scope: &str, labels: &[String], ctx: &PolicyContext) -> u8 {
 }
 
 fn integrity_rank_normalized(normalized_scope: &str, labels: &[String]) -> u8 {
+    let is_multi_scope = normalized_scope.contains('|');
+
     // Check from highest to lowest.
     for (rank, (prefix, base)) in INTEGRITY_LEVELS.iter().enumerate().rev() {
+        let expected = is_multi_scope.then(|| format_integrity_label(prefix, normalized_scope, base));
         if labels
             .iter()
-            .any(|label| label_matches_normalized(label, prefix, normalized_scope, base))
+            .any(|label| {
+                label_matches_normalized(label, prefix, normalized_scope, base, expected.as_deref())
+            })
         {
             return (rank + 1) as u8;
         }
@@ -1306,12 +1311,18 @@ fn integrity_rank_normalized(normalized_scope: &str, labels: &[String]) -> u8 {
 }
 
 #[inline]
-fn label_matches_normalized(label: &str, prefix: &str, scope: &str, base: &str) -> bool {
+fn label_matches_normalized(
+    label: &str,
+    prefix: &str,
+    scope: &str,
+    base: &str,
+    expected_multi_scope: Option<&str>,
+) -> bool {
     if scope.is_empty() {
         label == base
-    } else if scope.contains('|') {
+    } else if let Some(expected) = expected_multi_scope {
         // Multi-scope uses canonical "integrity=<base>;scopes=..." encoding.
-        label == format_integrity_label(prefix, scope, base)
+        label == expected
     } else {
         label.strip_prefix(prefix) == Some(scope)
     }
@@ -2389,25 +2400,29 @@ mod tests {
             "approved:owner/repo",
             label_constants::WRITER_PREFIX,
             "owner/repo",
-            label_constants::WRITER_BASE
+            label_constants::WRITER_BASE,
+            None
         ));
         assert!(label_matches_normalized(
             "integrity=approved;scopes=owner/repo,owner/tool*",
             label_constants::WRITER_PREFIX,
             "owner/repo | owner/tool*",
-            label_constants::WRITER_BASE
+            label_constants::WRITER_BASE,
+            Some("integrity=approved;scopes=owner/repo,owner/tool*")
         ));
         assert!(label_matches_normalized(
             label_constants::READER_BASE,
             label_constants::READER_PREFIX,
             "",
-            label_constants::READER_BASE
+            label_constants::READER_BASE,
+            None
         ));
         assert!(!label_matches_normalized(
             "approved:owner/repo",
             label_constants::MERGED_PREFIX,
             "owner/repo",
-            label_constants::MERGED_BASE
+            label_constants::MERGED_BASE,
+            None
         ));
     }
 
