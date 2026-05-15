@@ -55,21 +55,6 @@ func init() {
 	rootCmd.AddCommand(newProxyCmd())
 }
 
-// containerGuardWasmPath is the baked-in guard path in the container image.
-const containerGuardWasmPath = "/guards/github/00-github-guard.wasm"
-
-// detectGuardWasm returns the baked-in container guard path if it exists,
-// or empty string if not found (requiring the user to specify --guard-wasm).
-func detectGuardWasm() string {
-	logProxyCmd.Printf("Checking for baked-in guard at %s", containerGuardWasmPath)
-	if _, err := os.Stat(containerGuardWasmPath); err == nil {
-		logProxyCmd.Printf("Auto-detected baked-in guard: %s", containerGuardWasmPath)
-		return containerGuardWasmPath
-	}
-	logProxyCmd.Print("Baked-in guard not found, --guard-wasm flag required")
-	return ""
-}
-
 func newProxyCmd() *cobra.Command {
 	defaultGuard := detectGuardWasm()
 	defaultProxyLogDir := envutil.GetEnvString("MCP_GATEWAY_LOG_DIR", config.DefaultLogDir)
