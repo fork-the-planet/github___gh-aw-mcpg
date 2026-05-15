@@ -16,10 +16,10 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 **Format**: `make format` (auto-format code with gofmt)  
 **Clean**: `make clean` (remove build artifacts)  
 **Agent-Finished**: `make agent-finished` (run format, build, lint, and all tests - ALWAYS run before completion)  
-**Run**: `./awmg --config config.toml`
-**Run sequentially**: `./awmg --config config.toml --sequential-launch`
-**Run with Custom Log Directory**: `./awmg --config config.toml --log-dir /path/to/logs`
-**Run with Custom Payload Directory**: `./awmg --config config.toml --payload-dir /path/to/payloads`
+**Run**: `./awmg --config config.toml`  
+**Run sequentially**: `./awmg --config config.toml --sequential-launch`  
+**Run with Custom Log Directory**: `./awmg --config config.toml --log-dir /path/to/logs`  
+**Run with Custom Payload Directory**: `./awmg --config config.toml --payload-dir /path/to/payloads`  
 
 ## Project Structure
 
