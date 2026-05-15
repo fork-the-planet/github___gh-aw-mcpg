@@ -16,9 +16,10 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 **Format**: `make format` (auto-format code with gofmt)  
 **Clean**: `make clean` (remove build artifacts)  
 **Agent-Finished**: `make agent-finished` (run format, build, lint, and all tests - ALWAYS run before completion)  
-**Run**: `./awmg --config config.toml`
-**Run with Custom Log Directory**: `./awmg --config config.toml --log-dir /path/to/logs`
-**Run with Custom Payload Directory**: `./awmg --config config.toml --payload-dir /path/to/payloads`
+**Run**: `./awmg --config config.toml`  
+**Run sequentially**: `./awmg --config config.toml --sequential-launch`  
+**Run with Custom Log Directory**: `./awmg --config config.toml --log-dir /path/to/logs`  
+**Run with Custom Payload Directory**: `./awmg --config config.toml --payload-dir /path/to/payloads`  
 
 ## Project Structure
 
@@ -97,6 +98,7 @@ args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-i", "ghcr.io/gith
 - Required fields: `container` for stdio, `url` for http
 - **Containerization Requirement**: TOML stdio servers must use `command = "docker"` per [MCP Gateway Specification Section 3.2.1](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md#321-containerization-requirement)
 - **Note**: In JSON stdin format, the `command` field is not supported - stdio servers must use `container` field
+- **Note**: In JSON stdin format, `args` is optional and provides extra Docker runtime arguments inserted before the container image name
 - Port range validation: 1-65535
 - Timeout validation: positive integers only
 
@@ -374,6 +376,7 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 
 ## Environment Variables
 
+- `GITHUB_MCP_SERVER_TOKEN` - Highest-priority GitHub auth token (takes precedence over `GITHUB_TOKEN`, `GITHUB_PERSONAL_ACCESS_TOKEN`, `GH_TOKEN`)
 - `GITHUB_PERSONAL_ACCESS_TOKEN` - GitHub auth
 - `GITHUB_API_URL` - Explicit GitHub API endpoint (e.g., `https://copilot-api.mycompany.ghe.com`); used by proxy to set upstream target
 - `GITHUB_SERVER_URL` - GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `copilot-api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com`
@@ -404,9 +407,13 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `MCP_GATEWAY_TLS_KEY` - Path to TLS server private key PEM file; required when `MCP_GATEWAY_TLS_CERT` is set (sets default for `--tls-key`)
 - `MCP_GATEWAY_CA_CERT` - Path to CA certificate PEM file for client certificate verification; enables mutual TLS (mTLS) when set alongside `MCP_GATEWAY_TLS_CERT`/`MCP_GATEWAY_TLS_KEY` (sets default for `--tls-ca`)
 - `MCP_GATEWAY_HMAC_SECRET` - Shared HMAC-SHA256 secret for request signing and replay protection; when set, requests to MCP handlers must carry valid `X-MCP-Timestamp`, `X-MCP-Nonce`, and `X-MCP-Signature` headers (sets default for `--hmac-secret`)
+- `OTEL_EXPORTER_OTLP_ENDPOINT` - OTLP HTTP endpoint for trace export; sets default for `--otlp-endpoint`
+- `OTEL_SERVICE_NAME` - Service name in traces; sets default for `--otlp-service-name`
+- `AWMG_BINARY_PATH` - Override binary path for integration tests
+- `AWMG_WASM_GUARD_PATH` - Override WASM guard path for proxy integration tests
 - `RUNNING_IN_CONTAINER` - Set to `"true"` to force container detection when `/.dockerenv` and cgroup detection are unavailable
 
-**Note:** `MCP_GATEWAY_PORT` is read by the `awmg` binary for environment validation (`--validate-env`) only. Plain `PORT`, `HOST`, and `MODE` are not read by `awmg` directly. However, `run.sh` uses `PORT`, `HOST` (default: `0.0.0.0`), and `MODE` (default: `--routed`) to set the bind address and routing mode. Use the `--listen` and `--routed`/`--unified` flags when running `awmg` directly.
+**Note:** `MCP_GATEWAY_PORT` is read by the `awmg` binary for environment validation (`--validate-env`) only. Plain `PORT`, `HOST`, and `MODE` are not read by `awmg` directly. However, `run.sh` uses `MCP_GATEWAY_PORT` (falling back to `PORT`), `HOST` (default: `0.0.0.0`), and `MODE` (default: `--routed`) to set the bind address and routing mode. Use the `--listen` and `--routed`/`--unified` flags when running `awmg` directly.
 
 **File Logging:**
 - Operational logs are always written to log files in the configured log directory

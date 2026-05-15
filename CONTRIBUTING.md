@@ -175,6 +175,9 @@ echo '{"mcpServers": {...}}' | ./awmg --config-stdin
 # Increase verbosity
 ./awmg --config config.toml -v
 
+# Launch MCP servers sequentially during startup
+./awmg --config config.toml --sequential-launch
+
 # Custom payload directory and size threshold (payload dir must be absolute)
 ./awmg --config config.toml --payload-dir /tmp/payloads --payload-size-threshold 1048576
 ```
@@ -263,8 +266,8 @@ gh-aw-mcpg/
     ├── config/                # Configuration loading (TOML/JSON)
     ├── difc/                  # Decentralized Information Flow Control
     ├── envutil/               # Environment variable utilities
-    ├── guard/                 # Security guards (NoopGuard, WasmGuard, WriteSink)
-    ├── httputil/              # Shared HTTP response helpers
+    ├── guard/                 # Security guards (NoopGuard, WasmGuard, WriteSinkGuard)
+    ├── httputil/              # Shared HTTP helper utilities (server responses, proxy transport)
     ├── launcher/              # Backend server management
     ├── logger/                # Debug logging framework
     ├── mcp/                   # MCP protocol types & connection
@@ -289,7 +292,7 @@ gh-aw-mcpg/
 - **`internal/difc/`** - Decentralized Information Flow Control
 - **`internal/envutil/`** - Environment variable utilities
 - **`internal/guard/`** - Guard framework for resource labeling
-- **`internal/httputil/`** - Shared HTTP response helpers (JSON responses, error formatting)
+- **`internal/httputil/`** - Shared HTTP helper utilities (server responses, proxy transport)
 - **`internal/launcher/`** - Backend process management (Docker, stdio)
 - **`internal/logger/`** - Micro logger for debug output
 - **`internal/mcp/`** - MCP protocol types and JSON-RPC handling

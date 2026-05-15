@@ -252,13 +252,13 @@ type ServerConfig struct {
 	// RateLimitThreshold is the number of consecutive rate-limit errors from this backend
 	// that will trip the circuit breaker (transition CLOSED → OPEN). When OPEN, requests
 	// are immediately rejected until the cooldown period elapses. Default: 3.
-	// Supported in file-based config (TOML/JSON); stdin JSON config does not currently accept this field.
+	// Supported in TOML config only; the JSON stdin config does not currently accept this field.
 	RateLimitThreshold int `toml:"rate_limit_threshold" json:"rate_limit_threshold,omitempty"`
 
 	// RateLimitCooldown is the number of seconds the circuit breaker stays OPEN before
 	// allowing a single probe request (transition OPEN → HALF-OPEN). If the probe
 	// succeeds the circuit closes; if rate-limited again it re-opens. Default: 60.
-	// Supported in file-based config (TOML/JSON); stdin JSON config does not currently accept this field.
+	// Supported in TOML config only; the JSON stdin config does not currently accept this field.
 	RateLimitCooldown int `toml:"rate_limit_cooldown" json:"rate_limit_cooldown,omitempty"`
 }
 
