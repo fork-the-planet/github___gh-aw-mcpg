@@ -3,7 +3,6 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/envutil"
@@ -70,19 +69,8 @@ func ParsePolicyMap(raw map[string]interface{}) (*GuardPolicy, error) {
 		return nil, nil
 	}
 
-	hasAllowOnly := false
-	if _, ok := raw["allow-only"]; ok {
-		hasAllowOnly = true
-	} else if _, ok := raw["allowonly"]; ok { // Accept legacy "allowonly" form for backward compatibility
-		hasAllowOnly = true
-	}
-
-	hasWriteSink := false
-	if _, ok := raw["write-sink"]; ok {
-		hasWriteSink = true
-	} else if _, ok := raw["writesink"]; ok {
-		hasWriteSink = true
-	}
+	hasAllowOnly := hasMapKeyVariants(raw, "allow-only", "allowonly") // Accept legacy "allowonly" form for backward compatibility
+	hasWriteSink := hasMapKeyVariants(raw, "write-sink", "writesink")
 
 	logGuardPolicy.Printf("ParsePolicyMap: hasAllowOnly=%v, hasWriteSink=%v, keyCount=%d", hasAllowOnly, hasWriteSink, len(raw))
 
@@ -249,10 +237,10 @@ func ResolveGuardPolicyOverride(
 		return policy, "env", nil
 	}
 
-	_, hasScopePublic := os.LookupEnv(EnvAllowOnlyScopePublic)
-	_, hasScopeOwner := os.LookupEnv(EnvAllowOnlyScopeOwner)
-	_, hasScopeRepo := os.LookupEnv(EnvAllowOnlyScopeRepo)
-	_, hasMinIntegrity := os.LookupEnv(EnvAllowOnlyMinIntegrity)
+	hasScopePublic := envutil.HasEnvVar(EnvAllowOnlyScopePublic)
+	hasScopeOwner := envutil.HasEnvVar(EnvAllowOnlyScopeOwner)
+	hasScopeRepo := envutil.HasEnvVar(EnvAllowOnlyScopeRepo)
+	hasMinIntegrity := envutil.HasEnvVar(EnvAllowOnlyMinIntegrity)
 
 	if hasScopePublic || hasScopeOwner || hasScopeRepo || hasMinIntegrity {
 		logGuardPolicy.Printf("ResolveGuardPolicyOverride: using env vars for AllowOnly scope: hasScopePublic=%v, hasScopeOwner=%v, hasScopeRepo=%v, hasMinIntegrity=%v",
@@ -290,4 +278,14 @@ func NormalizeScopeKind(policy map[string]interface{}) map[string]interface{} {
 	}
 
 	return normalized
+}
+
+// hasMapKeyVariants reports whether any of the given key variants is present in m.
+func hasMapKeyVariants(m map[string]interface{}, keys ...string) bool {
+	for _, k := range keys {
+		if _, ok := m[k]; ok {
+			return true
+		}
+	}
+	return false
 }

@@ -12,6 +12,13 @@ import (
 
 var logEnvUtil = logger.New("envutil:envutil")
 
+// HasEnvVar reports whether the named environment variable is present in the
+// process environment, regardless of whether its value is empty.
+func HasEnvVar(key string) bool {
+	_, ok := os.LookupEnv(key)
+	return ok
+}
+
 // GetEnvString returns the value of the environment variable specified by envKey.
 // If the environment variable is not set or is empty, it returns the defaultValue.
 func GetEnvString(envKey, defaultValue string) string {
