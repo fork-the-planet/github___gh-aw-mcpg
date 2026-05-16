@@ -507,6 +507,44 @@ func TestDecodeContentData(t *testing.T) {
 		assert.Nil(t, result)
 		assert.ErrorContains(t, err, "failed to decode audio data")
 	})
+
+	t.Run("missing audio data field returns error", func(t *testing.T) {
+		ci := map[string]interface{}{
+			"type":     "audio",
+			"mimeType": "audio/wav",
+			// no "data" key
+		}
+		result, err := convertContentItem(ci)
+		assert.Error(t, err, "missing audio data should produce an error")
+		assert.Nil(t, result)
+		assert.ErrorContains(t, err, "failed to decode audio data")
+	})
+
+	t.Run("unsupported data type for image returns error", func(t *testing.T) {
+		// decodeContentData must reject types that are neither []byte nor string.
+		ci := map[string]interface{}{
+			"type":     "image",
+			"mimeType": "image/png",
+			"data":     42, // integer — not a valid data carrier
+		}
+		result, err := convertContentItem(ci)
+		assert.Error(t, err, "unsupported data type should produce an error")
+		assert.Nil(t, result)
+		assert.ErrorContains(t, err, "failed to decode image data")
+	})
+
+	t.Run("nil data value in image content returns error", func(t *testing.T) {
+		// data key exists but is nil — decodeContentData must treat this as missing.
+		ci := map[string]interface{}{
+			"type":     "image",
+			"mimeType": "image/png",
+			"data":     nil,
+		}
+		result, err := convertContentItem(ci)
+		assert.Error(t, err, "nil data value should produce an error")
+		assert.Nil(t, result)
+		assert.ErrorContains(t, err, "failed to decode image data")
+	})
 }
 
 // TestConvertContentItem_ResourceMarshalError verifies that an unmarshalable
@@ -521,6 +559,23 @@ func TestConvertContentItem_ResourceMarshalError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "failed to marshal resource")
+}
+
+// TestConvertContentItem_ResourceUnmarshalError verifies that resource JSON that
+// cannot be unmarshaled into sdk.ResourceContents returns an appropriate error.
+func TestConvertContentItem_ResourceUnmarshalError(t *testing.T) {
+	// Provide a resource value where a required string field contains an object,
+	// which will marshal fine but fail to unmarshal into sdk.ResourceContents.
+	ci := map[string]interface{}{
+		"type": "resource",
+		"resource": map[string]interface{}{
+			"uri": map[string]interface{}{"nested": "object"}, // URI must be a string
+		},
+	}
+	result, err := convertContentItem(ci)
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorContains(t, err, "failed to parse resource")
 }
 
 // TestConvertMapToCallToolResult_ContentItemCastFailure verifies that
