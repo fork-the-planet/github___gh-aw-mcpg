@@ -80,7 +80,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		graphQLBody, err = io.ReadAll(r.Body)
 		r.Body.Close()
 		if err != nil {
-			http.Error(w, "failed to read request body", http.StatusBadRequest)
+			httputil.WriteErrorResponse(w, http.StatusBadRequest, "bad_request", "failed to read request body")
 			return
 		}
 
@@ -116,7 +116,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if match == nil {
 			// Unknown REST endpoint — fail closed: deny rather than risk leaking unfiltered data
 			logHandler.Printf("unknown REST endpoint %s, blocking request", rawPath)
-			http.Error(w, "access denied: unrecognized endpoint", http.StatusForbidden)
+			httputil.WriteErrorResponse(w, http.StatusForbidden, "forbidden", "access denied: unrecognized endpoint")
 			return
 		}
 		toolName = match.ToolName
@@ -152,7 +152,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		errMsg := "returning 503: proxy enforcement not configured (no --policy flag provided)"
 		logHandler.Print(errMsg)
 		logger.LogError("proxy", "%s", errMsg)
-		http.Error(w, "proxy enforcement not configured", http.StatusServiceUnavailable)
+		httputil.WriteErrorResponse(w, http.StatusServiceUnavailable, "service_unavailable", "proxy enforcement not configured")
 		return
 	}
 
@@ -166,7 +166,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	if err != nil {
 		logHandler.Printf("[DIFC] Phase 1 failed: %v", err)
 		// On labeling failure, fail closed to prevent enforcement bypass
-		http.Error(w, "resource labeling failed", http.StatusBadGateway)
+		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "resource labeling failed")
 		return
 	}
 
@@ -332,7 +332,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	} else {
 		filteredJSON, err := json.Marshal(finalData)
 		if err != nil {
-			http.Error(w, "failed to serialize filtered response", http.StatusInternalServerError)
+			httputil.WriteErrorResponse(w, http.StatusInternalServerError, "internal_error", "failed to serialize filtered response")
 			return
 		}
 		copyResponseHeaders(w, resp)
@@ -401,13 +401,13 @@ func (h *proxyHandler) forwardAndReadBody(
 ) (*http.Response, []byte) {
 	resp, err := h.server.forwardToGitHub(ctx, method, path, body, contentType, clientAuth)
 	if err != nil {
-		http.Error(w, "upstream request failed", http.StatusBadGateway)
+		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "upstream request failed")
 		return nil, nil
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		http.Error(w, "failed to read upstream response", http.StatusBadGateway)
+		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "failed to read upstream response")
 		return nil, nil
 	}
 	return resp, respBody
