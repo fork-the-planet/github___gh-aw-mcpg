@@ -386,10 +386,11 @@ pub fn apply_tool_labels(
         // === Repository collaborators (repo-scoped, access-sensitive) ===
         "list_repository_collaborators" => {
             // Lists users with access to the repository; reveals who holds write/admin rights.
-            // S = S(repo) — access information inherits repository visibility
-            // I = reader (GitHub-controlled metadata; treated conservatively due to access sensitivity)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = reader_integrity(repo_id, ctx);
+            // S = private policy scope — collaborator/permission information is access-controlled
+            // even for public repositories.
+            // I = writer (GitHub-controlled repository access metadata)
+            secrecy = Cow::Owned(vec![policy_private_scope_label()]);
+            integrity = writer_integrity(repo_id, ctx);
         }
 
         // === Content Access ===
