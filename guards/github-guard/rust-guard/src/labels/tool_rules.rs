@@ -388,9 +388,9 @@ pub fn apply_tool_labels(
             // Lists users with access to the repository; reveals who holds write/admin rights.
             // S = private policy scope — collaborator/permission information is access-controlled
             // even for public repositories.
-            // I = writer (GitHub-controlled repository access metadata)
+            // I = reader (access-sensitive metadata should not directly authorize writes)
             secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
-            integrity = writer_integrity(repo_id, ctx);
+            integrity = reader_integrity(repo_id, ctx);
         }
 
         // === Content Access ===
@@ -939,11 +939,11 @@ mod tests {
             &ctx,
         );
         let _ = secrecy; // secrecy inherits from repo visibility (backend unavailable in tests)
-        let expected_integrity = super::writer_integrity("octocat/hello-world", &ctx);
+        let expected_integrity = super::reader_integrity("octocat/hello-world", &ctx);
         assert_eq!(
             integrity,
             expected_integrity,
-            "list_repository_collaborators must produce writer-level integrity"
+            "list_repository_collaborators must produce reader-level integrity"
         );
     }
 }
