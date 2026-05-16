@@ -137,6 +137,7 @@ func (cb *circuitBreaker) Allow() error {
 			cb.probeInFlight = true
 			return nil // allow the single probe
 		}
+		logCircuitBreaker.Printf("server %q circuit breaker OPEN, rejecting request (resetAt=%s)", cb.serverID, strutil.FormatFutureTime(cb.resetAt))
 		return &ErrCircuitOpen{ServerID: cb.serverID, ResetAt: cb.resetAt}
 
 	case circuitHalfOpen:
@@ -187,6 +188,8 @@ func (cb *circuitBreaker) RecordRateLimit(resetAt time.Time) {
 	if !resetAt.IsZero() {
 		cb.resetAt = resetAt
 	}
+	logCircuitBreaker.Printf("server %q recording rate-limit: consecutiveErrors=%d/%d, state=%s, hasResetAt=%v",
+		cb.serverID, cb.consecutiveErrors, cb.threshold, cb.state, !cb.resetAt.IsZero())
 
 	switch cb.state {
 	case circuitClosed:
@@ -214,6 +217,7 @@ func (cb *circuitBreaker) RecordRateLimit(resetAt time.Time) {
 
 	case circuitOpen:
 		// Already open — update reset time.
+		logCircuitBreaker.Printf("server %q recording rate-limit while already OPEN (consecutiveErrors=%d)", cb.serverID, cb.consecutiveErrors)
 		logger.LogWarn("backend", "server %q circuit breaker still OPEN; resets at %s",
 			cb.serverID, strutil.FormatFutureTime(cb.resetAt))
 	}
@@ -239,6 +243,7 @@ func buildCircuitBreakers(cfg *config.Config) map[string]*circuitBreaker {
 		logCircuitBreaker.Printf("Created circuit breaker for server %s: threshold=%d, cooldown=%s",
 			serverID, threshold, cooldown)
 	}
+	logCircuitBreaker.Printf("buildCircuitBreakers: created %d circuit breakers", len(cbs))
 	return cbs
 }
 
@@ -291,6 +296,7 @@ func isRateLimitToolResult(result interface{}) (bool, time.Time) {
 		text, _ := cm["text"].(string)
 		if isRateLimitText(text) {
 			resetAt := parseRateLimitResetFromText(text)
+			logCircuitBreaker.Printf("Rate limit detected in tool result: hasResetAt=%v", !resetAt.IsZero())
 			return true, resetAt
 		}
 	}
