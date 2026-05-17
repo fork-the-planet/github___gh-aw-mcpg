@@ -377,6 +377,7 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 ## Environment Variables
 
 - `GITHUB_MCP_SERVER_TOKEN` - Highest-priority GitHub auth token (takes precedence over `GITHUB_TOKEN`, `GITHUB_PERSONAL_ACCESS_TOKEN`, `GH_TOKEN`)
+- `GITHUB_TOKEN` - Second-priority GitHub auth token fallback after `GITHUB_MCP_SERVER_TOKEN`
 - `GITHUB_PERSONAL_ACCESS_TOKEN` - GitHub auth
 - `GITHUB_API_URL` - Explicit GitHub API endpoint (e.g., `https://copilot-api.mycompany.ghe.com`); used by proxy to set upstream target
 - `GITHUB_SERVER_URL` - GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `copilot-api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com`

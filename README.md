@@ -41,13 +41,14 @@ This gateway is used with [GitHub Agentic Workflows](https://github.com/github/g
      ghcr.io/github/gh-aw-mcpg:latest < config.json
    ```
 
-The gateway starts in routed mode on `http://0.0.0.0:8000`, proxying MCP requests to your configured backend servers.
+Inside the container, the gateway starts in routed mode on `http://0.0.0.0:8000`, proxying MCP requests to your configured backend servers. When running `awmg` directly without `--listen`, the default listen address is `http://127.0.0.1:3000`.
 
 **Required flags:**
 - `-i`: Enables stdin for passing JSON configuration
 - `-v /var/run/docker.sock`: Required for spawning backend MCP servers
 - `-p 8000:8000`: Port mapping must match `MCP_GATEWAY_PORT`
 - If you configure `payloadDir` / `MCP_GATEWAY_PAYLOAD_DIR`, use an absolute path (for example `/tmp/jq-payloads`)
+- If you configure `payloadDir`, you can also tune `payloadSizeThreshold` / `MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD` to control when payloads are written to disk (default: `524288` bytes)
 
 ## Guard Policies
 
