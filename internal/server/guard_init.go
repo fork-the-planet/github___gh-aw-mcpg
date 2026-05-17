@@ -230,6 +230,8 @@ func (us *UnifiedServer) createGuardFromConfig(name string, cfg *config.GuardCon
 	}
 }
 
+const legacyGuardPolicySource = "legacy"
+
 func (us *UnifiedServer) resolveGuardPolicy(serverID string) (*config.GuardPolicy, string, error) {
 	logGuardInit.Printf("Resolving guard policy: serverID=%s", serverID)
 	if us.cfg != nil && us.cfg.GuardPolicy != nil {
@@ -246,13 +248,13 @@ func (us *UnifiedServer) resolveGuardPolicy(serverID string) (*config.GuardPolic
 
 	if us.cfg == nil {
 		logGuardInit.Printf("No config available for guard policy: serverID=%s, using legacy", serverID)
-		return nil, "legacy", nil
+		return nil, legacyGuardPolicySource, nil
 	}
 
 	serverCfg, ok := us.cfg.Servers[serverID]
 	if !ok || serverCfg == nil {
 		logGuardInit.Printf("No server config found for guard policy: serverID=%s, using legacy", serverID)
-		return nil, "legacy", nil
+		return nil, legacyGuardPolicySource, nil
 	}
 
 	if policy, err := config.ParseServerGuardPolicy(serverID, serverCfg.GuardPolicies); err != nil {
@@ -264,13 +266,13 @@ func (us *UnifiedServer) resolveGuardPolicy(serverID string) (*config.GuardPolic
 
 	if serverCfg.Guard == "" {
 		logGuardInit.Printf("No guard configured for server: serverID=%s, using legacy", serverID)
-		return nil, "legacy", nil
+		return nil, legacyGuardPolicySource, nil
 	}
 
 	guardCfg, ok := us.cfg.Guards[serverCfg.Guard]
 	if !ok || guardCfg == nil || guardCfg.Policy == nil {
 		logGuardInit.Printf("No guard config policy found: serverID=%s, guard=%s, using legacy", serverID, serverCfg.Guard)
-		return nil, "legacy", nil
+		return nil, legacyGuardPolicySource, nil
 	}
 
 	if err := config.ValidateGuardPolicy(guardCfg.Policy); err != nil {

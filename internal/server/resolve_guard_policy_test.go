@@ -121,7 +121,7 @@ func TestResolveGuardPolicy_NilConfig(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, policy, "nil config should return nil policy")
-	assert.Equal(t, "legacy", source)
+	assert.Equal(t, legacyGuardPolicySource, source)
 }
 
 func TestResolveGuardPolicy_GlobalPolicyOverride_ValidAllowOnly(t *testing.T) {
@@ -196,7 +196,7 @@ func TestResolveGuardPolicy_ServerNotInConfig(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, policy)
-	assert.Equal(t, "legacy", source)
+	assert.Equal(t, legacyGuardPolicySource, source)
 }
 
 func TestResolveGuardPolicy_NilServerConfig(t *testing.T) {
@@ -211,7 +211,7 @@ func TestResolveGuardPolicy_NilServerConfig(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, policy)
-	assert.Equal(t, "legacy", source)
+	assert.Equal(t, legacyGuardPolicySource, source)
 }
 
 func TestResolveGuardPolicy_ServerWithValidGuardPolicies(t *testing.T) {
@@ -280,7 +280,7 @@ func TestResolveGuardPolicy_NoGuardPolicies_NoGuardField(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, policy)
-	assert.Equal(t, "legacy", source)
+	assert.Equal(t, legacyGuardPolicySource, source)
 }
 
 func TestResolveGuardPolicy_GuardFieldSet_GuardNotInConfig(t *testing.T) {
@@ -300,7 +300,7 @@ func TestResolveGuardPolicy_GuardFieldSet_GuardNotInConfig(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, policy)
-	assert.Equal(t, "legacy", source)
+	assert.Equal(t, legacyGuardPolicySource, source)
 }
 
 func TestResolveGuardPolicy_GuardFieldSet_NilGuardConfig(t *testing.T) {
@@ -322,7 +322,7 @@ func TestResolveGuardPolicy_GuardFieldSet_NilGuardConfig(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, policy)
-	assert.Equal(t, "legacy", source)
+	assert.Equal(t, legacyGuardPolicySource, source)
 }
 
 func TestResolveGuardPolicy_GuardFieldSet_NilGuardPolicy(t *testing.T) {
@@ -348,7 +348,7 @@ func TestResolveGuardPolicy_GuardFieldSet_NilGuardPolicy(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, policy)
-	assert.Equal(t, "legacy", source)
+	assert.Equal(t, legacyGuardPolicySource, source)
 }
 
 func TestResolveGuardPolicy_GuardFieldSet_ValidGuardPolicy(t *testing.T) {
@@ -443,7 +443,7 @@ func TestResolveGuardPolicy_EmptyServersMap(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, policy)
-	assert.Equal(t, "legacy", source)
+	assert.Equal(t, legacyGuardPolicySource, source)
 }
 
 // ---- resolveWriteSinkPolicy tests ----
