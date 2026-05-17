@@ -65,11 +65,22 @@ func TestEnsureTracingConfig_NilGateway(t *testing.T) {
 // OTEL_EXPORTER_OTLP_ENDPOINT nor OTEL_SERVICE_NAME are set, the flags use
 // their built-in defaults (empty endpoint, "mcp-gateway" service name, 1.0 sample rate).
 func TestRegisterTracingFlags_DefaultsWithNoEnv(t *testing.T) {
+	originalEndpoint, hadEndpoint := os.LookupEnv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	originalService, hadService := os.LookupEnv("OTEL_SERVICE_NAME")
+
 	os.Unsetenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	os.Unsetenv("OTEL_SERVICE_NAME")
 	t.Cleanup(func() {
-		os.Unsetenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-		os.Unsetenv("OTEL_SERVICE_NAME")
+		if hadEndpoint {
+			os.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", originalEndpoint)
+		} else {
+			os.Unsetenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+		}
+		if hadService {
+			os.Setenv("OTEL_SERVICE_NAME", originalService)
+		} else {
+			os.Unsetenv("OTEL_SERVICE_NAME")
+		}
 	})
 
 	cmd := &cobra.Command{Use: "test"}
