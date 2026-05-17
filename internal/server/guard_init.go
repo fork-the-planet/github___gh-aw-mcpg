@@ -20,6 +20,10 @@ func newNoopGuard() guard.Guard {
 	return guard.NewNoopGuard()
 }
 
+// legacyPolicySource is returned by resolveGuardPolicy when no explicit policy
+// is configured and the caller should fall back to legacy session-label semantics.
+const legacyPolicySource = "legacy"
+
 // hasServerGuardPolicies reports whether any server in cfg has per-server guard policies
 // configured. This is used during DIFC auto-detection to enable enforcement when policies
 // are present even if no non-noop guard was registered (e.g., guard missing or failed to load).
@@ -250,13 +254,13 @@ func (us *UnifiedServer) resolveGuardPolicy(serverID string) (*config.GuardPolic
 
 	if us.cfg == nil {
 		logGuardInit.Printf("No config available for guard policy: serverID=%s, using legacy", serverID)
-		return nil, "legacy", nil
+		return nil, legacyPolicySource, nil
 	}
 
 	serverCfg, ok := us.cfg.Servers[serverID]
 	if !ok || serverCfg == nil {
 		logGuardInit.Printf("No server config found for guard policy: serverID=%s, using legacy", serverID)
-		return nil, "legacy", nil
+		return nil, legacyPolicySource, nil
 	}
 
 	if policy, err := config.ParseServerGuardPolicy(serverID, serverCfg.GuardPolicies); err != nil {
@@ -268,13 +272,13 @@ func (us *UnifiedServer) resolveGuardPolicy(serverID string) (*config.GuardPolic
 
 	if serverCfg.Guard == "" {
 		logGuardInit.Printf("No guard configured for server: serverID=%s, using legacy", serverID)
-		return nil, "legacy", nil
+		return nil, legacyPolicySource, nil
 	}
 
 	guardCfg, ok := us.cfg.Guards[serverCfg.Guard]
 	if !ok || guardCfg == nil || guardCfg.Policy == nil {
 		logGuardInit.Printf("No guard config policy found: serverID=%s, guard=%s, using legacy", serverID, serverCfg.Guard)
-		return nil, "legacy", nil
+		return nil, legacyPolicySource, nil
 	}
 
 	if err := config.ValidateGuardPolicy(guardCfg.Policy); err != nil {

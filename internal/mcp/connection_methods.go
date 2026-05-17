@@ -30,6 +30,7 @@ func (c *Connection) callSDKMethod(method string, params interface{}) (*Response
 }
 
 func (c *Connection) listTools() (*Response, error) {
+	logConn.Printf("listTools: listing tools from serverID=%s", c.serverID)
 	return listMCPItems(c, "tools",
 		func(cursor string) (paginatedPage[*sdk.Tool], error) {
 			result, err := c.getSDKSession().ListTools(c.ctx, &sdk.ListToolsParams{Cursor: cursor})
@@ -60,6 +61,7 @@ func (c *Connection) callTool(params interface{}) (*Response, error) {
 }
 
 func (c *Connection) listResources() (*Response, error) {
+	logConn.Printf("listResources: listing resources from serverID=%s", c.serverID)
 	return listMCPItems(c, "resources",
 		func(cursor string) (paginatedPage[*sdk.Resource], error) {
 			result, err := c.getSDKSession().ListResources(c.ctx, &sdk.ListResourcesParams{Cursor: cursor})
@@ -87,6 +89,7 @@ func (c *Connection) readResource(params interface{}) (*Response, error) {
 }
 
 func (c *Connection) listPrompts() (*Response, error) {
+	logConn.Printf("listPrompts: listing prompts from serverID=%s", c.serverID)
 	return listMCPItems(c, "prompts",
 		func(cursor string) (paginatedPage[*sdk.Prompt], error) {
 			result, err := c.getSDKSession().ListPrompts(c.ctx, &sdk.ListPromptsParams{Cursor: cursor})
