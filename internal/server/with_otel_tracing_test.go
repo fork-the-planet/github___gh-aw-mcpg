@@ -88,9 +88,9 @@ func TestWithOTELTracing_PreservesResponseBody(t *testing.T) {
 
 // TestWithOTELTracing_WorksWithoutSessionID verifies that WithOTELTracing does not
 // panic when the inner handler does not inject a session ID into the request context.
-// The enrichment closure reads SessionIDFromContext (which returns "") and calls
-// span.SetAttributes on the no-op span returned by oteltrace.SpanFromContext —
-// neither call should panic.
+// The enrichment closure reads SessionIDFromContext (which returns "default" when
+// the session ID is absent) and calls span.SetAttributes on the no-op span returned
+// by oteltrace.SpanFromContext — neither call should panic.
 func TestWithOTELTracing_WorksWithoutSessionID(t *testing.T) {
 	t.Parallel()
 
