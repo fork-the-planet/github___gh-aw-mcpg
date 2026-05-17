@@ -16,6 +16,10 @@ import (
 
 var logGuardInit = logger.New("server:guard_init")
 
+func newNoopGuard() guard.Guard {
+	return guard.NewNoopGuard()
+}
+
 // hasServerGuardPolicies reports whether any server in cfg has per-server guard policies
 // configured. This is used during DIFC auto-detection to enable enforcement when policies
 // are present even if no non-noop guard was registered (e.g., guard missing or failed to load).
@@ -77,7 +81,7 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 				g, err = us.createGuardFromConfig(guardName, guardCfg)
 				if err != nil {
 					logger.LogWarnToServer(serverID, "difc", "Failed to create guard '%s': %v (falling back to noop)", guardName, err)
-					g = guard.NewNoopGuard()
+					g = newNoopGuard()
 				}
 			} else {
 				// Guard name specified but no config found - try registered guard types
@@ -85,12 +89,12 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 				g, err = guard.CreateGuard(guardName)
 				if err != nil {
 					logger.LogWarnToServer(serverID, "difc", "Guard '%s' not found: %v (falling back to noop)", guardName, err)
-					g = guard.NewNoopGuard()
+					g = newNoopGuard()
 				}
 			}
 		} else {
 			// No guard configured - use noop
-			g = guard.NewNoopGuard()
+			g = newNoopGuard()
 		}
 	}
 
@@ -126,7 +130,7 @@ func (us *UnifiedServer) requireGuardPolicyIfGuardEnabled(serverID string, g gua
 		}
 
 		logger.LogWarnToServer(serverID, "difc", "Guard '%s' is available but no guard policy is set; falling back to noop guard", g.Name())
-		return guard.NewNoopGuard(), nil
+		return newNoopGuard(), nil
 	}
 
 	return g, nil
@@ -207,7 +211,7 @@ func (us *UnifiedServer) logWASMGuardsDirConfiguration() {
 func (us *UnifiedServer) createGuardFromConfig(name string, cfg *config.GuardConfig) (guard.Guard, error) {
 	switch cfg.Type {
 	case "noop", "":
-		return guard.NewNoopGuard(), nil
+		return newNoopGuard(), nil
 
 	case "wasm":
 		// WASM guard loading - requires path
