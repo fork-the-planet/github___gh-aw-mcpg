@@ -584,8 +584,7 @@ Required environment variables:
 3. **Add tests** for new functionality
 4. **Run linters and tests** before submitting:
    ```bash
-   make lint
-   make test
+   make agent-finished  # format + build + lint + all tests (unit, integration, guards)
    ```
 5. **Update documentation** if you change behavior or add features
 6. **Keep changes minimal** - smaller PRs are easier to review
