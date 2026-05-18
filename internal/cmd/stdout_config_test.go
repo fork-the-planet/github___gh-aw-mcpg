@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -350,10 +351,95 @@ func TestWriteGatewayConfig_TLSScheme(t *testing.T) {
 			url := serverConfig["url"].(string)
 
 			assert.NotEmpty(t, url, "URL should not be empty")
-			assert.True(t,
-				(tt.wantScheme == "https://" && url[:8] == "https://") ||
-					(tt.wantScheme == "http://" && url[:7] == "http://"),
+			assert.True(t, strings.HasPrefix(url, tt.wantScheme),
 				"URL %q should start with %s", url, tt.wantScheme)
 		})
 	}
+}
+
+// TestWriteGatewayConfig_ToolsPassthrough verifies that when a server has tools
+// configured, they are preserved in the output JSON exactly as provided.
+func TestWriteGatewayConfig_ToolsPassthrough(t *testing.T) {
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"github": {
+				Command: "docker",
+				Tools:   []string{"search_repositories", "create_issue", "list_pull_requests"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := writeGatewayConfig(cfg, "127.0.0.1:3000", "routed", false, &buf)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
+
+	mcpServers := result["mcpServers"].(map[string]interface{})
+	serverConfig := mcpServers["github"].(map[string]interface{})
+
+	toolsRaw, ok := serverConfig["tools"]
+	require.True(t, ok, "tools field should be present when server has configured tools")
+
+	tools, ok := toolsRaw.([]interface{})
+	require.True(t, ok, "tools should be a JSON array")
+	require.Len(t, tools, 3, "should have exactly 3 tools")
+
+	toolsStr := make([]string, len(tools))
+	for i, tool := range tools {
+		toolsStr[i] = tool.(string)
+	}
+	assert.ElementsMatch(t, []string{"search_repositories", "create_issue", "list_pull_requests"}, toolsStr)
+}
+
+// TestWriteGatewayConfig_NoToolsField verifies that when a server has no tools
+// configured, the "tools" key is absent from the output (not an empty array).
+func TestWriteGatewayConfig_NoToolsField(t *testing.T) {
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"github": {Command: "docker"},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := writeGatewayConfig(cfg, "127.0.0.1:3000", "routed", false, &buf)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
+
+	mcpServers := result["mcpServers"].(map[string]interface{})
+	serverConfig := mcpServers["github"].(map[string]interface{})
+
+	_, hasTools := serverConfig["tools"]
+	assert.False(t, hasTools, "tools field should be absent when server has no configured tools")
+}
+
+// TestWriteGatewayConfig_MultipleServers_ToolsMixed verifies that tools are preserved
+// per-server: a server with tools includes the field, a server without does not.
+func TestWriteGatewayConfig_MultipleServers_ToolsMixed(t *testing.T) {
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"github":  {Command: "docker", Tools: []string{"search_code"}},
+			"context": {Command: "docker"},
+		},
+	}
+
+	var buf bytes.Buffer
+	err := writeGatewayConfig(cfg, "127.0.0.1:3000", "routed", false, &buf)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
+
+	mcpServers := result["mcpServers"].(map[string]interface{})
+
+	githubCfg := mcpServers["github"].(map[string]interface{})
+	_, githubHasTools := githubCfg["tools"]
+	assert.True(t, githubHasTools, "github server should have tools field")
+
+	contextCfg := mcpServers["context"].(map[string]interface{})
+	_, contextHasTools := contextCfg["tools"]
+	assert.False(t, contextHasTools, "context server should not have tools field")
 }
