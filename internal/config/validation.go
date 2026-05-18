@@ -234,6 +234,7 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 			logValidation.Printf("Using cached custom schema: name=%s, url=%s", name, schemaURL)
 			return validateServerAgainstSchema(name, server, schema, schemaURL, jsonPath)
 		}
+		logValidation.Printf("Ignoring cached custom schema with unexpected type: name=%s, url=%s", name, schemaURL)
 	}
 
 	logValidation.Printf("Fetching custom schema for validation: name=%s, url=%s", name, schemaURL)
@@ -298,6 +299,8 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 	return validateServerAgainstSchema(name, server, schema, schemaURL, jsonPath)
 }
 
+// validateServerAgainstSchema validates a server config map (including additional
+// properties) against a compiled custom schema.
 func validateServerAgainstSchema(name string, server *StdinServerConfig, schema *jsonschema.Schema, schemaURL string, jsonPath string) error {
 
 	// Convert server config to a map that includes both struct fields and additional properties
