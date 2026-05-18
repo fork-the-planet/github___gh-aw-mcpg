@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -130,6 +131,36 @@ func TestValidateAgainstCustomSchema_SchemaWithDifferentID_MissingRequired(t *te
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "does not match custom schema")
+}
+
+func TestValidateAgainstCustomSchema_CachesSchemaByURL(t *testing.T) {
+	var requestCount atomic.Int32
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		schema := map[string]interface{}{
+			"$schema": "http://json-schema.org/draft-07/schema#",
+			"type":    "object",
+			"properties": map[string]interface{}{
+				"type":      map[string]interface{}{"type": "string"},
+				"container": map[string]interface{}{"type": "string"},
+			},
+			"required": []string{"type", "container"},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(schema)
+	}))
+
+	server := &StdinServerConfig{
+		Type:      "mytype",
+		Container: "ghcr.io/example/mytype:latest",
+	}
+
+	require.NoError(t, validateAgainstCustomSchema("test-server-1", server, mockServer.URL, "mcpServers.test-server-1"))
+	mockServer.Close()
+	require.NoError(t, validateAgainstCustomSchema("test-server-2", server, mockServer.URL, "mcpServers.test-server-2"))
+
+	assert.Equal(t, int32(1), requestCount.Load())
 }
 
 // TestValidateAgainstCustomSchema_AdditionalPropertiesMerged verifies that fields stored

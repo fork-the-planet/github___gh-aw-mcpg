@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/github/gh-aw-mcpg/internal/config/rules"
 	"github.com/github/gh-aw-mcpg/internal/logger"
@@ -17,6 +18,10 @@ import (
 type ValidationError = rules.ValidationError
 
 var logValidation = logger.New("config:validation")
+
+// customSchemaCache stores compiled custom schemas by schema URL to avoid
+// repeated fetch + compile work across validations.
+var customSchemaCache sync.Map
 
 // validateMounts validates mount specifications using centralized rules
 func validateMounts(mounts []string, jsonPath string) error {
@@ -224,6 +229,13 @@ func validateCustomServerConfig(name string, server *StdinServerConfig, customSc
 
 // validateAgainstCustomSchema fetches and validates a server config against its custom schema
 func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaURL string, jsonPath string) error {
+	if cachedSchema, ok := customSchemaCache.Load(schemaURL); ok {
+		if schema, ok := cachedSchema.(*jsonschema.Schema); ok {
+			logValidation.Printf("Using cached custom schema: name=%s, url=%s", name, schemaURL)
+			return validateServerAgainstSchema(name, server, schema, schemaURL, jsonPath)
+		}
+	}
+
 	logValidation.Printf("Fetching custom schema for validation: name=%s, url=%s", name, schemaURL)
 
 	// Fetch the custom schema using the existing helper
@@ -281,6 +293,12 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 	}
 
 	logValidation.Printf("Custom schema compiled successfully: name=%s", name)
+	customSchemaCache.Store(schemaURL, schema)
+
+	return validateServerAgainstSchema(name, server, schema, schemaURL, jsonPath)
+}
+
+func validateServerAgainstSchema(name string, server *StdinServerConfig, schema *jsonschema.Schema, schemaURL string, jsonPath string) error {
 
 	// Convert server config to a map that includes both struct fields and additional properties
 	// This ensures custom fields are validated against the custom schema
