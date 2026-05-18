@@ -861,7 +861,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_rate_limit_error_matches_rate_limit_substring() {
+    fn test_is_rate_limit_error_matches_secondary_rate_limit() {
         assert!(is_rate_limit_error("Secondary Rate Limit exceeded"));
     }
 
@@ -872,6 +872,7 @@ mod tests {
             Some(42)
         );
         assert_eq!(extract_rate_reset_seconds("failed: [rate reset in s]"), None);
+        assert_eq!(extract_rate_reset_seconds("failed: [rate reset in abc]"), None);
     }
 
     #[test]
