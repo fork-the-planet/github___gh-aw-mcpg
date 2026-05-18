@@ -272,7 +272,7 @@ pub fn get_pull_request_facts_with_callback(
     });
 
     let args_str = args.to_string();
-    let mut result_buffer = vec![0u8; SMALL_BUFFER_SIZE];
+    let mut result_buffer = vec![0u8; MEDIUM_BUFFER_SIZE];
 
     let len = match callback("pull_request_read", &args_str, &mut result_buffer) {
         Ok(len) if len > 0 => len,
@@ -712,6 +712,30 @@ mod tests {
         Ok(bytes.len())
     }
 
+    fn large_pull_request_callback(
+        tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        assert_eq!(tool, "pull_request_read");
+
+        let payload = serde_json::json!({
+            "author_association": "MEMBER",
+            "merged_at": serde_json::Value::Null,
+            "user": { "login": "big-pr-author" },
+            "base": { "repo": { "full_name": "owner/repo" } },
+            "head": { "repo": { "full_name": "owner/repo" } },
+            "body": "x".repeat(SMALL_BUFFER_SIZE + 1024),
+        })
+        .to_string();
+        let bytes = payload.as_bytes();
+        if bytes.len() > buffer.len() {
+            return Err(-1);
+        }
+        buffer[..bytes.len()].copy_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
     fn repo_private_search_fallback_callback(
         tool: &str,
         _args: &str,
@@ -884,6 +908,19 @@ mod tests {
         let result =
             is_forked_pull_request_with_callback(wrapped_fork_pr_callback, "owner", "repo", "123");
         assert_eq!(result, Some(true));
+    }
+
+    #[test]
+    fn test_get_pull_request_facts_accepts_large_pull_request_payloads() {
+        let facts =
+            get_pull_request_facts_with_callback(large_pull_request_callback, "owner", "repo", "123");
+
+        assert!(facts.is_some());
+        let facts = facts.unwrap();
+        assert_eq!(facts.author_association.as_deref(), Some("MEMBER"));
+        assert_eq!(facts.author_login.as_deref(), Some("big-pr-author"));
+        assert_eq!(facts.is_forked, Some(false));
+        assert!(!facts.is_merged);
     }
 
     #[test]
