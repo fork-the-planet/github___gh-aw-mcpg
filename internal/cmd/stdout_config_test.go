@@ -346,9 +346,20 @@ func TestWriteGatewayConfig_TLSScheme(t *testing.T) {
 			var result map[string]interface{}
 			require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
 
-			mcpServers := result["mcpServers"].(map[string]interface{})
-			serverConfig := mcpServers["github"].(map[string]interface{})
-			url := serverConfig["url"].(string)
+			mcpServersRaw, ok := result["mcpServers"]
+			require.True(t, ok, "mcpServers field should be present")
+			mcpServers, ok := mcpServersRaw.(map[string]interface{})
+			require.True(t, ok, "mcpServers should be a JSON object")
+
+			serverConfigRaw, ok := mcpServers["github"]
+			require.True(t, ok, "github server config should be present")
+			serverConfig, ok := serverConfigRaw.(map[string]interface{})
+			require.True(t, ok, "github server config should be a JSON object")
+
+			urlRaw, ok := serverConfig["url"]
+			require.True(t, ok, "url field should be present")
+			url, ok := urlRaw.(string)
+			require.True(t, ok, "url should be a string")
 
 			assert.NotEmpty(t, url, "URL should not be empty")
 			assert.True(t, strings.HasPrefix(url, tt.wantScheme),
@@ -376,8 +387,15 @@ func TestWriteGatewayConfig_ToolsPassthrough(t *testing.T) {
 	var result map[string]interface{}
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
 
-	mcpServers := result["mcpServers"].(map[string]interface{})
-	serverConfig := mcpServers["github"].(map[string]interface{})
+	mcpServersRaw, ok := result["mcpServers"]
+	require.True(t, ok, "mcpServers field should be present")
+	mcpServers, ok := mcpServersRaw.(map[string]interface{})
+	require.True(t, ok, "mcpServers should be a JSON object")
+
+	serverConfigRaw, ok := mcpServers["github"]
+	require.True(t, ok, "github server config should be present")
+	serverConfig, ok := serverConfigRaw.(map[string]interface{})
+	require.True(t, ok, "github server config should be a JSON object")
 
 	toolsRaw, ok := serverConfig["tools"]
 	require.True(t, ok, "tools field should be present when server has configured tools")
@@ -388,7 +406,9 @@ func TestWriteGatewayConfig_ToolsPassthrough(t *testing.T) {
 
 	toolsStr := make([]string, len(tools))
 	for i, tool := range tools {
-		toolsStr[i] = tool.(string)
+		toolStr, ok := tool.(string)
+		require.True(t, ok, "tool at index %d should be a string", i)
+		toolsStr[i] = toolStr
 	}
 	assert.ElementsMatch(t, []string{"search_repositories", "create_issue", "list_pull_requests"}, toolsStr)
 }
@@ -409,8 +429,15 @@ func TestWriteGatewayConfig_NoToolsField(t *testing.T) {
 	var result map[string]interface{}
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
 
-	mcpServers := result["mcpServers"].(map[string]interface{})
-	serverConfig := mcpServers["github"].(map[string]interface{})
+	mcpServersRaw, ok := result["mcpServers"]
+	require.True(t, ok, "mcpServers field should be present")
+	mcpServers, ok := mcpServersRaw.(map[string]interface{})
+	require.True(t, ok, "mcpServers should be a JSON object")
+
+	serverConfigRaw, ok := mcpServers["github"]
+	require.True(t, ok, "github server config should be present")
+	serverConfig, ok := serverConfigRaw.(map[string]interface{})
+	require.True(t, ok, "github server config should be a JSON object")
 
 	_, hasTools := serverConfig["tools"]
 	assert.False(t, hasTools, "tools field should be absent when server has no configured tools")
@@ -433,13 +460,22 @@ func TestWriteGatewayConfig_MultipleServers_ToolsMixed(t *testing.T) {
 	var result map[string]interface{}
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &result))
 
-	mcpServers := result["mcpServers"].(map[string]interface{})
+	mcpServersRaw, ok := result["mcpServers"]
+	require.True(t, ok, "mcpServers field should be present")
+	mcpServers, ok := mcpServersRaw.(map[string]interface{})
+	require.True(t, ok, "mcpServers should be a JSON object")
 
-	githubCfg := mcpServers["github"].(map[string]interface{})
+	githubCfgRaw, ok := mcpServers["github"]
+	require.True(t, ok, "github server config should be present")
+	githubCfg, ok := githubCfgRaw.(map[string]interface{})
+	require.True(t, ok, "github server config should be a JSON object")
 	_, githubHasTools := githubCfg["tools"]
 	assert.True(t, githubHasTools, "github server should have tools field")
 
-	contextCfg := mcpServers["context"].(map[string]interface{})
+	contextCfgRaw, ok := mcpServers["context"]
+	require.True(t, ok, "context server config should be present")
+	contextCfg, ok := contextCfgRaw.(map[string]interface{})
+	require.True(t, ok, "context server config should be a JSON object")
 	_, contextHasTools := contextCfg["tools"]
 	assert.False(t, contextHasTools, "context server should not have tools field")
 }
