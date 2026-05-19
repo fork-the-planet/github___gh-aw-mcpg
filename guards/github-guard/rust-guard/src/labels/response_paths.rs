@@ -89,8 +89,8 @@ pub fn label_response_paths(
                         path: format!("/{}/{}", items_key, i),
                         labels: crate::ResourceLabels {
                             description: format!("repo:{}", full_name),
-                            secrecy,
-                            integrity,
+                            secrecy: secrecy.into(),
+                            integrity: integrity.into(),
                         },
                     });
                 }
@@ -99,8 +99,8 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "repository".to_string(),
-                        secrecy: vec![],
-                        integrity: none_integrity("", ctx),
+                        secrecy: vec![].into(),
+                        integrity: none_integrity("", ctx).into(),
                     }),
                     items_path: Some(match items_key { "repositories" => "/repositories", _ => "/items" }),
                 });
@@ -193,8 +193,9 @@ pub fn label_response_paths(
                                 repo_visibility_secrecy_for_repo_id(repo_for_labels, ctx)
                             } else {
                                 default_secrecy.clone()
-                            },
-                            integrity,
+                            }
+                            .into(),
+                            integrity: integrity.into(),
                         },
                     });
                 }
@@ -203,12 +204,13 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "pull_request".to_string(),
-                        secrecy: default_secrecy,
+                        secrecy: default_secrecy.into(),
                         integrity: if default_repo_private {
                             writer_integrity(&default_repo, ctx)
                         } else {
                             none_integrity(&default_repo, ctx)
-                        },
+                        }
+                        .into(),
                     }),
                     items_path: if items_path.is_empty() {
                         None
@@ -291,8 +293,9 @@ pub fn label_response_paths(
                                 repo_visibility_secrecy_for_repo_id(repo_for_labels, ctx)
                             } else {
                                 default_secrecy.clone()
-                            },
-                            integrity,
+                            }
+                            .into(),
+                            integrity: integrity.into(),
                         },
                     });
                 }
@@ -301,12 +304,13 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "issue".to_string(),
-                        secrecy: default_secrecy,
+                        secrecy: default_secrecy.into(),
                         integrity: if default_repo_private {
                             writer_integrity(&default_repo, ctx)
                         } else {
                             none_integrity(&default_repo, ctx)
-                        },
+                        }
+                        .into(),
                     }),
                     items_path: if items_path.is_empty() {
                         None
@@ -374,8 +378,8 @@ pub fn label_response_paths(
                         path: format!("/{}", i),
                         labels: crate::ResourceLabels {
                             description: format!("commit:{}@{}", repo_for_labels, short_sha),
-                            secrecy: default_secrecy.clone(),
-                            integrity,
+                            secrecy: default_secrecy.clone().into(),
+                            integrity: integrity.into(),
                         },
                     });
                 }
@@ -384,14 +388,15 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "commit".to_string(),
-                        secrecy: default_secrecy,
+                        secrecy: default_secrecy.into(),
                         integrity: if is_default_branch {
                             merged_integrity(&default_repo, ctx)
                         } else if repo_private {
                             writer_integrity(&default_repo, ctx)
                         } else {
                             vec![]
-                        },
+                        }
+                        .into(),
                     }),
                     items_path: None, // Root array
                 });
@@ -418,8 +423,8 @@ pub fn label_response_paths(
                         path: format!("/{}", i),
                         labels: crate::ResourceLabels {
                             description: format!("file:{}", arg_repo_full),
-                            secrecy: secrecy.clone(),
-                            integrity: file_integrity.clone(),
+                            secrecy: secrecy.clone().into(),
+                            integrity: file_integrity.clone().into(),
                         },
                     });
                 }
@@ -428,8 +433,8 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "file_contents".to_string(),
-                        secrecy,
-                        integrity: file_integrity,
+                        secrecy: secrecy.into(),
+                        integrity: file_integrity.into(),
                     }),
                     items_path: None,
                 });
@@ -471,8 +476,8 @@ pub fn label_response_paths(
                         path: format!("/{}", i),
                         labels: crate::ResourceLabels {
                             description: format!("release:{}@{}", repo_for_labels, tag),
-                            secrecy: default_secrecy.clone(),
-                            integrity: merged_integrity(repo_for_labels, ctx),
+                            secrecy: default_secrecy.clone().into(),
+                            integrity: merged_integrity(repo_for_labels, ctx).into(),
                         },
                     });
                 }
@@ -481,8 +486,8 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "release".to_string(),
-                        secrecy: default_secrecy,
-                        integrity: merged_integrity(&default_repo, ctx),
+                        secrecy: default_secrecy.into(),
+                        integrity: merged_integrity(&default_repo, ctx).into(),
                     }),
                     items_path: None, // Root array
                 });
@@ -504,8 +509,8 @@ pub fn label_response_paths(
                         path: format!("/{}", i),
                         labels: crate::ResourceLabels {
                             description: format!("notification:{}", id),
-                            secrecy: private_user_label(),
-                            integrity: vec![],
+                            secrecy: private_user_label().into(),
+                            integrity: vec![].into(),
                         },
                     });
                 }
@@ -514,8 +519,8 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "notification".to_string(),
-                        secrecy: private_user_label(),
-                        integrity: vec![],
+                        secrecy: private_user_label().into(),
+                        integrity: vec![].into(),
                     }),
                     items_path: None, // Root array
                 });
@@ -544,8 +549,8 @@ pub fn label_response_paths(
                         path: format!("/{}", i),
                         labels: crate::ResourceLabels {
                             description: format!("gist:{}", id),
-                            secrecy,
-                            integrity: reader_integrity(scope_names::USER, ctx),
+                            secrecy: secrecy.into(),
+                            integrity: reader_integrity(scope_names::USER, ctx).into(),
                         },
                     });
                 }
@@ -554,8 +559,8 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "gist".to_string(),
-                        secrecy: vec![],
-                        integrity: reader_integrity(scope_names::USER, ctx),
+                        secrecy: vec![].into(),
+                        integrity: reader_integrity(scope_names::USER, ctx).into(),
                     }),
                     items_path: None, // Root array
                 });
@@ -612,8 +617,8 @@ pub fn label_response_paths(
                         path: make_item_path(&items_path, i),
                         labels: crate::ResourceLabels {
                             description: format!("project-item:{}", item_type.to_lowercase()),
-                            secrecy,
-                            integrity,
+                            secrecy: secrecy.into(),
+                            integrity: integrity.into(),
                         },
                     });
                 }
@@ -622,8 +627,8 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "project-item".to_string(),
-                        secrecy: vec![],
-                        integrity: writer_integrity(&arg_owner, ctx),
+                        secrecy: vec![].into(),
+                        integrity: writer_integrity(&arg_owner, ctx).into(),
                     }),
                     items_path: if items_path.is_empty() {
                         None

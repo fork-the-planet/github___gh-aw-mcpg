@@ -72,8 +72,8 @@ pub fn label_response_items(
                             data: item.clone(),
                             labels: ResourceLabels {
                                 description: format!("repo:{}", full_name),
-                                secrecy,
-                                integrity,
+                                secrecy: secrecy.into(),
+                                integrity: integrity.into(),
                             },
                         });
                     } else {
@@ -82,8 +82,8 @@ pub fn label_response_items(
                             data: item.clone(),
                             labels: ResourceLabels {
                                 description: format!("repo:{}", full_name),
-                                secrecy: vec![],
-                                integrity,
+                                secrecy: vec![].into(),
+                                integrity: integrity.into(),
                             },
                         });
                     }
@@ -204,8 +204,9 @@ pub fn label_response_items(
                                 repo_visibility_secrecy_for_repo_id(repo_full_name, ctx)
                             } else {
                                 secrecy.clone()
-                            },
-                            integrity,
+                            }
+                            .into(),
+                            integrity: integrity.into(),
                         },
                     });
                 }
@@ -287,8 +288,9 @@ pub fn label_response_items(
                             repo_visibility_secrecy_for_repo_id(&repo_full_name, ctx)
                         } else {
                             secrecy.clone()
-                        },
-                        integrity,
+                        }
+                        .into(),
+                        integrity: integrity.into(),
                     },
                 });
             }
@@ -314,8 +316,8 @@ pub fn label_response_items(
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("file:{}", repo_full_name),
-                        secrecy: secrecy.clone(),
-                        integrity: file_integrity.clone(),
+                        secrecy: secrecy.clone().into(),
+                        integrity: file_integrity.clone().into(),
                     },
                 });
             }
@@ -357,8 +359,8 @@ pub fn label_response_items(
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("commit:{}@{}", repo_full_name, short_sha),
-                        secrecy: secrecy.clone(),
-                        integrity,
+                        secrecy: secrecy.clone().into(),
+                        integrity: integrity.into(),
                     },
                 });
             }
@@ -387,8 +389,8 @@ pub fn label_response_items(
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("gist:{}", id),
-                        secrecy,
-                        integrity: gist_integrity.clone(),
+                        secrecy: secrecy.into(),
+                        integrity: gist_integrity.clone().into(),
                     },
                 });
             }
@@ -407,8 +409,8 @@ pub fn label_response_items(
                         data: item.clone(),
                         labels: ResourceLabels {
                             description: format!("notification:{}", id),
-                            secrecy: notif_secrecy.clone(),
-                            integrity: notif_integrity.clone(),
+                            secrecy: notif_secrecy.clone().into(),
+                            integrity: notif_integrity.clone().into(),
                         },
                     });
                 }
@@ -434,8 +436,8 @@ pub fn label_response_items(
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("release:{}@{}", repo_full_name, tag),
-                        secrecy: secrecy.clone(),
-                        integrity: release_integrity.clone(),
+                        secrecy: secrecy.clone().into(),
+                        integrity: release_integrity.clone().into(),
                     },
                 });
             }
