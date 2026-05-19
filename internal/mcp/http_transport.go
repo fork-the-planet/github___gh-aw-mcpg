@@ -459,7 +459,7 @@ func tryStreamableHTTPTransport(ctx context.Context, cancel context.CancelFunc, 
 				HTTPClient: httpClient,
 				// MaxRetries: -1 disables SDK-level reconnect retries (0 = SDK default 5 retries;
 				// negative = 0 retries). We fall through to SSE or plain JSON-RPC on failure.
-				// Verified against go-sdk v1.5.0 streamable.go:1547-1552.
+				// Verified against go-sdk v1.6.0 streamable.go:1547-1552.
 				// See TestMaxRetriesSentinelCanary for an automated guard against SDK changes.
 				MaxRetries: -1,
 				// DisableStandaloneSSE prevents the SDK from issuing a GET request for a
