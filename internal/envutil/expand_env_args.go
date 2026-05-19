@@ -18,7 +18,7 @@ func WalkDockerEnvArgs(args []string, fn func(index int, varName, value string, 
 		arg := args[i]
 		if arg == "-e" && i+1 < len(args) {
 			nextArg := args[i+1]
-			if !strings.Contains(nextArg, "=") {
+			if nextArg != "" && !strings.Contains(nextArg, "=") {
 				value, found := os.LookupEnv(nextArg)
 				fn(i, nextArg, value, found)
 			}
