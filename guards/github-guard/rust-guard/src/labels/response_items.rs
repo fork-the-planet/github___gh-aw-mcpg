@@ -13,7 +13,7 @@
 use super::constants::{field_names, label_constants, scope_names};
 use super::extract_mcp_response;
 use super::helpers::*;
-use crate::{LabeledItem, ResourceLabels};
+use crate::{LabeledItem, ResourceLabels, SharedLabels};
 use serde_json::Value;
 
 /// Label individual items in a response (fine-grained labeling)
@@ -310,14 +310,16 @@ pub fn label_response_items(
             } else {
                 writer_integrity(&repo_full_name, ctx)
             };
+            let secrecy_shared: SharedLabels = secrecy.into();
+            let file_integrity_shared: SharedLabels = file_integrity.into();
 
             for &item in items_limited.iter() {
                 labeled_items.push(LabeledItem {
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("file:{}", repo_full_name),
-                        secrecy: secrecy.clone().into(),
-                        integrity: file_integrity.clone().into(),
+                        secrecy: secrecy_shared.clone(),
+                        integrity: file_integrity_shared.clone(),
                     },
                 });
             }
@@ -347,6 +349,7 @@ pub fn label_response_items(
             // requests, which should preserve merged-floor consistency with
             // list_commits-derived SHAs.
             let is_default_branch = is_default_branch_commit_context(tool_name, arg_branch);
+            let secrecy_shared: SharedLabels = secrecy.into();
 
             for item in items_limited.iter().copied() {
                 let sha = item.get("sha").and_then(|v| v.as_str()).unwrap_or("");
@@ -359,7 +362,7 @@ pub fn label_response_items(
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("commit:{}@{}", repo_full_name, short_sha),
-                        secrecy: secrecy.clone().into(),
+                        secrecy: secrecy_shared.clone(),
                         integrity: integrity.into(),
                     },
                 });
@@ -374,6 +377,7 @@ pub fn label_response_items(
             let items_limited = limit_items_with_log(all_items.as_slice(), "list_gists");
 
             let gist_integrity = reader_integrity(scope_names::USER, ctx);
+            let gist_integrity_shared: SharedLabels = gist_integrity.into();
             for item in items_limited.iter().copied() {
                 let is_public = get_bool_or(item, "public", true);
                 let id = get_str_or(item, "id", "unknown");
@@ -390,7 +394,7 @@ pub fn label_response_items(
                     labels: ResourceLabels {
                         description: format!("gist:{}", id),
                         secrecy: secrecy.into(),
-                        integrity: gist_integrity.clone().into(),
+                        integrity: gist_integrity_shared.clone(),
                     },
                 });
             }
@@ -403,14 +407,16 @@ pub fn label_response_items(
             if let Some(items) = items {
                 let notif_secrecy = private_user_label();
                 let notif_integrity = none_integrity("", ctx);
+                let notif_secrecy_shared: SharedLabels = notif_secrecy.into();
+                let notif_integrity_shared: SharedLabels = notif_integrity.into();
                 for item in items.iter() {
                     let id = get_str_or(item, "id", "unknown");
                     labeled_items.push(LabeledItem {
                         data: item.clone(),
                         labels: ResourceLabels {
                             description: format!("notification:{}", id),
-                            secrecy: notif_secrecy.clone().into(),
-                            integrity: notif_integrity.clone().into(),
+                            secrecy: notif_secrecy_shared.clone(),
+                            integrity: notif_integrity_shared.clone(),
                         },
                     });
                 }
@@ -428,6 +434,8 @@ pub fn label_response_items(
             let secrecy = repo_visibility_secrecy(&arg_owner, &arg_repo, &repo_full_name, ctx);
 
             let release_integrity = merged_integrity(&repo_full_name, ctx);
+            let secrecy_shared: SharedLabels = secrecy.into();
+            let release_integrity_shared: SharedLabels = release_integrity.into();
             for item in items_limited.iter().copied() {
                 let tag = get_str_or(item, "tag_name", "unknown");
 
@@ -436,8 +444,8 @@ pub fn label_response_items(
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("release:{}@{}", repo_full_name, tag),
-                        secrecy: secrecy.clone().into(),
-                        integrity: release_integrity.clone().into(),
+                        secrecy: secrecy_shared.clone(),
+                        integrity: release_integrity_shared.clone(),
                     },
                 });
             }

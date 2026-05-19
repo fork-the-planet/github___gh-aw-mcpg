@@ -350,6 +350,7 @@ pub fn label_response_paths(
 
                 // Commits on default branch (main/master) get merged-level integrity
                 let is_default_branch = is_default_branch_ref(sha);
+                let default_secrecy_shared: crate::SharedLabels = default_secrecy.clone().into();
 
                 let limited_items = limit_items_with_log(items, "list_commits");
                 let mut labeled_paths = Vec::with_capacity(limited_items.len());
@@ -378,7 +379,7 @@ pub fn label_response_paths(
                         path: format!("/{}", i),
                         labels: crate::ResourceLabels {
                             description: format!("commit:{}@{}", repo_for_labels, short_sha),
-                            secrecy: default_secrecy.clone().into(),
+                            secrecy: default_secrecy_shared.clone(),
                             integrity: integrity.into(),
                         },
                     });
@@ -413,6 +414,8 @@ pub fn label_response_paths(
             } else {
                 writer_integrity(&arg_repo_full, ctx)
             };
+            let secrecy_shared: crate::SharedLabels = secrecy.clone().into();
+            let file_integrity_shared: crate::SharedLabels = file_integrity.clone().into();
 
             if let Some(items) = actual_response.as_array() {
                 let limited_items = limit_items_with_log(items, "get_file_contents");
@@ -423,8 +426,8 @@ pub fn label_response_paths(
                         path: format!("/{}", i),
                         labels: crate::ResourceLabels {
                             description: format!("file:{}", arg_repo_full),
-                            secrecy: secrecy.clone().into(),
-                            integrity: file_integrity.clone().into(),
+                            secrecy: secrecy_shared.clone(),
+                            integrity: file_integrity_shared.clone(),
                         },
                     });
                 }
@@ -457,6 +460,7 @@ pub fn label_response_paths(
                 };
                 let default_secrecy =
                     repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx);
+                let default_secrecy_shared: crate::SharedLabels = default_secrecy.clone().into();
 
                 let limited_items = limit_items_with_log(items, "list_releases");
                 let mut labeled_paths = Vec::with_capacity(limited_items.len());
@@ -476,7 +480,7 @@ pub fn label_response_paths(
                         path: format!("/{}", i),
                         labels: crate::ResourceLabels {
                             description: format!("release:{}@{}", repo_for_labels, tag),
-                            secrecy: default_secrecy.clone().into(),
+                            secrecy: default_secrecy_shared.clone(),
                             integrity: merged_integrity(repo_for_labels, ctx).into(),
                         },
                     });
