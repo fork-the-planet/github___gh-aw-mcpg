@@ -32,7 +32,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
   - `validation.go`, `validation_env.go`, `validation_schema.go` - Fail-fast field, environment, and schema validation
   - `validation_test.go` - Comprehensive validation tests
 - `internal/difc/` - Decentralized Information Flow Control
-- `internal/envutil/` - Environment variable utilities
+- `internal/envutil/` - Environment variable and Docker env-arg utilities
 - `internal/guard/` - Security guards (NoopGuard, WasmGuard, WriteSinkGuard)
 - `internal/httputil/` - Shared HTTP helper utilities (server, proxy)
 - `internal/launcher/` - Backend process management

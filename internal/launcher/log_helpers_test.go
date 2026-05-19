@@ -188,6 +188,17 @@ func TestLauncher_LogEnvPassthrough(t *testing.T) {
 			},
 		},
 		{
+			name: "passthrough empty variable value logs empty warning",
+			args: []string{"run", "-e", "EMPTY_VAR"},
+			setupEnv: func(t *testing.T) {
+				t.Setenv("EMPTY_VAR", "")
+			},
+			wantInLog: []string{
+				"empty in MCPG process",
+				"EMPTY_VAR",
+			},
+		},
+		{
 			name: "explicit value not passthrough",
 			args: []string{"run", "-e", "VAR=value"},
 			setupEnv: func(t *testing.T) {

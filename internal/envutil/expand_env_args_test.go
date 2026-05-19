@@ -150,3 +150,52 @@ func TestExpandEnvArgs_OutputIsIndependentOfInput(t *testing.T) {
 	result[0] = "MODIFIED"
 	assert.Equal(t, "run", args[0], "Modifying result should not affect original slice")
 }
+
+func TestWalkDockerEnvArgs(t *testing.T) {
+	t.Setenv("SET_VAR", "value")
+	t.Setenv("EMPTY_VAR", "")
+
+	type walkedArg struct {
+		index   int
+		varName string
+		value   string
+		found   bool
+	}
+
+	var walked []walkedArg
+	WalkDockerEnvArgs([]string{
+		"run",
+		"-e", "SET_VAR",
+		"-e", "EXPLICIT=value",
+		"-e", "EMPTY_VAR",
+		"-e", "MISSING_VAR",
+		"-e",
+	}, func(index int, varName, value string, found bool) {
+		walked = append(walked, walkedArg{
+			index:   index,
+			varName: varName,
+			value:   value,
+			found:   found,
+		})
+	})
+
+	assert.Equal(t, []walkedArg{
+		{index: 1, varName: "SET_VAR", value: "value", found: true},
+		{index: 5, varName: "EMPTY_VAR", value: "", found: true},
+		{index: 7, varName: "MISSING_VAR", value: "", found: false},
+	}, walked)
+	assert.Len(t, walked, 3)
+}
+
+func TestWalkDockerEnvArgs_IgnoresExplicitAssignmentsAndTrailingFlag(t *testing.T) {
+	calls := 0
+
+	WalkDockerEnvArgs([]string{
+		"-e", "EXPLICIT=value",
+		"-e",
+	}, func(index int, varName, value string, found bool) {
+		calls++
+	})
+
+	assert.Zero(t, calls)
+}

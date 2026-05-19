@@ -2,10 +2,9 @@ package launcher
 
 import (
 	"log"
-	"os"
-	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
+	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
@@ -38,23 +37,17 @@ func (l *Launcher) logLaunchStart(serverID, sessionID string, serverCfg *config.
 
 // logEnvPassthrough checks and logs environment variable passthrough status
 func (l *Launcher) logEnvPassthrough(args []string) {
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		// If this arg is "-e", check the next argument
-		if arg == "-e" && i+1 < len(args) {
-			nextArg := args[i+1]
-			// Check if it's a passthrough (no = sign) vs explicit value (has = sign)
-			if !strings.Contains(nextArg, "=") {
-				// This is a passthrough variable, check if it exists in our environment
-				if val := os.Getenv(nextArg); val != "" {
-					log.Printf("[LAUNCHER] ✓ Env passthrough: %s=%s (from MCPG process)", nextArg, sanitize.TruncateSecret(val))
-				} else {
-					log.Printf("[LAUNCHER] ✗ WARNING: Env passthrough for %s requested but NOT FOUND in MCPG process", nextArg)
-				}
-			}
-			i++ // Skip the next arg since we just processed it
+	envutil.WalkDockerEnvArgs(args, func(_ int, varName, value string, found bool) {
+		if !found {
+			log.Printf("[LAUNCHER] ✗ WARNING: Env passthrough for %s requested but NOT FOUND in MCPG process", varName)
+			return
 		}
-	}
+		if value != "" {
+			log.Printf("[LAUNCHER] ✓ Env passthrough: %s=%s (from MCPG process)", varName, sanitize.TruncateSecret(value))
+			return
+		}
+		log.Printf("[LAUNCHER] ⚠️  Env passthrough for %s is empty in MCPG process", varName)
+	})
 }
 
 // logLaunchError logs detailed launch failure diagnostics
