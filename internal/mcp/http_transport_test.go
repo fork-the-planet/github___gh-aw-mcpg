@@ -1296,7 +1296,7 @@ func TestOIDCRoundTripper_ErrorPropagation(t *testing.T) {
 // gateway's reconnect logic would silently permit extra retries and this test
 // would fail to alert.
 //
-// SDK source: streamable.go:1547-1552 (verified against go-sdk v1.5.0):
+// SDK source: streamable.go:1547-1552 (verified against go-sdk v1.6.0):
 //
 //	maxRetries := t.MaxRetries
 //	if maxRetries == 0 {

@@ -34,6 +34,8 @@ const (
 	HTTPTransportPlainJSON HTTPTransportType = "plain-json"
 )
 
+const sessionNotFoundMessage = "session not found"
+
 // MCPProtocolVersion is the MCP protocol version used only by the plain JSON-RPC
 // fallback path in this package. Streamable and SSE transports are SDK-managed
 // and negotiate protocol versions internally.
@@ -86,7 +88,7 @@ func isSessionNotFoundError(err error) bool {
 	// TODO(tech-debt): remove this string-matching fallback once the plain JSON-RPC
 	// transport (HTTPTransportPlainJSON) is retired. The plain JSON-RPC path exists
 	// only for compatibility with backends that predate the 2024-11-05 MCP spec.
-	return strings.Contains(strings.ToLower(err.Error()), "session not found")
+	return strings.Contains(strings.ToLower(err.Error()), sessionNotFoundMessage)
 }
 
 // isSessionNotFoundHTTPResponse checks if an HTTP response indicates the backend session was not found.
@@ -95,7 +97,7 @@ func isSessionNotFoundHTTPResponse(statusCode int, body []byte) bool {
 	if statusCode != http.StatusNotFound {
 		return false
 	}
-	return strings.Contains(strings.ToLower(string(body)), "session not found")
+	return strings.Contains(strings.ToLower(string(body)), sessionNotFoundMessage)
 }
 
 // parseSSEResponse extracts JSON data from SSE-formatted response
@@ -457,7 +459,7 @@ func tryStreamableHTTPTransport(ctx context.Context, cancel context.CancelFunc, 
 				HTTPClient: httpClient,
 				// MaxRetries: -1 disables SDK-level reconnect retries (0 = SDK default 5 retries;
 				// negative = 0 retries). We fall through to SSE or plain JSON-RPC on failure.
-				// Verified against go-sdk v1.5.0 streamable.go:1547-1552.
+				// Verified against go-sdk v1.6.0 streamable.go:1547-1552.
 				// See TestMaxRetriesSentinelCanary for an automated guard against SDK changes.
 				MaxRetries: -1,
 				// DisableStandaloneSSE prevents the SDK from issuing a GET request for a
