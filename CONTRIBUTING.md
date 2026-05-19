@@ -97,6 +97,13 @@ Run both unit and integration tests (always rebuilds the binary first):
 make test-all
 ```
 
+#### Rust Guard Tests
+Run Rust guard unit tests (requires `cargo`):
+```bash
+make test-rust
+```
+Install the Rust toolchain from [rustup.rs](https://rustup.rs/) if not already present.
+
 #### Serena MCP Tests (Optional)
 Run Serena MCP Server tests (requires Docker and network access):
 ```bash
@@ -589,7 +596,7 @@ Required environment variables:
 3. **Add tests** for new functionality
 4. **Run linters and tests** before submitting:
    ```bash
-   make agent-finished  # format + build + lint + all tests (unit, integration, rust-guard)
+   make agent-finished  # format + build + lint + go test ./... + Rust guard tests
    ```
 5. **Update documentation** if you change behavior or add features
 6. **Keep changes minimal** - smaller PRs are easier to review

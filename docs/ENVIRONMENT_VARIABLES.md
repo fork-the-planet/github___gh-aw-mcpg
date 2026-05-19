@@ -8,7 +8,7 @@ When running in a container (`run_containerized.sh`), these variables **must** b
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `MCP_GATEWAY_PORT` | The port the gateway listens on (used for `--listen` address) | `8080` |
+| `MCP_GATEWAY_PORT` | Port used by `run.sh`/`run_containerized.sh` to build the `--listen` address; also read by `awmg --validate-env` for port-mapping checks | `8000` |
 | `MCP_GATEWAY_DOMAIN` | The domain name for the gateway | `localhost` |
 | `MCP_GATEWAY_API_KEY` | API key checked by `run_containerized.sh` as a deployment gate; must be referenced in your JSON config via `"${MCP_GATEWAY_API_KEY}"` to enable authentication | `your-secret-key` |
 
@@ -39,7 +39,7 @@ When running locally (`run.sh`), these variables are optional (warnings shown if
 | `DEBUG_COLORS` | Control colored debug output (0 to disable, auto-disabled when piping) | Auto-detect |
 | `RUNNING_IN_CONTAINER` | Manual override; set to `"true"` to force container detection when `/.dockerenv` and cgroup detection are unavailable | (unset) |
 
-**Note:** `PORT`, `HOST`, and `MODE` are not read by the `awmg` binary directly. However, `run.sh` uses `HOST` (default: `0.0.0.0`), `MODE` (default: `--routed`), and falls back to `PORT` (when `MCP_GATEWAY_PORT` is unset) to set the bind address and routing mode. Use the `--listen` and `--routed`/`--unified` flags when running `awmg` directly.
+**Note:** `PORT`, `HOST`, and `MODE` are not read by the `awmg` binary directly. `MCP_GATEWAY_PORT` is read by the binary for `--validate-env` port-mapping checks only; it does **not** auto-configure the listen address. `run.sh` uses `HOST` (default: `0.0.0.0`), `MODE` (default: `--routed`), and falls back to `PORT` (when `MCP_GATEWAY_PORT` is unset) to set the bind address and routing mode. Use the `--listen` and `--routed`/`--unified` flags when running `awmg` directly.
 
 ## Test / Development Overrides
 

@@ -80,6 +80,8 @@ type StdinGuardConfig struct {
 }
 
 // StdinServerConfig represents a single server configuration in stdin JSON format.
+// Note: unlike TOML ServerConfig, this struct intentionally has no Command field;
+// stdio servers must use Container instead.
 type StdinServerConfig struct {
 	// Type is the server type: "stdio", "local", or "http"
 	Type string `json:"type"`
