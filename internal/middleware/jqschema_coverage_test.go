@@ -214,6 +214,78 @@ func TestWrapToolHandler_CustomStructData(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// CompileToolResponseFilter error paths
+// ---------------------------------------------------------------------------
+
+// TestCompileToolResponseFilter_ValidFilter verifies that a valid jq expression
+// compiles without error and returns non-nil code.
+func TestCompileToolResponseFilter_ValidFilter(t *testing.T) {
+	code, err := CompileToolResponseFilter(".")
+	require.NoError(t, err)
+	require.NotNil(t, code)
+}
+
+// TestCompileToolResponseFilter_ParseError verifies that a syntactically invalid
+// jq expression returns a descriptive error from the parse phase.
+func TestCompileToolResponseFilter_ParseError(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter string
+	}{
+		{name: "unclosed paren", filter: "(.foo"},
+		{name: "bare pipe", filter: "| .foo"},
+		{name: "invalid token", filter: "!!!"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code, err := CompileToolResponseFilter(tt.filter)
+			require.Error(t, err)
+			assert.Nil(t, code)
+			assert.ErrorContains(t, err, "failed to parse tool response filter")
+		})
+	}
+}
+
+// TestApplyToolResponseFilter_ParseError verifies that ApplyToolResponseFilter
+// propagates compile errors from CompileToolResponseFilter.
+func TestApplyToolResponseFilter_ParseError(t *testing.T) {
+	_, err := ApplyToolResponseFilter(context.Background(), "(.invalid", map[string]interface{}{"a": 1})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to parse tool response filter")
+}
+
+// ---------------------------------------------------------------------------
+// wrapToolHandler with invalid filter (compile-error warning path)
+// ---------------------------------------------------------------------------
+
+// TestWrapToolHandlerWithFilter_InvalidFilterFallsBack verifies that when
+// WrapToolHandlerWithFilter is given an unparseable jq filter, it logs a
+// warning and continues without filtering (i.e. the handler still succeeds
+// and returns the original data).
+func TestWrapToolHandlerWithFilter_InvalidFilterFallsBack(t *testing.T) {
+	baseDir := t.TempDir()
+
+	payload := map[string]interface{}{"key": "value"}
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+		return &sdk.CallToolResult{IsError: false}, payload, nil
+	}
+
+	// Use a syntactically invalid filter. wrapToolHandler should log a warning
+	// and proceed as if no filter was set (filterCode == nil). Use a threshold
+	// large enough to keep this small payload inline so we can assert that the
+	// original data is returned unchanged.
+	wrapped := WrapToolHandlerWithFilter(mockHandler, "test_tool", baseDir, "", 1024, testGetSessionID, "(.invalid")
+	result, returnedData, err := wrapped(context.Background(), &sdk.CallToolRequest{}, nil)
+
+	// The call must succeed despite the invalid filter, and the original
+	// unfiltered payload must be preserved.
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.IsError)
+	assert.Equal(t, payload, returnedData)
+}
+
+// ---------------------------------------------------------------------------
 // WrapToolHandler when savePayload fails
 // (lines 358-365: save error is logged but processing continues)
 // ---------------------------------------------------------------------------
