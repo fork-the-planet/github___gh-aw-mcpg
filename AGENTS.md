@@ -99,6 +99,8 @@ args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-i", "ghcr.io/gith
 - **Containerization Requirement**: TOML stdio servers must use `command = "docker"` per [MCP Gateway Specification Section 3.2.1](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md#321-containerization-requirement)
 - **Note**: In JSON stdin format, the `command` field is not supported - stdio servers must use `container` field
 - **Note**: In JSON stdin format, `args` is optional and provides extra Docker runtime arguments inserted before the container image name
+- **Note**: In JSON stdin format, stdio servers also support optional `entrypoint`, `entrypointArgs`, and `mounts` fields; HTTP servers support optional `connectTimeout`
+- **Note**: For the full JSON stdin field list and complete TOML examples (including `gateway.keepalive_interval`, top-level `sequential_launch`, and `guards_mode`), see `docs/CONFIGURATION.md` and `config.example.toml`
 - Port range validation: 1-65535
 - Timeout validation: positive integers only
 
@@ -378,7 +380,8 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 
 - `GITHUB_MCP_SERVER_TOKEN` - Highest-priority GitHub auth token (takes precedence over `GITHUB_TOKEN`, `GITHUB_PERSONAL_ACCESS_TOKEN`, `GH_TOKEN`)
 - `GITHUB_TOKEN` - Second-priority GitHub auth token fallback after `GITHUB_MCP_SERVER_TOKEN`
-- `GITHUB_PERSONAL_ACCESS_TOKEN` - GitHub auth
+- `GITHUB_PERSONAL_ACCESS_TOKEN` - Third-priority GitHub auth fallback
+- `GH_TOKEN` - Lowest-priority GitHub auth fallback (set by GitHub CLI)
 - `GITHUB_API_URL` - Explicit GitHub API endpoint (e.g., `https://copilot-api.mycompany.ghe.com`); used by proxy to set upstream target
 - `GITHUB_SERVER_URL` - GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `copilot-api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com`
 - `ACTIONS_ID_TOKEN_REQUEST_URL` - GitHub Actions OIDC token endpoint URL; required for `github-oidc` auth type

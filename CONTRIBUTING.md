@@ -59,6 +59,11 @@ make build
 
 This creates the `awmg` binary in the project root.
 
+List all available Make targets:
+```bash
+make help
+```
+
 ### Testing
 
 The test suite is split into two types:
