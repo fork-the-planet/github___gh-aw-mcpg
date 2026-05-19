@@ -18,12 +18,13 @@ use labels::{
     blocked_integrity, extract_repo_info, extract_repo_info_from_search_query, MinIntegrity,
     PolicyContext, PolicyScopeEntry, ScopeKind,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 use serde_json::Value;
 use std::alloc::{alloc as std_alloc, dealloc as std_dealloc, Layout};
 use std::borrow::Cow;
+use std::ops::Deref;
 use std::slice;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 const POLICY_SCOPE_ALL: &str = "all";
 const POLICY_SCOPE_PUBLIC: &str = "public";
@@ -199,12 +200,50 @@ struct LabelResourceInput {
     tool_args: Value,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SharedLabels(Arc<Vec<String>>);
+
+impl Serialize for SharedLabels {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+impl From<Vec<String>> for SharedLabels {
+    fn from(labels: Vec<String>) -> Self {
+        Self(Arc::new(labels))
+    }
+}
+
+impl Deref for SharedLabels {
+    type Target = [String];
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_slice()
+    }
+}
+
+impl PartialEq<Vec<String>> for SharedLabels {
+    fn eq(&self, other: &Vec<String>) -> bool {
+        self.0.as_ref() == other
+    }
+}
+
+impl PartialEq<SharedLabels> for Vec<String> {
+    fn eq(&self, other: &SharedLabels) -> bool {
+        self == other.0.as_ref()
+    }
+}
+
 /// Resource labels following DIFC spec
 #[derive(Debug, Serialize, Clone, Default)]
 pub struct ResourceLabels {
     pub description: String,
-    pub secrecy: Vec<String>,
-    pub integrity: Vec<String>,
+    pub secrecy: SharedLabels,
+    pub integrity: SharedLabels,
 }
 
 /// Output structure for label_resource
@@ -705,8 +744,8 @@ pub extern "C" fn label_resource(
     let output = LabelResourceOutput {
         resource: ResourceLabels {
             description: final_desc,
-            secrecy: final_secrecy,
-            integrity: final_integrity,
+            secrecy: final_secrecy.into(),
+            integrity: final_integrity.into(),
         },
         operation,
     };
@@ -900,8 +939,8 @@ pub extern "C" fn label_response(
                 data: input.tool_result.clone(),
                 labels: ResourceLabels {
                     description: desc,
-                    secrecy: vec![],
-                    integrity,
+                    secrecy: vec![].into(),
+                    integrity: integrity.into(),
                 },
             });
         } else {
@@ -930,8 +969,8 @@ pub extern "C" fn label_response(
                 data: input.tool_result.clone(),
                 labels: ResourceLabels {
                     description: final_desc,
-                    secrecy,
-                    integrity,
+                    secrecy: secrecy.into(),
+                    integrity: integrity.into(),
                 },
             });
         }

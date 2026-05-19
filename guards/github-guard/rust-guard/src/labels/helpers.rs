@@ -1522,12 +1522,15 @@ pub fn elevate_via_collaborator_permission(
     }
 }
 
+/// Well-known default branch names treated as the "merged" branch context.
+const DEFAULT_BRANCH_NAMES: &[&str] = &["main", "master", "HEAD"];
+
 /// Check if a branch/ref should be treated as default branch context
 pub fn is_default_branch_ref(branch_ref: &str) -> bool {
     branch_ref.is_empty()
-        || branch_ref.eq_ignore_ascii_case("main")
-        || branch_ref.eq_ignore_ascii_case("master")
-        || branch_ref.eq_ignore_ascii_case("HEAD")
+        || DEFAULT_BRANCH_NAMES
+            .iter()
+            .any(|n| branch_ref.eq_ignore_ascii_case(n))
 }
 
 fn looks_like_commit_sha(reference: &str) -> bool {

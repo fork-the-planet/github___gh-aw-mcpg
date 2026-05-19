@@ -13,7 +13,7 @@
 use super::constants::{field_names, label_constants, scope_names};
 use super::extract_mcp_response;
 use super::helpers::*;
-use crate::{LabeledItem, ResourceLabels};
+use crate::{LabeledItem, ResourceLabels, SharedLabels};
 use serde_json::Value;
 
 /// Label individual items in a response (fine-grained labeling)
@@ -72,8 +72,8 @@ pub fn label_response_items(
                             data: item.clone(),
                             labels: ResourceLabels {
                                 description: format!("repo:{}", full_name),
-                                secrecy,
-                                integrity,
+                                secrecy: secrecy.into(),
+                                integrity: integrity.into(),
                             },
                         });
                     } else {
@@ -82,8 +82,8 @@ pub fn label_response_items(
                             data: item.clone(),
                             labels: ResourceLabels {
                                 description: format!("repo:{}", full_name),
-                                secrecy: vec![],
-                                integrity,
+                                secrecy: vec![].into(),
+                                integrity: integrity.into(),
                             },
                         });
                     }
@@ -204,8 +204,9 @@ pub fn label_response_items(
                                 repo_visibility_secrecy_for_repo_id(repo_full_name, ctx)
                             } else {
                                 secrecy.clone()
-                            },
-                            integrity,
+                            }
+                            .into(),
+                            integrity: integrity.into(),
                         },
                     });
                 }
@@ -287,8 +288,9 @@ pub fn label_response_items(
                             repo_visibility_secrecy_for_repo_id(&repo_full_name, ctx)
                         } else {
                             secrecy.clone()
-                        },
-                        integrity,
+                        }
+                        .into(),
+                        integrity: integrity.into(),
                     },
                 });
             }
@@ -308,14 +310,16 @@ pub fn label_response_items(
             } else {
                 writer_integrity(&repo_full_name, ctx)
             };
+            let secrecy_shared: SharedLabels = secrecy.into();
+            let file_integrity_shared: SharedLabels = file_integrity.into();
 
             for &item in items_limited.iter() {
                 labeled_items.push(LabeledItem {
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("file:{}", repo_full_name),
-                        secrecy: secrecy.clone(),
-                        integrity: file_integrity.clone(),
+                        secrecy: secrecy_shared.clone(),
+                        integrity: file_integrity_shared.clone(),
                     },
                 });
             }
@@ -345,6 +349,7 @@ pub fn label_response_items(
             // requests, which should preserve merged-floor consistency with
             // list_commits-derived SHAs.
             let is_default_branch = is_default_branch_commit_context(tool_name, arg_branch);
+            let secrecy_shared: SharedLabels = secrecy.into();
 
             for item in items_limited.iter().copied() {
                 let sha = item.get("sha").and_then(|v| v.as_str()).unwrap_or("");
@@ -357,8 +362,8 @@ pub fn label_response_items(
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("commit:{}@{}", repo_full_name, short_sha),
-                        secrecy: secrecy.clone(),
-                        integrity,
+                        secrecy: secrecy_shared.clone(),
+                        integrity: integrity.into(),
                     },
                 });
             }
@@ -371,6 +376,8 @@ pub fn label_response_items(
             // Limit items to prevent WASM memory exhaustion
             let items_limited = limit_items_with_log(all_items.as_slice(), "list_gists");
 
+            let gist_integrity = reader_integrity(scope_names::USER, ctx);
+            let gist_integrity_shared: SharedLabels = gist_integrity.into();
             for item in items_limited.iter().copied() {
                 let is_public = get_bool_or(item, "public", true);
                 let id = get_str_or(item, "id", "unknown");
@@ -386,8 +393,8 @@ pub fn label_response_items(
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("gist:{}", id),
-                        secrecy,
-                        integrity: reader_integrity(scope_names::USER, ctx),
+                        secrecy: secrecy.into(),
+                        integrity: gist_integrity_shared.clone(),
                     },
                 });
             }
@@ -398,14 +405,18 @@ pub fn label_response_items(
             let items = actual_response.as_array().or_else(|| response.as_array());
 
             if let Some(items) = items {
+                let notif_secrecy = private_user_label();
+                let notif_integrity = none_integrity("", ctx);
+                let notif_secrecy_shared: SharedLabels = notif_secrecy.into();
+                let notif_integrity_shared: SharedLabels = notif_integrity.into();
                 for item in items.iter() {
                     let id = get_str_or(item, "id", "unknown");
                     labeled_items.push(LabeledItem {
                         data: item.clone(),
                         labels: ResourceLabels {
                             description: format!("notification:{}", id),
-                            secrecy: private_user_label(),
-                            integrity: none_integrity("", ctx),
+                            secrecy: notif_secrecy_shared.clone(),
+                            integrity: notif_integrity_shared.clone(),
                         },
                     });
                 }
@@ -422,6 +433,9 @@ pub fn label_response_items(
             let (arg_owner, arg_repo, repo_full_name) = extract_repo_info(tool_args);
             let secrecy = repo_visibility_secrecy(&arg_owner, &arg_repo, &repo_full_name, ctx);
 
+            let release_integrity = merged_integrity(&repo_full_name, ctx);
+            let secrecy_shared: SharedLabels = secrecy.into();
+            let release_integrity_shared: SharedLabels = release_integrity.into();
             for item in items_limited.iter().copied() {
                 let tag = get_str_or(item, "tag_name", "unknown");
 
@@ -430,8 +444,8 @@ pub fn label_response_items(
                     data: item.clone(),
                     labels: ResourceLabels {
                         description: format!("release:{}@{}", repo_full_name, tag),
-                        secrecy: secrecy.clone(),
-                        integrity: merged_integrity(&repo_full_name, ctx),
+                        secrecy: secrecy_shared.clone(),
+                        integrity: release_integrity_shared.clone(),
                     },
                 });
             }
