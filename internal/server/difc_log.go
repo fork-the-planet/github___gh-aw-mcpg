@@ -61,6 +61,8 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 
 // getFilteredItemStringField returns the first non-empty string value from the map
 // matching any of the given field names.
+// NOTE: This helper is intentionally generic; if similar untyped JSON map extraction
+// patterns appear elsewhere, consider moving it to a shared utility package.
 func getFilteredItemStringField(m map[string]interface{}, fields ...string) string {
 	for _, f := range fields {
 		if v, ok := m[f]; ok {

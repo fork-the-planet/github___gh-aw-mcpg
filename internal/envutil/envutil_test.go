@@ -289,6 +289,78 @@ func TestGetEnvInt(t *testing.T) {
 	}
 }
 
+func TestGetEnvIntRaw(t *testing.T) {
+	tests := []struct {
+		name      string
+		envKey    string
+		envValue  string
+		setEnv    bool
+		wantValue int
+		wantOK    bool
+		wantErr   bool
+	}{
+		{
+			name:      "valid integer",
+			envKey:    "TEST_INT_RAW_VAR",
+			envValue:  "42",
+			setEnv:    true,
+			wantValue: 42,
+			wantOK:    true,
+			wantErr:   false,
+		},
+		{
+			name:    "not set",
+			envKey:  "TEST_INT_RAW_VAR",
+			setEnv:  false,
+			wantOK:  false,
+			wantErr: false,
+		},
+		{
+			name:     "empty",
+			envKey:   "TEST_INT_RAW_VAR",
+			envValue: "",
+			setEnv:   true,
+			wantOK:   false,
+			wantErr:  false,
+		},
+		{
+			name:     "invalid integer",
+			envKey:   "TEST_INT_RAW_VAR",
+			envValue: "not-a-number",
+			setEnv:   true,
+			wantOK:   true,
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.setEnv {
+				t.Setenv(tt.envKey, tt.envValue)
+			} else {
+				previousValue, hadPreviousValue := os.LookupEnv(tt.envKey)
+				t.Cleanup(func() {
+					if hadPreviousValue {
+						_ = os.Setenv(tt.envKey, previousValue)
+					} else {
+						_ = os.Unsetenv(tt.envKey)
+					}
+				})
+				_ = os.Unsetenv(tt.envKey)
+			}
+
+			got, ok, err := GetEnvIntRaw(tt.envKey)
+			assert.Equal(t, tt.wantValue, got)
+			assert.Equal(t, tt.wantOK, ok)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestGetEnvBool(t *testing.T) {
 	tests := []struct {
 		name         string

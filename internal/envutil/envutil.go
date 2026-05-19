@@ -28,17 +28,36 @@ func GetEnvString(envKey, defaultValue string) string {
 	return defaultValue
 }
 
+// GetEnvIntRaw returns the raw integer value of envKey without applying defaults
+// or positivity constraints.
+// It returns (0, false, nil) when envKey is unset or empty.
+// It returns (0, true, err) when envKey is set but cannot be parsed as an integer.
+func GetEnvIntRaw(envKey string) (int, bool, error) {
+	envValue := os.Getenv(envKey)
+	if envValue == "" {
+		return 0, false, nil
+	}
+
+	value, err := strconv.Atoi(envValue)
+	if err != nil {
+		return 0, true, err
+	}
+	return value, true, nil
+}
+
 // GetEnvInt returns the integer value of the environment variable specified by envKey.
 // If the environment variable is not set, is empty, cannot be parsed as an integer,
 // or is not positive (> 0), it returns the defaultValue.
 // This function validates that the value is a positive integer.
 func GetEnvInt(envKey string, defaultValue int) int {
-	if envValue := os.Getenv(envKey); envValue != "" {
-		if value, err := strconv.Atoi(envValue); err == nil && value > 0 {
-			return value
-		}
-		logEnvUtil.Printf("GetEnvInt: %s=%q is not a valid positive integer, using default=%d", envKey, sanitize.TruncateSecret(envValue), defaultValue)
+	value, ok, err := GetEnvIntRaw(envKey)
+	if !ok {
+		return defaultValue
 	}
+	if err == nil && value > 0 {
+		return value
+	}
+	logEnvUtil.Printf("GetEnvInt: %s=%q is not a valid positive integer, using default=%d", envKey, sanitize.TruncateSecret(os.Getenv(envKey)), defaultValue)
 	return defaultValue
 }
 

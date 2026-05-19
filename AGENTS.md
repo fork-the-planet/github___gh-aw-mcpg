@@ -297,6 +297,8 @@ if log.Enabled() {
 import "github.com/github/gh-aw-mcpg/internal/logger"
 
 // Log operational events (written to mcp-gateway.log)
+// Un-suffixed Log* functions target the unified file logger sink.
+// Use Log*ToMarkdown or Log*ToServer when you need those explicit destinations.
 logger.LogInfo("category", "Operation completed successfully")
 logger.LogWarn("category", "Potential issue detected: %s", issue)
 logger.LogError("category", "Operation failed: %v", err)

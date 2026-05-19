@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/config/rules"
@@ -13,16 +12,15 @@ import (
 const ToolTimeoutMin = 10
 
 func parseAndValidateIntEnv(envKey string, validate func(int) *rules.ValidationError) (int, bool, error) {
-	raw := envutil.GetEnvString(envKey, "")
-	if raw == "" {
+	value, present, err := envutil.GetEnvIntRaw(envKey)
+	if !present {
 		logConfig.Printf("%s not set in environment", envKey)
 		return 0, false, nil
 	}
 
-	value, err := strconv.Atoi(raw)
 	if err != nil {
-		logConfig.Printf("%s=%q is not a valid integer: %v", envKey, raw, err)
-		return 0, false, fmt.Errorf("invalid %s value: %s", envKey, raw)
+		logConfig.Printf("%s is not a valid integer: %v", envKey, err)
+		return 0, false, fmt.Errorf("invalid %s value", envKey)
 	}
 
 	if validationErr := validate(value); validationErr != nil {
