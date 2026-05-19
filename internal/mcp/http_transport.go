@@ -32,8 +32,9 @@ const (
 	HTTPTransportSSE HTTPTransportType = "sse"
 	// HTTPTransportPlainJSON uses plain JSON-RPC 2.0 over HTTP POST (non-standard)
 	HTTPTransportPlainJSON HTTPTransportType = "plain-json"
-	sessionNotFoundMessage                   = "session not found"
 )
+
+const sessionNotFoundMessage = "session not found"
 
 // MCPProtocolVersion is the MCP protocol version used only by the plain JSON-RPC
 // fallback path in this package. Streamable and SSE transports are SDK-managed
