@@ -11,33 +11,16 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
+
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 )
 
-// statusResponseWriter wraps http.ResponseWriter to capture the HTTP response status code.
-// Unwrap allows http.ResponseController and other callers to access the underlying
-// writer's optional interfaces (e.g. http.Flusher, http.Hijacker) transparently.
+// statusResponseWriter wraps http.ResponseWriter to capture the HTTP response
+// status code. It embeds httputil.BaseResponseWriter which provides WriteHeader,
+// Write (with implicit-200 capture), and Unwrap for transparent interface
+// delegation (e.g. http.Flusher, http.Hijacker).
 type statusResponseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *statusResponseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
-}
-
-// Write captures an implicit 200 status when Write is called without a prior WriteHeader.
-func (rw *statusResponseWriter) Write(b []byte) (int, error) {
-	if rw.statusCode == 0 {
-		rw.statusCode = http.StatusOK
-	}
-	return rw.ResponseWriter.Write(b)
-}
-
-// Unwrap returns the underlying http.ResponseWriter so that callers can type-assert
-// optional interfaces such as http.Flusher or http.Hijacker against the real writer.
-func (rw *statusResponseWriter) Unwrap() http.ResponseWriter {
-	return rw.ResponseWriter
+	httputil.BaseResponseWriter
 }
 
 // WrapHTTPHandler wraps an http.Handler with an OpenTelemetry server span.
@@ -76,11 +59,11 @@ func WrapHTTPHandler(next http.Handler, spanName string, extraAttrs ...attribute
 
 		logTracing.Printf("Span started: span=%s, traceID=%s", spanName, span.SpanContext().TraceID())
 
-		srw := &statusResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		srw := &statusResponseWriter{BaseResponseWriter: httputil.BaseResponseWriter{ResponseWriter: w, StatusCode: http.StatusOK}}
 		defer func() {
-			span.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(srw.statusCode))
-			if srw.statusCode >= 500 {
-				span.SetStatus(codes.Error, http.StatusText(srw.statusCode))
+			span.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(srw.StatusCode))
+			if srw.StatusCode >= 500 {
+				span.SetStatus(codes.Error, http.StatusText(srw.StatusCode))
 			}
 		}()
 		next.ServeHTTP(srw, r.WithContext(ctx))
