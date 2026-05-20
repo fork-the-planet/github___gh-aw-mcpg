@@ -68,15 +68,5 @@ PowerShell:
 		},
 	}
 
-	// Override PersistentPreRunE to skip the root command's validation hook.
-	// Note: cobra does NOT automatically chain PersistentPreRunE hooks — unlike
-	// middleware-style frameworks, a child's PersistentPreRunE completely replaces
-	// the parent's unless cobra.EnableTraverseRunHooks is enabled. We explicitly
-	// set a no-op here so that completion generation runs without requiring a
-	// config file.
-	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		return nil
-	}
-
 	return cmd
 }

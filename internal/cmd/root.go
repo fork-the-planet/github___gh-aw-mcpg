@@ -64,6 +64,10 @@ It provides routing, aggregation, and management of multiple MCP backend servers
 }
 
 func init() {
+	// Chain PersistentPreRunE/PostRun hooks through parent→child automatically.
+	// Without this, a child's PersistentPreRunE replaces the parent's entirely.
+	cobra.EnableTraverseRunHooks = true
+
 	// Set custom error prefix for better branding
 	rootCmd.SetErrPrefix("MCPG Error:")
 
