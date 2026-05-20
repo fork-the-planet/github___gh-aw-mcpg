@@ -17,7 +17,7 @@ func randomHexFromReader(n int, r io.Reader) (string, error) {
 		return "", fmt.Errorf("failed to generate random bytes: negative size %d", n)
 	}
 	b := make([]byte, n)
-	if _, err := r.Read(b); err != nil {
+	if _, err := io.ReadFull(r, b); err != nil {
 		return "", fmt.Errorf("failed to generate %d random bytes: %w", n, err)
 	}
 	return hex.EncodeToString(b), nil
