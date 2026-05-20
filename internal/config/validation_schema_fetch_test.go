@@ -129,10 +129,7 @@ func TestFetchAndFixSchema_NetworkError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	// Error message varies slightly depending on whether it is a network failure
-	// ("failed to fetch schema from <url>: ...") or an HTTP error status
-	// ("failed to fetch schema: HTTP NNN"), so check the common prefix.
-	assert.ErrorContains(t, err, "failed to fetch schema")
+	assert.ErrorContains(t, err, "failed to fetch schema from")
 }
 
 // TestFetchAndFixSchema_Timeout tests handling of request timeouts
