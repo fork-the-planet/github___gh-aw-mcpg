@@ -73,6 +73,11 @@ type TracingConfig struct {
 	// Uses a pointer so that 0.0 can be distinguished from "unset".
 	// Note: SampleRate is a gateway extension field not present in spec §4.1.3.6.
 	SampleRate *float64 `toml:"sample_rate" json:"sampleRate,omitempty"`
+
+	// SignalPath is the OTLP signal path appended to the base endpoint URL.
+	// Defaults to "/v1/traces" per the OpenTelemetry specification.
+	// Override this only if your collector uses a non-standard ingest path.
+	SignalPath string `toml:"signal_path" json:"signalPath,omitempty"`
 }
 
 // GetSampleRate returns the configured sample rate, defaulting to 1.0 if unset.

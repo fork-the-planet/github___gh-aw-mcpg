@@ -89,3 +89,42 @@ func TestResolveEndpoint_ParseErrorFallbackAlreadyHasPath(t *testing.T) {
 	got := resolveEndpoint(cfg)
 	assert.Equal(t, "http://host\x7f:4318/v1/traces", got)
 }
+
+func TestResolveEndpoint_CustomSignalPath(t *testing.T) {
+	tests := []struct {
+		name       string
+		endpoint   string
+		signalPath string
+		want       string
+	}{
+		{
+			name:       "custom signal path appended",
+			endpoint:   "https://collector.example.com/ingest",
+			signalPath: "/v2/traces",
+			want:       "https://collector.example.com/ingest/v2/traces",
+		},
+		{
+			name:       "custom signal path already present",
+			endpoint:   "https://collector.example.com/ingest/v2/traces",
+			signalPath: "/v2/traces",
+			want:       "https://collector.example.com/ingest/v2/traces",
+		},
+		{
+			name:       "empty signal path uses default",
+			endpoint:   "https://collector.example.com",
+			signalPath: "",
+			want:       "https://collector.example.com/v1/traces",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.TracingConfig{
+				Endpoint:   tt.endpoint,
+				SignalPath: tt.signalPath,
+			}
+			got := resolveEndpoint(cfg)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

@@ -66,36 +66,44 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// defaultSignalPath is the OTLP traces signal path per the OpenTelemetry spec.
+const defaultSignalPath = "/v1/traces"
+
 // resolveEndpoint returns the OTLP endpoint from config.
 // CLI flags set the config value using env vars as defaults, so config already
 // reflects the correct precedence: CLI flag > env var > config file.
 //
 // Per the OpenTelemetry specification, OTEL_EXPORTER_OTLP_ENDPOINT is a base URL
 // and SDKs must append the signal path (/v1/traces for traces). Since we use
-// WithEndpointURL (which takes the URL as-is), we append /v1/traces here when
-// it is not already present.
+// WithEndpointURL (which takes the URL as-is), we append the signal path here
+// when it is not already present. The path defaults to /v1/traces but can be
+// overridden via TracingConfig.SignalPath.
 func resolveEndpoint(cfg *config.TracingConfig) string {
 	if cfg == nil || cfg.Endpoint == "" {
 		return ""
 	}
 	endpoint := cfg.Endpoint
+	signalPath := cfg.SignalPath
+	if signalPath == "" {
+		signalPath = defaultSignalPath
+	}
 
 	u, err := url.Parse(endpoint)
 	if err != nil {
 		// If unparseable, fall back to string append for best-effort.
 		// Normalize trailing slashes before the suffix check to avoid
-		// duplicating /v1/traces when input ends with "/v1/traces/".
+		// duplicating the signal path when input already ends with it.
 		normalized := strings.TrimRight(endpoint, "/")
-		if !strings.HasSuffix(normalized, "/v1/traces") {
-			normalized += "/v1/traces"
+		if !strings.HasSuffix(normalized, signalPath) {
+			normalized += signalPath
 		}
 		return normalized
 	}
 
-	// Normalize path and check whether /v1/traces is already the suffix
+	// Normalize path and check whether signal path is already the suffix
 	normalizedPath := strings.TrimRight(u.Path, "/")
-	if !strings.HasSuffix(normalizedPath, "/v1/traces") {
-		u.Path = normalizedPath + "/v1/traces"
+	if !strings.HasSuffix(normalizedPath, signalPath) {
+		u.Path = normalizedPath + signalPath
 	} else {
 		u.Path = normalizedPath
 	}
