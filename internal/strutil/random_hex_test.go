@@ -201,8 +201,8 @@ func TestRandomHexFromReader(t *testing.T) {
 	})
 
 	t.Run("zero bytes with successful reader returns empty string", func(t *testing.T) {
-		// For n=0, no read is attempted; use a reader that would signal EOF to confirm
-		// the zero-length path short-circuits before any read.
+		// For n=0, the helper should return an empty string without error. Per the
+		// io.Reader contract, a zero-length Read may still be invoked.
 		result, err := randomHexFromReader(0, bytes.NewReader([]byte{0xab, 0xcd}))
 		require.NoError(t, err)
 		assert.Empty(t, result)
