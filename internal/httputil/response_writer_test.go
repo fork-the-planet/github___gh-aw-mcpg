@@ -1,4 +1,4 @@
-package tracing
+package httputil
 
 import (
 	"net/http"
@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/github/gh-aw-mcpg/internal/httputil"
 )
 
 // mockFlusher implements http.ResponseWriter and http.Flusher so we can verify
@@ -21,54 +19,54 @@ type mockFlusher struct {
 
 func (m *mockFlusher) Flush() { m.flushed = true }
 
-func TestStatusResponseWriter_WriteHeader(t *testing.T) {
+func TestBaseResponseWriter_WriteHeader(t *testing.T) {
 	rec := httptest.NewRecorder()
-	srw := &statusResponseWriter{BaseResponseWriter: httputil.BaseResponseWriter{ResponseWriter: rec}}
+	brw := &BaseResponseWriter{ResponseWriter: rec}
 
-	srw.WriteHeader(http.StatusCreated)
+	brw.WriteHeader(http.StatusCreated)
 
-	assert.Equal(t, http.StatusCreated, srw.StatusCode)
+	assert.Equal(t, http.StatusCreated, brw.StatusCode)
 	assert.Equal(t, http.StatusCreated, rec.Code)
 }
 
-func TestStatusResponseWriter_Write_SetsImplicit200(t *testing.T) {
+func TestBaseResponseWriter_Write_SetsImplicit200(t *testing.T) {
 	rec := httptest.NewRecorder()
-	srw := &statusResponseWriter{BaseResponseWriter: httputil.BaseResponseWriter{ResponseWriter: rec}}
+	brw := &BaseResponseWriter{ResponseWriter: rec}
 
 	// StatusCode starts at zero – Write should set it to 200 implicitly.
-	n, err := srw.Write([]byte("hello"))
+	n, err := brw.Write([]byte("hello"))
 	require.NoError(t, err)
 	assert.Equal(t, 5, n)
-	assert.Equal(t, http.StatusOK, srw.StatusCode)
+	assert.Equal(t, http.StatusOK, brw.StatusCode)
 }
 
-func TestStatusResponseWriter_Write_PreservesExplicitStatus(t *testing.T) {
+func TestBaseResponseWriter_Write_PreservesExplicitStatus(t *testing.T) {
 	rec := httptest.NewRecorder()
-	srw := &statusResponseWriter{BaseResponseWriter: httputil.BaseResponseWriter{ResponseWriter: rec}}
+	brw := &BaseResponseWriter{ResponseWriter: rec}
 
-	srw.WriteHeader(http.StatusAccepted)
+	brw.WriteHeader(http.StatusAccepted)
 
-	_, err := srw.Write([]byte("body"))
+	_, err := brw.Write([]byte("body"))
 	require.NoError(t, err)
 	// StatusCode was already set via WriteHeader; Write must not overwrite it.
-	assert.Equal(t, http.StatusAccepted, srw.StatusCode)
+	assert.Equal(t, http.StatusAccepted, brw.StatusCode)
 	assert.Equal(t, http.StatusAccepted, rec.Code)
 }
 
-func TestStatusResponseWriter_Unwrap_ReturnsUnderlying(t *testing.T) {
+func TestBaseResponseWriter_Unwrap_ReturnsUnderlying(t *testing.T) {
 	rec := httptest.NewRecorder()
-	srw := &statusResponseWriter{BaseResponseWriter: httputil.BaseResponseWriter{ResponseWriter: rec}}
+	brw := &BaseResponseWriter{ResponseWriter: rec}
 
-	underlying := srw.Unwrap()
+	underlying := brw.Unwrap()
 	assert.Same(t, rec, underlying, "Unwrap should return the wrapped ResponseWriter")
 }
 
-func TestStatusResponseWriter_Unwrap_ExposesOptionalInterfaces(t *testing.T) {
+func TestBaseResponseWriter_Unwrap_ExposesOptionalInterfaces(t *testing.T) {
 	mf := &mockFlusher{ResponseRecorder: *httptest.NewRecorder()}
-	srw := &statusResponseWriter{BaseResponseWriter: httputil.BaseResponseWriter{ResponseWriter: mf}}
+	brw := &BaseResponseWriter{ResponseWriter: mf}
 
 	// http.ResponseController uses Unwrap to discover optional interfaces like Flusher.
-	rc := http.NewResponseController(srw)
+	rc := http.NewResponseController(brw)
 	err := rc.Flush()
 	require.NoError(t, err, "Flush via ResponseController should succeed when underlying writer is a Flusher")
 	assert.True(t, mf.flushed, "underlying Flusher should have been called through Unwrap")
