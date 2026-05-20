@@ -69,11 +69,21 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 // resolveEndpoint returns the OTLP endpoint from config.
 // CLI flags set the config value using env vars as defaults, so config already
 // reflects the correct precedence: CLI flag > env var > config file.
+//
+// Per the OpenTelemetry specification, OTEL_EXPORTER_OTLP_ENDPOINT is a base URL
+// and SDKs must append the signal path (/v1/traces for traces). Since we use
+// WithEndpointURL (which takes the URL as-is), we append /v1/traces here when
+// it is not already present.
 func resolveEndpoint(cfg *config.TracingConfig) string {
-	if cfg != nil {
-		return cfg.Endpoint
+	if cfg == nil || cfg.Endpoint == "" {
+		return ""
 	}
-	return ""
+	endpoint := cfg.Endpoint
+	// Append /v1/traces if not already present (OTEL spec compliance)
+	if !strings.HasSuffix(endpoint, "/v1/traces") {
+		endpoint = strings.TrimRight(endpoint, "/") + "/v1/traces"
+	}
+	return endpoint
 }
 
 // resolveServiceName returns the service name from config.
