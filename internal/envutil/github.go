@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 )
 
 var logGitHub = logger.New("envutil:github")
@@ -66,12 +67,12 @@ func DeriveGitHubAPIURL(defaultURL string) string {
 	if serverURL := strings.TrimSpace(os.Getenv("GITHUB_SERVER_URL")); serverURL != "" {
 		derived := deriveAPIFromServerURL(serverURL)
 		if derived != "" {
-			logGitHub.Printf("GitHub API URL derived from GITHUB_SERVER_URL=%s: %s", serverURL, derived)
+			logGitHub.Printf("GitHub API URL derived from GITHUB_SERVER_URL=%s: %s", sanitize.RedactURL(serverURL), sanitize.RedactURL(derived))
 			return derived
 		}
 	}
 	result := strings.TrimRight(strings.TrimSpace(defaultURL), "/")
-	logGitHub.Printf("GitHub API URL falling back to provided default: %s", result)
+	logGitHub.Printf("GitHub API URL falling back to provided default: %s", sanitize.RedactURL(result))
 	return result
 }
 
@@ -80,15 +81,15 @@ func DeriveGitHubAPIURL(defaultURL string) string {
 // GitHub.com: https://github.com → https://api.github.com
 // GHES (all others): https://github.example.com → https://github.example.com/api/v3
 func deriveAPIFromServerURL(serverURL string) string {
-	logGitHub.Printf("Deriving API URL from server URL: %s", serverURL)
+	logGitHub.Printf("Deriving API URL from server URL: %s", sanitize.RedactURL(serverURL))
 
 	parsed, err := url.Parse(strings.TrimRight(serverURL, "/"))
 	if err != nil || parsed.Host == "" {
-		logGitHub.Printf("Failed to parse server URL or empty host: serverURL=%s, err=%v", serverURL, err)
+		logGitHub.Printf("Failed to parse server URL or empty host: serverURL=%s, err=%v", sanitize.RedactURL(serverURL), err)
 		return ""
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		logGitHub.Printf("Unsupported scheme in server URL: scheme=%s, serverURL=%s", parsed.Scheme, serverURL)
+		logGitHub.Printf("Unsupported scheme in server URL: scheme=%s, serverURL=%s", parsed.Scheme, sanitize.RedactURL(serverURL))
 		return ""
 	}
 
