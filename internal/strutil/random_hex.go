@@ -5,21 +5,28 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"time"
 )
 
-// RandomHex returns a hex-encoded string of n cryptographically random bytes.
-// The returned string has length 2*n.
-func RandomHex(n int) (string, error) {
+// randomHexFromReader returns a hex-encoded string of n random bytes read from r.
+// It is the testable core of RandomHex.
+func randomHexFromReader(n int, r io.Reader) (string, error) {
 	if n < 0 {
 		return "", fmt.Errorf("failed to generate random bytes: negative size %d", n)
 	}
 	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
+	if _, err := io.ReadFull(r, b); err != nil {
 		return "", fmt.Errorf("failed to generate %d random bytes: %w", n, err)
 	}
 	return hex.EncodeToString(b), nil
+}
+
+// RandomHex returns a hex-encoded string of n cryptographically random bytes.
+// The returned string has length 2*n.
+func RandomHex(n int) (string, error) {
+	return randomHexFromReader(n, rand.Reader)
 }
 
 // RandomHexWithFallback returns a hex-encoded string of n random bytes.
