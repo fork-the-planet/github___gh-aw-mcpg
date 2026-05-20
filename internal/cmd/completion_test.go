@@ -58,9 +58,8 @@ func captureStdoutDuring(t *testing.T, fn func()) string {
 }
 
 // newTestRootWithCompletion creates an isolated root command with only the
-// completion sub-command attached. Keeping it isolated avoids accidentally
-// triggering the real rootCmd's PersistentPreRunE (which requires a config
-// file) during unit tests.
+// completion sub-command attached. The isolated root has no PersistentPreRunE,
+// so traverse hooks do not fire during unit tests, keeping tests hermetic.
 func newTestRootWithCompletion() (*cobra.Command, *cobra.Command) {
 	root := &cobra.Command{
 		Use: "awmg",
@@ -87,21 +86,6 @@ func TestNewCompletionCmd_CommandStructure(t *testing.T) {
 		cmd.ValidArgs,
 		"ValidArgs should contain exactly the four supported shells",
 	)
-}
-
-// TestNewCompletionCmd_PersistentPreRunE verifies the override returns nil so
-// the root's config-validation preRun is not triggered when running completions.
-func TestNewCompletionCmd_PersistentPreRunE(t *testing.T) {
-	cmd := newCompletionCmd()
-	require.NotNil(t, cmd.PersistentPreRunE,
-		"PersistentPreRunE must be set to override parent validation")
-
-	// It must always succeed regardless of args/command context.
-	err := cmd.PersistentPreRunE(cmd, nil)
-	assert.NoError(t, err)
-
-	err = cmd.PersistentPreRunE(cmd, []string{"bash"})
-	assert.NoError(t, err)
 }
 
 // TestNewCompletionCmd_ArgsValidation exercises the cobra.MatchAll validator
@@ -274,19 +258,19 @@ func TestNewCompletionCmd_AllShellsProduceDifferentOutput(t *testing.T) {
 	}
 }
 
-// TestNewCompletionCmd_OverridesParentPersistentPreRunE confirms that the
-// completion command does not inherit the root's PersistentPreRunE — a real-
-// world regression guard ensuring completions work without a valid config file.
-func TestNewCompletionCmd_OverridesParentPersistentPreRunE(t *testing.T) {
+// TestNewCompletionCmd_WorksWithTraverseHooksEnabled verifies that completion
+// succeeds when cobra.EnableTraverseRunHooks is active and a parent command has
+// a harmless PersistentPreRunE (matching the real root's preRun behaviour).
+func TestNewCompletionCmd_WorksWithTraverseHooksEnabled(t *testing.T) {
+	hookRan := false
 	root := &cobra.Command{
 		Use: "awmg",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			// Simulate the real root's config validation, which would fail
-			// when no config file is present.
-			return assert.AnError
+			// Simulate the real root's preRun: sets an env var, never errors.
+			hookRan = true
+			return nil
 		},
 	}
-	// Add the group so the completion command's GroupID is valid.
 	root.AddGroup(&cobra.Group{ID: "utils", Title: "Utilities:"})
 	completion := newCompletionCmd()
 	root.AddCommand(completion)
@@ -294,10 +278,9 @@ func TestNewCompletionCmd_OverridesParentPersistentPreRunE(t *testing.T) {
 	output := captureStdoutDuring(t, func() {
 		root.SetArgs([]string{"completion", "bash"})
 		err := root.Execute()
-		// Must succeed even though the root's PersistentPreRunE would fail.
-		assert.NoError(t, err,
-			"completion command must override parent PersistentPreRunE and succeed")
+		assert.NoError(t, err, "completion must succeed with traverse hooks enabled")
 	})
 
-	assert.NotEmpty(t, output, "output must not be empty when pre-run override is active")
+	assert.NotEmpty(t, output, "completion output must not be empty")
+	assert.True(t, hookRan, "parent PersistentPreRunE should run via traverse hooks")
 }

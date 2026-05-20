@@ -60,8 +60,9 @@ func newProxyCmd() *cobra.Command {
 	defaultProxyLogDir := envutil.GetEnvString("MCP_GATEWAY_LOG_DIR", config.DefaultLogDir)
 
 	cmd := &cobra.Command{
-		Use:   "proxy",
-		Short: "Run as a GitHub API filtering proxy",
+		Use:     "proxy",
+		GroupID: "modes",
+		Short:   "Run as a GitHub API filtering proxy",
 		Long: `Run the gateway in proxy mode — an HTTP(S) forward proxy that intercepts
 gh CLI requests and applies DIFC filtering using the same guard WASM module.
 
