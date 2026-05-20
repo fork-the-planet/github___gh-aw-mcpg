@@ -386,6 +386,14 @@ func run(cmd *cobra.Command, args []string) error {
 
 		httpServer = server.CreateHTTPServerForMCP(listenAddr, unifiedServer, apiKey, hmacSecret)
 	}
+	// Set BaseContext so every incoming request inherits the startup context,
+	// which carries the configured W3C parent span context (traceId/spanId).
+	// This ensures HTTP handler spans join the workflow trace even when the
+	// calling client does not send traceparent headers.
+	httpServer.BaseContext = func(_ net.Listener) context.Context {
+		return ctx
+	}
+
 	// Register the HTTP server shutdown function so the /close handler can drain
 	// in-flight requests before exiting (spec 5.1.3)
 	unifiedServer.SetHTTPShutdown(httpServer.Shutdown)
