@@ -14,7 +14,7 @@ observability:
     endpoint:
       - url: ${{ secrets.GH_AW_OTEL_SENTRY_ENDPOINT }}
         headers:
-          x-sentry-auth: ${{ secrets.GH_AW_OTEL_SENTRY_AUTHORIZATION }}
+          x-sentry-token: ${{ secrets.GH_AW_OTEL_SENTRY_AUTHORIZATION }}
 
 engine:
   id: copilot
