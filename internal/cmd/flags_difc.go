@@ -37,6 +37,29 @@ func init() {
 	})
 }
 
+func resolveGuardPolicyOverride(cmd *cobra.Command) (*config.GuardPolicy, string, error) {
+	cliGuardPolicyChanged := cmd.Flags().Changed("guard-policy-json")
+	cliChanged := cliGuardPolicyChanged ||
+		cmd.Flags().Changed("allowonly-scope-public") ||
+		cmd.Flags().Changed("allowonly-scope-owner") ||
+		cmd.Flags().Changed("allowonly-scope-repo") ||
+		cmd.Flags().Changed("allowonly-min-integrity")
+
+	cliPolicyJSON := ""
+	if cliGuardPolicyChanged {
+		cliPolicyJSON = guardPolicyJSON
+	}
+
+	return config.ResolveGuardPolicyOverride(
+		cliChanged,
+		cliPolicyJSON,
+		allowOnlyPublic,
+		allowOnlyOwner,
+		allowOnlyRepo,
+		allowOnlyMinInt,
+	)
+}
+
 // getDefaultDIFCMode returns the default guards mode, checking MCP_GATEWAY_GUARDS_MODE
 // environment variable first, then falling back to the hardcoded default (strict)
 func getDefaultDIFCMode() string {
