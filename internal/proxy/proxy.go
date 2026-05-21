@@ -286,6 +286,29 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 	} else if r.clientAuth != "" {
 		enrichmentAuth = r.clientAuth
 	}
+	// For get_collaborator_permission, reuse shared REST call helper.
+	if toolName == "get_collaborator_permission" {
+		result, err := mcp.FetchCollaboratorPermission(
+			ctx,
+			collabOwner,
+			collabRepo,
+			collabUsername,
+			func(ctx context.Context, collabAPIPath string) (*http.Response, error) {
+				resp, err := r.server.forwardToGitHub(ctx, "GET", collabAPIPath, nil, "", enrichmentAuth)
+				if err != nil {
+					return nil, fmt.Errorf("REST call failed: %w", err)
+				}
+				return resp, nil
+			},
+			logProxy.Printf,
+		)
+		if err != nil {
+			logProxy.Printf("restBackendCaller: %s returned error: %v", toolName, err)
+			return nil, err
+		}
+		return result, nil
+	}
+
 	resp, err := r.server.forwardToGitHub(ctx, "GET", apiPath, nil, "", enrichmentAuth)
 	if err != nil {
 		return nil, fmt.Errorf("REST call failed: %w", err)
@@ -300,11 +323,6 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 	if resp.StatusCode >= 400 {
 		logProxy.Printf("restBackendCaller: %s returned %d", toolName, resp.StatusCode)
 		return nil, fmt.Errorf("GitHub API returned %d", resp.StatusCode)
-	}
-
-	// For get_collaborator_permission, log the resolved permission level for observability
-	if toolName == "get_collaborator_permission" {
-		return mcp.LogAndWrapCollaboratorPermission(body, collabOwner, collabRepo, collabUsername, resp.StatusCode, logProxy.Printf), nil
 	}
 
 	// Wrap in MCP response format: {content: [{type: "text", text: "..."}]}

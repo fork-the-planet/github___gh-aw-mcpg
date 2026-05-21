@@ -587,6 +587,42 @@ mod tests {
     }
 
     #[test]
+    fn test_pull_request_desc_number_formatting() {
+        let ctx = default_ctx();
+        let tool_args_snake = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "pull_number": "123"
+        });
+        let (_s1, _i1, desc1) = apply_tool_labels(
+            "list_pull_requests",
+            &tool_args_snake,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        assert_eq!(desc1, "pr:github/copilot#123");
+
+        let tool_args_camel = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "pullNumber": 456
+        });
+        let (_s2, _i2, desc2) = apply_tool_labels(
+            "list_pull_requests",
+            &tool_args_camel,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        assert_eq!(desc2, "pr:github/copilot#456");
+    }
+
+    #[test]
     fn test_apply_tool_labels_list_issues_repo_scoped_integrity() {
         let ctx = default_ctx();
         let tool_args = json!({

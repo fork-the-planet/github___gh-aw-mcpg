@@ -1,8 +1,11 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 )
 
 // ParseCollaboratorPermissionArgs extracts and validates the owner, repo, and
@@ -43,4 +46,41 @@ func LogAndWrapCollaboratorPermission(
 		logPrintf("get_collaborator_permission: %s/%s user %s → HTTP %d, %d bytes (JSON parse failed: %v)", owner, repo, username, statusCode, len(body), jsonErr)
 	}
 	return BuildMCPTextResponse(string(body))
+}
+
+// FetchCollaboratorPermission executes a get_collaborator_permission REST call
+// using the provided fetch function and returns the wrapped MCP text response.
+//
+// The fetch callback should perform the authenticated HTTP request for the
+// given API path and return the upstream response.
+func FetchCollaboratorPermission(
+	ctx context.Context,
+	owner, repo, username string,
+	fetch func(ctx context.Context, apiPath string) (*http.Response, error),
+	logPrintf func(format string, args ...interface{}),
+) (interface{}, error) {
+	apiPath := fmt.Sprintf("/repos/%s/%s/collaborators/%s/permission", owner, repo, username)
+
+	resp, err := fetch(ctx, apiPath)
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("failed to fetch response: nil response returned without error")
+	}
+	if resp.Body == nil {
+		return nil, fmt.Errorf("failed to fetch response: response body is nil")
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+	}
+
+	return LogAndWrapCollaboratorPermission(body, owner, repo, username, resp.StatusCode, logPrintf), nil
 }

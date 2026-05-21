@@ -213,26 +213,26 @@ pub fn apply_tool_labels(
         "get_pull_request" | "pull_request_read" | "list_pull_requests" => {
             // I(PR) = merged if merged; otherwise approved/unapproved/contributor floor by evidence
             // S(PR) = S(repo)
+            //
+            // Extract once for desc; backend lookup is gated on single-PR tools below.
+            let pull_number = extract_number_as_string(tool_args, field_names::PULL_NUMBER)
+                .or_else(|| extract_number_as_string(tool_args, "pullNumber"));
             if !owner.is_empty() && !repo.is_empty() {
-                let pr_num = extract_number_as_string(tool_args, field_names::PULL_NUMBER)
-                    .or_else(|| extract_number_as_string(tool_args, "pullNumber"));
-                if let Some(num) = pr_num {
+                if let Some(ref num) = pull_number {
                     desc = format!("pr:{}/{}#{}", owner, repo, num);
                 }
             }
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             if matches!(tool_name, "get_pull_request" | "pull_request_read") {
-                let pull_number = extract_number_as_string(tool_args, field_names::PULL_NUMBER)
-                    .or_else(|| extract_number_as_string(tool_args, "pullNumber"));
-                if let Some(number) = pull_number {
+                if let Some(ref number) = pull_number {
                     if let Some(facts) =
-                        super::backend::get_pull_request_facts(&owner, &repo, &number)
+                        super::backend::get_pull_request_facts(&owner, &repo, number)
                     {
                         integrity = resolve_author_integrity(
                             &owner, &repo, repo_id,
                             facts.author_login.as_deref(),
                             facts.author_association.as_deref(),
-                            "pull_request_read", &number,
+                            "pull_request_read", number,
                             integrity, ctx,
                         );
 

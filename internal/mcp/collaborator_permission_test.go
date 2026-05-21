@@ -1,8 +1,12 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -161,4 +165,88 @@ func TestLogAndWrapCollaboratorPermission(t *testing.T) {
 		require.Len(t, logged, 1)
 		assert.Contains(t, logged[0], "HTTP 201")
 	})
+}
+
+func TestFetchCollaboratorPermission(t *testing.T) {
+	t.Run("successfully fetches and wraps response", func(t *testing.T) {
+		var gotPath string
+		result, err := FetchCollaboratorPermission(
+			context.Background(),
+			"myorg",
+			"myrepo",
+			"alice",
+			func(ctx context.Context, apiPath string) (*http.Response, error) {
+				gotPath = apiPath
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       io.NopCloser(strings.NewReader(`{"permission":"admin","user":{"login":"alice"}}`)),
+				}, nil
+			},
+			func(format string, args ...interface{}) {},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, "/repos/myorg/myrepo/collaborators/alice/permission", gotPath)
+		assert.NotNil(t, result)
+	})
+
+	t.Run("returns fetch errors unchanged", func(t *testing.T) {
+		_, err := FetchCollaboratorPermission(
+			context.Background(),
+			"org",
+			"repo",
+			"user",
+			func(ctx context.Context, apiPath string) (*http.Response, error) {
+				return nil, fmt.Errorf("REST call failed: boom")
+			},
+			func(format string, args ...interface{}) {},
+		)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "REST call failed: boom")
+	})
+
+	t.Run("returns read errors", func(t *testing.T) {
+		_, err := FetchCollaboratorPermission(
+			context.Background(),
+			"org",
+			"repo",
+			"user",
+			func(ctx context.Context, apiPath string) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       &failingReadCloser{},
+				}, nil
+			},
+			func(format string, args ...interface{}) {},
+		)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "failed to read response")
+	})
+
+	t.Run("returns status code errors", func(t *testing.T) {
+		_, err := FetchCollaboratorPermission(
+			context.Background(),
+			"org",
+			"repo",
+			"user",
+			func(ctx context.Context, apiPath string) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Body:       io.NopCloser(strings.NewReader(`{"message":"Not Found"}`)),
+				}, nil
+			},
+			func(format string, args ...interface{}) {},
+		)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "GitHub API returned 404")
+	})
+}
+
+type failingReadCloser struct{}
+
+func (f *failingReadCloser) Read(_ []byte) (int, error) {
+	return 0, fmt.Errorf("read failed")
+}
+
+func (f *failingReadCloser) Close() error {
+	return nil
 }
