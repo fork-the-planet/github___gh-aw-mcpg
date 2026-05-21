@@ -100,6 +100,7 @@ func InjectGuardFields(body []byte, toolName string) []byte {
 
 	var gql GraphQLRequest
 	if err := json.Unmarshal(body, &gql); err != nil {
+		logGraphQLRewrite.Printf("Failed to parse GraphQL body for field injection: tool=%s, err=%v", toolName, err)
 		return body
 	}
 
@@ -111,6 +112,7 @@ func InjectGuardFields(body []byte, toolName string) []byte {
 	missing := missingFields(gql.Query, fields)
 	modified := injectFieldsIntoQuery(gql.Query, missing, safeParents)
 	if modified == gql.Query {
+		logGraphQLRewrite.Printf("Field injection made no change for tool=%s, fields=%v", toolName, missing)
 		return body
 	}
 
@@ -241,9 +243,12 @@ foundBrace:
 		i--
 	}
 	if i+1 >= end {
+		logGraphQLRewrite.Printf("findParentField: could not extract field name at nodesIdx=%d", nodesIdx)
 		return ""
 	}
-	return query[i+1 : end]
+	parent := query[i+1 : end]
+	logGraphQLRewrite.Printf("findParentField: nodesIdx=%d, parent=%q", nodesIdx, parent)
+	return parent
 }
 
 // isGraphQLFieldNameChar returns true for characters valid in a GraphQL field name.
@@ -259,6 +264,7 @@ func injectIntoFragment(query, fragName, field string) string {
 	fragPrefix := "fragment " + fragName + " on "
 	idx := strings.Index(query, fragPrefix)
 	if idx == -1 {
+		logGraphQLRewrite.Printf("injectIntoFragment: fragment %q not found in query", fragName)
 		return query
 	}
 
@@ -285,9 +291,11 @@ func injectIntoFragment(query, fragName, field string) string {
 	}
 
 	if braceEnd == -1 {
+		logGraphQLRewrite.Printf("injectIntoFragment: no closing brace found for fragment %q", fragName)
 		return query
 	}
 
+	logGraphQLRewrite.Printf("injectIntoFragment: injected %q into fragment %q", field, fragName)
 	// Insert field before the closing brace
 	return query[:braceEnd] + "," + field + query[braceEnd:]
 }
