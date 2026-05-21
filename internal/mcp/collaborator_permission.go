@@ -65,6 +65,12 @@ func FetchCollaboratorPermission(
 	if err != nil {
 		return nil, err
 	}
+	if resp == nil {
+		return nil, fmt.Errorf("failed to fetch response: nil response returned without error")
+	}
+	if resp.Body == nil {
+		return nil, fmt.Errorf("failed to fetch response: response body is nil")
+	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
