@@ -231,7 +231,7 @@ func runJqCode(
 
 	if err, ok := v.(error); ok {
 		if ctx.Err() != nil {
-			return nil, fmt.Errorf("%s execution failed (jq error: %v): %w", executionPrefix, err, ctx.Err())
+			return nil, fmt.Errorf("%s execution failed: %w", executionPrefix, errors.Join(err, ctx.Err()))
 		}
 		var haltErr *gojq.HaltError
 		if errors.As(err, &haltErr) {
