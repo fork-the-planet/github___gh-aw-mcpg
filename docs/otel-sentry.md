@@ -77,7 +77,7 @@ In Sentry's trace detail view, expand a span and look under **Tags & Attributes*
 
 ### Span Events
 
-Error spans record error events via `span.RecordError()` with a generic message (`"tool execution failed"`) to avoid leaking internal details to trace backends.
+For `gateway.backend.execute`, backend transport errors are recorded via `span.RecordError()` with a generic message (`"tool execution failed"`) to avoid leaking internal details to trace backends. Other spans, including `mcp.tool_call`, may record more specific error details (for example, access-denied or guard-failure conditions).
 
 ## Important Sentry Behavior
 
