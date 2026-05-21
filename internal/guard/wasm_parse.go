@@ -55,18 +55,25 @@ func parseLabelAgentResponse(resultJSON []byte) (*LabelAgentResult, error) {
 // parsePathLabeledResponse parses the path-based labeling format.
 // This is more efficient as guards don't need to copy data, just return paths and labels.
 func parsePathLabeledResponse(responseJSON []byte, originalData any) (difc.LabeledData, error) {
+	logWasm.Printf("parsePathLabeledResponse: responseSize=%d", len(responseJSON))
+
 	pathLabels, err := difc.ParsePathLabels(responseJSON)
 	if err != nil {
+		logWasm.Printf("parsePathLabeledResponse: failed to parse path labels: %v", err)
 		return nil, fmt.Errorf("failed to parse path labels: %w", err)
 	}
+	logWasm.Printf("parsePathLabeledResponse: parsed %d path labels", len(pathLabels.LabeledPaths))
 
 	pld, err := difc.NewPathLabeledData(originalData, pathLabels)
 	if err != nil {
+		logWasm.Printf("parsePathLabeledResponse: failed to apply path labels: %v", err)
 		return nil, fmt.Errorf("failed to apply path labels: %w", err)
 	}
 
 	// Convert to CollectionLabeledData for compatibility with existing filtering
-	return pld.ToCollectionLabeledData(), nil
+	result := pld.ToCollectionLabeledData()
+	logWasm.Printf("parsePathLabeledResponse: converted to CollectionLabeledData successfully")
+	return result, nil
 }
 
 // isWasmTrap reports whether err represents a WASM execution trap that should
@@ -408,6 +415,7 @@ func parseResourceResponse(response map[string]any) (*difc.LabeledResource, difc
 
 // parseCollectionLabeledData converts an array of items to CollectionLabeledData.
 func parseCollectionLabeledData(items []any) (*difc.CollectionLabeledData, error) {
+	logWasm.Printf("parseCollectionLabeledData: itemCount=%d", len(items))
 	collection := &difc.CollectionLabeledData{
 		Items: make([]difc.LabeledItem, 0, len(items)),
 	}
@@ -462,5 +470,6 @@ func parseCollectionLabeledData(items []any) (*difc.CollectionLabeledData, error
 		collection.Items = append(collection.Items, labeledItem)
 	}
 
+	logWasm.Printf("parseCollectionLabeledData: parsed %d labeled items from %d input items", len(collection.Items), len(items))
 	return collection, nil
 }

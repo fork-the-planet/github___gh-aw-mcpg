@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -380,12 +379,12 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	}
 
 	// Start an OTEL span for the full tool call lifecycle (spans all phases 0–6)
-	// Attribute names follow MCP Gateway Specification §4.1.3.6
+	// Attribute names follow the OpenTelemetry gen_ai semantic conventions
 	ctx, toolSpan := us.GetTracer().Start(ctx, "mcp.tool_call",
 		oteltrace.WithAttributes(
-			attribute.String("mcp.server", serverID),
-			attribute.String("mcp.method", "tools/call"),
-			attribute.String("mcp.tool", toolName),
+			tracing.GenAIAgentID.String(serverID),
+			tracing.MCPMethod.String("tools/call"),
+			tracing.GenAIToolName.String(toolName),
 		),
 		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
 	)
@@ -487,8 +486,8 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// **Phase 3: Execute the backend call**
 	execCtx, execSpan := us.GetTracer().Start(ctx, "gateway.backend.execute",
 		oteltrace.WithAttributes(
-			attribute.String("tool.name", toolName),
-			attribute.String("server.id", serverID),
+			tracing.GenAIToolName.String(toolName),
+			tracing.GenAIAgentID.String(serverID),
 		),
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
@@ -519,7 +518,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// Inspect the tool result for rate-limit indicators from the GitHub MCP server.
 	if rateLimited, resetAt := isRateLimitToolResult(backendResult); rateLimited {
 		cb.RecordRateLimit(resetAt)
-		execSpan.SetAttributes(attribute.Bool("rate_limit.hit", true))
+		execSpan.SetAttributes(tracing.RateLimitHit.Bool(true))
 		httpStatusCode = 429
 		// Preserve the original backend error text so the agent sees the actual upstream
 		// rate-limit details. ErrCircuitOpen is only returned when cb.Allow() rejects

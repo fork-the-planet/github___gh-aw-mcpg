@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
@@ -48,9 +47,9 @@ func WithOTELTracing(next http.Handler, tag string) http.Handler {
 		next.ServeHTTP(w, r)
 		sessionID := SessionIDFromContext(r.Context())
 		span := oteltrace.SpanFromContext(r.Context())
-		span.SetAttributes(attribute.String("session.id", auth.TruncateSessionID(sessionID)))
+		span.SetAttributes(tracing.GenAIConversationID.String(auth.TruncateSessionID(sessionID)))
 	})
-	return tracing.WrapHTTPHandler(enriched, "gateway.request", attribute.String("gateway.tag", tag))
+	return tracing.WrapHTTPHandler(enriched, "gateway.request", tracing.GatewayTag.String(tag))
 }
 
 // applyIfConfigured wraps handler with middleware(key, handler) when key is non-empty.

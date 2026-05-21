@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -143,7 +142,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	// Start a DIFC pipeline span covering all phases for this request
 	ctx, difcSpan := h.GetTracer().Start(ctx, "proxy.difc_pipeline",
 		oteltrace.WithAttributes(
-			attribute.String("tool.name", toolName),
+			tracing.GenAIToolName.String(toolName),
 			semconv.URLPathKey.String(r.URL.Path),
 		),
 		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
@@ -200,7 +199,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	fwdCtx, fwdSpan := h.GetTracer().Start(ctx, "proxy.backend.forward",
 		oteltrace.WithAttributes(
 			semconv.URLPathKey.String(path),
-			attribute.String("tool.name", toolName),
+			tracing.GenAIToolName.String(toolName),
 		),
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
