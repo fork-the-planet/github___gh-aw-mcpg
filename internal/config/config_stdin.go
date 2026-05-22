@@ -514,7 +514,7 @@ func expandMapInPlace(m *map[string]string, serverName, fieldDesc string) error 
 	logStdin.Printf("Server %q: expanding %d %s", serverName, len(*m), fieldDesc)
 	expanded, err := expandEnvVariables(*m, serverName)
 	if err != nil {
-		return err
+		return fmt.Errorf("server %q: failed to expand %s: %w", serverName, fieldDesc, err)
 	}
 	*m = expanded
 	return nil
