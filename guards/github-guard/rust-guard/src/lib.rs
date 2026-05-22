@@ -140,7 +140,11 @@ pub fn invoke_backend(
     };
 
     if result < 0 {
-        log_error(&format!("<<< call_backend FAILED with code {}", result));
+        if result == -2 {
+            log_warn("<<< call_backend buffer too small; caller should retry with a larger buffer");
+        } else {
+            log_error(&format!("<<< call_backend FAILED with code {}", result));
+        }
         Err(result)
     } else {
         log_info(&format!("<<< call_backend returned {} bytes", result));
@@ -720,7 +724,11 @@ pub extern "C" fn label_resource(
             "    tool '{}' is unconditionally blocked — overriding integrity to blocked",
             input.tool_name
         ));
-        let scope = if repo_id.is_empty() { scope_names::GLOBAL } else { &repo_id };
+        let scope = if repo_id.is_empty() {
+            scope_names::GLOBAL
+        } else {
+            &repo_id
+        };
         blocked_integrity(scope, &ctx)
     } else {
         final_integrity
@@ -1147,7 +1155,8 @@ mod tests {
     #[test]
     fn infer_scope_for_baseline_borrows_repo_id_when_present() {
         let tool_args = json!({});
-        let inferred = infer_scope_for_baseline("get_file_contents", &tool_args, "octocat/hello-world");
+        let inferred =
+            infer_scope_for_baseline("get_file_contents", &tool_args, "octocat/hello-world");
 
         assert!(matches!(inferred, Cow::Borrowed("octocat/hello-world")));
     }
@@ -1228,7 +1237,12 @@ mod tests {
             "manage_repository_notification_subscription",
         ] {
             let inferred = infer_scope_for_baseline(tool, &tool_args, "");
-            assert_eq!(inferred, scope_names::GITHUB, "{} should infer github baseline scope", tool);
+            assert_eq!(
+                inferred,
+                scope_names::GITHUB,
+                "{} should infer github baseline scope",
+                tool
+            );
         }
     }
 
@@ -1237,7 +1251,12 @@ mod tests {
         let tool_args = json!({ "name": "new-repo" });
         for tool in &["create_repository", "fork_repository"] {
             let inferred = infer_scope_for_baseline(tool, &tool_args, "");
-            assert_eq!(inferred, scope_names::GITHUB, "{} should infer github baseline scope", tool);
+            assert_eq!(
+                inferred,
+                scope_names::GITHUB,
+                "{} should infer github baseline scope",
+                tool
+            );
         }
     }
 
@@ -1251,8 +1270,15 @@ mod tests {
             "manage_notification_subscription",
             "manage_repository_notification_subscription",
         ] {
-            let (_, integrity, _) =
-                labels::apply_tool_labels(tool, &tool_args, "", vec![], vec![], String::new(), &ctx);
+            let (_, integrity, _) = labels::apply_tool_labels(
+                tool,
+                &tool_args,
+                "",
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
             let baseline_scope = infer_scope_for_baseline(tool, &tool_args, "");
             let after_baseline =
                 labels::ensure_integrity_baseline(&baseline_scope, integrity, &ctx);
@@ -1271,8 +1297,15 @@ mod tests {
         let ctx = PolicyContext::default();
         let tool_args = json!({ "name": "new-repo" });
         for tool in &["create_repository", "fork_repository"] {
-            let (_, integrity, _) =
-                labels::apply_tool_labels(tool, &tool_args, "", vec![], vec![], String::new(), &ctx);
+            let (_, integrity, _) = labels::apply_tool_labels(
+                tool,
+                &tool_args,
+                "",
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
             let baseline_scope = infer_scope_for_baseline(tool, &tool_args, "");
             let after_baseline =
                 labels::ensure_integrity_baseline(&baseline_scope, integrity, &ctx);
@@ -1309,13 +1342,16 @@ mod tests {
             String::new(),
             &ctx,
         );
-        let baseline_scope =
-            infer_scope_for_baseline("transfer_repository", &tool_args, repo_id);
+        let baseline_scope = infer_scope_for_baseline("transfer_repository", &tool_args, repo_id);
         let after_baseline = labels::ensure_integrity_baseline(&baseline_scope, integrity, &ctx);
 
         // Simulate the is_blocked_tool override performed in label_resource
         let final_integrity = if tools::is_blocked_tool("transfer_repository") {
-            let scope = if repo_id.is_empty() { scope_names::GLOBAL } else { repo_id };
+            let scope = if repo_id.is_empty() {
+                scope_names::GLOBAL
+            } else {
+                repo_id
+            };
             blocked_integrity(scope, &ctx)
         } else {
             after_baseline
@@ -1380,11 +1416,11 @@ mod tests {
     fn test_safe_preview_mixed_content_near_boundary() {
         // Simulate a JSON string with ASCII keys and a CJK value crossing byte 500.
         // {"body":"<padding>中中中..."}
-        let prefix = "{\"body\":\"";      // 9 bytes
-        let padding = "x".repeat(489);    // 489 bytes — total so far: 498
-        let cjk_tail = "中中中中中";       // 5 × 3 = 15 bytes — subtotal: 513
+        let prefix = "{\"body\":\""; // 9 bytes
+        let padding = "x".repeat(489); // 489 bytes — total so far: 498
+        let cjk_tail = "中中中中中"; // 5 × 3 = 15 bytes — subtotal: 513
 
-        let json = format!("{}{}{}\"}}",  prefix, padding, cjk_tail); // +3 bytes for "\"}}" => 516 total
+        let json = format!("{}{}{}\"}}", prefix, padding, cjk_tail); // +3 bytes for "\"}}" => 516 total
         assert!(json.len() > 500);
 
         let preview = safe_preview(&json, 500);
@@ -1423,7 +1459,10 @@ mod tests {
     #[test]
     fn parse_integrity_rejects_unknown_value() {
         let err = parse_integrity("superuser").expect_err("unknown value must be rejected");
-        assert!(err.contains("must be one of"), "error should describe constraint: {err}");
+        assert!(
+            err.contains("must be one of"),
+            "error should describe constraint: {err}"
+        );
         assert!(
             err.contains(policy_integrity::ORDER_LOW_TO_HIGH_PIPED),
             "error should contain the full valid-options string \"{}\": {err}",
@@ -1434,12 +1473,21 @@ mod tests {
     #[test]
     fn scope_string_all_arms() {
         assert_eq!(scope_string(ScopeKind::All, None, None), POLICY_SCOPE_ALL);
-        assert_eq!(scope_string(ScopeKind::Public, None, None), POLICY_SCOPE_PUBLIC);
-        assert_eq!(scope_string(ScopeKind::Owner, Some("octocat"), None), "octocat");
+        assert_eq!(
+            scope_string(ScopeKind::Public, None, None),
+            POLICY_SCOPE_PUBLIC
+        );
+        assert_eq!(
+            scope_string(ScopeKind::Owner, Some("octocat"), None),
+            "octocat"
+        );
         assert_eq!(scope_string(ScopeKind::Owner, None, None), "");
         assert_eq!(scope_string(ScopeKind::Repo, Some("o"), Some("r")), "o/r");
         assert_eq!(scope_string(ScopeKind::Repo, None, None), "");
-        assert_eq!(scope_string(ScopeKind::RepoPrefix, Some("o"), Some("pfx")), "o/pfx*");
+        assert_eq!(
+            scope_string(ScopeKind::RepoPrefix, Some("o"), Some("pfx")),
+            "o/pfx*"
+        );
         assert_eq!(scope_string(ScopeKind::RepoPrefix, None, None), "");
     }
 }

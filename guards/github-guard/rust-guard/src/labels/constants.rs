@@ -106,8 +106,8 @@ pub const SENSITIVE_FILE_PATTERNS: &[&str] = &[
 pub const SENSITIVE_FILE_KEYWORDS: &[&str] = &["secret", "credential", "password", "token"];
 
 /// Buffer size constants for backend calls
-pub const SMALL_BUFFER_SIZE: usize = 16 * 1024; // 16KB
-pub const MEDIUM_BUFFER_SIZE: usize = 64 * 1024; // 64KB
+pub const SMALL_BUFFER_SIZE: usize = 256 * 1024; // 256KB
+pub const MEDIUM_BUFFER_SIZE: usize = 512 * 1024; // 512KB
 
 /// Maximum items to process per response to prevent WASM memory exhaustion
 pub const MAX_ITEMS_PER_RESPONSE: usize = 100;

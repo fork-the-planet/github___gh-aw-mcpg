@@ -2,6 +2,7 @@ package guard
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -284,9 +285,14 @@ func (g *WasmGuard) hostCallBackend(ctx context.Context, m api.Module, stack []u
 	resultPtr := uint32(stack[4])
 	resultSize := uint32(stack[5])
 
-	// Helper to set error return value
+	// Helper to set return value
+	setResult := func(code int32) {
+		stack[0] = uint64(uint32(code))
+	}
+
+	// Helper to set generic error return value
 	setError := func() {
-		stack[0] = uint64(^uint32(0)) // Max uint32 represents error
+		setResult(-1)
 	}
 
 	// Read tool name from WASM memory
@@ -335,7 +341,16 @@ func (g *WasmGuard) hostCallBackend(ctx context.Context, m api.Module, stack []u
 	// Check if result fits in buffer
 	if uint32(len(resultJSON)) > resultSize {
 		logWasm.Printf("Result too large: %d > %d", len(resultJSON), resultSize)
-		setError()
+		// Signal buffer-too-small with required size protocol:
+		// return -2 and (if possible) write required size (u32 LE) to resultPtr.
+		if resultSize >= 4 {
+			var required [4]byte
+			binary.LittleEndian.PutUint32(required[:], uint32(len(resultJSON)))
+			if !m.Memory().Write(resultPtr, required[:]) {
+				logWasm.Printf("Failed to write required size to WASM memory")
+			}
+		}
+		setResult(-2)
 		return
 	}
 

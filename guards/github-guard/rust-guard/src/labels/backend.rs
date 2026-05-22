@@ -14,6 +14,60 @@ use super::constants::{MEDIUM_BUFFER_SIZE, SMALL_BUFFER_SIZE};
 /// Backend callback signature used for GitHub MCP tool calls.
 pub type GithubMcpCallback = fn(&str, &str, &mut [u8]) -> Result<usize, i32>;
 
+const BACKEND_BUFFER_TOO_SMALL: i32 = -2;
+const BACKEND_MAX_RESULT_BYTES: usize = 16 * 1024 * 1024;
+
+fn decode_required_size(buffer: &[u8]) -> Option<usize> {
+    if buffer.len() < 4 {
+        return None;
+    }
+    let required = u32::from_le_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]) as usize;
+    if required > 0 {
+        Some(required)
+    } else {
+        None
+    }
+}
+
+fn call_backend_with_retry(
+    callback: GithubMcpCallback,
+    tool: &str,
+    args: &str,
+    initial_buffer_size: usize,
+) -> Option<Vec<u8>> {
+    let mut result_buffer = vec![0u8; initial_buffer_size.max(4)];
+
+    loop {
+        match callback(tool, args, &mut result_buffer) {
+            Ok(len) => return Some(result_buffer[..len].to_vec()),
+            Err(code) if code == BACKEND_BUFFER_TOO_SMALL => {
+                let doubled_size = result_buffer.len().saturating_mul(2);
+                let required_size = decode_required_size(&result_buffer).unwrap_or(doubled_size);
+                let next_size = required_size.max(doubled_size);
+                // Guard against infinite retries if the next size doesn't actually grow.
+                if next_size <= result_buffer.len() || next_size > BACKEND_MAX_RESULT_BYTES {
+                    crate::log_warn(&format!(
+                        "Backend call {} exceeded max retry size (required={}, max={})",
+                        tool, next_size, BACKEND_MAX_RESULT_BYTES
+                    ));
+                    return None;
+                }
+                crate::log_warn(&format!(
+                    "Backend call {} buffer too small ({}), retrying with {} bytes",
+                    tool,
+                    result_buffer.len(),
+                    next_size
+                ));
+                result_buffer.resize(next_size, 0);
+            }
+            Err(code) => {
+                crate::log_warn(&format!("Backend call {} failed with code {}", tool, code));
+                return None;
+            }
+        }
+    }
+}
+
 fn repo_visibility_cache() -> &'static Mutex<HashMap<String, bool>> {
     static CACHE: OnceLock<Mutex<HashMap<String, bool>>> = OnceLock::new();
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
@@ -125,27 +179,24 @@ pub fn is_repo_private_with_callback(
     let mut did_retry_after_rate_limit = false;
 
     for attempt in 0..=1 {
-        let mut result_buffer = vec![0u8; MEDIUM_BUFFER_SIZE];
-
-        let len = match callback("search_repositories", &args_str, &mut result_buffer) {
-            Ok(len) if len > 0 => len,
-            Ok(_) => {
+        let result = match call_backend_with_retry(
+            callback,
+            "search_repositories",
+            &args_str,
+            MEDIUM_BUFFER_SIZE,
+        ) {
+            Some(result) if !result.is_empty() => result,
+            Some(_) => {
                 crate::log_warn(&format!(
                     "Repo visibility lookup result for {}: unknown (empty search response)",
                     repo_id
                 ));
                 return get_cached_repo_visibility(&repo_id);
             }
-            Err(code) => {
-                crate::log_warn(&format!(
-                    "Repo visibility lookup result for {}: unknown (backend error code {})",
-                    repo_id, code
-                ));
-                return get_cached_repo_visibility(&repo_id);
-            }
+            None => return get_cached_repo_visibility(&repo_id),
         };
 
-        let response_str = match std::str::from_utf8(&result_buffer[..len]) {
+        let response_str = match std::str::from_utf8(&result) {
             Ok(value) => value,
             Err(_) => {
                 crate::log_warn(&format!(
@@ -252,7 +303,6 @@ pub fn is_repo_private_with_callback(
     get_cached_repo_visibility(&repo_id)
 }
 
-
 /// Fetch pull request facts used for integrity derivation.
 pub fn get_pull_request_facts_with_callback(
     callback: GithubMcpCallback,
@@ -272,14 +322,13 @@ pub fn get_pull_request_facts_with_callback(
     });
 
     let args_str = args.to_string();
-    let mut result_buffer = vec![0u8; MEDIUM_BUFFER_SIZE];
+    let result =
+        call_backend_with_retry(callback, "pull_request_read", &args_str, MEDIUM_BUFFER_SIZE)?;
+    if result.is_empty() {
+        return None;
+    }
 
-    let len = match callback("pull_request_read", &args_str, &mut result_buffer) {
-        Ok(len) if len > 0 => len,
-        _ => return None,
-    };
-
-    let response_str = std::str::from_utf8(&result_buffer[..len]).ok()?;
+    let response_str = std::str::from_utf8(&result).ok()?;
     let response = serde_json::from_str::<Value>(response_str).ok()?;
     let pr = super::extract_mcp_response(&response);
 
@@ -370,14 +419,12 @@ pub fn get_issue_author_info_with_callback(
     });
 
     let args_str = args.to_string();
-    let mut result_buffer = vec![0u8; SMALL_BUFFER_SIZE];
+    let result = call_backend_with_retry(callback, "issue_read", &args_str, SMALL_BUFFER_SIZE)?;
+    if result.is_empty() {
+        return None;
+    }
 
-    let len = match callback("issue_read", &args_str, &mut result_buffer) {
-        Ok(len) if len > 0 => len,
-        _ => return None,
-    };
-
-    let response_str = std::str::from_utf8(&result_buffer[..len]).ok()?;
+    let response_str = std::str::from_utf8(&result).ok()?;
     let response = serde_json::from_str::<Value>(response_str).ok()?;
     let issue = super::extract_mcp_response(&response);
 
@@ -463,11 +510,14 @@ pub fn get_collaborator_permission_with_callback(
     });
 
     let args_str = args.to_string();
-    let mut result_buffer = vec![0u8; SMALL_BUFFER_SIZE];
-
-    let len = match callback("get_collaborator_permission", &args_str, &mut result_buffer) {
-        Ok(len) if len > 0 => len,
-        Ok(_) => {
+    let result = match call_backend_with_retry(
+        callback,
+        "get_collaborator_permission",
+        &args_str,
+        SMALL_BUFFER_SIZE,
+    ) {
+        Some(result) if !result.is_empty() => result,
+        Some(_) => {
             crate::log_warn(&format!(
                 "get_collaborator_permission: empty response for {}/{} user {}",
                 owner, repo, username
@@ -475,16 +525,12 @@ pub fn get_collaborator_permission_with_callback(
             set_cached_collaborator_permission(&cache_key, None);
             return None;
         }
-        Err(code) => {
-            crate::log_warn(&format!(
-                "get_collaborator_permission: callback failed for {}/{} user {} (error code {})",
-                owner, repo, username, code
-            ));
+        None => {
             return None;
         }
     };
 
-    let response_str = match std::str::from_utf8(&result_buffer[..len]) {
+    let response_str = match std::str::from_utf8(&result) {
         Ok(s) => s,
         Err(e) => {
             crate::log_warn(&format!(
@@ -619,26 +665,24 @@ mod tests {
         });
 
         let args_str = args.to_string();
-        let mut result_buffer = vec![0u8; SMALL_BUFFER_SIZE];
 
         crate::log_debug(&format!(
             "Checking PR origin for {}/{}#{}",
             owner, repo, pull_number
         ));
 
-        let len = match callback("pull_request_read", &args_str, &mut result_buffer) {
-            Ok(len) if len > 0 => len,
-            Ok(_) => return None,
-            Err(code) => {
-                crate::log_warn(&format!(
-                    "Failed to check PR origin for {}/{}#{}: error code {}",
-                    owner, repo, pull_number, code
-                ));
-                return None;
-            }
+        let result = match call_backend_with_retry(
+            callback,
+            "pull_request_read",
+            &args_str,
+            SMALL_BUFFER_SIZE,
+        ) {
+            Some(result) if !result.is_empty() => result,
+            Some(_) => return None,
+            None => return None,
         };
 
-        let response_str = std::str::from_utf8(&result_buffer[..len]).ok()?;
+        let response_str = std::str::from_utf8(&result).ok()?;
         let response = serde_json::from_str::<Value>(response_str).ok()?;
         let pr = crate::labels::extract_mcp_response(&response);
 
@@ -724,10 +768,45 @@ mod tests {
         .to_string();
         let bytes = payload.as_bytes();
         if bytes.len() > buffer.len() {
-            return Err(-1);
+            if buffer.len() >= 4 {
+                let required = (bytes.len() as u32).to_le_bytes();
+                buffer[..4].copy_from_slice(&required);
+            }
+            return Err(-2);
         }
         buffer[..bytes.len()].copy_from_slice(bytes);
         Ok(bytes.len())
+    }
+
+    static RETRY_WITH_REQUIRED_SIZE_CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
+
+    fn retry_with_required_size_callback(
+        _tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        let payload = serde_json::json!({ "ok": true }).to_string();
+        let bytes = payload.as_bytes();
+        let call = RETRY_WITH_REQUIRED_SIZE_CALL_COUNT.fetch_add(1, Ordering::SeqCst);
+        if call == 0 {
+            let required = (bytes.len() as u32).to_le_bytes();
+            buffer[..4].copy_from_slice(&required);
+            return Err(-2);
+        }
+        buffer[..bytes.len()].copy_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn retry_with_too_large_required_size_callback(
+        _tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        let required = (BACKEND_MAX_RESULT_BYTES as u32)
+            .saturating_add(1)
+            .to_le_bytes();
+        buffer[..4].copy_from_slice(&required);
+        Err(-2)
     }
 
     fn repo_private_search_fallback_callback(
@@ -895,8 +974,14 @@ mod tests {
             extract_rate_reset_seconds("failed: [rate reset in 42s]"),
             Some(42)
         );
-        assert_eq!(extract_rate_reset_seconds("failed: [rate reset in s]"), None);
-        assert_eq!(extract_rate_reset_seconds("failed: [rate reset in abc]"), None);
+        assert_eq!(
+            extract_rate_reset_seconds("failed: [rate reset in s]"),
+            None
+        );
+        assert_eq!(
+            extract_rate_reset_seconds("failed: [rate reset in abc]"),
+            None
+        );
     }
 
     #[test]
@@ -921,8 +1006,12 @@ mod tests {
 
     #[test]
     fn test_get_pull_request_facts_accepts_large_pull_request_payloads() {
-        let facts =
-            get_pull_request_facts_with_callback(large_pull_request_callback, "owner", "repo", "123");
+        let facts = get_pull_request_facts_with_callback(
+            large_pull_request_callback,
+            "owner",
+            "repo",
+            "123",
+        );
 
         assert!(facts.is_some());
         let facts = facts.unwrap();
@@ -930,6 +1019,30 @@ mod tests {
         assert_eq!(facts.author_login.as_deref(), Some("big-pr-author"));
         assert_eq!(facts.is_forked, Some(false));
         assert!(!facts.is_merged);
+    }
+
+    #[test]
+    fn test_call_backend_with_retry_uses_required_size_hint() {
+        RETRY_WITH_REQUIRED_SIZE_CALL_COUNT.store(0, Ordering::SeqCst);
+        let result = call_backend_with_retry(
+            retry_with_required_size_callback,
+            "pull_request_read",
+            "{}",
+            4,
+        )
+        .expect("expected retry helper to succeed");
+        assert_eq!(result, br#"{"ok":true}"#.to_vec());
+    }
+
+    #[test]
+    fn test_call_backend_with_retry_returns_none_when_required_size_exceeds_max() {
+        let result = call_backend_with_retry(
+            retry_with_too_large_required_size_callback,
+            "pull_request_read",
+            "{}",
+            4,
+        );
+        assert!(result.is_none());
     }
 
     #[test]
@@ -996,11 +1109,7 @@ mod tests {
 
     // --- Collaborator permission tests ---
 
-    fn collab_admin_callback(
-        tool: &str,
-        _args: &str,
-        buffer: &mut [u8],
-    ) -> Result<usize, i32> {
+    fn collab_admin_callback(tool: &str, _args: &str, buffer: &mut [u8]) -> Result<usize, i32> {
         assert_eq!(tool, "get_collaborator_permission");
         copy_payload(
             serde_json::json!({
@@ -1011,11 +1120,7 @@ mod tests {
         )
     }
 
-    fn collab_write_callback(
-        _tool: &str,
-        _args: &str,
-        buffer: &mut [u8],
-    ) -> Result<usize, i32> {
+    fn collab_write_callback(_tool: &str, _args: &str, buffer: &mut [u8]) -> Result<usize, i32> {
         copy_payload(
             serde_json::json!({
                 "permission": "write",
@@ -1025,11 +1130,7 @@ mod tests {
         )
     }
 
-    fn collab_maintain_callback(
-        _tool: &str,
-        _args: &str,
-        buffer: &mut [u8],
-    ) -> Result<usize, i32> {
+    fn collab_maintain_callback(_tool: &str, _args: &str, buffer: &mut [u8]) -> Result<usize, i32> {
         copy_payload(
             serde_json::json!({
                 "permission": "maintain",
@@ -1039,11 +1140,7 @@ mod tests {
         )
     }
 
-    fn collab_read_callback(
-        _tool: &str,
-        _args: &str,
-        buffer: &mut [u8],
-    ) -> Result<usize, i32> {
+    fn collab_read_callback(_tool: &str, _args: &str, buffer: &mut [u8]) -> Result<usize, i32> {
         copy_payload(
             serde_json::json!({
                 "permission": "read",
@@ -1053,11 +1150,7 @@ mod tests {
         )
     }
 
-    fn collab_triage_callback(
-        _tool: &str,
-        _args: &str,
-        buffer: &mut [u8],
-    ) -> Result<usize, i32> {
+    fn collab_triage_callback(_tool: &str, _args: &str, buffer: &mut [u8]) -> Result<usize, i32> {
         copy_payload(
             serde_json::json!({
                 "permission": "triage",
@@ -1067,11 +1160,7 @@ mod tests {
         )
     }
 
-    fn collab_none_callback(
-        _tool: &str,
-        _args: &str,
-        buffer: &mut [u8],
-    ) -> Result<usize, i32> {
+    fn collab_none_callback(_tool: &str, _args: &str, buffer: &mut [u8]) -> Result<usize, i32> {
         copy_payload(
             serde_json::json!({
                 "permission": "none",
@@ -1081,11 +1170,7 @@ mod tests {
         )
     }
 
-    fn collab_error_callback(
-        _tool: &str,
-        _args: &str,
-        _buffer: &mut [u8],
-    ) -> Result<usize, i32> {
+    fn collab_error_callback(_tool: &str, _args: &str, _buffer: &mut [u8]) -> Result<usize, i32> {
         Err(-1)
     }
 
@@ -1109,8 +1194,12 @@ mod tests {
 
     #[test]
     fn test_get_collaborator_permission_admin() {
-        let result =
-            get_collaborator_permission_with_callback(collab_admin_callback, "org", "repo", "org-admin");
+        let result = get_collaborator_permission_with_callback(
+            collab_admin_callback,
+            "org",
+            "repo",
+            "org-admin",
+        );
         assert!(result.is_some());
         let perm = result.unwrap();
         assert_eq!(perm.permission.as_deref(), Some("admin"));
@@ -1119,8 +1208,12 @@ mod tests {
 
     #[test]
     fn test_get_collaborator_permission_write() {
-        let result =
-            get_collaborator_permission_with_callback(collab_write_callback, "org", "repo", "writer-user");
+        let result = get_collaborator_permission_with_callback(
+            collab_write_callback,
+            "org",
+            "repo",
+            "writer-user",
+        );
         assert!(result.is_some());
         let perm = result.unwrap();
         assert_eq!(perm.permission.as_deref(), Some("write"));
@@ -1129,8 +1222,12 @@ mod tests {
 
     #[test]
     fn test_get_collaborator_permission_maintain() {
-        let result =
-            get_collaborator_permission_with_callback(collab_maintain_callback, "org", "repo", "maintainer-user");
+        let result = get_collaborator_permission_with_callback(
+            collab_maintain_callback,
+            "org",
+            "repo",
+            "maintainer-user",
+        );
         assert!(result.is_some());
         let perm = result.unwrap();
         assert_eq!(perm.permission.as_deref(), Some("maintain"));
@@ -1138,8 +1235,12 @@ mod tests {
 
     #[test]
     fn test_get_collaborator_permission_read() {
-        let result =
-            get_collaborator_permission_with_callback(collab_read_callback, "org", "repo", "reader-user");
+        let result = get_collaborator_permission_with_callback(
+            collab_read_callback,
+            "org",
+            "repo",
+            "reader-user",
+        );
         assert!(result.is_some());
         let perm = result.unwrap();
         assert_eq!(perm.permission.as_deref(), Some("read"));
@@ -1147,8 +1248,12 @@ mod tests {
 
     #[test]
     fn test_get_collaborator_permission_triage() {
-        let result =
-            get_collaborator_permission_with_callback(collab_triage_callback, "org", "repo", "triage-user");
+        let result = get_collaborator_permission_with_callback(
+            collab_triage_callback,
+            "org",
+            "repo",
+            "triage-user",
+        );
         assert!(result.is_some());
         let perm = result.unwrap();
         assert_eq!(perm.permission.as_deref(), Some("triage"));
@@ -1156,8 +1261,12 @@ mod tests {
 
     #[test]
     fn test_get_collaborator_permission_none() {
-        let result =
-            get_collaborator_permission_with_callback(collab_none_callback, "org", "repo", "no-access-user");
+        let result = get_collaborator_permission_with_callback(
+            collab_none_callback,
+            "org",
+            "repo",
+            "no-access-user",
+        );
         assert!(result.is_some());
         let perm = result.unwrap();
         assert_eq!(perm.permission.as_deref(), Some("none"));
@@ -1193,8 +1302,12 @@ mod tests {
 
     #[test]
     fn test_get_collaborator_permission_mcp_wrapped() {
-        let result =
-            get_collaborator_permission_with_callback(collab_mcp_wrapped_callback, "org", "repo", "wrapped-admin");
+        let result = get_collaborator_permission_with_callback(
+            collab_mcp_wrapped_callback,
+            "org",
+            "repo",
+            "wrapped-admin",
+        );
         assert!(result.is_some());
         let perm = result.unwrap();
         assert_eq!(perm.permission.as_deref(), Some("admin"));
@@ -1260,7 +1373,10 @@ mod tests {
                 "owner": { "login": "octocat", "type": "User" }
             }]
         });
-        assert_eq!(extract_owner_is_org(&response, "octocat/hello"), Some(false));
+        assert_eq!(
+            extract_owner_is_org(&response, "octocat/hello"),
+            Some(false)
+        );
     }
 
     #[test]
@@ -1271,7 +1387,8 @@ mod tests {
                 "private": false,
                 "owner": { "login": "myorg", "type": "Organization" }
             }]
-        }).to_string();
+        })
+        .to_string();
         let response = serde_json::json!({
             "content": [{ "type": "text", "text": inner }]
         });
