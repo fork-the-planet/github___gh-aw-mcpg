@@ -199,7 +199,7 @@ Areas where the module could be better utilized:
 
 ## Step 6: Prepare Module Summary
 
-Compose a structured module summary to be included directly in the issue body (Step 8). Do **not** attempt to write files to the repository — include all findings in the issue instead.
+Compose a structured module summary to be included directly in the issue body (see **Step 8: Create Issue** below). Do **not** attempt to write files to the repository — include all findings in the issue instead.
 
 Structure your summary with these sections:
 
