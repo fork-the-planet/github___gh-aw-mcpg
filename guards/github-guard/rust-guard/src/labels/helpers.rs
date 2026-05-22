@@ -2669,6 +2669,10 @@ mod tests {
         assert_eq!(path, "/data/repository/issues/nodes");
     }
 
+    // -------------------------------------------------------------------------
+    // extract_repo_from_github_url
+    // -------------------------------------------------------------------------
+
     #[test]
     fn test_extract_repo_from_github_url_api_github_com() {
         assert_eq!(
@@ -2678,10 +2682,26 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_repo_from_github_url_http_api_github_com() {
+        assert_eq!(
+            extract_repo_from_github_url("http://api.github.com/repos/octocat/hello-world/pulls/1"),
+            Some("octocat/hello-world".to_string())
+        );
+    }
+
+    #[test]
     fn test_extract_repo_from_github_url_github_com() {
         assert_eq!(
             extract_repo_from_github_url("https://github.com/octocat/hello-world"),
             Some("octocat/hello-world".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_repo_from_github_url_http_github_com() {
+        assert_eq!(
+            extract_repo_from_github_url("http://github.com/myorg/myrepo/issues/5"),
+            Some("myorg/myrepo".to_string())
         );
     }
 
@@ -2696,7 +2716,7 @@ mod tests {
     #[test]
     fn test_extract_repo_from_github_url_ghec() {
         assert_eq!(
-            extract_repo_from_github_url("https://api.mycompany.ghe.com/repos/myorg/myrepo/pulls"),
+            extract_repo_from_github_url("https://api.mycompany.ghe.com/repos/myorg/myrepo/issues"),
             Some("myorg/myrepo".to_string())
         );
     }
@@ -2704,16 +2724,16 @@ mod tests {
     #[test]
     fn test_extract_repo_from_github_url_no_match() {
         assert_eq!(
-            extract_repo_from_github_url("https://example.com/no-repos-path"),
+            extract_repo_from_github_url("https://example.com/not/a/github/url"),
             None
         );
     }
 
     #[test]
-    fn test_extract_repo_from_github_url_http_fallback() {
+    fn test_extract_repo_from_github_url_no_owner_repo() {
         assert_eq!(
-            extract_repo_from_github_url("http://api.github.com/repos/octocat/hello-world/issues"),
-            Some("octocat/hello-world".to_string())
+            extract_repo_from_github_url("https://api.github.com/repos/"),
+            None
         );
     }
 
