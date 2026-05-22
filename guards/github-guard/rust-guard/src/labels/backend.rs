@@ -41,9 +41,10 @@ fn call_backend_with_retry(
         match callback(tool, args, &mut result_buffer) {
             Ok(len) => return Some(result_buffer[..len].to_vec()),
             Err(code) if code == BACKEND_BUFFER_TOO_SMALL => {
-                let required_size = decode_required_size(&result_buffer)
-                    .unwrap_or_else(|| result_buffer.len().saturating_mul(2));
-                let next_size = required_size.max(result_buffer.len().saturating_mul(2));
+                let doubled_size = result_buffer.len().saturating_mul(2);
+                let required_size = decode_required_size(&result_buffer).unwrap_or(doubled_size);
+                let next_size = required_size.max(doubled_size);
+                // Guard against infinite retries if the next size doesn't actually grow.
                 if next_size <= result_buffer.len() || next_size > BACKEND_MAX_RESULT_BYTES {
                     crate::log_warn(&format!(
                         "Backend call {} exceeded max retry size (required={}, max={})",
@@ -796,6 +797,18 @@ mod tests {
         Ok(bytes.len())
     }
 
+    fn retry_with_too_large_required_size_callback(
+        _tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        let required = (BACKEND_MAX_RESULT_BYTES as u32)
+            .saturating_add(1)
+            .to_le_bytes();
+        buffer[..4].copy_from_slice(&required);
+        Err(-2)
+    }
+
     fn repo_private_search_fallback_callback(
         tool: &str,
         _args: &str,
@@ -1019,6 +1032,17 @@ mod tests {
         )
         .expect("expected retry helper to succeed");
         assert_eq!(result, br#"{"ok":true}"#.to_vec());
+    }
+
+    #[test]
+    fn test_call_backend_with_retry_returns_none_when_required_size_exceeds_max() {
+        let result = call_backend_with_retry(
+            retry_with_too_large_required_size_callback,
+            "pull_request_read",
+            "{}",
+            4,
+        );
+        assert!(result.is_none());
     }
 
     #[test]
