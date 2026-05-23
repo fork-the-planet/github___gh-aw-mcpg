@@ -286,11 +286,17 @@ func run(cmd *cobra.Command, args []string) error {
 	// Apply tracing flags: CLI flags and env var overrides take precedence over config values.
 	// applyFlagOrEnv applies the value when the flag was explicitly set on the CLI,
 	// or when the value differs from its built-in default (i.e. an env var has overridden it).
-	tc := ensureTracingConfig(cfg)
-	applyFlagOrEnv(cmd, "otlp-endpoint", &tc.Endpoint, otlpEndpoint, "")
-	applyFlagOrEnv(cmd, "otlp-service-name", &tc.ServiceName, otlpServiceName, config.DefaultTracingServiceName)
-	if cmd.Flags().Changed("otlp-sample-rate") {
-		tc.SampleRate = &otlpSampleRate
+	shouldInitTracingConfig := (cfg.Gateway != nil && cfg.Gateway.Tracing != nil) ||
+		cmd.Flags().Changed("otlp-endpoint") || otlpEndpoint != "" ||
+		cmd.Flags().Changed("otlp-service-name") || otlpServiceName != config.DefaultTracingServiceName ||
+		cmd.Flags().Changed("otlp-sample-rate")
+	if shouldInitTracingConfig {
+		tc := ensureTracingConfig(cfg)
+		applyFlagOrEnv(cmd, "otlp-endpoint", &tc.Endpoint, otlpEndpoint, "")
+		applyFlagOrEnv(cmd, "otlp-service-name", &tc.ServiceName, otlpServiceName, config.DefaultTracingServiceName)
+		if cmd.Flags().Changed("otlp-sample-rate") {
+			tc.SampleRate = &otlpSampleRate
+		}
 	}
 
 	// Initialize OpenTelemetry tracer provider.
