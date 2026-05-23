@@ -67,8 +67,10 @@ var blockingGuardWasm = []byte{
 	0x0a, 0x09, 0x01, 0x07, 0x00, 0x03, 0x40, 0x0c, 0x00, 0x0b, 0x0b,
 }
 
-// directMemoryFallbackGuardWasm exports label_response and memory, but not
+// WASM fixtures used by tests in this file.
+// directMemoryFallbackGuardWasm (defined below) exports label_response and memory, but not
 // alloc/dealloc. This forces tryCallWasmFunction onto the direct memory path.
+//
 // alwaysNeg2GuardWasm exports "label_agent" and "memory", and always returns
 // -2 (buffer too small) with no hint. Used to test the buffer-doubling retry
 // path that eventually hits the 16MB maximum.
