@@ -283,16 +283,14 @@ func run(cmd *cobra.Command, args []string) error {
 		logger.StartupInfo("No API key configured — generated temporary random API key (spec §7.3)")
 	}
 
-	// Apply tracing flags: CLI flags override config values.
-	// Merge CLI/env tracing settings into gateway config.
-	if otlpEndpoint != "" || cmd.Flags().Changed("otlp-endpoint") {
-		ensureTracingConfig(cfg).Endpoint = otlpEndpoint
-	}
-	if cmd.Flags().Changed("otlp-service-name") {
-		ensureTracingConfig(cfg).ServiceName = otlpServiceName
-	}
+	// Apply tracing flags: CLI flags and env var overrides take precedence over config values.
+	// applyFlagOrEnv applies the value when the flag was explicitly set on the CLI,
+	// or when the value differs from its built-in default (i.e. an env var has overridden it).
+	tc := ensureTracingConfig(cfg)
+	applyFlagOrEnv(cmd, "otlp-endpoint", &tc.Endpoint, otlpEndpoint, "")
+	applyFlagOrEnv(cmd, "otlp-service-name", &tc.ServiceName, otlpServiceName, config.DefaultTracingServiceName)
 	if cmd.Flags().Changed("otlp-sample-rate") {
-		ensureTracingConfig(cfg).SampleRate = &otlpSampleRate
+		tc.SampleRate = &otlpSampleRate
 	}
 
 	// Initialize OpenTelemetry tracer provider.

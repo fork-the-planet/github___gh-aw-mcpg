@@ -103,3 +103,65 @@ func TestRegisterTracingFlags_DefaultsWithNoEnv(t *testing.T) {
 	assert.Equal(t, config.DefaultTracingSampleRate, actualSampleRate,
 		"otlp-sample-rate should default to DefaultTracingSampleRate")
 }
+
+// TestApplyTracingFlags_ServiceNameEnvVar verifies that when OTEL_SERVICE_NAME is set
+// in the environment (without an explicit --otlp-service-name CLI flag), applyFlagOrEnv
+// propagates the env-var value into the tracing config — consistent with how
+// OTEL_EXPORTER_OTLP_ENDPOINT is handled for the endpoint field.
+func TestApplyTracingFlags_ServiceNameEnvVar(t *testing.T) {
+	original, had := os.LookupEnv("OTEL_SERVICE_NAME")
+	os.Setenv("OTEL_SERVICE_NAME", "env-service")
+	t.Cleanup(func() {
+		if had {
+			os.Setenv("OTEL_SERVICE_NAME", original)
+		} else {
+			os.Unsetenv("OTEL_SERVICE_NAME")
+		}
+	})
+
+	cmd := &cobra.Command{Use: "test"}
+	var endpoint, service string
+	var sampleRate float64
+	registerTracingFlags(cmd.Flags(), &endpoint, &service, &sampleRate,
+		"endpoint help", "service help", "sample help")
+	// Simulate flag parsing without passing --otlp-service-name explicitly.
+	require.NoError(t, cmd.ParseFlags([]string{}))
+
+	cfg := &config.Config{Gateway: &config.GatewayConfig{}}
+	applyFlagOrEnv(cmd, "otlp-service-name", &ensureTracingConfig(cfg).ServiceName, service, config.DefaultTracingServiceName)
+
+	assert.Equal(t, "env-service", cfg.Gateway.Tracing.ServiceName,
+		"OTEL_SERVICE_NAME env var should override tracing config service name")
+}
+
+// TestApplyTracingFlags_ServiceNameDefaultDoesNotOverrideConfig verifies that when
+// OTEL_SERVICE_NAME is not set, the built-in default does NOT overwrite a value
+// already present in the config (e.g. from a TOML file).
+func TestApplyTracingFlags_ServiceNameDefaultDoesNotOverrideConfig(t *testing.T) {
+	original, had := os.LookupEnv("OTEL_SERVICE_NAME")
+	os.Unsetenv("OTEL_SERVICE_NAME")
+	t.Cleanup(func() {
+		if had {
+			os.Setenv("OTEL_SERVICE_NAME", original)
+		} else {
+			os.Unsetenv("OTEL_SERVICE_NAME")
+		}
+	})
+
+	cmd := &cobra.Command{Use: "test"}
+	var endpoint, service string
+	var sampleRate float64
+	registerTracingFlags(cmd.Flags(), &endpoint, &service, &sampleRate,
+		"endpoint help", "service help", "sample help")
+	require.NoError(t, cmd.ParseFlags([]string{}))
+
+	cfg := &config.Config{
+		Gateway: &config.GatewayConfig{
+			Tracing: &config.TracingConfig{ServiceName: "toml-service"},
+		},
+	}
+	applyFlagOrEnv(cmd, "otlp-service-name", &cfg.Gateway.Tracing.ServiceName, service, config.DefaultTracingServiceName)
+
+	assert.Equal(t, "toml-service", cfg.Gateway.Tracing.ServiceName,
+		"TOML config service name should not be overwritten when env var is unset and flag is unchanged")
+}
