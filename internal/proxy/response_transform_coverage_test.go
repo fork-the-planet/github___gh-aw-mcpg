@@ -330,7 +330,7 @@ func TestRebuildGraphQLResponse_EdgesReplaced(t *testing.T) {
 // mutations to the original map do not affect the clone.
 func TestDeepCloneJSON_Map(t *testing.T) {
 	original := map[string]interface{}{
-		"id":    float64(1),
+		"id": float64(1),
 		"nested": map[string]interface{}{
 			"value": "original",
 		},
