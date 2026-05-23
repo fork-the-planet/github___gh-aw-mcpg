@@ -233,3 +233,78 @@ func TestRegisterFlag(t *testing.T) {
 			"all newly registered flag functions should be called")
 	})
 }
+
+// TestApplyFlagOrEnv verifies the applyFlagOrEnv helper updates the field only when
+// the flag was explicitly changed by the user OR when val differs from defaultVal
+// (indicating an environment-variable override).
+func TestApplyFlagOrEnv(t *testing.T) {
+	// setupCmd creates a cobra command with a single --target string flag.
+	setupCmd := func(t *testing.T) *cobra.Command {
+		t.Helper()
+		cmd := newTestCmd()
+		cmd.Flags().String("target", "", "test flag")
+		return cmd
+	}
+
+	t.Run("updates field when flag was explicitly changed", func(t *testing.T) {
+		cmd := setupCmd(t)
+		require.NoError(t, cmd.Flags().Set("target", "cli-value"))
+
+		var field string
+		applyFlagOrEnv(cmd, "target", &field, "cli-value", "default")
+
+		assert.Equal(t, "cli-value", field)
+	})
+
+	t.Run("updates field when val differs from defaultVal (env-var override)", func(t *testing.T) {
+		cmd := setupCmd(t)
+		// Flag not changed, but val != defaultVal simulates env-var override.
+
+		var field string
+		applyFlagOrEnv(cmd, "target", &field, "env-value", "default")
+
+		assert.Equal(t, "env-value", field)
+	})
+
+	t.Run("does not update field when flag unchanged and val equals defaultVal", func(t *testing.T) {
+		cmd := setupCmd(t)
+
+		field := "original"
+		applyFlagOrEnv(cmd, "target", &field, "default", "default")
+
+		assert.Equal(t, "original", field, "field should be unchanged when flag not set and val==defaultVal")
+	})
+
+	t.Run("works with int type", func(t *testing.T) {
+		cmd := newTestCmd()
+		cmd.Flags().Int("port", 0, "port number")
+		require.NoError(t, cmd.Flags().Set("port", "8080"))
+
+		var port int
+		applyFlagOrEnv(cmd, "port", &port, 8080, 0)
+
+		assert.Equal(t, 8080, port)
+	})
+
+	t.Run("works with bool type", func(t *testing.T) {
+		cmd := newTestCmd()
+		cmd.Flags().Bool("verbose", false, "verbose output")
+		require.NoError(t, cmd.Flags().Set("verbose", "true"))
+
+		var verbose bool
+		applyFlagOrEnv(cmd, "verbose", &verbose, true, false)
+
+		assert.True(t, verbose)
+	})
+
+	t.Run("val equals defaultVal but flag changed still updates field", func(t *testing.T) {
+		// User explicitly passed the default value on the CLI — flag.Changed is true.
+		cmd := setupCmd(t)
+		require.NoError(t, cmd.Flags().Set("target", "default"))
+
+		field := "original"
+		applyFlagOrEnv(cmd, "target", &field, "default", "default")
+
+		assert.Equal(t, "default", field)
+	})
+}
