@@ -128,7 +128,8 @@ func TestApplyTracingFlags_ServiceNameEnvVar(t *testing.T) {
 	require.NoError(t, cmd.ParseFlags([]string{}))
 
 	cfg := &config.Config{Gateway: &config.GatewayConfig{}}
-	applyFlagOrEnv(cmd, "otlp-service-name", &ensureTracingConfig(cfg).ServiceName, service, config.DefaultTracingServiceName)
+	tc := ensureTracingConfig(cfg)
+	applyFlagOrEnv(cmd, "otlp-service-name", &tc.ServiceName, service, config.DefaultTracingServiceName)
 
 	assert.Equal(t, "env-service", cfg.Gateway.Tracing.ServiceName,
 		"OTEL_SERVICE_NAME env var should override tracing config service name")
