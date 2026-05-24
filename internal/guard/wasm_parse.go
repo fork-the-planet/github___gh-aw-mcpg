@@ -114,7 +114,7 @@ func (g *WasmGuard) callWasmFunction(ctx context.Context, funcName string, input
 	}
 
 	mem := g.module.Memory()
-	if mem == nil {
+	if _, ok := wasmMemorySize(mem); !ok {
 		return nil, fmt.Errorf("WASM module has no memory")
 	}
 
@@ -217,39 +217,7 @@ func (g *WasmGuard) tryCallWasmFunction(ctx context.Context, fn api.Function, me
 			return nil, 0, fmt.Errorf("failed to write input to WASM memory")
 		}
 
-		results, err := fn.Call(ctx,
-			uint64(inputPtr),
-			uint64(inputSize),
-			uint64(outputPtr),
-			uint64(outputSize))
-		if err != nil {
-			return nil, 0, fmt.Errorf("WASM function call failed: %w", err)
-		}
-
-		resultLen := int32(results[0])
-		if resultLen == -2 {
-			if requiredSize, ok := mem.ReadUint32Le(outputPtr); ok && requiredSize > 0 {
-				return nil, requiredSize, nil
-			}
-			return nil, 0, nil
-		}
-
-		if resultLen < 0 {
-			return nil, 0, fmt.Errorf("WASM function returned error code: %d", resultLen)
-		}
-
-		if resultLen == 0 {
-			return []byte{}, 0, nil
-		}
-
-		outputJSON, ok := mem.Read(outputPtr, uint32(resultLen))
-		if !ok {
-			return nil, 0, fmt.Errorf("failed to read output from WASM memory (len=%d)", resultLen)
-		}
-
-		// Copy out of WASM linear memory before deferred dealloc runs.
-		resultCopy := append([]byte(nil), outputJSON...)
-		return resultCopy, 0, nil
+		return decodeWasmCallResult(ctx, fn, mem, inputPtr, inputSize, outputPtr, outputSize)
 	}
 
 	if !g.warnedDirectMemoryPath {
@@ -267,14 +235,20 @@ func (g *WasmGuard) tryCallWasmFunction(ctx context.Context, fn api.Function, me
 	// correspondingly large host memory if it grows toward that maximum.
 	requiredMemory := inputSize + outputSize + uint32(64*1024) // Extra 64KB for safety margin
 
-	memSize := mem.Size()
+	memSize, ok := wasmMemorySize(mem)
+	if !ok {
+		return nil, 0, fmt.Errorf("WASM module has no memory")
+	}
 	if memSize < requiredMemory {
 		pages := (requiredMemory - memSize + 65535) / 65536 // Round up to pages
 		_, success := mem.Grow(pages)
 		if !success {
 			return nil, 0, fmt.Errorf("failed to grow WASM memory from %d to %d bytes", memSize, requiredMemory)
 		}
-		memSize = mem.Size()
+		memSize, ok = wasmMemorySize(mem)
+		if !ok {
+			return nil, 0, fmt.Errorf("WASM module has no memory")
+		}
 	}
 
 	// Place buffers at end of memory
@@ -287,6 +261,18 @@ func (g *WasmGuard) tryCallWasmFunction(ctx context.Context, fn api.Function, me
 	}
 
 	// Call the WASM function
+	return decodeWasmCallResult(ctx, fn, mem, inputPtr, inputSize, outputPtr, outputSize)
+}
+
+// decodeWasmCallResult calls fn with the given buffer pointers and decodes the
+// result using the MCP Gateway WASM buffer protocol.
+//
+// Return values:
+//   - (data, 0, nil)             — success; data contains the output bytes.
+//   - (nil, requiredSize, nil)   — output buffer too small; caller should retry
+//     with at least requiredSize bytes.
+//   - (nil, 0, err)              — unrecoverable error.
+func decodeWasmCallResult(ctx context.Context, fn api.Function, mem api.Memory, inputPtr, inputSize, outputPtr, outputSize uint32) ([]byte, uint32, error) {
 	results, err := fn.Call(ctx,
 		uint64(inputPtr),
 		uint64(inputSize),
@@ -295,22 +281,21 @@ func (g *WasmGuard) tryCallWasmFunction(ctx context.Context, fn api.Function, me
 	if err != nil {
 		return nil, 0, fmt.Errorf("WASM function call failed: %w", err)
 	}
+	if len(results) == 0 {
+		return nil, 0, fmt.Errorf("WASM function returned no results")
+	}
 
-	// Check result
 	resultLen := int32(results[0])
 
-	// Error code -2 means "buffer too small"
-	// The guard can optionally return the required size in the output buffer as a uint32
+	// -2 means the output buffer was too small; the guard may have written the
+	// required size as a uint32 into the first four bytes of the output buffer.
 	if resultLen == -2 {
-		// Try to read the required size from the output buffer (first 4 bytes as uint32)
 		if requiredSize, ok := mem.ReadUint32Le(outputPtr); ok && requiredSize > 0 {
 			return nil, requiredSize, nil
 		}
-		// Guard didn't specify size, return 0 to trigger doubling
 		return nil, 0, nil
 	}
 
-	// Other negative values are errors
 	if resultLen < 0 {
 		return nil, 0, fmt.Errorf("WASM function returned error code: %d", resultLen)
 	}
@@ -319,15 +304,30 @@ func (g *WasmGuard) tryCallWasmFunction(ctx context.Context, fn api.Function, me
 		return []byte{}, 0, nil
 	}
 
-	// Read output from WASM memory
 	outputJSON, ok := mem.Read(outputPtr, uint32(resultLen))
 	if !ok {
 		return nil, 0, fmt.Errorf("failed to read output from WASM memory (len=%d)", resultLen)
 	}
 
-	// Copy out of WASM linear memory to avoid aliasing with future calls.
-	resultCopy := append([]byte(nil), outputJSON...)
-	return resultCopy, 0, nil
+	// Copy out of WASM linear memory before deferred dealloc runs or the next call
+	// aliases the same region.
+	return append([]byte(nil), outputJSON...), 0, nil
+}
+
+// wasmMemorySize returns mem.Size() and reports whether the memory interface is
+// usable. A typed-nil/invalid memory implementation can panic on Size(); those
+// cases are treated as "no memory" by returning ok=false.
+func wasmMemorySize(mem api.Memory) (size uint32, ok bool) {
+	if mem == nil {
+		return 0, false
+	}
+	defer func() {
+		if recover() != nil {
+			size = 0
+			ok = false
+		}
+	}()
+	return mem.Size(), true
 }
 
 // wasmAlloc allocates a buffer in WASM linear memory using the guard's exported alloc function.

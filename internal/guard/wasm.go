@@ -519,15 +519,16 @@ func (g *WasmGuard) LabelResource(ctx context.Context, toolName string, args any
 		input["capabilities"] = caps
 	}
 
-	resultJSON, err := g.callWasmGuardFunction(ctx, "label_resource", backend, input)
+	const funcName = "label_resource"
+	resultJSON, err := g.callWasmGuardFunction(ctx, funcName, backend, input)
 	if err != nil {
 		return nil, difc.OperationWrite, err
 	}
 
 	// Parse result
-	var response map[string]any
-	if err := json.Unmarshal(resultJSON, &response); err != nil {
-		return nil, difc.OperationWrite, fmt.Errorf("failed to unmarshal WASM response: %w", err)
+	response, err := unmarshalWasmResponse(funcName, resultJSON)
+	if err != nil {
+		return nil, difc.OperationWrite, err
 	}
 
 	return parseResourceResponse(response)
@@ -553,7 +554,8 @@ func (g *WasmGuard) LabelResponse(ctx context.Context, toolName string, result a
 		input["capabilities"] = caps
 	}
 
-	resultJSON, err := g.callWasmGuardFunction(ctx, "label_response", backend, input)
+	const funcName = "label_response"
+	resultJSON, err := g.callWasmGuardFunction(ctx, funcName, backend, input)
 	if err != nil {
 		return nil, err
 	}
@@ -564,9 +566,9 @@ func (g *WasmGuard) LabelResponse(ctx context.Context, toolName string, result a
 	}
 
 	// Parse result - check for new path-based format first
-	var responseMap map[string]any
-	if err := json.Unmarshal(resultJSON, &responseMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal WASM response: %w", err)
+	responseMap, err := unmarshalWasmResponse(funcName, resultJSON)
+	if err != nil {
+		return nil, err
 	}
 
 	// Check for path-based labeling format (preferred, more efficient)
@@ -581,6 +583,17 @@ func (g *WasmGuard) LabelResponse(ctx context.Context, toolName string, result a
 
 	// No fine-grained labeling
 	return nil, nil
+}
+
+// unmarshalWasmResponse decodes a JSON byte slice returned by a WASM guard
+// function into a generic map. funcName is included in the error message to
+// make it easier to identify which call failed in log output.
+func unmarshalWasmResponse(funcName string, data []byte) (map[string]any, error) {
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal %s WASM response: %w", funcName, err)
+	}
+	return m, nil
 }
 
 // Close releases WASM runtime resources
