@@ -519,13 +519,14 @@ func (g *WasmGuard) LabelResource(ctx context.Context, toolName string, args any
 		input["capabilities"] = caps
 	}
 
-	resultJSON, err := g.callWasmGuardFunction(ctx, "label_resource", backend, input)
+	const funcName = "label_resource"
+	resultJSON, err := g.callWasmGuardFunction(ctx, funcName, backend, input)
 	if err != nil {
 		return nil, difc.OperationWrite, err
 	}
 
 	// Parse result
-	response, err := unmarshalWasmResponse("label_resource", resultJSON)
+	response, err := unmarshalWasmResponse(funcName, resultJSON)
 	if err != nil {
 		return nil, difc.OperationWrite, err
 	}
@@ -553,7 +554,8 @@ func (g *WasmGuard) LabelResponse(ctx context.Context, toolName string, result a
 		input["capabilities"] = caps
 	}
 
-	resultJSON, err := g.callWasmGuardFunction(ctx, "label_response", backend, input)
+	const funcName = "label_response"
+	resultJSON, err := g.callWasmGuardFunction(ctx, funcName, backend, input)
 	if err != nil {
 		return nil, err
 	}
@@ -564,7 +566,7 @@ func (g *WasmGuard) LabelResponse(ctx context.Context, toolName string, result a
 	}
 
 	// Parse result - check for new path-based format first
-	responseMap, err := unmarshalWasmResponse("label_response", resultJSON)
+	responseMap, err := unmarshalWasmResponse(funcName, resultJSON)
 	if err != nil {
 		return nil, err
 	}

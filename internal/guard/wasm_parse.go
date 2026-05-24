@@ -114,7 +114,7 @@ func (g *WasmGuard) callWasmFunction(ctx context.Context, funcName string, input
 	}
 
 	mem := g.module.Memory()
-	if mem == nil {
+	if _, ok := wasmMemorySize(mem); !ok {
 		return nil, fmt.Errorf("WASM module has no memory")
 	}
 
@@ -235,14 +235,20 @@ func (g *WasmGuard) tryCallWasmFunction(ctx context.Context, fn api.Function, me
 	// correspondingly large host memory if it grows toward that maximum.
 	requiredMemory := inputSize + outputSize + uint32(64*1024) // Extra 64KB for safety margin
 
-	memSize := mem.Size()
+	memSize, ok := wasmMemorySize(mem)
+	if !ok {
+		return nil, 0, fmt.Errorf("WASM module has no memory")
+	}
 	if memSize < requiredMemory {
 		pages := (requiredMemory - memSize + 65535) / 65536 // Round up to pages
 		_, success := mem.Grow(pages)
 		if !success {
 			return nil, 0, fmt.Errorf("failed to grow WASM memory from %d to %d bytes", memSize, requiredMemory)
 		}
-		memSize = mem.Size()
+		memSize, ok = wasmMemorySize(mem)
+		if !ok {
+			return nil, 0, fmt.Errorf("WASM module has no memory")
+		}
 	}
 
 	// Place buffers at end of memory
@@ -275,6 +281,9 @@ func decodeWasmCallResult(ctx context.Context, fn api.Function, mem api.Memory, 
 	if err != nil {
 		return nil, 0, fmt.Errorf("WASM function call failed: %w", err)
 	}
+	if len(results) == 0 {
+		return nil, 0, fmt.Errorf("WASM function returned no results")
+	}
 
 	resultLen := int32(results[0])
 
@@ -303,6 +312,19 @@ func decodeWasmCallResult(ctx context.Context, fn api.Function, mem api.Memory, 
 	// Copy out of WASM linear memory before deferred dealloc runs or the next call
 	// aliases the same region.
 	return append([]byte(nil), outputJSON...), 0, nil
+}
+
+func wasmMemorySize(mem api.Memory) (size uint32, ok bool) {
+	if mem == nil {
+		return 0, false
+	}
+	defer func() {
+		if recover() != nil {
+			size = 0
+			ok = false
+		}
+	}()
+	return mem.Size(), true
 }
 
 // wasmAlloc allocates a buffer in WASM linear memory using the guard's exported alloc function.

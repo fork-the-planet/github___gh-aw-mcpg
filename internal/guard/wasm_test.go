@@ -156,6 +156,26 @@ var funcNoMemoryGuardWasm = []byte{
 	0x0a, 0x06, 0x01, 0x04, 0x00, 0x41, 0x00, 0x0b,
 }
 
+// funcNoResultGuardWasm exports "label_agent" and "memory" but the exported
+// function has no return value. Used to verify the call path returns an error
+// instead of panicking when no results are returned.
+var funcNoResultGuardWasm = []byte{
+	0x00, 0x61, 0x73, 0x6d, // magic
+	0x01, 0x00, 0x00, 0x00, // version
+	// type section: (func (param i32 i32 i32 i32))
+	0x01, 0x08, 0x01, 0x60, 0x04, 0x7f, 0x7f, 0x7f, 0x7f, 0x00,
+	// function section: one function of type 0
+	0x03, 0x02, 0x01, 0x00,
+	// memory section: one memory with min=1 page
+	0x05, 0x03, 0x01, 0x00, 0x01,
+	// export section: "label_agent" (func 0), "memory" (mem 0)
+	0x07, 0x18, 0x02,
+	0x0b, 0x6c, 0x61, 0x62, 0x65, 0x6c, 0x5f, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x00, 0x00,
+	0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
+	// code section: no-op function body (no result)
+	0x0a, 0x04, 0x01, 0x02, 0x00, 0x0b,
+}
+
 var directMemoryFallbackGuardWasm = []byte{
 	0x00, 0x61, 0x73, 0x6d, // magic
 	0x01, 0x00, 0x00, 0x00, // version
@@ -1223,6 +1243,18 @@ func TestBufferRetryLogic(t *testing.T) {
 
 		require.Error(t, callErr)
 		assert.Contains(t, callErr.Error(), "input too large")
+	})
+
+	t.Run("function returns no values", func(t *testing.T) {
+		g, cleanup := setupModule(t, funcNoResultGuardWasm, "no-result-retry")
+		defer cleanup()
+
+		g.mu.Lock()
+		_, callErr := g.callWasmFunction(context.Background(), "label_agent", []byte(`{}`))
+		g.mu.Unlock()
+
+		require.Error(t, callErr)
+		assert.Contains(t, callErr.Error(), "returned no results")
 	})
 
 	t.Run("buffer doubling exhausted causes exceeds-maximum error", func(t *testing.T) {
