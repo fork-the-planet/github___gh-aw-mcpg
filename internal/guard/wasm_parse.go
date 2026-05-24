@@ -314,6 +314,9 @@ func decodeWasmCallResult(ctx context.Context, fn api.Function, mem api.Memory, 
 	return append([]byte(nil), outputJSON...), 0, nil
 }
 
+// wasmMemorySize returns mem.Size() and reports whether the memory interface is
+// usable. A typed-nil/invalid memory implementation can panic on Size(); those
+// cases are treated as "no memory" by returning ok=false.
 func wasmMemorySize(mem api.Memory) (size uint32, ok bool) {
 	if mem == nil {
 		return 0, false
