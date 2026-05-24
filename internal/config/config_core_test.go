@@ -210,6 +210,57 @@ list_code_scanning_alerts = "map(del(.rule.help))"
 	}, cfg.Servers["github"].ToolResponseFilters)
 }
 
+// TestLoadFromFile_ToolResponseFilter_EmptyToolName verifies that an empty tool
+// name (quoted empty string key in TOML) is rejected with a clear error.
+func TestLoadFromFile_ToolResponseFilter_EmptyToolName(t *testing.T) {
+	path := writeTempTOML(t, `
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+
+[servers.github.tool_response_filters]
+"" = ".result"
+`)
+	cfg, err := LoadFromFile(path)
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.ErrorContains(t, err, "empty tool name")
+}
+
+// TestLoadFromFile_ToolResponseFilter_InvalidJqExpression verifies that an
+// invalid jq expression in tool_response_filters is rejected with a clear error.
+func TestLoadFromFile_ToolResponseFilter_InvalidJqExpression(t *testing.T) {
+	path := writeTempTOML(t, `
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+
+[servers.github.tool_response_filters]
+list_code_scanning_alerts = "map("
+`)
+	cfg, err := LoadFromFile(path)
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.ErrorContains(t, err, "invalid jq expression")
+}
+
+// TestLoadFromFile_ToolResponseFilter_WhitespaceOnlyValue verifies that a
+// whitespace-only filter value is rejected as empty.
+func TestLoadFromFile_ToolResponseFilter_WhitespaceOnlyValue(t *testing.T) {
+	path := writeTempTOML(t, `
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+
+[servers.github.tool_response_filters]
+my_tool = "   "
+`)
+	cfg, err := LoadFromFile(path)
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.ErrorContains(t, err, "must not be empty")
+}
+
 // TestLoadFromFile_UnknownKeysDoNotCauseError verifies that unknown configuration
 // keys are rejected with an error per spec §4.3.1.
 func TestLoadFromFile_UnknownKeysDoNotCauseError(t *testing.T) {
