@@ -26,29 +26,29 @@ var validMinIntegrityValues = map[string]struct{}{
 
 // GuardPolicy represents the policy payload passed to guard label_agent.
 type GuardPolicy struct {
-	AllowOnly *AllowOnlyPolicy `toml:"AllowOnly" json:"allow-only,omitempty"`
-	WriteSink *WriteSinkPolicy `toml:"WriteSink" json:"write-sink,omitempty"`
+	AllowOnly *AllowOnlyPolicy `toml:"allow-only" json:"allow-only,omitempty"`
+	WriteSink *WriteSinkPolicy `toml:"write-sink" json:"write-sink,omitempty"`
 }
 
 // WriteSinkPolicy configures a write-sink guard that accepts writes from
 // agents carrying the listed secrecy labels.
 type WriteSinkPolicy struct {
-	Accept []string `toml:"Accept" json:"accept"`
+	Accept []string `toml:"accept" json:"accept"`
 }
 
 // AllowOnlyPolicy configures scope and minimum required integrity.
 type AllowOnlyPolicy struct {
-	Repos                interface{} `toml:"Repos" json:"repos"`
-	MinIntegrity         string      `toml:"MinIntegrity" json:"min-integrity"`
-	BlockedUsers         []string    `toml:"BlockedUsers" json:"blocked-users,omitempty"`
-	ApprovalLabels       []string    `toml:"ApprovalLabels" json:"approval-labels,omitempty"`
-	TrustedUsers         []string    `toml:"TrustedUsers" json:"trusted-users,omitempty"`
-	EndorsementReactions []string    `toml:"EndorsementReactions" json:"endorsement-reactions,omitempty"`
-	DisapprovalReactions []string    `toml:"DisapprovalReactions" json:"disapproval-reactions,omitempty"`
-	DisapprovalIntegrity string      `toml:"DisapprovalIntegrity" json:"disapproval-integrity,omitempty"`
-	EndorserMinIntegrity string      `toml:"EndorserMinIntegrity" json:"endorser-min-integrity,omitempty"`
-	PromotionLabel       string      `toml:"PromotionLabel" json:"promotion-label,omitempty"`
-	DemotionLabel        string      `toml:"DemotionLabel" json:"demotion-label,omitempty"`
+	Repos                interface{} `toml:"repos" json:"repos"`
+	MinIntegrity         string      `toml:"min-integrity" json:"min-integrity"`
+	BlockedUsers         []string    `toml:"blocked-users" json:"blocked-users,omitempty"`
+	ApprovalLabels       []string    `toml:"approval-labels" json:"approval-labels,omitempty"`
+	TrustedUsers         []string    `toml:"trusted-users" json:"trusted-users,omitempty"`
+	EndorsementReactions []string    `toml:"endorsement-reactions" json:"endorsement-reactions,omitempty"`
+	DisapprovalReactions []string    `toml:"disapproval-reactions" json:"disapproval-reactions,omitempty"`
+	DisapprovalIntegrity string      `toml:"disapproval-integrity" json:"disapproval-integrity,omitempty"`
+	EndorserMinIntegrity string      `toml:"endorser-min-integrity" json:"endorser-min-integrity,omitempty"`
+	PromotionLabel       string      `toml:"promotion-label" json:"promotion-label,omitempty"`
+	DemotionLabel        string      `toml:"demotion-label" json:"demotion-label,omitempty"`
 }
 
 // NormalizedGuardPolicy is a canonical policy representation for caching and observability.

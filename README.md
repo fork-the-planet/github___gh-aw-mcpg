@@ -43,6 +43,9 @@ This gateway is used with [GitHub Agentic Workflows](https://github.com/github/g
      ghcr.io/github/gh-aw-mcpg:latest < config.json
    ```
 
+> [!NOTE]
+> The container entrypoint script (`run_containerized.sh`) automatically adds `--config-stdin` when it starts `awmg`. If you run `awmg` directly (outside the container) and want to pipe JSON config, you must pass `--config-stdin` explicitly.
+
 Inside the container, the gateway starts in routed mode on `http://0.0.0.0:8000`, proxying MCP requests to your configured backend servers. When running `awmg` directly without `--listen`, the default listen address is `http://127.0.0.1:3000`.
 
 **Required flags:**
@@ -53,8 +56,10 @@ Inside the container, the gateway starts in routed mode on `http://0.0.0.0:8000`
 - If you configure `payloadDir`, you can also tune `payloadSizeThreshold` / `MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD` to control when payloads are written to disk (default: `524288` bytes)
 
 When running `awmg` directly (outside `docker run`), useful CLI flags include:
+- `--config-stdin`: Read JSON config from stdin (required when piping config, e.g. `cat config.json | awmg --config-stdin --routed`).
 - `--env <file>`: Load environment variables from a `.env` file before startup.
 - `-v`, `-vv`, `-vvv`: Increase verbosity (`info`, `debug`, `trace`).
+- Containerized-only startup env vars such as `MCP_GATEWAY_HOST` and `MCP_GATEWAY_MODE` are documented in [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md).
 
 ## Guard Policies
 
