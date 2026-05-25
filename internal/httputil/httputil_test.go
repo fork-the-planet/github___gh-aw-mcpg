@@ -367,7 +367,11 @@ func TestDoGitHubGET(t *testing.T) {
 				http.Error(w, "hijack not supported", http.StatusInternalServerError)
 				return
 			}
-			conn, _, _ := hj.Hijack()
+			conn, _, err := hj.Hijack()
+			if err != nil {
+				http.Error(w, "hijack failed", http.StatusInternalServerError)
+				return
+			}
 			conn.Close()
 		}))
 		defer upstream.Close()
