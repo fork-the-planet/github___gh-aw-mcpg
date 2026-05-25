@@ -28,7 +28,7 @@ func IsRunningInContainer() bool {
 // DetectContainerID detects if the current process is running inside a container
 // and attempts to extract the container ID from cgroup entries.
 // It returns (isContainer, containerID). The containerID may be empty even when
-// a container is detected (e.g., via /.dockerenv or environment variable).
+// a container is detected (e.g., via dockerEnvPath or environment variable).
 func DetectContainerID() (bool, string) {
 	return detectContainerIDWithPaths(dockerEnvPath, defaultCgroupPaths)
 }
@@ -39,9 +39,9 @@ func DetectContainerID() (bool, string) {
 func detectContainerIDWithPaths(dockerEnv string, cgroupPaths []string) (bool, string) {
 	logSys.Print("Detecting container environment")
 
-	// Method 1: Check for /.dockerenv file (Docker-specific)
+	// Method 1: Check for Docker sentinel file.
 	if _, err := os.Stat(dockerEnv); err == nil {
-		logSys.Print("Container detected via /.dockerenv")
+		logSys.Printf("Container detected via %s", dockerEnv)
 		// Still try to extract container ID from cgroup
 		if id := extractContainerIDFromCgroupFiles(cgroupPaths); id != "" {
 			return true, id

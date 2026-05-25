@@ -115,9 +115,9 @@ func TestDetectContainerIDWithPaths_CgroupDockerShortIDNoExtraction(t *testing.T
 	assert.Empty(t, id, "container ID should be empty when cgroup path segment is too short")
 }
 
-// TestDetectContainerIDWithPaths_FirstCgroupFileUnreadable tests that when the
-// first cgroup path is unreadable, the function falls back to the second one.
-func TestDetectContainerIDWithPaths_FirstCgroupFileUnreadable(t *testing.T) {
+// TestDetectContainerIDWithPaths_FirstCgroupFileMissing tests that when the
+// first cgroup path is missing, the function falls back to the second one.
+func TestDetectContainerIDWithPaths_FirstCgroupFileMissing(t *testing.T) {
 	unsetEnvForTest(t, "RUNNING_IN_CONTAINER")
 
 	dir := t.TempDir()
@@ -250,9 +250,15 @@ func TestExtractContainerIDFromCgroupFiles_AllEmpty(t *testing.T) {
 	assert.Empty(t, id)
 }
 
-// TestExtractContainerIDFromCgroupFiles_NilPaths tests the empty-slice edge case.
+// TestExtractContainerIDFromCgroupFiles_NilPaths tests the nil-slice edge case.
 func TestExtractContainerIDFromCgroupFiles_NilPaths(t *testing.T) {
 	id := extractContainerIDFromCgroupFiles(nil)
+	assert.Empty(t, id)
+}
+
+// TestExtractContainerIDFromCgroupFiles_EmptyPaths tests the empty-slice edge case.
+func TestExtractContainerIDFromCgroupFiles_EmptyPaths(t *testing.T) {
+	id := extractContainerIDFromCgroupFiles([]string{})
 	assert.Empty(t, id)
 }
 
