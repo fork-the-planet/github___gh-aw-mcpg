@@ -405,7 +405,7 @@ command = "docker"
 args = ["run", "--rm", "-i", "ghcr.io/github/safe-outputs:latest"]
 
 [servers.safeoutputs.guard_policies.write-sink]
-Accept = ["private:github/gh-aw*"]
+accept = ["private:github/gh-aw*"]
 `)
 
 	cfg, err := LoadFromFile(path)
@@ -419,7 +419,7 @@ Accept = ["private:github/gh-aw*"]
 	writeSinkRaw, ok := server.GuardPolicies["write-sink"]
 	require.True(t, ok, "write-sink key should exist in guard-policies")
 	writeSinkMap := writeSinkRaw.(map[string]interface{})
-	acceptRaw := writeSinkMap["Accept"].([]interface{})
+	acceptRaw := writeSinkMap["accept"].([]interface{})
 	assert.Len(t, acceptRaw, 1)
 	assert.Equal(t, "private:github/gh-aw*", acceptRaw[0])
 }
