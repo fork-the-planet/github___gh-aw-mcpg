@@ -968,4 +968,71 @@ mod tests {
             "list_repository_collaborators must produce reader-level integrity"
         );
     }
+
+    #[test]
+    fn apply_tool_labels_secret_scanning_is_always_private() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({"owner": "octocat", "repo": "hello-world"});
+        let repo_id = "octocat/hello-world";
+
+        for tool in &["list_secret_scanning_alerts", "get_secret_scanning_alert"] {
+            let (secrecy, integrity, _desc) = super::apply_tool_labels(
+                tool, &args, repo_id, vec![], vec![], String::new(), &ctx,
+            );
+            // Must be private even for a public repo — never empty secrecy
+            assert!(
+                secrecy.iter().any(|s| s.starts_with("private:")),
+                "{tool}: expected private secrecy, got {secrecy:?}",
+            );
+            assert!(
+                integrity.iter().any(|s| s.starts_with("approved:")),
+                "{tool}: expected writer integrity, got {integrity:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_code_scanning_and_dependabot_are_always_private() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({"owner": "octocat", "repo": "hello-world"});
+        let repo_id = "octocat/hello-world";
+
+        for tool in &[
+            "list_code_scanning_alerts",
+            "get_code_scanning_alert",
+            "list_dependabot_alerts",
+            "get_dependabot_alert",
+        ] {
+            let (secrecy, integrity, _desc) = super::apply_tool_labels(
+                tool, &args, repo_id, vec![], vec![], String::new(), &ctx,
+            );
+            assert!(
+                secrecy.iter().any(|s| s.starts_with("private:")),
+                "{tool}: expected private secrecy, got {secrecy:?}",
+            );
+            assert!(
+                integrity.iter().any(|s| s.starts_with("approved:")),
+                "{tool}: expected writer integrity, got {integrity:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_get_job_logs_is_always_private() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({"owner": "octocat", "repo": "hello-world"});
+        let repo_id = "octocat/hello-world";
+
+        let (secrecy, integrity, _desc) = super::apply_tool_labels(
+            "get_job_logs", &args, repo_id, vec![], vec![], String::new(), &ctx,
+        );
+        assert!(
+            secrecy.iter().any(|s| s.starts_with("private:")),
+            "get_job_logs: expected private secrecy, got {secrecy:?}",
+        );
+        assert!(
+            integrity.iter().any(|s| s.starts_with("approved:")),
+            "get_job_logs: expected writer integrity, got {integrity:?}",
+        );
+    }
 }

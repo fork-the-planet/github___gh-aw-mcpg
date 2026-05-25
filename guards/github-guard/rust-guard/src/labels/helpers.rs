@@ -450,13 +450,13 @@ const MAX_REACTIONS_TO_CHECK: usize = 20;
 /// Return the effective `disapproval_integrity` level from context, defaulting to "none".
 fn effective_disapproval_integrity<'a>(ctx: &'a PolicyContext) -> &'a str {
     let v = ctx.disapproval_integrity.trim();
-    if v.is_empty() { "none" } else { v }
+    if v.is_empty() { super::constants::policy_integrity::NONE } else { v }
 }
 
 /// Return the effective `endorser_min_integrity` level from context, defaulting to "approved".
 fn effective_endorser_min_integrity<'a>(ctx: &'a PolicyContext) -> &'a str {
     let v = ctx.endorser_min_integrity.trim();
-    if v.is_empty() { "approved" } else { v }
+    if v.is_empty() { super::constants::policy_integrity::APPROVED } else { v }
 }
 
 /// Convert an integrity level name to its rank for comparison.
