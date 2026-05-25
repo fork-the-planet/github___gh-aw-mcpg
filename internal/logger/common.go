@@ -311,7 +311,7 @@ var logFuncs = map[LogLevel]func(string, string, ...interface{}){
 // formatLogLine builds the standard log line used by FileLogger and ServerFileLogger.
 // Centralizing the format ensures consistency across all file-based loggers.
 func formatLogLine(level LogLevel, category, format string, args ...interface{}) string {
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := time.Now().UTC().Format(jsonTimestampLayout)
 	message := fmt.Sprintf(format, args...)
 	return fmt.Sprintf("[%s] [%s] [%s] %s", timestamp, level, category, message)
 }

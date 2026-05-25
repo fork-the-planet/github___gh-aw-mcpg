@@ -843,7 +843,7 @@ steps:
       # Count DIFC events in JSONL
       if [ -f "$MCP_LOG_DIR/rpc-messages.jsonl" ]; then
         cp "$MCP_LOG_DIR/rpc-messages.jsonl" "$RESULTS_DIR/rpc-messages.jsonl"
-        FILTERED=$(grep -c 'DIFC_FILTERED' "$MCP_LOG_DIR/rpc-messages.jsonl" 2>/dev/null || echo "0")
+        FILTERED=$(grep -c '"event":"difc_filtered"' "$MCP_LOG_DIR/rpc-messages.jsonl" 2>/dev/null || echo "0")
         TOTAL=$(wc -l < "$MCP_LOG_DIR/rpc-messages.jsonl" 2>/dev/null || echo "0")
         echo "{\"difc_filtered_count\": $FILTERED, \"total_rpc_messages\": $TOTAL}" > "$RESULTS_DIR/difc-summary.json"
         echo "DIFC events: $FILTERED filtered out of $TOTAL RPC messages"

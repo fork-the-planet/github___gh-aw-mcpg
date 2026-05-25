@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/stretchr/testify/assert"
@@ -90,20 +91,24 @@ func TestLogRPCMessageJSONL(t *testing.T) {
 		// Verify common fields
 		assert.NotEmpty(entry.Timestamp, "Line %d: missing timestamp", lineCount)
 		assert.NotEmpty(entry.Direction, "Line %d: missing direction", lineCount)
-		assert.NotEmpty(entry.Type, "Line %d: missing type", lineCount)
+		assert.NotEmpty(entry.Event, "Line %d: missing event", lineCount)
+		assert.NotEmpty(entry.Schema, "Line %d: missing _schema", lineCount)
 		assert.NotEmpty(entry.ServerID, "Line %d: missing server_id", lineCount)
 		assert.NotNil(entry.Payload, "Line %d: missing payload", lineCount)
+		_, tsErr := time.Parse(jsonTimestampLayout, entry.Timestamp)
+		assert.NoError(tsErr, "Line %d: timestamp must be ISO 8601 with milliseconds", lineCount)
+		assert.Equal("rpc-message/v2", entry.Schema, "Line %d: expected schema rpc-message/v2", lineCount)
 
 		// Verify line-specific fields
 		switch lineCount {
 		case 1:
 			// First line should be a REQUEST
-			assert.Equal("REQUEST", entry.Type, "Line 1: expected type REQUEST")
+			assert.Equal("rpc_request", entry.Event, "Line 1: expected event rpc_request")
 			assert.Equal("tools/list", entry.Method, "Line 1: expected method tools/list")
 			assert.Equal("OUT", entry.Direction, "Line 1: expected direction OUT")
 		case 2:
 			// Second line should be a RESPONSE
-			assert.Equal("RESPONSE", entry.Type, "Line 2: expected type RESPONSE")
+			assert.Equal("rpc_response", entry.Event, "Line 2: expected event rpc_response")
 			assert.Equal("IN", entry.Direction, "Line 2: expected direction IN")
 		}
 	}
@@ -399,25 +404,25 @@ func TestLogRPCMessageJSONLDirectionTypes(t *testing.T) {
 			name:      "outbound request",
 			direction: RPCDirectionOutbound,
 			msgType:   RPCMessageRequest,
-			expected:  map[string]string{"direction": "OUT", "type": "REQUEST"},
+			expected:  map[string]string{"direction": "OUT", "event": "rpc_request", "schema": "rpc-message/v2"},
 		},
 		{
 			name:      "inbound request",
 			direction: RPCDirectionInbound,
 			msgType:   RPCMessageRequest,
-			expected:  map[string]string{"direction": "IN", "type": "REQUEST"},
+			expected:  map[string]string{"direction": "IN", "event": "rpc_request", "schema": "rpc-message/v2"},
 		},
 		{
 			name:      "outbound response",
 			direction: RPCDirectionOutbound,
 			msgType:   RPCMessageResponse,
-			expected:  map[string]string{"direction": "OUT", "type": "RESPONSE"},
+			expected:  map[string]string{"direction": "OUT", "event": "rpc_response", "schema": "rpc-message/v2"},
 		},
 		{
 			name:      "inbound response",
 			direction: RPCDirectionInbound,
 			msgType:   RPCMessageResponse,
-			expected:  map[string]string{"direction": "IN", "type": "RESPONSE"},
+			expected:  map[string]string{"direction": "IN", "event": "rpc_response", "schema": "rpc-message/v2"},
 		},
 	}
 
@@ -447,7 +452,8 @@ func TestLogRPCMessageJSONLDirectionTypes(t *testing.T) {
 			require.NoError(err, "Failed to parse JSONL entry")
 
 			a.Equal(tt.expected["direction"], entry.Direction, "Direction should match")
-			a.Equal(tt.expected["type"], entry.Type, "Type should match")
+			a.Equal(tt.expected["event"], entry.Event, "Event should match")
+			a.Equal(tt.expected["schema"], entry.Schema, "Schema should match")
 		})
 	}
 }
@@ -522,7 +528,7 @@ func TestLogDifcFilteredItem_NilEntryDoesNotPanic(t *testing.T) {
 }
 
 // TestLogDifcFilteredItem_WritesAuditEntryToJSONL verifies that
-// LogDifcFilteredItem correctly writes a DIFC_FILTERED entry to the JSONL
+// LogDifcFilteredItem correctly writes a difc_filtered entry to the JSONL
 // audit log.  Audit trail continuity requires every filtered item to appear
 // in rpc-messages.jsonl so privileged audit agents can inspect them.
 func TestLogDifcFilteredItem_WritesAuditEntryToJSONL(t *testing.T) {
@@ -562,8 +568,11 @@ func TestLogDifcFilteredItem_WritesAuditEntryToJSONL(t *testing.T) {
 	err = json.Unmarshal(content, &logged)
 	require.NoError(err, "JSONL entry must be valid JSON")
 
-	assert.Equal("DIFC_FILTERED", logged.Type, "Type must be DIFC_FILTERED")
+	assert.Equal("difc_filtered", logged.Event, "Event must be difc_filtered")
+	assert.Equal("difc-filtered/v2", logged.Schema, "Schema must be difc-filtered/v2")
 	assert.NotEmpty(logged.Timestamp, "Timestamp must be set for audit trail")
+	_, tsErr := time.Parse(jsonTimestampLayout, logged.Timestamp)
+	assert.NoError(tsErr, "Timestamp must be ISO 8601 with milliseconds")
 	assert.Equal("github", logged.ServerID)
 	assert.Equal("list_issues", logged.ToolName)
 	assert.Equal("issue:org/repo#42", logged.Description)
@@ -617,8 +626,11 @@ func TestLogDifcFilteredItem_MultipleEntriesAuditTrail(t *testing.T) {
 
 	assert.Len(lines, 3, "all 3 filtered items must appear in the audit log")
 	for i, line := range lines {
-		assert.Equal("DIFC_FILTERED", line.Type, "entry[%d] must have Type=DIFC_FILTERED", i)
+		assert.Equal("difc_filtered", line.Event, "entry[%d] must have event=difc_filtered", i)
+		assert.Equal("difc-filtered/v2", line.Schema, "entry[%d] must have _schema=difc-filtered/v2", i)
 		assert.NotEmpty(line.Timestamp, "entry[%d] must have Timestamp", i)
+		_, tsErr := time.Parse(jsonTimestampLayout, line.Timestamp)
+		assert.NoError(tsErr, "entry[%d] timestamp must be ISO 8601 with milliseconds", i)
 		assert.NotEmpty(line.Reason, "entry[%d] must have Reason", i)
 	}
 }
@@ -953,9 +965,9 @@ func TestLogDifcFilteredItem_NilEntry(t *testing.T) {
 	}, "LogDifcFilteredItem(nil) must not panic")
 }
 
-// TestLogDifcFilteredItem_SetsTimestampAndType verifies that LogDifcFilteredItem
-// populates the Timestamp and Type fields of the entry before writing it.
-func TestLogDifcFilteredItem_SetsTimestampAndType(t *testing.T) {
+// TestLogDifcFilteredItem_SetsTimestampEventAndSchema verifies that LogDifcFilteredItem
+// populates the Timestamp, Event, and Schema fields of the entry before writing it.
+func TestLogDifcFilteredItem_SetsTimestampEventAndSchema(t *testing.T) {
 	tmpDir := t.TempDir()
 	logDir := filepath.Join(tmpDir, "logs")
 
@@ -982,8 +994,11 @@ func TestLogDifcFilteredItem_SetsTimestampAndType(t *testing.T) {
 	var got JSONLFilteredItem
 	require.NoError(t, json.Unmarshal(data, &got), "log entry must be valid JSON")
 
-	assert.Equal(t, "DIFC_FILTERED", got.Type, "Type must always be DIFC_FILTERED")
+	assert.Equal(t, "difc_filtered", got.Event, "Event must always be difc_filtered")
+	assert.Equal(t, "difc-filtered/v2", got.Schema, "Schema must always be difc-filtered/v2")
 	assert.NotEmpty(t, got.Timestamp, "Timestamp must be set by LogDifcFilteredItem")
+	_, tsErr := time.Parse(jsonTimestampLayout, got.Timestamp)
+	assert.NoError(t, tsErr, "Timestamp must be ISO 8601 with milliseconds")
 	assert.Equal(t, "github", got.ServerID)
 	assert.Equal(t, "create_issue", got.ToolName)
 	assert.Equal(t, []string{"private:org/repo"}, got.SecrecyTags)

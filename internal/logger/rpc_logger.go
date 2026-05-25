@@ -31,6 +31,18 @@ const (
 	RPCMessageResponse RPCMessageType = "RESPONSE"
 )
 
+// JSONLEvent returns the standardized JSONL event name for this RPC message type.
+func (t RPCMessageType) JSONLEvent() string {
+	switch t {
+	case RPCMessageRequest:
+		return "rpc_request"
+	case RPCMessageResponse:
+		return "rpc_response"
+	default:
+		return "rpc_unknown"
+	}
+}
+
 // RPCMessageDirection represents whether the message is inbound or outbound
 type RPCMessageDirection string
 

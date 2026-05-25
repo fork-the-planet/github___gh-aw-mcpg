@@ -101,7 +101,7 @@ For each downloaded artifact set, check:
    `difc_secrecy` and `difc_integrity` fields. Flag any with empty or
    unscoped tags.
 
-2. **Filtered counts**: Look for `DIFC_FILTERED` or `filtered` entries.
+2. **Filtered counts**: Look for `event: "difc_filtered"` or `filtered` entries.
    Compare the filtered count to total items — high filter ratios may indicate
    over-filtering or misconfiguration.
 
@@ -170,7 +170,7 @@ Use the same `ARTIFACT_DIR` variable defined in Step 2 above (the directory pass
     jsonl="$dir/mcp-logs/rpc-messages.jsonl"
     if [ -f "$jsonl" ]; then
       labelled=$(grep -c '"difc_integrity"' "$jsonl" 2>/dev/null || true)
-      filtered=$(grep -c '"filtered":true\|DIFC_FILTERED' "$jsonl" 2>/dev/null || true)
+      filtered=$(grep -c '"filtered":true\|"event":"difc_filtered"' "$jsonl" 2>/dev/null || true)
       echo "| $run_id | $labelled | $filtered |"
     fi
   done
