@@ -30,7 +30,7 @@ func TestExtractJWTExpiry_ValidToken_NoPaddingNeeded(t *testing.T) {
 	// payload raw length = 12, mod4 = 0 → no padding added
 	rawPayload := encodePayloadRaw(`{"exp":1}`)
 	assert.Len(t, rawPayload, 12)
-	assert.Equal(t, 0, len(rawPayload)%4)
+	assert.Zero(t, len(rawPayload)%4)
 
 	token := makeRawJWT(rawPayload)
 	got, err := extractJWTExpiry(token)

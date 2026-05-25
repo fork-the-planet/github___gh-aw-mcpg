@@ -240,7 +240,7 @@ func TestWithResponseLogging_PreservesHeaders(t *testing.T) {
 	assert.Equal(t, "application/json", w.Header().Get("Content-Type"), "Content-Type header should be preserved")
 	assert.Equal(t, "test-value", w.Header().Get("X-Custom-Header"), "custom header should be preserved")
 	assert.Equal(t, http.StatusOK, w.Code, "status code should be preserved")
-	assert.Equal(t, `{"ok":true}`, w.Body.String(), "response body should be preserved")
+	assert.JSONEq(t, `{"ok":true}`, w.Body.String(), "response body should be preserved")
 }
 
 // TestWithResponseLogging_ReturnsHTTPHandler verifies the return type.

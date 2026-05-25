@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestInjectRetryAfterIfRateLimited verifies Retry-After injection and logging for
@@ -29,7 +30,7 @@ func TestInjectRetryAfterIfRateLimited(t *testing.T) {
 		retryAfter := w.Header().Get("Retry-After")
 		assert.NotEmpty(t, retryAfter, "Retry-After should be set on 429")
 		secs, err := strconv.Atoi(retryAfter)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Greater(t, secs, 0, "Retry-After should be positive")
 	})
 

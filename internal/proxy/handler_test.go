@@ -437,7 +437,7 @@ func TestPassthrough_Success(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 	assert.Contains(t, w.Body.String(), `"id":42`)
 	assert.Equal(t, http.MethodPost, receivedMethod)
-	assert.Equal(t, `{"title":"new issue"}`, receivedBody)
+	assert.JSONEq(t, `{"title":"new issue"}`, receivedBody)
 }
 
 func TestPassthrough_NilBody(t *testing.T) {
