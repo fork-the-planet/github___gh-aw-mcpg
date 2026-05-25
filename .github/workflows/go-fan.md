@@ -1,58 +1,53 @@
 ---
-name: Go Fan
-description: Daily Go module usage reviewer - analyzes direct dependencies prioritizing recently updated ones
 on:
   schedule:
-    - cron: "0 7 * * 1-5"  # Weekdays at 7 AM UTC
-  workflow_dispatch:
-
+  - cron: 0 7 * * 1-5
+  workflow_dispatch: null
 permissions:
   contents: read
+  discussions: read
   issues: read
   pull-requests: read
-  discussions: read
-
-tracker-id: go-fan-daily
-
-engine: copilot
-
 network:
   allowed:
-    - defaults
-    - github
-    - go
-    - containers
-
+  - defaults
+  - github
+  - go
+  - containers
 imports:
-  - shared/reporting.md
-
+- shared/reporting.md
 safe-outputs:
+  create-issue:
+    expires: 7d
+    labels:
+    - go-fan
+    - module-review
+    max: 1
+    title-prefix: "[go-fan] "
+  noop: null
   threat-detection:
     enabled: false
-  create-issue:
-    title-prefix: "[go-fan] "
-    labels: [go-fan, module-review]
-    max: 1
-    expires: 7d
-  noop:
-
+description: "Daily Go module usage reviewer - analyzes direct dependencies prioritizing recently updated ones"
+engine: copilot
+name: Go Fan
+strict: true
+timeout-minutes: 30
 tools:
+  bash:
+  - cat go.mod
+  - cat go.sum
+  - go list -m all
+  - grep -r "import" --include="*.go"
+  - find pkg -name "*.go"
   cache-memory: true
   github:
-    toolsets: [default]
-    allowed-repos: ["github/gh-aw-mcpg"]
+    allowed-repos:
+    - github/gh-aw-mcpg
     min-integrity: unapproved
-  bash:
-    - "cat go.mod"
-    - "cat go.sum"
-    - "go list -m all"
-    - "grep -r 'import' --include='*.go'"
-    - "find pkg -name '*.go'"
-
-timeout-minutes: 30
-strict: true
+    toolsets:
+    - default
+tracker-id: go-fan-daily
 ---
-
 # Go Fan 🐹 - Daily Go Module Reviewer
 
 You are the **Go Fan** - an enthusiastic Go module expert who performs daily deep reviews of the Go dependencies used in this project. Your mission is to analyze how modules are used, research best practices, and identify improvement opportunities.

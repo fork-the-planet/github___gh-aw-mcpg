@@ -59,12 +59,12 @@ safe-outputs:
     max: 1
   push-to-pull-request-branch:
     target: "triggering"
-    title-prefix: "[smoke-safeoutputs]"
+    required-title-prefix: "[smoke-safeoutputs]"
   mark-pull-request-as-ready-for-review:
     required-labels: [smoke-test]
     max: 1
   add-reviewer:
-    reviewers: [copilot]
+    allowed-reviewers: [copilot]
     max: 1
   create-issue:
     title-prefix: "[smoke-safeoutputs] "

@@ -56,6 +56,10 @@ safe-outputs:
 
 steps:
   - name: Setup Test Environment
+    env:
+      EXPR_GITHUB_RUN_ID: ${{ github.run_id }}
+      EXPR_GITHUB_REPOSITORY: ${{ github.repository }}
+      EXPR_GITHUB_SERVER_URL: ${{ github.server_url }}
     run: |
       TEST_FS="/tmp/mcp-test-fs"
       SECRET_FILE="secret.txt"
@@ -94,10 +98,10 @@ steps:
       # Generating 2000 items + 400KB padding to create ~500KB file
       # Secret is only included once in the middle item (index 1000)
       jq --arg secret "$TEST_SECRET" \
-         --arg run_id "${{ github.run_id }}" \
+         --arg run_id "$EXPR_GITHUB_RUN_ID" \
          --arg timestamp "$(date -Iseconds)" \
-         --arg repo "${{ github.repository }}" \
-         --arg url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+         --arg repo "$EXPR_GITHUB_REPOSITORY" \
+         --arg url "$EXPR_GITHUB_SERVER_URL/$EXPR_GITHUB_REPOSITORY/actions/runs/$EXPR_GITHUB_RUN_ID" \
          '.test_run_id = $run_id | 
           .test_timestamp = $timestamp | 
           .data.metadata.repository = $repo | 
@@ -125,7 +129,7 @@ steps:
 post-steps:
   - name: Upload Test Results
     if: always()
-    uses: actions/upload-artifact@v4
+    uses: actions/upload-artifact@v7.0.1
     with:
       name: mcp-stress-test-results
       path: |
