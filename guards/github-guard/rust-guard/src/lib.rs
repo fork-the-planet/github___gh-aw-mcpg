@@ -317,7 +317,7 @@ fn infer_scope_for_baseline<'a>(
         | "manage_repository_notification_subscription"
         | "create_repository"
         | "fork_repository" => Cow::Borrowed(scope_names::GITHUB),
-        "search_code" | "search_issues" | "search_pull_requests" => {
+        "search_code" | "search_issues" | "search_pull_requests" | "search_commits" => {
             let query = tool_args
                 .get("query")
                 .and_then(|v| v.as_str())
@@ -1224,6 +1224,13 @@ mod tests {
     fn infer_scope_for_baseline_uses_search_pull_requests_query_repo() {
         let tool_args = json!({"query": "repo:github/gh-aw-mcpg is:pr is:open"});
         let inferred = infer_scope_for_baseline("search_pull_requests", &tool_args, "");
+        assert_eq!(inferred, "github/gh-aw-mcpg");
+    }
+
+    #[test]
+    fn infer_scope_for_baseline_uses_search_commits_query_repo() {
+        let tool_args = json!({"query": "repo:github/gh-aw-mcpg fix"});
+        let inferred = infer_scope_for_baseline("search_commits", &tool_args, "");
         assert_eq!(inferred, "github/gh-aw-mcpg");
     }
 

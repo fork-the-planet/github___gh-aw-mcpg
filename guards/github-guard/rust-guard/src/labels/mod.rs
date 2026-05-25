@@ -550,6 +550,32 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_search_commits() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "query": "fix repo:github/copilot"
+        });
+
+        let (secrecy, integrity, desc) = apply_tool_labels(
+            "search_commits",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(desc, "search_commits:github/copilot");
+        assert_eq!(secrecy, vec![] as Vec<String>);
+        assert_eq!(integrity, writer_integrity("github/copilot", &ctx));
+        assert_eq!(
+            crate::infer_scope_for_baseline("search_commits", &tool_args, ""),
+            "github/copilot"
+        );
+    }
+
+    #[test]
     fn test_issue_desc_number_formatting() {
         let ctx = default_ctx();
         // Test that issue numbers are formatted correctly from different types
@@ -645,6 +671,45 @@ mod tests {
             integrity == writer_integrity("github/copilot", &ctx)
                 || integrity == none_integrity("github/copilot", &ctx)
         );
+    }
+
+    #[test]
+    fn test_apply_tool_labels_list_issues_ff_matches_list_issues() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "perPage": 5
+        });
+
+        let (base_secrecy, base_integrity, base_desc) = apply_tool_labels(
+            "list_issues",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        let (ff_secrecy, ff_integrity, ff_desc) = apply_tool_labels(
+            "list_issues_ff_remote_mcp_issue_fields",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(ff_secrecy, base_secrecy);
+        assert_eq!(ff_integrity, base_integrity);
+        assert_eq!(ff_desc, base_desc);
+        assert_eq!(ff_secrecy, Vec::<String>::new());
+        assert!(
+            ff_integrity == writer_integrity("github/copilot", &ctx)
+                || ff_integrity == none_integrity("github/copilot", &ctx)
+        );
+        assert!(ff_desc.is_empty());
     }
 
     #[test]
