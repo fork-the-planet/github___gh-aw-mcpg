@@ -46,7 +46,8 @@ func TestLogInboundRPCResponseFromResult_LogsMarshaledResponseAndReturnsResultAn
 	var entry logger.JSONLRPCMessage
 	require.NoError(json.Unmarshal([]byte(scanner.Text()), &entry))
 	assert.Equal(string(logger.RPCDirectionInbound), entry.Direction)
-	assert.Equal(string(logger.RPCMessageResponse), entry.Type)
+	assert.Equal("rpc_response", entry.Event)
+	assert.Equal("rpc-message/v2", entry.Schema)
 	assert.Equal("test-server", entry.ServerID)
 	assert.Equal(expectedErr.Error(), entry.Error)
 	assert.JSONEq(`{"jsonrpc":"2.0","id":1,"result":{"ok":true}}`, string(entry.Payload))

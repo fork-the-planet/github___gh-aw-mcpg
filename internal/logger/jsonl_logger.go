@@ -24,11 +24,18 @@ var (
 	globalJSONLMu     sync.RWMutex
 )
 
+const (
+	jsonTimestampLayout = "2006-01-02T15:04:05.000Z07:00"
+	rpcMessageSchemaV2  = "rpc-message/v2"
+	difcSchemaV2        = "difc-filtered/v2"
+)
+
 // JSONLRPCMessage represents a single RPC message log entry in JSONL format
 type JSONLRPCMessage struct {
 	Timestamp      string          `json:"timestamp"`
+	Event          string          `json:"event"`     // "rpc_request" or "rpc_response"
+	Schema         string          `json:"_schema"`   // "rpc-message/v2"
 	Direction      string          `json:"direction"` // "IN" or "OUT"
-	Type           string          `json:"type"`      // "REQUEST" or "RESPONSE"
 	ServerID       string          `json:"server_id"`
 	Method         string          `json:"method,omitempty"`
 	Error          string          `json:"error,omitempty"`
@@ -120,9 +127,10 @@ func LogRPCMessageJSONL(direction RPCMessageDirection, messageType RPCMessageTyp
 func LogRPCMessageJSONLWithTags(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payloadBytes []byte, err error, agentSecrecy, agentIntegrity []string) {
 	withGlobalLogger(&globalJSONLMu, &globalJSONLLogger, func(logger *JSONLLogger) {
 		entry := &JSONLRPCMessage{
-			Timestamp: time.Now().UTC().Format(time.RFC3339Nano),
+			Timestamp: time.Now().UTC().Format(jsonTimestampLayout),
+			Event:     messageType.JSONLEvent(),
+			Schema:    rpcMessageSchemaV2,
 			Direction: string(direction),
-			Type:      string(messageType),
 			ServerID:  serverID,
 			Method:    method,
 			Payload:   sanitize.SanitizeJSON(payloadBytes),
@@ -168,7 +176,8 @@ type FilteredItemLogEntry struct {
 // single edit rather than parallel edits in two structs.
 type JSONLFilteredItem struct {
 	Timestamp string `json:"timestamp"`
-	Type      string `json:"type"` // Always "DIFC_FILTERED"
+	Event     string `json:"event"`   // Always "difc_filtered"
+	Schema    string `json:"_schema"` // "difc-filtered/v2"
 	FilteredItemLogEntry
 }
 
@@ -179,8 +188,9 @@ func LogDifcFilteredItem(entry *JSONLFilteredItem) {
 		return
 	}
 
-	entry.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
-	entry.Type = "DIFC_FILTERED"
+	entry.Timestamp = time.Now().UTC().Format(jsonTimestampLayout)
+	entry.Event = "difc_filtered"
+	entry.Schema = difcSchemaV2
 	withGlobalLogger(&globalJSONLMu, &globalJSONLLogger, func(logger *JSONLLogger) {
 		if logger == nil {
 			return

@@ -395,7 +395,7 @@ Maintain a single open issue titled `[Repo Assist] Monthly Activity {YYYY}-{MM}`
    total = 0
    for line in sys.stdin:
        entry = json.loads(line.strip())
-       if entry.get('type') != 'DIFC_FILTERED':
+       if entry.get('event') != 'difc_filtered':
            continue
        total += 1
        desc = entry.get('description', '')

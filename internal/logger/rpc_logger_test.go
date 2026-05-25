@@ -551,7 +551,8 @@ func TestLogRPCRequestWithAgentSnapshot(t *testing.T) {
 	var entry JSONLRPCMessage
 	require.NoError(t, json.Unmarshal(content, &entry), "Failed to parse JSONL entry")
 
-	assert.Equal(t, "REQUEST", entry.Type)
+	assert.Equal(t, "rpc_request", entry.Event)
+	assert.Equal(t, "rpc-message/v2", entry.Schema)
 	assert.Equal(t, "OUT", entry.Direction)
 	assert.Equal(t, "github", entry.ServerID)
 	assert.Equal(t, "tools/call", entry.Method)
@@ -586,7 +587,8 @@ func TestLogRPCResponseWithAgentSnapshot(t *testing.T) {
 	var entry JSONLRPCMessage
 	require.NoError(t, json.Unmarshal(content, &entry), "Failed to parse JSONL entry")
 
-	assert.Equal(t, "RESPONSE", entry.Type)
+	assert.Equal(t, "rpc_response", entry.Event)
+	assert.Equal(t, "rpc-message/v2", entry.Schema)
 	assert.Equal(t, "IN", entry.Direction)
 	assert.Equal(t, "github", entry.ServerID)
 	assert.ElementsMatch(t, agentSecrecy, entry.AgentSecrecy, "AgentSecrecy tags should be recorded")
@@ -685,6 +687,7 @@ func TestLogRPCResponse_NoError(t *testing.T) {
 	var entry JSONLRPCMessage
 	require.NoError(t, json.Unmarshal([]byte(jsonlLines[0]), &entry))
 	assert.Empty(t, entry.Error, "Error field should be empty when no error")
-	assert.Equal(t, "RESPONSE", entry.Type)
+	assert.Equal(t, "rpc_response", entry.Event)
+	assert.Equal(t, "rpc-message/v2", entry.Schema)
 	assert.Equal(t, "backend", entry.ServerID)
 }

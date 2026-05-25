@@ -21,6 +21,8 @@
 //	logger.LogRPCResponse(logger.RPCDirectionInbound, "github", responsePayload, nil)
 package logger
 
+import "strings"
+
 // RPCMessageType represents the direction of an RPC message
 type RPCMessageType string
 
@@ -30,6 +32,18 @@ const (
 	// RPCMessageResponse represents an inbound response from backend or outbound response to client
 	RPCMessageResponse RPCMessageType = "RESPONSE"
 )
+
+// JSONLEvent returns the standardized JSONL event name for this RPC message type.
+func (t RPCMessageType) JSONLEvent() string {
+	switch t {
+	case RPCMessageRequest:
+		return "rpc_request"
+	case RPCMessageResponse:
+		return "rpc_response"
+	default:
+		return "rpc_" + strings.ToLower(string(t))
+	}
+}
 
 // RPCMessageDirection represents whether the message is inbound or outbound
 type RPCMessageDirection string

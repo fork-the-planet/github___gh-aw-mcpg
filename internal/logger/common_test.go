@@ -821,24 +821,24 @@ func TestFormatLogLine(t *testing.T) {
 	t.Run("output follows bracket structure", func(t *testing.T) {
 		result := formatLogLine(LogLevelInfo, "auth", "event occurred")
 		// Expected format: [timestamp] [INFO] [auth] event occurred
-		assert.Regexp(t, `^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\] \[INFO\] \[auth\] event occurred$`, result)
+		assert.Regexp(t, `^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\] \[INFO\] \[auth\] event occurred$`, result)
 	})
 
-	t.Run("timestamp is RFC3339 UTC within test window", func(t *testing.T) {
+	t.Run("timestamp is ISO 8601 UTC with milliseconds within test window", func(t *testing.T) {
 		before := time.Now().UTC().Truncate(time.Second)
 		result := formatLogLine(LogLevelDebug, "test", "msg")
 		after := time.Now().UTC().Add(time.Second)
 
 		// Extract the timestamp between the first pair of brackets
-		assert.Regexp(t, `^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\]`, result,
-			"Should start with RFC3339 UTC timestamp in brackets")
+		assert.Regexp(t, `^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\]`, result,
+			"Should start with ISO 8601 UTC timestamp with milliseconds in brackets")
 
 		parts := strings.SplitN(result, "]", 2)
 		require.Len(t, parts, 2, "Output should contain at least one closing bracket")
 		tsStr := strings.TrimPrefix(parts[0], "[")
 
-		ts, err := time.Parse(time.RFC3339, tsStr)
-		require.NoError(t, err, "Extracted timestamp should parse as RFC3339")
+		ts, err := time.Parse(jsonTimestampLayout, tsStr)
+		require.NoError(t, err, "Extracted timestamp should parse as ISO 8601 with milliseconds")
 		assert.False(t, ts.Before(before), "Timestamp should not be before test start")
 		assert.False(t, ts.After(after), "Timestamp should not be after test end")
 	})
