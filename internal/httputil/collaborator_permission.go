@@ -1,4 +1,4 @@
-package mcp
+package httputil
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logCollab = logger.New("mcp:collaborator_permission")
+var logCollab = logger.New("httputil:collaborator_permission")
 
 // ParseCollaboratorPermissionArgs extracts and validates the owner, repo, and
 // username fields from an args map for a get_collaborator_permission call.
@@ -50,7 +50,11 @@ func LogAndWrapCollaboratorPermission(
 	} else {
 		logPrintf("get_collaborator_permission: %s/%s user %s → HTTP %d, %d bytes (JSON parse failed: %v)", owner, repo, username, statusCode, len(body), jsonErr)
 	}
-	return BuildMCPTextResponse(string(body))
+	return map[string]interface{}{
+		"content": []map[string]interface{}{
+			{"type": "text", "text": string(body)},
+		},
+	}
 }
 
 // FetchCollaboratorPermission executes a get_collaborator_permission REST call
