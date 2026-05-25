@@ -569,6 +569,10 @@ mod tests {
         assert_eq!(desc, "search_commits:github/copilot");
         assert_eq!(secrecy, vec![] as Vec<String>);
         assert_eq!(integrity, writer_integrity("github/copilot", &ctx));
+        assert_eq!(
+            crate::infer_scope_for_baseline("search_commits", &tool_args),
+            Some("github/copilot".to_string())
+        );
     }
 
     #[test]
