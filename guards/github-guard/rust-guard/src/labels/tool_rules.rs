@@ -132,7 +132,7 @@ pub fn apply_tool_labels(
 
     match tool_name {
         // === Issues (repo-scoped) ===
-        "get_issue" | "issue_read" | "list_issues" => {
+        "get_issue" | "issue_read" | "list_issues" | "list_issues_ff_remote_mcp_issue_fields" => {
             // Issues are user-submitted, low integrity
             // I(issue) = contributor if author is contributor, else untrusted (empty)
             // S(issue) = S(repo) - inherits from repository visibility
@@ -423,6 +423,24 @@ pub fn apply_tool_labels(
             } else {
                 secrecy =
                     apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+                integrity = writer_integrity(repo_id, ctx);
+            }
+        }
+
+        // === Commit Search ===
+        "search_commits" => {
+            // Commit search can expose private commit history
+            // S(commits) = inherits from repo secrecy
+            // I(commits) = approved - commits from repository
+            let (s_owner, s_repo, s_repo_id) = resolve_search_scope(tool_args, &owner, &repo);
+            if !s_repo_id.is_empty() {
+                desc = format!("search_commits:{}", s_repo_id);
+                secrecy =
+                    apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
+                integrity = writer_integrity(&s_repo_id, ctx);
+                baseline_scope = Cow::Owned(s_repo_id);
+            } else {
+                secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
                 integrity = writer_integrity(repo_id, ctx);
             }
         }
