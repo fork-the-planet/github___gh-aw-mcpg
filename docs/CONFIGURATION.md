@@ -10,6 +10,11 @@ MCP Gateway supports two configuration formats:
 1. **JSON stdin** — Use with `--config-stdin` flag (primary format for containerized deployments)
 2. **TOML file** — Use with `--config` flag for file-based configuration
 
+Repository examples you can copy and adapt:
+- [`config.example.toml`](../config.example.toml) — comprehensive TOML example with full field coverage and guard policy examples
+- [`config.example-payload-threshold.toml`](../config.example-payload-threshold.toml) — payload size threshold tuning example
+- [`example-http-config.json`](../example-http-config.json) — JSON stdin example with an HTTP MCP server definition
+
 ### TOML Format (`config.toml`)
 
 TOML configuration requires `command = "docker"` for stdio-based MCP servers to ensure containerization:

@@ -29,6 +29,8 @@ This gateway is used with [GitHub Agentic Workflows](https://github.com/github/g
    }
    ```
 
+   Looking for complete examples? See [`config.example.toml`](config.example.toml), [`config.example-payload-threshold.toml`](config.example-payload-threshold.toml), and [`example-http-config.json`](example-http-config.json).
+
 3. **Run the container**:
    ```bash
    docker run --rm -i \
