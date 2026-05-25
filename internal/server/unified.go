@@ -278,7 +278,7 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 		return nil, fmt.Errorf("get_collaborator_permission: unexpected args type: %T", args)
 	}
 
-	owner, repo, username, err := mcp.ParseCollaboratorPermissionArgs(argsMap)
+	owner, repo, username, err := httputil.ParseCollaboratorPermissionArgs(argsMap)
 	if err != nil {
 		logUnified.Printf("get_collaborator_permission: missing required args (owner=%q repo=%q username=%q)", owner, repo, username)
 		return nil, err
@@ -291,7 +291,7 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 	}
 
 	apiURL := envutil.DeriveGitHubAPIURL(envutil.DefaultGitHubAPIBaseURL)
-	result, err := mcp.FetchCollaboratorPermission(
+	result, err := httputil.FetchCollaboratorPermission(
 		ctx,
 		owner,
 		repo,

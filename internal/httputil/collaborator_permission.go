@@ -1,4 +1,4 @@
-package mcp
+package httputil
 
 import (
 	"context"
@@ -45,7 +45,11 @@ func LogAndWrapCollaboratorPermission(
 	} else {
 		logPrintf("get_collaborator_permission: %s/%s user %s → HTTP %d, %d bytes (JSON parse failed: %v)", owner, repo, username, statusCode, len(body), jsonErr)
 	}
-	return BuildMCPTextResponse(string(body))
+	return map[string]interface{}{
+		"content": []map[string]interface{}{
+			{"type": "text", "text": string(body)},
+		},
+	}
 }
 
 // FetchCollaboratorPermission executes a get_collaborator_permission REST call

@@ -263,7 +263,7 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 
 	case "get_collaborator_permission":
 		var parseErr error
-		collabOwner, collabRepo, collabUsername, parseErr = mcp.ParseCollaboratorPermissionArgs(argsMap)
+		collabOwner, collabRepo, collabUsername, parseErr = httputil.ParseCollaboratorPermissionArgs(argsMap)
 		if parseErr != nil {
 			logProxy.Printf("restBackendCaller: get_collaborator_permission missing args (owner=%q repo=%q username=%q)", collabOwner, collabRepo, collabUsername)
 			return nil, parseErr
@@ -288,7 +288,7 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 	}
 	// For get_collaborator_permission, reuse shared REST call helper.
 	if toolName == "get_collaborator_permission" {
-		result, err := mcp.FetchCollaboratorPermission(
+		result, err := httputil.FetchCollaboratorPermission(
 			ctx,
 			collabOwner,
 			collabRepo,
