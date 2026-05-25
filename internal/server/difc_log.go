@@ -115,7 +115,9 @@ const maxFilteredItemsInNotice = 5
 // The heuristic: tools with the "list_" or "search_" prefix are collection tools;
 // everything else (get_*, *_read, etc.) is treated as a singular read.
 func isSingularReadTool(toolName string) bool {
-	return !strings.HasPrefix(toolName, "list_") && !strings.HasPrefix(toolName, "search_")
+	singular := !strings.HasPrefix(toolName, "list_") && !strings.HasPrefix(toolName, "search_")
+	logDifcLog.Printf("isSingularReadTool: toolName=%s, singular=%v", toolName, singular)
+	return singular
 }
 
 // buildDIFCSingleItemFilteredError constructs an error for when exactly one item is
@@ -140,6 +142,7 @@ func buildDIFCSingleItemFilteredError(detail difc.FilteredItemDetail) error {
 	if detail.Reason != "" {
 		msg = fmt.Sprintf("%s (%s)", msg, detail.Reason)
 	}
+	logDifcLog.Printf("buildDIFCSingleItemFilteredError: description=%s, policy=%s, reason=%s", desc, policyLabel, detail.Reason)
 	return fmt.Errorf("%s", msg)
 }
 
@@ -216,6 +219,7 @@ func difcPolicyLabel(items []difc.FilteredItemDetail) string {
 			integrityCount++
 		}
 	}
+	logDifcLog.Printf("difcPolicyLabel: total=%d, secrecyViolations=%d, integrityViolations=%d", len(items), secrecyCount, integrityCount)
 	switch {
 	case secrecyCount > 0 && integrityCount == 0:
 		return "secrecy policy"
