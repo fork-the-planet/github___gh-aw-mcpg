@@ -697,7 +697,7 @@ func TestMarshalAndSanitize(t *testing.T) {
 
 	t.Run("empty map marshals to empty JSON object", func(t *testing.T) {
 		result := MarshalAndSanitize(map[string]interface{}{})
-		assert.Equal(t, "{}", result)
+		assert.JSONEq(t, "{}", result)
 	})
 
 	t.Run("slice of strings with no secrets", func(t *testing.T) {

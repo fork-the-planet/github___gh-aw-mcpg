@@ -67,7 +67,7 @@ func TestRewrapSearchResponse_ItemsKey(t *testing.T) {
 	m, ok := result.(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, float64(1), m["total_count"])
-	assert.Equal(t, false, m["incomplete_results"])
+	assert.False(t, m["incomplete_results"].(bool))
 	assert.Equal(t, filtered, m["items"])
 }
 
