@@ -96,6 +96,31 @@ func TestUnwrapSingleObject_NonMapOriginal(t *testing.T) {
 	}
 }
 
+// TestUnwrapSingleObject_LegacyWrappedTopLevelArray verifies the compatibility
+// unwrap path for legacy singleton fallback output: [[original-array]] → [original-array].
+func TestUnwrapSingleObject_LegacyWrappedTopLevelArray(t *testing.T) {
+	original := []interface{}{
+		map[string]interface{}{"id": float64(1), "body": "first"},
+		map[string]interface{}{"id": float64(2), "body": "second"},
+	}
+	filtered := []interface{}{original}
+
+	result := unwrapSingleObject(original, filtered)
+
+	assert.Equal(t, original, result, "legacy wrapped array should be restored to top-level array")
+}
+
+// TestUnwrapSingleObject_ArrayNotLegacyWrapped verifies that arbitrary array
+// responses are not unwrapped unless they exactly match the legacy wrapper shape.
+func TestUnwrapSingleObject_ArrayNotLegacyWrapped(t *testing.T) {
+	original := []interface{}{[]interface{}{float64(1), float64(2)}}
+	filtered := []interface{}{[]interface{}{float64(1), float64(2)}}
+
+	result := unwrapSingleObject(original, filtered)
+
+	assert.Equal(t, filtered, result, "non-legacy array responses must be left unchanged")
+}
+
 // TestUnwrapSingleObject_SearchEnvelope verifies that a map containing
 // "total_count" (search envelope) is NOT unwrapped — filteredData is returned as-is.
 func TestUnwrapSingleObject_SearchEnvelope(t *testing.T) {

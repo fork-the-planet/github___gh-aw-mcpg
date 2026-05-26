@@ -1,6 +1,8 @@
 package proxy
 
 import (
+	"reflect"
+
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
@@ -48,6 +50,24 @@ func rewrapSearchResponse(originalData interface{}, filteredItems interface{}) i
 // This unwraps it back to obj when the original response was a single object
 // (e.g., get_file_contents, get_commit, issue_read).
 func unwrapSingleObject(originalData interface{}, filteredData interface{}) interface{} {
+	// Guard compatibility: older singleton fallback could wrap a top-level array
+	// as a single collection item, producing [[...]]. If the wrapped value is
+	// exactly the original array payload, restore the original top-level shape.
+	if originalArray, isArray := originalData.([]interface{}); isArray {
+		if arr, ok := filteredData.([]interface{}); ok && len(arr) == 1 {
+			if wrapped, ok := arr[0].([]interface{}); ok &&
+				len(wrapped) == len(originalArray) {
+				if len(wrapped) == 0 {
+					return wrapped
+				}
+				if reflect.DeepEqual(wrapped, originalArray) {
+					return wrapped
+				}
+			}
+		}
+		return filteredData
+	}
+
 	original, isMap := originalData.(map[string]interface{})
 	if !isMap {
 		return filteredData
