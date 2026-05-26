@@ -53,9 +53,17 @@ func unwrapSingleObject(originalData interface{}, filteredData interface{}) inte
 	// Guard compatibility: older singleton fallback could wrap a top-level array
 	// as a single collection item, producing [[...]]. If the wrapped value is
 	// exactly the original array payload, restore the original top-level shape.
-	if _, isArray := originalData.([]interface{}); isArray {
-		if arr, ok := filteredData.([]interface{}); ok && len(arr) == 1 && reflect.DeepEqual(arr[0], originalData) {
-			return arr[0]
+	if originalArray, isArray := originalData.([]interface{}); isArray {
+		if arr, ok := filteredData.([]interface{}); ok && len(arr) == 1 {
+			if wrapped, ok := arr[0].([]interface{}); ok &&
+				len(wrapped) == len(originalArray) {
+				if len(wrapped) == 0 {
+					return wrapped
+				}
+				if reflect.DeepEqual(wrapped, originalArray) {
+					return wrapped
+				}
+			}
 		}
 		return filteredData
 	}

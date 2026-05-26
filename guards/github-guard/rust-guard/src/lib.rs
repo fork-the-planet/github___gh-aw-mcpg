@@ -305,13 +305,22 @@ struct LabelResponseOutput {
     items: Vec<LabeledItem>,
 }
 
+enum FallbackAction {
+    ContinueProcessing,
+    SkipLabeling,
+}
+
+/// Applies metadata/singleton fallback labeling when no fine-grained items exist.
+/// Returns [`FallbackAction::SkipLabeling`] when the caller should return `0`
+/// (top-level array passthrough), or [`FallbackAction::ContinueProcessing`]
+/// when normal output generation should continue.
 fn apply_singleton_fallback_if_needed(
     input: &LabelResponseInput,
     ctx: &PolicyContext,
     labeled_items: &mut Vec<LabeledItem>,
-) -> bool {
+) -> FallbackAction {
     if !labeled_items.is_empty() {
-        return false;
+        return FallbackAction::ContinueProcessing;
     }
 
     // Extract repo info from tool args (same logic as label_resource)
@@ -350,12 +359,12 @@ fn apply_singleton_fallback_if_needed(
                 integrity: integrity.into(),
             },
         });
-        return false;
+        return FallbackAction::ContinueProcessing;
     }
 
     if !should_fallback_to_single_item_label(&actual_response) {
         log_info("    no fine-grained items for top-level array response, skipping fallback label");
-        return true;
+        return FallbackAction::SkipLabeling;
     }
 
     log_info("    no fine-grained items, creating fallback single-item label");
@@ -388,7 +397,7 @@ fn apply_singleton_fallback_if_needed(
         },
     });
 
-    false
+    FallbackAction::ContinueProcessing
 }
 
 fn infer_scope_for_baseline<'a>(
@@ -1005,7 +1014,10 @@ pub extern "C" fn label_response(
     // If no items were generated, wrap entire response as single item with computed labels
     // when appropriate. This ensures single-item responses (like get_file_contents)
     // are properly labeled while preserving unlabeled top-level array passthrough.
-    if apply_singleton_fallback_if_needed(&input, &ctx, &mut labeled_items) {
+    if matches!(
+        apply_singleton_fallback_if_needed(&input, &ctx, &mut labeled_items),
+        FallbackAction::SkipLabeling
+    ) {
         log_info("<<< label_response returning 0 (top-level array passthrough)");
         return 0;
     }
@@ -1135,13 +1147,13 @@ mod tests {
         };
 
         let mut labeled_items = Vec::new();
-        let should_return_zero = apply_singleton_fallback_if_needed(
+        let action = apply_singleton_fallback_if_needed(
             &input,
             &PolicyContext::default(),
             &mut labeled_items,
         );
 
-        assert!(should_return_zero);
+        assert!(matches!(action, FallbackAction::SkipLabeling));
         assert!(labeled_items.is_empty());
     }
 

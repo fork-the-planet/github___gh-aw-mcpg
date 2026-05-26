@@ -422,6 +422,31 @@ func TestHandleWithDIFC_IssueCommentsArrayResponse(t *testing.T) {
 	assert.JSONEq(t, `[{"id":1,"body":"first"},{"id":2,"body":"second"}]`, w.Body.String())
 }
 
+func TestHandleWithDIFC_IssueCommentsArrayResponse_NoFineGrainedLabels(t *testing.T) {
+	upstreamBody := []interface{}{
+		map[string]interface{}{"id": float64(1), "body": "first"},
+		map[string]interface{}{"id": float64(2), "body": "second"},
+	}
+	upstream := mockUpstream(t, http.StatusOK, upstreamBody)
+	defer upstream.Close()
+
+	g := &stubGuard{
+		labelResourceResult: publicResource(),
+		labelResourceOp:     difc.OperationRead,
+		labelResponseData:   nil, // simulate label_response returning 0 (no fine-grained labels)
+	}
+	s := newTestServerWithStub(t, upstream.URL, g, difc.EnforcementFilter)
+	h := &proxyHandler{server: s}
+
+	req := httptest.NewRequest(http.MethodGet, "/repos/org/repo/issues/7/comments", nil)
+	w := httptest.NewRecorder()
+	h.handleWithDIFC(w, req, "/repos/org/repo/issues/7/comments", "issue_read",
+		map[string]interface{}{"owner": "org", "repo": "repo", "issue_number": "7", "method": "get_comments"}, nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `[{"id":1,"body":"first"},{"id":2,"body":"second"}]`, w.Body.String())
+}
+
 // ─── handleWithDIFC: GraphQL query passes through DIFC ───────────────────────
 
 func TestHandleWithDIFC_GraphQLBody(t *testing.T) {
