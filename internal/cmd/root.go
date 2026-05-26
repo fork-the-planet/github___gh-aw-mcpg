@@ -226,6 +226,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("invalid guard policy configuration: %w", err)
 	}
+	debugLog.Printf("Guard policy resolved: hasOverride=%v, source=%s", policyOverride != nil, policySource)
 	if policyOverride != nil {
 		cfg.GuardPolicy = policyOverride
 		cfg.GuardPolicySource = policySource
@@ -342,10 +343,12 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create unified MCP server (backend for both modes)
+	debugLog.Printf("Creating unified MCP server: mode=%s, servers=%d", mode, len(cfg.Servers))
 	unifiedServer, err := server.NewUnified(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create unified server: %w", err)
 	}
+	debugLog.Printf("Unified MCP server created successfully")
 	defer unifiedServer.Close()
 
 	// Handle graceful shutdown via context cancellation
@@ -399,6 +402,7 @@ func run(cmd *cobra.Command, args []string) error {
 	hasCert := tlsCertPath != ""
 	hasKey := tlsKeyPath != ""
 	hasCA := tlsCAPath != ""
+	debugLog.Printf("TLS configuration: hasCert=%v, hasKey=%v, hasCA=%v", hasCert, hasKey, hasCA)
 	if hasCert != hasKey {
 		return fmt.Errorf("--tls-cert and --tls-key must both be provided together")
 	}
@@ -410,6 +414,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", listenAddr, err)
 	}
+	debugLog.Printf("TCP listener created on %s", listenAddr)
 	tlsEnabled := hasCert && hasKey
 	var tlsCfg *tls.Config
 	if tlsEnabled {
@@ -446,6 +451,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Wait for shutdown signal
 	<-ctx.Done()
+	debugLog.Print("Shutdown signal received, initiating graceful shutdown")
 
 	// Gracefully shutdown HTTP server with timeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
