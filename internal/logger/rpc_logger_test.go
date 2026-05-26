@@ -657,6 +657,44 @@ func TestLogRPCMessage(t *testing.T) {
 	assert.Contains(t, string(mdContent), "**custom-server**→`custom/method`")
 }
 
+// TestRPCMessageType_JSONLEvent verifies that JSONLEvent returns the correct
+// event name for each RPCMessageType, including the default/unknown case.
+func TestRPCMessageType_JSONLEvent(t *testing.T) {
+	tests := []struct {
+		name      string
+		msgType   RPCMessageType
+		wantEvent string
+	}{
+		{
+			name:      "request type returns rpc_request",
+			msgType:   RPCMessageRequest,
+			wantEvent: "rpc_request",
+		},
+		{
+			name:      "response type returns rpc_response",
+			msgType:   RPCMessageResponse,
+			wantEvent: "rpc_response",
+		},
+		{
+			name:      "unknown type returns rpc_unknown",
+			msgType:   RPCMessageType("UNKNOWN"),
+			wantEvent: "rpc_unknown",
+		},
+		{
+			name:      "empty type returns rpc_unknown",
+			msgType:   RPCMessageType(""),
+			wantEvent: "rpc_unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.msgType.JSONLEvent()
+			assert.Equal(t, tt.wantEvent, got)
+		})
+	}
+}
+
 func TestLogRPCResponse_NoError(t *testing.T) {
 	tmpDir := t.TempDir()
 	logDir := filepath.Join(tmpDir, "logs")
