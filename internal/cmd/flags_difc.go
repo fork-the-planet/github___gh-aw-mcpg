@@ -25,6 +25,9 @@ var (
 	allowOnlyMinInt   string
 )
 
+// containerGuardWasmPath is the baked-in guard path in the container image.
+const containerGuardWasmPath = "/guards/github/00-github-guard.wasm"
+
 func init() {
 	RegisterFlag(func(cmd *cobra.Command) {
 		cmd.Flags().StringVar(&difcMode, "guards-mode", getDefaultDIFCMode(), "Guards enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads)")
@@ -35,6 +38,18 @@ func init() {
 		cmd.Flags().StringVar(&allowOnlyRepo, "allowonly-scope-repo", envutil.GetEnvString(config.EnvAllowOnlyScopeRepo, ""), "AllowOnly repo name (requires owner)")
 		cmd.Flags().StringVar(&allowOnlyMinInt, "allowonly-min-integrity", envutil.GetEnvString(config.EnvAllowOnlyMinIntegrity, ""), "AllowOnly integrity: none|unapproved|approved|merged")
 	})
+}
+
+// detectGuardWasm returns the baked-in container guard path if it exists,
+// or empty string if not found (requiring the user to specify --guard-wasm).
+func detectGuardWasm() string {
+	debugLog.Printf("Checking for baked-in guard at %s", containerGuardWasmPath)
+	if _, err := os.Stat(containerGuardWasmPath); err == nil {
+		debugLog.Printf("Auto-detected baked-in guard: %s", containerGuardWasmPath)
+		return containerGuardWasmPath
+	}
+	debugLog.Print("Baked-in guard not found, --guard-wasm flag required")
+	return ""
 }
 
 func resolveGuardPolicyOverride(cmd *cobra.Command) (*config.GuardPolicy, string, error) {
