@@ -681,6 +681,13 @@ func TestAllowOnlyPolicyUnmarshalJSON(t *testing.T) {
 			},
 		},
 		{
+			name: "tool-call-limits parsed correctly",
+			json: `{"repos":"public","min-integrity":"none","tool-call-limits":{"issue_read":1,"list_issues":2}}`,
+			check: func(t *testing.T, p *AllowOnlyPolicy) {
+				assert.Equal(t, map[string]int{"issue_read": 1, "list_issues": 2}, p.ToolCallLimits)
+			},
+		},
+		{
 			name: "approval-labels parsed correctly",
 			json: `{"repos":"public","min-integrity":"none","approval-labels":["approved","human-reviewed"]}`,
 			check: func(t *testing.T, p *AllowOnlyPolicy) {
@@ -829,6 +836,21 @@ func TestAllowOnlyPolicyMarshalJSON(t *testing.T) {
 		assert.Contains(t, jsonStr, `"human-reviewed"`)
 	})
 
+	t.Run("tool-call-limits is included when set", func(t *testing.T) {
+		policy := AllowOnlyPolicy{
+			Repos:          "public",
+			MinIntegrity:   "none",
+			ToolCallLimits: map[string]int{"issue_read": 1},
+		}
+
+		data, err := json.Marshal(policy)
+		require.NoError(t, err)
+
+		jsonStr := string(data)
+		assert.Contains(t, jsonStr, `"tool-call-limits"`)
+		assert.Contains(t, jsonStr, `"issue_read"`)
+	})
+
 	t.Run("nil blocked-users and approval-labels are omitted", func(t *testing.T) {
 		policy := AllowOnlyPolicy{
 			Repos:        "public",
@@ -966,6 +988,16 @@ func TestValidateGuardPolicy(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("zero tool-call-limit is treated as unlimited", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:          "all",
+			MinIntegrity:   "none",
+			ToolCallLimits: map[string]int{"issue_read": 0},
+		}}
+		err := ValidateGuardPolicy(policy)
+		require.NoError(t, err)
+	})
+
 	t.Run("invalid policy returns error", func(t *testing.T) {
 		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
 			Repos:        "all",
@@ -973,6 +1005,17 @@ func TestValidateGuardPolicy(t *testing.T) {
 		}}
 		err := ValidateGuardPolicy(policy)
 		require.Error(t, err)
+	})
+
+	t.Run("negative tool-call-limit returns error", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:          "all",
+			MinIntegrity:   "none",
+			ToolCallLimits: map[string]int{"issue_read": -1},
+		}}
+		err := ValidateGuardPolicy(policy)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, `allow-only.tool-call-limits["issue_read"] must be >= 0`)
 	})
 }
 
@@ -1002,6 +1045,17 @@ func TestNormalizeGuardPolicyReactionEndorsement(t *testing.T) {
 		got, err := NormalizeGuardPolicy(policy)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"THUMBS_UP", "HEART"}, got.EndorsementReactions)
+	})
+
+	t.Run("tool-call-limits propagated to normalized policy", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:          "public",
+			MinIntegrity:   "approved",
+			ToolCallLimits: map[string]int{"issue_read": 1, "list_issues": 0},
+		}}
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]int{"issue_read": 1, "list_issues": 0}, got.ToolCallLimits)
 	})
 
 	t.Run("disapproval-reactions propagated and normalized to uppercase", func(t *testing.T) {

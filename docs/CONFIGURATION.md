@@ -251,6 +251,8 @@ min-integrity = "unapproved"
 
 - **`trusted-users`** *(optional)*: Array of GitHub usernames whose content is unconditionally elevated to `approved` integrity. Useful for granting specific external contributors the same treatment as repository members without lowering `min-integrity` globally. Uses `max(base, approved)` so it never lowers integrity. Does not override `blocked-users`.
 
+- **`tool-call-limits`** *(optional)*: Map of tool names to per-session call limits enforced by the gateway. Positive values cap how many times that tool may be called in one session; `0` or an omitted entry leaves the tool unlimited.
+
 - **Meaning**: Restricts the GitHub MCP server to only access specified repositories. Tools like `get_file_contents`, `search_code`, etc. will only work on allowed repositories. Attempts to access other repositories will be denied by the guard policy.
 
 ### write-sink (output servers)

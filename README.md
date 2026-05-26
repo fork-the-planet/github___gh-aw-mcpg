@@ -103,11 +103,14 @@ Restricts which repositories a guard allows and at what integrity level:
 
 **`trusted-users`** *(optional)* — Array of GitHub usernames whose content is unconditionally elevated to `approved` integrity. Useful for granting specific external contributors (e.g., trusted open-source maintainers) the same treatment as repository members, without lowering `min-integrity` globally. Uses `max(base, approved)` so it never lowers integrity. Does not override `blocked-users`.
 
+**`tool-call-limits`** *(optional)* — Map of tool names to per-session call limits enforced by the gateway before the backend is invoked. Positive values hard-limit that tool for the session, while `0` or an omitted entry leaves the tool unlimited.
+
 ```json
 "guard-policies": {
   "allow-only": {
     "repos": ["myorg/*"],
     "min-integrity": "approved",
+    "tool-call-limits": {"issue_read": 1},
     "blocked-users": ["spam-bot", "compromised-user"],
     "approval-labels": ["human-reviewed", "safe-for-agent"],
     "trusted-users": ["alice", "trusted-contributor"]

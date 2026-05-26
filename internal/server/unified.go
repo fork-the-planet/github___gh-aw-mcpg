@@ -50,6 +50,9 @@ type GuardSessionState struct {
 	PolicySource     string
 	DIFCMode         difc.EnforcementMode
 	NormalizedPolicy map[string]interface{}
+	ToolCallLimits   map[string]int
+	ToolCallCounts   map[string]int
+	CallCountMu      sync.Mutex
 }
 
 // ServerStatus represents the health status of a backend server
@@ -377,7 +380,8 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
 	)
 	// httpStatusCode tracks the conceptual HTTP status of the proxied response (spec §4.1.3.6).
-	// It starts at 200 and is updated to 500 (error) or 403 (access denied) before each exit.
+	// It starts at 200 and is updated to 500 (error), 403 (access denied), or 429 (budget
+	// exhaustion) before each exit.
 	httpStatusCode := 200
 	defer func() {
 		toolSpan.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(httpStatusCode))
@@ -413,6 +417,12 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	if err != nil {
 		httpStatusCode = 500
 		return mcp.NewErrorCallToolResult(fmt.Errorf("guard session initialization failed: %w", err))
+	}
+	if err := us.enforceToolCallLimit(sessionID, serverID, toolName); err != nil {
+		httpStatusCode = 429
+		toolSpan.RecordError(err)
+		toolSpan.SetStatus(codes.Error, "tool call limit reached")
+		return mcp.NewErrorCallToolResult(err)
 	}
 
 	requestEvaluator := difc.NewEvaluatorWithMode(enforcementMode)
@@ -633,6 +643,40 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	}
 
 	return callResult, finalResult, nil
+}
+
+// enforceToolCallLimit applies the configured per-session budget for toolName on
+// the given server, incrementing the call counter for in-budget attempts and
+// returning an error without incrementing when the session has exhausted its limit.
+func (us *UnifiedServer) enforceToolCallLimit(sessionID, serverID, toolName string) error {
+	us.sessionMu.RLock()
+	session := us.sessions[sessionID]
+	var state *GuardSessionState
+	if session != nil {
+		state = session.GuardInit[serverID]
+	}
+	us.sessionMu.RUnlock()
+
+	if state == nil || len(state.ToolCallLimits) == 0 {
+		return nil
+	}
+
+	state.CallCountMu.Lock()
+	defer state.CallCountMu.Unlock()
+
+	limit, ok := state.ToolCallLimits[toolName]
+	if !ok || limit == 0 {
+		return nil
+	}
+	if state.ToolCallCounts == nil {
+		state.ToolCallCounts = make(map[string]int)
+	}
+
+	if state.ToolCallCounts[toolName] >= limit {
+		return fmt.Errorf("tool call limit reached for %q (max: %d)", toolName, limit)
+	}
+	state.ToolCallCounts[toolName]++
+	return nil
 }
 
 // Run starts the unified MCP server on the specified transport

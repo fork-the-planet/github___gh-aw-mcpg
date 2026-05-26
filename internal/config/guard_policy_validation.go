@@ -108,6 +108,11 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 
 	var err error
 
+	normalized.ToolCallLimits, err = normalizeToolCallLimits(policy.AllowOnly.ToolCallLimits)
+	if err != nil {
+		return nil, err
+	}
+
 	// Validate and normalize blocked-users, approval-labels, trusted-users.
 	// Dedup uses lowercased keys; original trimmed values are stored.
 	normalized.BlockedUsers, err = normalizeStringSlice("blocked-users", policy.AllowOnly.BlockedUsers, strings.ToLower, false)
@@ -329,6 +334,25 @@ func normalizeStringSlice(field string, input []string, caseNorm func(string) st
 				out = append(out, v)
 			}
 		}
+	}
+	return out, nil
+}
+
+func normalizeToolCallLimits(input map[string]int) (map[string]int, error) {
+	if len(input) == 0 {
+		return nil, nil
+	}
+
+	out := make(map[string]int, len(input))
+	for toolName, limit := range input {
+		toolName = strings.TrimSpace(toolName)
+		if toolName == "" {
+			return nil, fmt.Errorf("allow-only.tool-call-limits keys must not be empty")
+		}
+		if limit < 0 {
+			return nil, fmt.Errorf("allow-only.tool-call-limits[%q] must be >= 0", toolName)
+		}
+		out[toolName] = limit
 	}
 	return out, nil
 }
