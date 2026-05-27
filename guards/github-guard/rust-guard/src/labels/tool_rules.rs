@@ -319,31 +319,17 @@ pub fn apply_tool_labels(
             };
         }
 
-        // === Security: Secret Scanning ===
-        "list_secret_scanning_alerts" | "get_secret_scanning_alert" => {
-            // S(alert) = private:owner/repo - alerts may contain actual secret values
-            // Treated as private regardless of repo visibility (secrets in public repos are still sensitive)
-            // I(alert) = approved - automated detection
-            secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Security: Code Scanning & Dependabot ===
-        "list_code_scanning_alerts"
+        // === Security-sensitive data: always private regardless of repo visibility ===
+        // Covers: secret scanning alerts (may contain actual secret values), code scanning
+        // and Dependabot alerts (security findings), and Actions job logs (may contain
+        // accidentally-printed CI tokens). All are private:repo + writer integrity.
+        "list_secret_scanning_alerts"
+        | "get_secret_scanning_alert"
+        | "list_code_scanning_alerts"
         | "get_code_scanning_alert"
         | "list_dependabot_alerts"
-        | "get_dependabot_alert" => {
-            // S(alert) = private:repo - security findings are sensitive
-            // I(alert) = approved - tool output, not user-controlled
-            secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Actions: Job Logs ===
-        "get_job_logs" => {
-            // Job logs may contain CI secrets (e.g. accidentally printed tokens) even in public repos.
-            // Always treat as private regardless of repository visibility.
-            // S(logs) = private:owner/repo; I(logs) = approved (system-generated output)
+        | "get_dependabot_alert"
+        | "get_job_logs" => {
             secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
             integrity = writer_integrity(repo_id, ctx);
         }
@@ -1038,6 +1024,51 @@ mod tests {
             integrity,
             writer_integrity(repo_id, &ctx),
             "get_job_logs: expected writer-level integrity",
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_actions_get_artifact_download_is_always_private() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({
+            "owner": "octocat",
+            "repo": "hello-world",
+            "method": "download_workflow_run_artifact",
+        });
+        let repo_id = "octocat/hello-world";
+
+        let (secrecy, integrity, _) = super::apply_tool_labels(
+            "actions_get", &args, repo_id, vec![], vec![], String::new(), &ctx,
+        );
+        assert_eq!(
+            secrecy,
+            private_label("octocat", "hello-world", repo_id, &ctx),
+            "actions_get download_workflow_run_artifact must always be private",
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "actions_get must produce writer-level integrity",
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_actions_get_non_artifact_inherits_repo_visibility() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({
+            "owner": "octocat",
+            "repo": "hello-world",
+            "method": "list_workflow_runs",
+        });
+        let repo_id = "octocat/hello-world";
+
+        let (_, integrity, _) = super::apply_tool_labels(
+            "actions_get", &args, repo_id, vec![], vec![], String::new(), &ctx,
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "actions_get non-artifact method must produce writer-level integrity",
         );
     }
 }
