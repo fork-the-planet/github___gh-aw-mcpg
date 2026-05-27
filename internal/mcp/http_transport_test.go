@@ -1545,4 +1545,52 @@ func TestParseHTTPResult(t *testing.T) {
 		assert.Equal(t, -32601, resp.Error.Code)
 		assert.Equal(t, "Method not found", resp.Error.Message)
 	})
+
+	t.Run("non-200 status with JSON-RPC body always synthesises HTTP error", func(t *testing.T) {
+		// parseJSONRPCResponseWithSSE always synthesises an HTTP error for non-200 responses,
+		// even when the body is a valid JSON-RPC error. The error in the body is ignored and
+		// replaced with the synthetic HTTP error. This documents the actual behaviour.
+		result := &httpRequestResult{
+			StatusCode:   http.StatusInternalServerError,
+			ResponseBody: []byte(`{"jsonrpc":"2.0","id":4,"error":{"code":-32000,"message":"Server overloaded"}}`),
+		}
+		resp, err := parseHTTPResult(result)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.NotNil(t, resp.Error, "non-200 response must always have an error")
+		// The synthetic HTTP error is used because parseJSONRPCResponseWithSSE
+		// replaces the response for all non-200 statuses.
+		assert.Equal(t, -32603, resp.Error.Code, "synthetic HTTP error code should be -32603")
+		assert.Contains(t, resp.Error.Message, "500", "synthetic error should include HTTP status")
+	})
+}
+
+// TestBuildHTTPClientWithHeaders_NilTransport verifies that when the base client has
+// a nil Transport, buildHTTPClientWithHeaders falls back to http.DefaultTransport as
+// the inner transport for the injecting round-tripper.
+func TestBuildHTTPClientWithHeaders_NilTransport(t *testing.T) {
+	received := make(map[string]string)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received["X-Test-Header"] = r.Header.Get("X-Test-Header")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// base client has no Transport set (nil) — the wrapper must fall back to
+	// http.DefaultTransport so real network requests still work.
+	base := &http.Client{}
+	injected := buildHTTPClientWithHeaders(base, map[string]string{
+		"X-Test-Header": "nil-transport-value",
+	})
+	assert.NotSame(t, base, injected, "non-empty headers should return a new client")
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := injected.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	assert.Equal(t, "nil-transport-value", received["X-Test-Header"],
+		"header should be injected even when base client Transport is nil")
 }
