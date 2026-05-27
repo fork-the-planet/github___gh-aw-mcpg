@@ -593,7 +593,7 @@ pub fn apply_tool_labels(
         | "delete_file"
         | "create_branch"
         | "update_pull_request_branch"
-        // Labels, Actions, workflow management
+        // Labels, Actions, workflow management ("run_workflow" and "delete_workflow_run_logs" are deprecated aliases for "actions_run_trigger")
         | "label_write"
         | "actions_run_trigger"
         | "run_workflow"
