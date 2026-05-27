@@ -387,6 +387,10 @@ type loggerSetupFunc[T closableLogger] func(file *os.File, logDir, fileName stri
 
 // loggerErrorHandlerFunc is a function type that handles errors during logger initialization.
 // It receives the error and returns a configured logger (possibly a fallback) or an error.
+//
+// Fallback-capable handlers must return a degraded logger with useFallback=true and a nil
+// error so initLogger can proceed in degraded mode. Strict handlers such as JSONLLogger
+// should return the zero logger value together with the initialization error instead.
 type loggerErrorHandlerFunc[T closableLogger] func(err error, logDir, fileName string) (T, error)
 
 // loggerFactory bundles the setup and error-handler function pair for a logger type.
@@ -431,10 +435,13 @@ type loggerFactory[T closableLogger] struct {
 //  4. If unsuccessful, calls factory.onError to implement the logger's fallback strategy
 //  5. Returns an error if factory.setup returns a nil logger without an error (would leak the file)
 //
-// The factory.onError handler determines the fallback behavior. See "Initialization Pattern
-// for Logger Types" documentation above for details on fallback strategies:
-//   - FileLogger: Falls back to stdout
+// The factory.onError handler determines the fallback behavior. Fallback-capable handlers
+// return a logger with useFallback=true and a nil error; strict handlers return the error.
+// See "Initialization Pattern for Logger Types" documentation above for details on
+// fallback strategies:
+//   - FileLogger: Falls back to stderr
 //   - MarkdownLogger: Silent fallback (no output)
+//   - ToolsLogger: Silent fallback (no output)
 //   - JSONLLogger: Returns error (no fallback)
 func initLogger[T closableLogger](
 	logDir, fileName string,
