@@ -352,24 +352,29 @@ func (l *Launcher) clearServerForRestart(serverID string) {
 // GetServerState returns the observed runtime state for a single server.
 func (l *Launcher) GetServerState(serverID string) ServerState {
 	logLauncher.Printf("GetServerState: serverID=%s", serverID)
-	l.mu.RLock()
-	defer l.mu.RUnlock()
 
+	var state ServerState
+	l.mu.RLock()
 	if errMsg, hasErr := l.serverErrors[serverID]; hasErr {
-		logLauncher.Printf("Server state: serverID=%s, status=error, lastError=%s", serverID, errMsg)
-		return ServerState{
+		state = ServerState{
 			Status:    "error",
 			LastError: errMsg,
 		}
+		l.mu.RUnlock()
+		logLauncher.Printf("Server state: serverID=%s, status=error, lastError=%s", serverID, errMsg)
+		return state
 	}
 
 	if startedAt, ok := l.serverStartTimes[serverID]; ok {
-		logLauncher.Printf("Server state: serverID=%s, status=running, startedAt=%v", serverID, startedAt)
-		return ServerState{
+		state = ServerState{
 			Status:    "running",
 			StartedAt: startedAt,
 		}
+		l.mu.RUnlock()
+		logLauncher.Printf("Server state: serverID=%s, status=running, startedAt=%v", serverID, startedAt)
+		return state
 	}
+	l.mu.RUnlock()
 
 	logLauncher.Printf("Server state: serverID=%s, status=stopped", serverID)
 	return ServerState{Status: "stopped"}
