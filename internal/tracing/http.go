@@ -4,6 +4,7 @@ package tracing
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -77,6 +78,9 @@ func WrapHTTPHandler(next http.Handler, spanName string, extraAttrs ...attribute
 			span.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(srw.StatusCode))
 			if srw.StatusCode >= 500 {
 				msg := http.StatusText(srw.StatusCode)
+				if msg == "" {
+					msg = fmt.Sprintf("HTTP %d", srw.StatusCode)
+				}
 				RecordSpanError(span, errors.New(msg), msg)
 			}
 		}()

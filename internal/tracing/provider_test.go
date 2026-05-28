@@ -835,3 +835,31 @@ func TestWrapHTTPHandler_5xxSetsSpanStatusError(t *testing.T) {
 	}
 	assert.True(t, found, "http.response.status_code attribute must be present on the span")
 }
+
+func TestWrapHTTPHandler_Unknown5xxUsesFallbackStatusDescription(t *testing.T) {
+	ctx := context.Background()
+
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	_, exporter, cleanup := newInMemoryProvider(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	rr := httptest.NewRecorder()
+
+	const unknown5xx = 599
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(unknown5xx)
+	})
+
+	tracing.WrapHTTPHandler(inner, "test.unknown5xx").ServeHTTP(rr, req)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1, "expected exactly one span")
+	span := spans[0]
+
+	assert.Equal(t, codes.Error, span.Status.Code, "unknown 5xx must set span status to Error")
+	assert.Equal(t, "HTTP 599", span.Status.Description, "unknown 5xx should use HTTP <code> fallback description")
+}
