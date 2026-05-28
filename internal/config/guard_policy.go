@@ -26,6 +26,7 @@ var validMinIntegrityValues = map[string]struct{}{
 
 // GuardPolicy represents the policy payload passed to guard label_agent.
 type GuardPolicy struct {
+	// Hyphenated keys intentionally match the policy schema field names.
 	AllowOnly *AllowOnlyPolicy `toml:"allow-only" json:"allow-only,omitempty"`
 	WriteSink *WriteSinkPolicy `toml:"write-sink" json:"write-sink,omitempty"`
 }

@@ -54,6 +54,36 @@ command = "docker"
 	require.Error(t, err)
 	assert.Nil(t, cfg)
 	assert.ErrorContains(t, err, "failed to parse TOML")
+
+	var perr toml.ParseError
+	require.ErrorAs(t, err, &perr, "expected wrapped toml.ParseError")
+	assert.Greater(t, perr.Position.Line, 0, "parse error should include line number")
+	assert.Greater(t, perr.Position.Col, 0, "parse error should include column number")
+}
+
+func TestLoadFromFile_BothTracingAndOpenTelemetry_OpenTelemetryTakesPrecedence(t *testing.T) {
+	path := writeTempTOML(t, `
+[gateway.tracing]
+endpoint = "http://legacy-collector.example.com:4318"
+
+[gateway.opentelemetry]
+endpoint = "https://otel-collector.example.com"
+service_name = "new-otel"
+
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+`)
+
+	cfg, err := LoadFromFile(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.Gateway)
+	require.NotNil(t, cfg.Gateway.Tracing)
+
+	assert.Equal(t, "https://otel-collector.example.com", cfg.Gateway.Tracing.Endpoint)
+	assert.Equal(t, "new-otel", cfg.Gateway.Tracing.ServiceName)
+	assert.Nil(t, cfg.Gateway.Opentelemetry)
 }
 
 // TestLoadFromFile_EmptyServers verifies that LoadFromFile returns an error

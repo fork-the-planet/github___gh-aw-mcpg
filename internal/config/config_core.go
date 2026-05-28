@@ -464,6 +464,9 @@ func LoadFromFile(path string) (*Config, error) {
 	// Merge opentelemetry key into tracing when present (spec §4.1.3.6).
 	// opentelemetry takes precedence over the legacy tracing key.
 	if cfg.Gateway.Opentelemetry != nil {
+		if cfg.Gateway.Tracing != nil {
+			logConfig.Print("Warning: both [gateway.tracing] and [gateway.opentelemetry] are set; [gateway.opentelemetry] takes precedence")
+		}
 		logConfig.Printf("opentelemetry section found: merging into tracing config (endpoint_set=%t)", cfg.Gateway.Opentelemetry.Endpoint != "")
 		cfg.Gateway.Tracing = cfg.Gateway.Opentelemetry
 		cfg.Gateway.Opentelemetry = nil
