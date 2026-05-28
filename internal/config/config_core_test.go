@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -57,7 +56,7 @@ command = "docker"
 	assert.ErrorContains(t, err, "failed to parse TOML")
 
 	var perr toml.ParseError
-	require.True(t, errors.As(err, &perr), "expected wrapped toml.ParseError")
+	require.ErrorAs(t, err, &perr, "expected wrapped toml.ParseError")
 	assert.Greater(t, perr.Position.Line, 0, "parse error should include line number")
 	assert.Greater(t, perr.Position.Col, 0, "parse error should include column number")
 }
