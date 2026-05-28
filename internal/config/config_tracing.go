@@ -71,6 +71,46 @@ func (c *TracingConfig) GetSampleRate() float64 {
 	return *c.SampleRate
 }
 
+// expandTracingVariables expands ${VAR} expressions in TracingConfig fields.
+// This is called for TOML-loaded configs before validation, mirroring the
+// stdin JSON path where ExpandRawJSONVariables handles expansion.
+func expandTracingVariables(cfg *TracingConfig) error {
+	if cfg == nil {
+		return nil
+	}
+
+	logValidation.Printf("Expanding tracing config variables: hasEndpoint=%v, hasTraceID=%v, hasSpanID=%v, hasHeaders=%v",
+		cfg.Endpoint != "", cfg.TraceID != "", cfg.SpanID != "", cfg.Headers != "")
+
+	fields := []struct {
+		name     string
+		jsonPath string
+		value    *string
+	}{
+		{name: "endpoint", jsonPath: "gateway.opentelemetry.endpoint", value: &cfg.Endpoint},
+		{name: "traceId", jsonPath: "gateway.opentelemetry.traceId", value: &cfg.TraceID},
+		{name: "spanId", jsonPath: "gateway.opentelemetry.spanId", value: &cfg.SpanID},
+		{name: "headers", jsonPath: "gateway.opentelemetry.headers", value: &cfg.Headers},
+	}
+
+	for _, field := range fields {
+		if *field.value == "" {
+			continue
+		}
+
+		expanded, err := expandVariables(*field.value, field.jsonPath)
+		if err != nil {
+			return err
+		}
+
+		logValidation.Printf("Expanded tracing %s variable", field.name)
+		*field.value = expanded
+	}
+
+	logValidation.Print("Tracing config variable expansion completed")
+	return nil
+}
+
 func init() {
 	// Register default setter for Tracing config
 	RegisterDefaults(func(cfg *Config) {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logTransform = logger.New("proxy:response_transform")
@@ -110,7 +111,7 @@ func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCol
 	logTransform.Printf("rebuildGraphQLResponse: rebuilding with %d accessible items", filtered.GetAccessibleCount())
 
 	// Deep-clone the original data structure
-	cloned := deepCloneJSON(original)
+	cloned := strutil.DeepCloneJSON(original)
 
 	// Build accessible items set
 	accessibleItems := make([]interface{}, 0, len(filtered.Accessible))
@@ -156,24 +157,4 @@ func replaceNodesArray(v interface{}, items []interface{}) bool {
 		}
 	}
 	return false
-}
-
-// deepCloneJSON creates a deep copy of a JSON-compatible value.
-func deepCloneJSON(v interface{}) interface{} {
-	switch val := v.(type) {
-	case map[string]interface{}:
-		clone := make(map[string]interface{}, len(val))
-		for k, v := range val {
-			clone[k] = deepCloneJSON(v)
-		}
-		return clone
-	case []interface{}:
-		clone := make([]interface{}, len(val))
-		for i, v := range val {
-			clone[i] = deepCloneJSON(v)
-		}
-		return clone
-	default:
-		return v
-	}
 }
