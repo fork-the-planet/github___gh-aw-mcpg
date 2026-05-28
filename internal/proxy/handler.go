@@ -176,19 +176,19 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		resource.Secrecy.Label.GetTags(), resource.Integrity.Label.GetTags())
 
 	// **Phase 2: Coarse-grained access check**
-	evalResult := s.Evaluator.Evaluate(agentLabels.Secrecy, agentLabels.Integrity, resource, operation)
-
-	if !evalResult.IsAllowed() {
-		if difc.ShouldBypassCoarseDeny(operation) {
-			// Read in filter mode: skip coarse block, proceed to fine-grained filtering
-			logHandler.Printf("[DIFC] Phase 2: coarse check failed for read, proceeding to Phase 3")
-		} else {
-			// Write blocked
-			logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, evalResult.Reason)
-			difcSpan.SetStatus(codes.Error, "access denied: "+evalResult.Reason)
-			writeDIFCForbidden(w, fmt.Sprintf("DIFC policy violation: %s", evalResult.Reason))
-			return
-		}
+	coarseOutcome, evalResult := difc.EvaluateCoarseAccess(s.Evaluator, agentLabels.Secrecy, agentLabels.Integrity, resource, operation)
+	switch coarseOutcome {
+	case difc.CoarseAllowed:
+		// access permitted, continue
+	case difc.CoarseBypassForRead:
+		// Read in filter mode: skip coarse block, proceed to fine-grained filtering
+		logHandler.Printf("[DIFC] Phase 2: coarse check failed for read, proceeding to Phase 3")
+	case difc.CoarseDenied:
+		// Write blocked
+		logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, evalResult.Reason)
+		difcSpan.SetStatus(codes.Error, "access denied: "+evalResult.Reason)
+		writeDIFCForbidden(w, fmt.Sprintf("DIFC policy violation: %s", evalResult.Reason))
+		return
 	}
 
 	// **Phase 3: Forward to upstream GitHub API**

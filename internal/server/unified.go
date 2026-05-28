@@ -463,26 +463,23 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// For read operations in any mode, we skip the coarse-grained block
 	// and let the request proceed. Fine-grained filtering at Phase 5 will filter
 	// individual items from the response based on their actual labels from LabelResponse().
-	isReadOperation := difc.ShouldBypassCoarseDeny(operation)
-	result := requestEvaluator.Evaluate(agentLabels.Secrecy, agentLabels.Integrity, resource, operation)
-
-	if !result.IsAllowed() {
-		if isReadOperation {
-			// Read operation in any mode - skip coarse-grained block
-			// The guard will label response items and Phase 5 will enforce per-item policy
-			logUnified.Printf("[DIFC] Coarse-grained check failed for read in %s mode - proceeding to backend for response labeling", enforcementMode)
-			logUnified.Printf("[DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()")
-		} else {
-			// Non-read operation - block the request
-			logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s", agentID, resource.Description, result.Reason)
-			detailedErr := difc.FormatViolationError(result, agentLabels.Secrecy, agentLabels.Integrity, resource)
-			toolSpan.RecordError(detailedErr, oteltrace.WithStackTrace(true))
-			toolSpan.SetStatus(codes.Error, "access denied: "+result.Reason)
-			httpStatusCode = 403
-			return mcp.NewErrorCallToolResult(detailedErr)
-		}
-	} else {
+	coarseOutcome, result := difc.EvaluateCoarseAccess(requestEvaluator, agentLabels.Secrecy, agentLabels.Integrity, resource, operation)
+	switch coarseOutcome {
+	case difc.CoarseAllowed:
 		logUnified.Printf("[DIFC] Access ALLOWED for agent %s to %s", agentID, resource.Description)
+	case difc.CoarseBypassForRead:
+		// Read operation in any mode - skip coarse-grained block
+		// The guard will label response items and Phase 5 will enforce per-item policy
+		logUnified.Printf("[DIFC] Coarse-grained check failed for read in %s mode - proceeding to backend for response labeling", enforcementMode)
+		logUnified.Printf("[DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()")
+	case difc.CoarseDenied:
+		// Non-read operation - block the request
+		logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s", agentID, resource.Description, result.Reason)
+		detailedErr := difc.FormatViolationError(result, agentLabels.Secrecy, agentLabels.Integrity, resource)
+		toolSpan.RecordError(detailedErr, oteltrace.WithStackTrace(true))
+		toolSpan.SetStatus(codes.Error, "access denied: "+result.Reason)
+		httpStatusCode = 403
+		return mcp.NewErrorCallToolResult(detailedErr)
 	}
 
 	// **Phase 3: Execute the backend call**
