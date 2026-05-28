@@ -353,29 +353,37 @@ func (l *Launcher) clearServerForRestart(serverID string) {
 func (l *Launcher) GetServerState(serverID string) ServerState {
 	logLauncher.Printf("GetServerState: serverID=%s", serverID)
 
-	var state ServerState
+	var (
+		state     ServerState
+		errMsg    string
+		startedAt time.Time
+	)
 	l.mu.RLock()
-	if errMsg, hasErr := l.serverErrors[serverID]; hasErr {
+	if msg, hasErr := l.serverErrors[serverID]; hasErr {
+		errMsg = msg
 		state = ServerState{
 			Status:    "error",
 			LastError: errMsg,
 		}
-		l.mu.RUnlock()
-		logLauncher.Printf("Server state: serverID=%s, status=error, lastError=%s", serverID, errMsg)
-		return state
-	}
-
-	if startedAt, ok := l.serverStartTimes[serverID]; ok {
+	} else if started, ok := l.serverStartTimes[serverID]; ok {
+		startedAt = started
 		state = ServerState{
 			Status:    "running",
 			StartedAt: startedAt,
 		}
-		l.mu.RUnlock()
-		logLauncher.Printf("Server state: serverID=%s, status=running, startedAt=%v", serverID, startedAt)
-		return state
+	} else {
+		state = ServerState{Status: "stopped"}
 	}
 	l.mu.RUnlock()
 
-	logLauncher.Printf("Server state: serverID=%s, status=stopped", serverID)
-	return ServerState{Status: "stopped"}
+	switch state.Status {
+	case "error":
+		logLauncher.Printf("Server state: serverID=%s, status=error, lastError=%s", serverID, errMsg)
+	case "running":
+		logLauncher.Printf("Server state: serverID=%s, status=running, startedAt=%v", serverID, startedAt)
+	default:
+		logLauncher.Printf("Server state: serverID=%s, status=stopped", serverID)
+	}
+
+	return state
 }
