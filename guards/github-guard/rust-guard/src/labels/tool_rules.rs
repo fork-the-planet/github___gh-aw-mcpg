@@ -446,7 +446,13 @@ pub fn apply_tool_labels(
         "list_issue_types" => {
             // Org-level issue types
             // S = inherits from org
-            // I = project:org - maintained by org admins
+            // I = approved:github (GitHub-global approved integrity via project_github_label)
+            integrity = project_github_label(ctx);
+        }
+        "list_issue_fields" => {
+            // Org-level custom issue field definitions (field names/types/allowed values)
+            // S = inherits from org
+            // I = approved:github (GitHub-global approved integrity via project_github_label)
             integrity = project_github_label(ctx);
         }
 

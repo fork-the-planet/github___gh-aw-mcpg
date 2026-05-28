@@ -713,6 +713,37 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_list_issue_fields_matches_list_issue_types() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github"
+        });
+
+        let (_types_secrecy, types_integrity, _types_desc) = apply_tool_labels(
+            "list_issue_types",
+            &tool_args,
+            "github",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        let (_fields_secrecy, fields_integrity, _fields_desc) = apply_tool_labels(
+            "list_issue_fields",
+            &tool_args,
+            "github",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(fields_integrity, types_integrity);
+        assert_eq!(fields_integrity, project_github_label(&ctx));
+    }
+
+    #[test]
     fn test_apply_tool_labels_list_pull_requests_repo_scoped_integrity() {
         let ctx = default_ctx();
         let tool_args = json!({
