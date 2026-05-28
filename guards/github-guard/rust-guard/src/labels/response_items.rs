@@ -15,6 +15,7 @@ use super::extract_mcp_response;
 use super::helpers::*;
 use crate::{LabeledItem, ResourceLabels, SharedLabels};
 use serde_json::Value;
+use std::borrow::Cow;
 
 /// Label individual items in a response (fine-grained labeling)
 /// This returns labeled items using the legacy format that works with MCP wrappers
@@ -147,6 +148,7 @@ pub fn label_response_items(
                 } else {
                     vec![]
                 };
+                let secrecy_shared: SharedLabels = secrecy.into();
 
                 for item in items_to_process.iter() {
                     let number = extract_resource_number(item, "pr", &arg_repo_full);
@@ -201,11 +203,10 @@ pub fn label_response_items(
                         labels: ResourceLabels {
                             description: format!("pr:{}#{}", repo_full_name, number),
                             secrecy: if tool_name == "search_pull_requests" {
-                                repo_visibility_secrecy_for_repo_id(repo_full_name, ctx)
+                                repo_visibility_secrecy_for_repo_id(repo_full_name, ctx).into()
                             } else {
-                                secrecy.clone()
-                            }
-                            .into(),
+                                secrecy_shared.clone()
+                            },
                             integrity: integrity.into(),
                         },
                     });
@@ -261,13 +262,14 @@ pub fn label_response_items(
             } else {
                 vec![]
             };
+            let secrecy_shared: SharedLabels = secrecy.into();
 
             for item in items_limited.iter().copied() {
                 let item_repo = extract_repo_from_item(item);
-                let repo_full_name = if item_repo.is_empty() {
-                    default_repo_full_name.clone()
+                let repo_full_name: Cow<'_, str> = if item_repo.is_empty() {
+                    Cow::Borrowed(default_repo_full_name.as_str())
                 } else {
-                    item_repo
+                    Cow::Owned(item_repo)
                 };
 
                 let repo_private = repo_visibility_private_for_repo_id(&repo_full_name)
@@ -285,11 +287,10 @@ pub fn label_response_items(
                     labels: ResourceLabels {
                         description: format!("issue:{}#{}", repo_full_name, number),
                         secrecy: if tool_name == "search_issues" {
-                            repo_visibility_secrecy_for_repo_id(&repo_full_name, ctx)
+                            repo_visibility_secrecy_for_repo_id(&repo_full_name, ctx).into()
                         } else {
-                            secrecy.clone()
-                        }
-                        .into(),
+                            secrecy_shared.clone()
+                        },
                         integrity: integrity.into(),
                     },
                 });

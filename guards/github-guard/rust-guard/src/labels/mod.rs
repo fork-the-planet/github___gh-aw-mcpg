@@ -3478,6 +3478,11 @@ mod tests {
         // response_items should label the PR from GraphQL format
         let items = label_response_items("list_pull_requests", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1, "Should find 1 PR in GraphQL response");
+        assert_eq!(
+            items[0].labels.description,
+            "pr:testorg/testrepo#1",
+            "PR without embedded repo should fall back to tool_args repo scope"
+        );
         assert!(
             items[0].labels.integrity.iter().any(|t| t == "approved" || t.starts_with("approved:")),
             "Merged MEMBER PR should get approved integrity, got: {:?}",
@@ -3519,6 +3524,11 @@ mod tests {
 
         let items = label_response_items("list_issues", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1, "Should find 1 issue in GraphQL response");
+        assert_eq!(
+            items[0].labels.description,
+            "issue:testorg/testrepo#10",
+            "Issue without embedded repo should fall back to tool_args repo scope"
+        );
 
         let paths = label_response_paths("list_issues", &tool_args, &response, &ctx);
         assert!(paths.is_some(), "Should generate path labels for GraphQL issue response");
