@@ -29,13 +29,17 @@ func EvaluateCoarseAccess(
 	resource *LabeledResource,
 	operation OperationType,
 ) (CoarseCheckOutcome, *EvaluationResult) {
+	logPipeline.Printf("EvaluateCoarseAccess: operation=%s, resource=%s", operation, resource.Description)
 	result := evaluator.Evaluate(agentSecrecy, agentIntegrity, resource, operation)
 	if result.IsAllowed() {
+		logPipeline.Printf("EvaluateCoarseAccess: outcome=allowed, operation=%s", operation)
 		return CoarseAllowed, result
 	}
 	if ShouldBypassCoarseDeny(operation) {
+		logPipeline.Printf("EvaluateCoarseAccess: outcome=bypass-for-read, operation=%s", operation)
 		return CoarseBypassForRead, result
 	}
+	logPipeline.Printf("EvaluateCoarseAccess: outcome=denied, operation=%s, reason=%s", operation, result.Reason)
 	return CoarseDenied, result
 }
 
