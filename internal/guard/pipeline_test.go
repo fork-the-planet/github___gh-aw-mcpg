@@ -144,16 +144,19 @@ func TestRunPipelinePrePhases_Phase2_DeniesWrite_ReturnsPipelineAccessDenied(t *
 }
 
 func TestRunPipelinePrePhases_Phase2_BypassForRead_ReturnsNilError(t *testing.T) {
-	// Agent with secrecy tags trying to read a resource without matching clearance
+	// Agent without the required secrecy tag trying to read a protected resource
 	// → CoarseBypassForRead (not a hard denial) because reads always proceed
-	resource := difc.NewLabeledResource("public-resource")
+	resource := difc.NewLabeledResource("secret-resource")
+	resource.Secrecy.Label.Add("secret")
 	g := &pipelineGuard{labelResourceResource: resource, labelResourceOp: difc.OperationRead}
 	in := newPipelineInput(g, difc.OperationRead, difc.EnforcementStrict)
-	in.AgentRegistry.GetOrCreate("test-agent").AddSecrecyTags([]difc.Tag{"secret"})
 
 	_, pre, err := RunPipelinePrePhases(context.Background(), in)
 	require.NoError(t, err, "CoarseBypassForRead should not return an error")
 	require.NotNil(t, pre)
+	assert.Equal(t, difc.CoarseBypassForRead, pre.CoarseOutcome)
+	require.NotNil(t, pre.EvalResult)
+	assert.False(t, pre.EvalResult.IsAllowed())
 }
 
 // --- RunPipelinePhase4 tests ---
