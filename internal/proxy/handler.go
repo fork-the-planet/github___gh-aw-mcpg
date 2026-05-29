@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
@@ -186,8 +185,9 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	case difc.CoarseDenied:
 		// Write blocked
 		logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, evalResult.Reason)
-		difcSpan.SetStatus(codes.Error, "access denied: "+evalResult.Reason)
-		writeDIFCForbidden(w, fmt.Sprintf("DIFC policy violation: %s", evalResult.Reason))
+		deniedErr := fmt.Errorf("DIFC policy violation: %s", evalResult.Reason)
+		tracing.RecordSpanError(difcSpan, deniedErr, "access denied: "+evalResult.Reason)
+		writeDIFCForbidden(w, deniedErr.Error())
 		return
 	}
 
