@@ -198,7 +198,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 
 	fwdCtx, fwdSpan := h.GetTracer().Start(ctx, "proxy.backend.forward",
 		oteltrace.WithAttributes(
-			semconv.URLPathKey.String(path),
+			semconv.URLPathKey.String(r.URL.Path),
 			semconv.ServerAddressKey.String(h.server.upstreamHost()),
 			tracing.GenAIToolName.String(toolName),
 		),
