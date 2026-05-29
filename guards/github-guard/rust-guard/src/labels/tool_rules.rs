@@ -556,6 +556,7 @@ pub fn apply_tool_labels(
         // Issue/PR writes
         "create_issue"
         | "issue_write"
+        | "issue_write_ff_remote_mcp_issue_fields"
         | "sub_issue_write"
         | "add_issue_comment"
         | "create_pull_request"
