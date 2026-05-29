@@ -12,6 +12,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/syncutil"
 )
 
@@ -19,7 +20,7 @@ var logSession = logger.New("server:session")
 
 // NewSession creates a new Session with the given session ID and optional token
 func NewSession(sessionID, token string) *Session {
-	logSession.Printf("Creating new session: sessionID=%s, has_token=%v", auth.TruncateSessionID(sessionID), token != "")
+	logSession.Printf("Creating new session: sessionID=%s, has_token=%v", strutil.TruncateSessionID(sessionID), token != "")
 	return &Session{
 		Token:     token,
 		SessionID: sessionID,
@@ -41,7 +42,7 @@ func SessionIDFromContext(ctx context.Context) string {
 // getSessionID extracts the MCP session ID from the context
 func (us *UnifiedServer) getSessionID(ctx context.Context) string {
 	sessionID := SessionIDFromContext(ctx)
-	logSession.Printf("Extracted session ID from context: %s", auth.TruncateSessionID(sessionID))
+	logSession.Printf("Extracted session ID from context: %s", strutil.TruncateSessionID(sessionID))
 	return sessionID
 }
 
@@ -72,16 +73,16 @@ func (us *UnifiedServer) ensureSessionDirectory(sessionID string) error {
 // Sessions are automatically created if one doesn't exist (for standard MCP client compatibility)
 func (us *UnifiedServer) requireSession(ctx context.Context) error {
 	sessionID := us.getSessionID(ctx)
-	logSession.Printf("Checking session: sessionID=%s", auth.TruncateSessionID(sessionID))
+	logSession.Printf("Checking session: sessionID=%s", strutil.TruncateSessionID(sessionID))
 
 	// Use syncutil.GetOrCreate to handle the double-checked locking pattern.
 	// The isNew flag is set inside the create callback (while the write lock is held)
 	// so that ensureSessionDirectory is called exactly once per new session.
 	isNew := false
 	if _, err := syncutil.GetOrCreate(&us.sessionMu, us.sessions, sessionID, func() (*Session, error) {
-		logSession.Printf("Auto-creating session for ID: %s", auth.TruncateSessionID(sessionID))
+		logSession.Printf("Auto-creating session for ID: %s", strutil.TruncateSessionID(sessionID))
 		s := NewSession(sessionID, "")
-		logSession.Printf("Session auto-created for ID: %s", auth.TruncateSessionID(sessionID))
+		logSession.Printf("Session auto-created for ID: %s", strutil.TruncateSessionID(sessionID))
 		isNew = true
 		return s, nil
 	}); err != nil {
@@ -92,12 +93,12 @@ func (us *UnifiedServer) requireSession(ctx context.Context) error {
 		// Ensure session directory exists in payload mount point.
 		// Called after GetOrCreate releases the lock to avoid holding it during I/O.
 		if err := us.ensureSessionDirectory(sessionID); err != nil {
-			logger.LogWarn("client", "Failed to create session directory for session=%s: %v", auth.TruncateSessionID(sessionID), err)
+			logger.LogWarn("client", "Failed to create session directory for session=%s: %v", strutil.TruncateSessionID(sessionID), err)
 			// Don't fail - payloads will attempt to create the directory when needed
 		}
 	}
 
-	logSession.Printf("Session validated for ID: %s", auth.TruncateSessionID(sessionID))
+	logSession.Printf("Session validated for ID: %s", strutil.TruncateSessionID(sessionID))
 	return nil
 }
 
@@ -128,7 +129,7 @@ func extractAndValidateSession(r *http.Request) string {
 		return ""
 	}
 
-	logSession.Printf("Session extracted successfully: sessionID=%s, remote=%s", auth.TruncateSessionID(sessionID), r.RemoteAddr)
+	logSession.Printf("Session extracted successfully: sessionID=%s, remote=%s", strutil.TruncateSessionID(sessionID), r.RemoteAddr)
 	return sessionID
 }
 
@@ -136,7 +137,7 @@ func extractAndValidateSession(r *http.Request) string {
 // If backendID is empty, only session ID is injected (unified mode).
 // Returns the modified request with updated context.
 func injectSessionContext(r *http.Request, sessionID, backendID string) *http.Request {
-	logSession.Printf("Injecting session context: sessionID=%s, backendID=%s", auth.TruncateSessionID(sessionID), backendID)
+	logSession.Printf("Injecting session context: sessionID=%s, backendID=%s", strutil.TruncateSessionID(sessionID), backendID)
 
 	ctx := context.WithValue(r.Context(), SessionIDContextKey, sessionID)
 	ctx = guard.SetAgentIDInContext(ctx, sessionID)
@@ -161,10 +162,10 @@ func setupSessionCallback(r *http.Request, backendID string) (string, bool) {
 
 	if backendID != "" {
 		logger.LogInfo("client", "New MCP client connection, remote=%s, method=%s, path=%s, backend=%s, session=%s",
-			r.RemoteAddr, r.Method, r.URL.Path, backendID, auth.TruncateSessionID(sessionID))
+			r.RemoteAddr, r.Method, r.URL.Path, backendID, strutil.TruncateSessionID(sessionID))
 	} else {
 		logger.LogInfo("client", "MCP connection established, remote=%s, method=%s, path=%s, session=%s",
-			r.RemoteAddr, r.Method, r.URL.Path, auth.TruncateSessionID(sessionID))
+			r.RemoteAddr, r.Method, r.URL.Path, strutil.TruncateSessionID(sessionID))
 	}
 
 	logHTTPRequestBody(r, sessionID, backendID)

@@ -147,11 +147,44 @@ func TestTruncateWithSuffix(t *testing.T) {
 	}
 }
 
+func TestTruncateSessionID(t *testing.T) {
+	tests := []struct {
+		name      string
+		sessionID string
+		expected  string
+	}{
+		{
+			name:      "empty session ID returns (none)",
+			sessionID: "",
+			expected:  "(none)",
+		},
+		{
+			name:      "short session ID returned as-is",
+			sessionID: "abc123",
+			expected:  "abc123",
+		},
+		{
+			name:      "exactly 8 chars returned as-is",
+			sessionID: "abcd1234",
+			expected:  "abcd1234",
+		},
+		{
+			name:      "long session ID truncated to 8 chars with ellipsis",
+			sessionID: "abcdefgh-1234-5678-abcd-ef1234567890",
+			expected:  "abcdefgh...",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := TruncateSessionID(tt.sessionID)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestTruncateRunes(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		maxRunes int
 		expected string
 	}{
 		{

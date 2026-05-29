@@ -173,16 +173,6 @@ func ExtractSessionID(authHeader string) string {
 	return authHeader
 }
 
-// TruncateSessionID returns a truncated session ID for safe logging (first 8 chars).
-// Returns "(none)" for empty session IDs, and appends "..." for truncated values.
-// This is useful for logging session IDs without exposing sensitive information.
-func TruncateSessionID(sessionID string) string {
-	if sessionID == "" {
-		return "(none)"
-	}
-	return strutil.Truncate(sessionID, 8)
-}
-
 // IsMalformedHeader returns true if the header value contains characters
 // that are not valid in HTTP header values per RFC 7230: null bytes, control
 // characters below 0x20 (except horizontal tab 0x09), or DEL (0x7F).
