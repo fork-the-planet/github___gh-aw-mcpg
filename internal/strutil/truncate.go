@@ -30,7 +30,7 @@ func TruncateWithSuffix(s string, maxLen int, suffix string) string {
 	return s[:maxLen] + suffix
 }
 
-// TruncateSessionID returns a truncated session ID for safe logging (first 8 chars).
+// TruncateSessionID returns a truncated session ID for safe logging (first 8 bytes).
 // Returns "(none)" for empty session IDs, and appends "..." for truncated values.
 // This is useful for logging session IDs without exposing sensitive information.
 func TruncateSessionID(sessionID string) string {
