@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
@@ -387,7 +386,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// exhaustion) before each exit.
 	httpStatusCode := 200
 	defer func() {
-		toolSpan.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(httpStatusCode))
+		toolSpan.SetAttributes(tracing.MCPResponseStatus.Int(httpStatusCode))
 		toolSpan.End()
 	}()
 

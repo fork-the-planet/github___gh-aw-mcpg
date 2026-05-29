@@ -329,6 +329,17 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 	return mcp.BuildMCPTextResponse(string(body)), nil
 }
 
+// upstreamHost returns the hostname of the upstream GitHub API URL.
+// It is used to populate the server.address OTel attribute on the
+// proxy.backend.forward span.
+func (s *Server) upstreamHost() string {
+	u, err := url.Parse(s.githubAPIURL)
+	if err != nil || u.Host == "" {
+		return s.githubAPIURL
+	}
+	return u.Hostname()
+}
+
 // forwardToGitHub sends a request to the upstream GitHub API.
 // clientAuth is the Authorization header from the inbound client request;
 // if non-empty it is forwarded as-is, otherwise the configured fallback token is used.
