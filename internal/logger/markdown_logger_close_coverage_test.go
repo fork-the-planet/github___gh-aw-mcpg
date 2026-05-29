@@ -139,10 +139,11 @@ func TestFileLogger_Log_SyncError(t *testing.T) {
 	// Close the file so Sync() will fail.
 	require.NoError(t, f.Close())
 
-	// Log() must not panic; it logs the sync warning to stderr.
-	require.NotPanics(t, func() {
-		fl.Log(LogLevelInfo, "test", "sync will fail")
-	})
+output := captureStdLog(t, func() {
+	fl.Log(LogLevelInfo, "test", "sync will fail")
+})
+assert.Contains(t, output, "WARNING: Failed to sync log file")
+assert.Contains(t, output, os.ErrClosed.Error())
 }
 
 // TestLogger_Print_Disabled covers the early-return branch in Logger.Print()
