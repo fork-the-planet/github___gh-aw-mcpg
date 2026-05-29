@@ -427,55 +427,40 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 
 	requestEvaluator := difc.NewEvaluatorWithMode(enforcementMode)
 
-	// **Phase 0: Extract agent ID and get/create agent labels**
+	// **Phases 0–2: Get agent labels, label resource, coarse access check**
 	agentID := guard.GetAgentIDFromContext(ctx)
-	agentLabels := us.AgentRegistry.GetOrCreate(agentID)
-	logUnified.Printf("[DIFC] Agent %s | Secrecy: %v | Integrity: %v",
-		agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
-
-	ctx = context.WithValue(ctx, mcp.AgentTagsSnapshotContextKey, &mcp.AgentTagsSnapshot{
-		Secrecy:   difc.TagsToStrings(agentLabels.GetSecrecyTags()),
-		Integrity: difc.TagsToStrings(agentLabels.GetIntegrityTags()),
-	})
-
-	// Store request state for guards that need request context during response labeling.
-	// This allows LabelResponse() to access the original tool arguments.
-	ctx = guard.SetRequestStateInContext(ctx, map[string]interface{}{
-		"tool_args": args,
-	})
-
-	// **Phase 1: Guard labels the resource**
-	resource, operation, err := g.LabelResource(ctx, toolName, args, backendCaller, us.Capabilities)
+	pipelineIn := guard.PipelineInput{
+		AgentID:         agentID,
+		ToolName:        toolName,
+		Args:            args,
+		Guard:           g,
+		Evaluator:       requestEvaluator,
+		AgentRegistry:   us.AgentRegistry,
+		Capabilities:    us.Capabilities,
+		EnforcementMode: enforcementMode,
+		BackendCaller:   backendCaller,
+	}
+	ctx, pre, err := guard.RunPipelinePrePhases(ctx, pipelineIn)
 	if err != nil {
+		if denied, ok := err.(*guard.PipelineAccessDenied); ok {
+			logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s",
+				agentID, denied.Resource.Description, denied.EvalResult.Reason)
+			detailedErr := difc.FormatViolationError(denied.EvalResult,
+				denied.AgentLabels.Secrecy, denied.AgentLabels.Integrity, denied.Resource)
+			tracing.RecordSpanError(toolSpan, detailedErr, "access denied: "+denied.EvalResult.Reason)
+			httpStatusCode = 403
+			return mcp.NewErrorCallToolResult(detailedErr)
+		}
 		logger.LogWarn("difc", "Guard labeling failed: %v", err)
 		httpStatusCode = 500
 		return mcp.NewErrorCallToolResult(fmt.Errorf("guard labeling failed: %w", err))
 	}
 
-	logUnified.Printf("[DIFC] Resource: %s | Operation: %s | Secrecy: %v | Integrity: %v",
-		resource.Description, operation, resource.Secrecy.Label.GetTags(), resource.Integrity.Label.GetTags())
-
-	// **Phase 2: Reference Monitor performs coarse-grained access check**
-	// For read operations in any mode, we skip the coarse-grained block
-	// and let the request proceed. Fine-grained filtering at Phase 5 will filter
-	// individual items from the response based on their actual labels from LabelResponse().
-	coarseOutcome, result := difc.EvaluateCoarseAccess(requestEvaluator, agentLabels.Secrecy, agentLabels.Integrity, resource, operation)
-	switch coarseOutcome {
-	case difc.CoarseAllowed:
-		logUnified.Printf("[DIFC] Access ALLOWED for agent %s to %s", agentID, resource.Description)
-	case difc.CoarseBypassForRead:
-		// Read operation in any mode - skip coarse-grained block
-		// The guard will label response items and Phase 5 will enforce per-item policy
-		logUnified.Printf("[DIFC] Coarse-grained check failed for read in %s mode - proceeding to backend for response labeling", enforcementMode)
-		logUnified.Printf("[DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()")
-	case difc.CoarseDenied:
-		// Non-read operation - block the request
-		logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s", agentID, resource.Description, result.Reason)
-		detailedErr := difc.FormatViolationError(result, agentLabels.Secrecy, agentLabels.Integrity, resource)
-		tracing.RecordSpanError(toolSpan, detailedErr, "access denied: "+result.Reason)
-		httpStatusCode = 403
-		return mcp.NewErrorCallToolResult(detailedErr)
-	}
+	// Add agent tags snapshot to context for enriched MCP backend logging (Phase 3).
+	ctx = context.WithValue(ctx, mcp.AgentTagsSnapshotContextKey, &mcp.AgentTagsSnapshot{
+		Secrecy:   difc.TagsToStrings(pre.AgentLabels.GetSecrecyTags()),
+		Integrity: difc.TagsToStrings(pre.AgentLabels.GetIntegrityTags()),
+	})
 
 	// **Phase 3: Execute the backend call**
 	execCtx, execSpan := us.GetTracer().Start(ctx, "gateway.backend.execute",
@@ -526,21 +511,11 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	cb.RecordSuccess()
 
 	// **Phase 4: Guard labels the response data (for fine-grained filtering)**
-	// Per spec: LabelResponse() is only called for read operations in all modes,
-	// and for read-write operations in filter/propagate modes.
-	// For write operations and read-write in strict mode, skip LabelResponse().
-	shouldCallLabelResponse := difc.ShouldCallLabelResponse(operation, enforcementMode)
-
-	var labeledData difc.LabeledData
-	if shouldCallLabelResponse {
-		labeledData, err = g.LabelResponse(ctx, toolName, backendResult, backendCaller, us.Capabilities)
-		if err != nil {
-			logger.LogWarn("difc", "Response labeling failed: %v", err)
-			httpStatusCode = 500
-			return mcp.NewErrorCallToolResult(fmt.Errorf("response labeling failed: %w", err))
-		}
-	} else {
-		logUnified.Printf("[DIFC] Skipping LabelResponse() for %s operation in %s mode", operation, enforcementMode)
+	labeledData, err := guard.RunPipelinePhase4(ctx, pipelineIn, pre, backendResult)
+	if err != nil {
+		logger.LogWarn("difc", "Response labeling failed: %v", err)
+		httpStatusCode = 500
+		return mcp.NewErrorCallToolResult(fmt.Errorf("response labeling failed: %w", err))
 	}
 
 	// **Phase 5: Reference Monitor performs fine-grained filtering (if applicable)**
@@ -550,7 +525,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		// Guard provided fine-grained labels - check if it's a collection
 		if collection, ok := labeledData.(*difc.CollectionLabeledData); ok {
 			// Filter collection based on agent labels
-			filtered := requestEvaluator.FilterCollection(agentLabels.Secrecy, agentLabels.Integrity, collection, operation)
+			filtered := requestEvaluator.FilterCollection(pre.AgentLabels.Secrecy, pre.AgentLabels.Integrity, collection, pre.Operation)
 
 			logUnified.Printf("[DIFC] Filtered collection: %d/%d items accessible",
 				filtered.GetAccessibleCount(), filtered.TotalCount)
@@ -599,27 +574,13 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 				return mcp.NewErrorCallToolResult(fmt.Errorf("failed to convert labeled data: %w", err))
 			}
 		}
-
-		// **Phase 6: Accumulate labels from this operation (for reads in PROPAGATE mode only)**
-		// Label accumulation should only happen when mode is EnforcementPropagate
-		// Filter mode does NOT accumulate - it just filters what the agent can see
-		if difc.ShouldAccumulateReadLabels(operation, enforcementMode) {
-			overall := labeledData.Overall()
-			agentLabels.AccumulateFromRead(overall)
-			logUnified.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
-				agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
-		}
 	} else {
 		// No fine-grained labeling - use original backend result
 		finalResult = backendResult
-
-		// **Phase 6: Accumulate labels from resource (for reads in PROPAGATE mode only)**
-		if difc.ShouldAccumulateReadLabels(operation, enforcementMode) {
-			agentLabels.AccumulateFromRead(resource)
-			logUnified.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
-				agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
-		}
 	}
+
+	// **Phase 6: Label accumulation (propagate mode)**
+	guard.RunPipelinePhase6(pre, labeledData, enforcementMode)
 
 	// Convert finalResult to SDK CallToolResult format
 	callResult, err := mcp.ConvertToCallToolResult(finalResult)

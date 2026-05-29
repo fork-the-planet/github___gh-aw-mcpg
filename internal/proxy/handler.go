@@ -156,38 +156,29 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		return
 	}
 
-	// **Phase 0: Get agent labels**
-	agentLabels := s.AgentRegistry.GetOrCreate("proxy")
-	logHandler.Printf("[DIFC] Phase 0: agent secrecy=%v integrity=%v",
-		agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
-
-	// **Phase 1: Guard labels the resource**
-	resource, operation, err := s.guard.LabelResource(ctx, toolName, args, backend, s.Capabilities)
-	if err != nil {
-		logHandler.Printf("[DIFC] Phase 1 failed: %v", err)
-		// On labeling failure, fail closed to prevent enforcement bypass
-		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "resource labeling failed")
-		return
+	// **Phases 0–2: Get agent labels, label resource, coarse access check**
+	pipelineIn := guard.PipelineInput{
+		AgentID:         "proxy",
+		ToolName:        toolName,
+		Args:            args,
+		Guard:           s.guard,
+		Evaluator:       s.Evaluator,
+		AgentRegistry:   s.AgentRegistry,
+		Capabilities:    s.Capabilities,
+		EnforcementMode: s.Mode,
+		BackendCaller:   backend,
 	}
-
-	logHandler.Printf("[DIFC] Phase 1: resource=%s op=%s secrecy=%v integrity=%v",
-		resource.Description, operation,
-		resource.Secrecy.Label.GetTags(), resource.Integrity.Label.GetTags())
-
-	// **Phase 2: Coarse-grained access check**
-	coarseOutcome, evalResult := difc.EvaluateCoarseAccess(s.Evaluator, agentLabels.Secrecy, agentLabels.Integrity, resource, operation)
-	switch coarseOutcome {
-	case difc.CoarseAllowed:
-		// access permitted, continue
-	case difc.CoarseBypassForRead:
-		// Read in filter mode: skip coarse block, proceed to fine-grained filtering
-		logHandler.Printf("[DIFC] Phase 2: coarse check failed for read, proceeding to Phase 3")
-	case difc.CoarseDenied:
-		// Write blocked
-		logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, evalResult.Reason)
-		deniedErr := fmt.Errorf("DIFC policy violation: %s", evalResult.Reason)
-		tracing.RecordSpanError(difcSpan, deniedErr, "access denied: "+evalResult.Reason)
-		writeDIFCForbidden(w, deniedErr.Error())
+	ctx, pre, err := guard.RunPipelinePrePhases(ctx, pipelineIn)
+	if err != nil {
+		if denied, ok := err.(*guard.PipelineAccessDenied); ok {
+			logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, denied.EvalResult.Reason)
+			deniedErr := fmt.Errorf("DIFC policy violation: %s", denied.EvalResult.Reason)
+			tracing.RecordSpanError(difcSpan, deniedErr, "access denied: "+denied.EvalResult.Reason)
+			writeDIFCForbidden(w, deniedErr.Error())
+			return
+		}
+		logHandler.Printf("[DIFC] Phase 1 failed: %v", err)
+		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "resource labeling failed")
 		return
 	}
 
@@ -233,15 +224,11 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	}
 
 	// **Phase 4: Guard labels the response**
-	// Store tool_args in context so LabelResponse can pass them to the WASM guard
-	ctx = guard.SetRequestStateInContext(ctx, map[string]interface{}{
-		"tool_args": args,
-	})
-	labeledData, err := s.guard.LabelResponse(ctx, toolName, responseData, backend, s.Capabilities)
+	labeledData, err := guard.RunPipelinePhase4(ctx, pipelineIn, pre, responseData)
 	if err != nil {
 		logHandler.Printf("[DIFC] Phase 4 failed: %v", err)
-		// On labeling failure, use coarse-grained result
-		if evalResult.IsAllowed() {
+		// On labeling failure, fall back to coarse-grained result
+		if pre.EvalResult.IsAllowed() {
 			h.writeResponse(w, resp, respBody)
 		} else {
 			h.writeEmptyResponse(w, resp, responseData)
@@ -255,7 +242,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	if labeledData != nil {
 		if collection, ok := labeledData.(*difc.CollectionLabeledData); ok {
 			filtered := s.Evaluator.FilterCollection(
-				agentLabels.Secrecy, agentLabels.Integrity, collection, operation)
+				pre.AgentLabels.Secrecy, pre.AgentLabels.Integrity, collection, pre.Operation)
 
 			logHandler.Printf("[DIFC] Phase 5: %d/%d items accessible",
 				filtered.GetAccessibleCount(), filtered.TotalCount)
@@ -311,7 +298,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		}
 	} else {
 		// No fine-grained labels — use coarse result
-		if evalResult.IsAllowed() {
+		if pre.EvalResult.IsAllowed() {
 			finalData = responseData
 		} else {
 			h.writeEmptyResponse(w, resp, responseData)
@@ -320,11 +307,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	}
 
 	// **Phase 6: Label accumulation (propagate mode)**
-	if labeledData != nil && difc.ShouldAccumulateReadLabels(operation, s.Mode) {
-		overall := labeledData.Overall()
-		agentLabels.AccumulateFromRead(overall)
-		logHandler.Printf("[DIFC] Phase 6: accumulated labels")
-	}
+	guard.RunPipelinePhase6(pre, labeledData, s.Mode)
 
 	// Write the filtered response
 	if useOriginalBody {
