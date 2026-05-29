@@ -49,15 +49,16 @@ These variables are intended for local testing and development only:
 |----------|-------------|---------|
 | `AWMG_BINARY_PATH` | Override binary path used by integration tests (for example, to test a prebuilt `awmg` binary). | (disabled) |
 | `AWMG_WASM_GUARD_PATH` | Override WASM guard path used by proxy integration tests when default build output paths are unavailable. | (disabled) |
+| `TAVILY_API_KEY` | Tavily API key for integration tests in `test/integration/`. When set, tests that call the real Tavily API are enabled; without it, those tests are skipped. | (disabled) |
 
 ## Containerized Deployment Variables
 
-When using `run_containerized.sh`, these additional variables are available:
+When using `run_containerized.sh` or `run.sh`, these variables control the bind address and routing mode:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MCP_GATEWAY_HOST` | Bind address for the gateway | `0.0.0.0` |
-| `MCP_GATEWAY_MODE` | Routing mode flag passed to `awmg` (e.g., `--routed`, `--unified`) | `--routed` |
+| `MCP_GATEWAY_HOST` | Bind address for the gateway. Read by both `run.sh` and `run_containerized.sh`. | `0.0.0.0` |
+| `MCP_GATEWAY_MODE` | Routing mode flag passed to `awmg` (e.g., `--routed`, `--unified`). Read by both `run.sh` and `run_containerized.sh`. | `--routed` |
 
 ## Docker Configuration
 

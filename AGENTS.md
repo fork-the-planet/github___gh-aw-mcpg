@@ -9,7 +9,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 **Test**: `make test` (run unit tests, no build required)  
 **Test-Unit**: `make test-unit` (run unit tests only)  
 **Test-Integration**: `make test-integration` (run binary integration tests, auto-builds binary if not present)  
-**Test-All**: `make test-all` (run both unit and integration tests)  
+**Test-All**: `make test-all` (run both unit and integration tests; always builds the binary first)  
 **Test-CI**: `make test-ci` (unit tests with coverage and JSON output for CI)  
 **Lint**: `make lint` (runs go vet, gofmt checks, and golangci-lint)  
 **Coverage**: `make coverage` (unit tests with coverage report)  
@@ -72,7 +72,7 @@ payload_dir = "/tmp/jq-payloads"  # Optional: directory for large payload storag
 
 [servers.github]
 command = "docker"
-args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-i", "ghcr.io/github/github-mcp-server:latest"]
+args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-e", "NO_COLOR=1", "-e", "TERM=dumb", "-i", "ghcr.io/github/github-mcp-server:latest"]
 ```
 
 **JSON** (stdin):
@@ -101,6 +101,7 @@ args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-i", "ghcr.io/gith
 - **Note**: In JSON stdin format, `args` is optional and provides extra Docker runtime arguments inserted before the container image name
 - **Note**: In JSON stdin format, stdio servers also support optional `entrypoint`, `entrypointArgs`, and `mounts` fields; HTTP servers support optional `connectTimeout`
 - **Note**: For the full JSON stdin field list and complete TOML examples (including `gateway.keepalive_interval`, top-level `sequential_launch`, and `guards_mode`), see `docs/CONFIGURATION.md` and `config.example.toml`
+- **Note**: For the full gateway field list (including `trusted_bots`, `rate_limit_threshold`, `rate_limit_cooldown`, and all server fields), see [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md)
 - Port range validation: 1-65535
 - Timeout validation: positive integers only
 
@@ -230,7 +231,7 @@ golangci-lint run --enable=gosec,testifylint,errcheck --timeout=5m
 - Test actual server behavior and CLI flags
 - Run with: `make test-integration`
 
-**All Tests**: `make test-all` runs both unit and integration tests
+**All Tests**: `make test-all` runs both unit and integration tests; always builds the binary first
 
 ## Common Tasks
 
