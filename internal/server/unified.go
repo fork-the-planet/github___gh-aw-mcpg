@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	oteltrace "go.opentelemetry.io/otel/trace"
-
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
