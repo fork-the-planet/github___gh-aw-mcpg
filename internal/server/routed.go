@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -106,7 +106,7 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 		}
 	}
 
-	logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, auth.TruncateSessionID(sessionID))
+	logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, strutil.TruncateSessionID(sessionID))
 	server := creator()
 	c.servers[key] = &filteredServerEntry{server: server, lastUsed: now}
 	return server
