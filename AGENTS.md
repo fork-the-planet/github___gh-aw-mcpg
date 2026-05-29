@@ -9,7 +9,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 **Test**: `make test` (run unit tests, no build required)  
 **Test-Unit**: `make test-unit` (run unit tests only)  
 **Test-Integration**: `make test-integration` (run binary integration tests, auto-builds binary if not present)  
-**Test-All**: `make test-all` (run both unit and integration tests; builds binary if not present)  
+**Test-All**: `make test-all` (run both unit and integration tests; always builds the binary first)  
 **Test-CI**: `make test-ci` (unit tests with coverage and JSON output for CI)  
 **Lint**: `make lint` (runs go vet, gofmt checks, and golangci-lint)  
 **Coverage**: `make coverage` (unit tests with coverage report)  
