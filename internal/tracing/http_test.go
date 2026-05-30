@@ -71,7 +71,7 @@ func TestStatusResponseWriter_Unwrap_ReturnsUnderlying(t *testing.T) {
 func TestWrapHTTPHandler_PatternMethodMismatch_DoesNotPanic(t *testing.T) {
 	// Build a request whose Pattern method differs from its actual Method.
 	// In normal mux routing this cannot happen, but direct manipulation lets us
-	// verify that WrapHTTPHandler handles it gracefully without setting http.route.
+	// verify that WrapHTTPHandler handles it gracefully.
 	req := httptest.NewRequest("GET", "/some/path", nil)
 	req.Pattern = "POST /some/path" // method in pattern != request method
 
