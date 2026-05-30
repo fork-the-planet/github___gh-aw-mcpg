@@ -1,14 +1,14 @@
-package guard
+package config
 
 import (
 	"encoding/json"
 	"fmt"
 )
 
-// PolicyToMap converts a policy value to a generic map through a JSON roundtrip.
-// It returns an error if the value cannot be serialized or does not decode to a
-// JSON object.
-func PolicyToMap(policy interface{}) (map[string]interface{}, error) {
+// GuardPolicyToMap converts a policy value to a generic map through a JSON
+// roundtrip. It returns an error if the value cannot be serialized or does not
+// decode to a JSON object.
+func GuardPolicyToMap(policy interface{}) (map[string]interface{}, error) {
 	if policy == nil {
 		return nil, fmt.Errorf("policy is required")
 	}

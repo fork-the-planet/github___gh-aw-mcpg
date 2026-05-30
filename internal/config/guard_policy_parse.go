@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/envutil"
-	"github.com/github/gh-aw-mcpg/internal/guard"
 )
 
 // Environment variable names for guard policy configuration.
@@ -153,7 +152,7 @@ func BuildAllowOnlyPolicy(public bool, owner, repo, minIntegrity string) (*Guard
 		return nil, fmt.Errorf("min-integrity is required")
 	}
 	if !hasIntegrity {
-		return nil, fmt.Errorf("min-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
+		return nil, fmt.Errorf("min-integrity must be one of: %s", strings.Join(allowedGuardPolicyIntegrityLevels, ", "))
 	}
 
 	var repos interface{}
