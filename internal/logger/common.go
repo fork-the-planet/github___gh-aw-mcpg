@@ -196,7 +196,7 @@ import (
 //
 // Three sets of four public functions — one set per logger variant — share an
 // identical structure where each exported one-liner delegates to an unexported
-// per-level closure created by helper constructors in this file:
+// per-level closure registered by helpers in this file:
 //
 //	func Log<Level>(category, format string, args ...interface{}) {
 //	    log<level>(category, format, args...)
@@ -208,25 +208,10 @@ import (
 //	markdown_logger.go   LogInfoToMarkdown / ... / LogDebugToMarkdown     → logWithMarkdown
 //	server_file_logger.go LogInfoToServer / ... / LogDebugToServer        → logWithLevelAndServer
 //
-// This pattern keeps exported APIs immutable (`func` declarations) while still
-// eliminating repeated inline level wiring.
-//
-// The makeLevelLogger and makeServerLevelLogger helpers are for internal
-// delegation only and should not replace exported functions with reassignable
-// function variables.
-//
-// This remains intentionally consistent across the three files because:
-//   - Each set is a distinct public API with a different signature and set of callers.
-//   - The exported wrappers preserve a stable, non-mutable API surface.
-//   - Internal closure generation removes repetitive level-binding boilerplate.
-//
-// The log levels (Info, Warn, Error, Debug) are stable and not expected to grow.
-// This four-level set maps to standard syslog-style severity and covers all
-// operational needs of the gateway. The pattern is intentionally accepted as
-// idiomatic Go API design rather than collapsed via code generation, because:
-//   - The thin wrappers provide named, documented, discoverable public functions.
-//   - The wrapper layer is passive (no logic) so the duplication risk is negligible.
-//   - Adding a new level would require a deliberate API decision, not a routine change.
+// This pattern keeps exported APIs immutable (`func` declarations) while moving
+// the repetitive per-level closure setup into shared helpers. Each logger file
+// still exposes its own stable public API surface, but the registration of the
+// Info/Warn/Error/Debug closures is centralized here.
 //
 // The shared logFuncs map below centralises the LogLevel → log-function
 // mapping so that the internal helpers (logWithMarkdown, logWithLevelAndServer)
@@ -235,10 +220,11 @@ import (
 // If a new LogLevel constant is ever added (e.g., LogLevelTrace), update all
 // three locations to keep the public API consistent:
 //  1. Add a new entry to the logFuncs map in this file.
-//  2. In file_logger.go: add a var entry and exported wrapper (see LogInfo pattern).
-//  3. In markdown_logger.go: add a var entry and exported wrapper (see LogInfoToMarkdown pattern).
-//  4. In server_file_logger.go: add a var entry and exported wrapper (see LogInfoToServer pattern).
-//  5. Update TestLogLevelWrappers_CoverAllRegisteredLevels in log_level_wrappers_test.go.
+//  2. Update newLevelLoggerFuncs/newServerLevelLoggerFuncs in this file.
+//  3. In file_logger.go: add an exported wrapper (see LogInfo pattern).
+//  4. In markdown_logger.go: add an exported wrapper (see LogInfoToMarkdown pattern).
+//  5. In server_file_logger.go: add an exported wrapper (see LogInfoToServer pattern).
+//  6. Update TestLogLevelWrappers_CoverAllRegisteredLevels in log_level_wrappers_test.go.
 //
 // logFuncs maps each LogLevel to its corresponding global log function.
 // This eliminates repeated switch-on-level blocks in logWithMarkdown
@@ -254,12 +240,48 @@ func makeLevelLogger(
 	}
 }
 
+type levelLoggerFuncs struct {
+	info  func(category, format string, args ...interface{})
+	warn  func(category, format string, args ...interface{})
+	error func(category, format string, args ...interface{})
+	debug func(category, format string, args ...interface{})
+}
+
+func newLevelLoggerFuncs(
+	dispatch func(level LogLevel, category, format string, args ...interface{}),
+) levelLoggerFuncs {
+	return levelLoggerFuncs{
+		info:  makeLevelLogger(dispatch, LogLevelInfo),
+		warn:  makeLevelLogger(dispatch, LogLevelWarn),
+		error: makeLevelLogger(dispatch, LogLevelError),
+		debug: makeLevelLogger(dispatch, LogLevelDebug),
+	}
+}
+
 func makeServerLevelLogger(
 	dispatch func(serverID string, level LogLevel, category, format string, args ...interface{}),
 	level LogLevel,
 ) func(serverID, category, format string, args ...interface{}) {
 	return func(serverID, category, format string, args ...interface{}) {
 		dispatch(serverID, level, category, format, args...)
+	}
+}
+
+type serverLevelLoggerFuncs struct {
+	info  func(serverID, category, format string, args ...interface{})
+	warn  func(serverID, category, format string, args ...interface{})
+	error func(serverID, category, format string, args ...interface{})
+	debug func(serverID, category, format string, args ...interface{})
+}
+
+func newServerLevelLoggerFuncs(
+	dispatch func(serverID string, level LogLevel, category, format string, args ...interface{}),
+) serverLevelLoggerFuncs {
+	return serverLevelLoggerFuncs{
+		info:  makeServerLevelLogger(dispatch, LogLevelInfo),
+		warn:  makeServerLevelLogger(dispatch, LogLevelWarn),
+		error: makeServerLevelLogger(dispatch, LogLevelError),
+		debug: makeServerLevelLogger(dispatch, LogLevelDebug),
 	}
 }
 

@@ -154,35 +154,29 @@ func logWithLevelAndServer(serverID string, level LogLevel, category, format str
 	}
 }
 
-// The var block and exported wrappers below follow the Log-Level Quad-Function Pattern
-// documented in common.go. The four-level set (Info/Warn/Error/Debug) is stable and
-// intentionally repeated across file_logger.go, markdown_logger.go, and
-// server_file_logger.go. See common.go for the rationale and update instructions.
-var (
-	logInfoToServer  = makeServerLevelLogger(logWithLevelAndServer, LogLevelInfo)
-	logWarnToServer  = makeServerLevelLogger(logWithLevelAndServer, LogLevelWarn)
-	logErrorToServer = makeServerLevelLogger(logWithLevelAndServer, LogLevelError)
-	logDebugToServer = makeServerLevelLogger(logWithLevelAndServer, LogLevelDebug)
-)
+// The exported wrappers below follow the Log-Level Quad-Function Pattern
+// documented in common.go, with shared per-level closure registration handled
+// by newServerLevelLoggerFuncs.
+var serverLevelLoggers = newServerLevelLoggerFuncs(logWithLevelAndServer)
 
 // LogInfoToServer logs an informational message to the server-specific log file.
 func LogInfoToServer(serverID, category, format string, args ...interface{}) {
-	logInfoToServer(serverID, category, format, args...)
+	serverLevelLoggers.info(serverID, category, format, args...)
 }
 
 // LogWarnToServer logs a warning message to the server-specific log file.
 func LogWarnToServer(serverID, category, format string, args ...interface{}) {
-	logWarnToServer(serverID, category, format, args...)
+	serverLevelLoggers.warn(serverID, category, format, args...)
 }
 
 // LogErrorToServer logs an error message to the server-specific log file.
 func LogErrorToServer(serverID, category, format string, args ...interface{}) {
-	logErrorToServer(serverID, category, format, args...)
+	serverLevelLoggers.error(serverID, category, format, args...)
 }
 
 // LogDebugToServer logs a debug message to the server-specific log file.
 func LogDebugToServer(serverID, category, format string, args ...interface{}) {
-	logDebugToServer(serverID, category, format, args...)
+	serverLevelLoggers.debug(serverID, category, format, args...)
 }
 
 // CloseServerFileLogger closes the global server file logger
