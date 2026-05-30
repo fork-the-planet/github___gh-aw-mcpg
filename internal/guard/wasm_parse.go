@@ -357,19 +357,19 @@ func (g *WasmGuard) wasmDealloc(ctx context.Context, deallocFn api.Function, ptr
 	}
 }
 
+// parseDIFCTagsFromAny converts a raw []any JSON tag list to []difc.Tag.
+// Returns nil if raw is nil or not a []any.
 func parseDIFCTagsFromAny(raw any) []difc.Tag {
 	items, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-
 	tags := make([]difc.Tag, 0, len(items))
 	for _, item := range items {
 		if tagStr, ok := item.(string); ok {
 			tags = append(tags, difc.Tag(tagStr))
 		}
 	}
-
 	return tags
 }
 
@@ -386,12 +386,14 @@ func parseResourceResponse(response map[string]any) (*difc.LabeledResource, difc
 		resource.Description = desc
 	}
 
+	// Parse secrecy tags
 	if tags := parseDIFCTagsFromAny(resourceData["secrecy"]); tags != nil {
 		resource.Secrecy = *difc.NewSecrecyLabelWithTags(tags)
 	} else {
 		resource.Secrecy = *difc.NewSecrecyLabel()
 	}
 
+	// Parse integrity tags
 	if tags := parseDIFCTagsFromAny(resourceData["integrity"]); tags != nil {
 		resource.Integrity = *difc.NewIntegrityLabelWithTags(tags)
 	} else {
@@ -440,12 +442,14 @@ func parseCollectionLabeledData(items []any) (*difc.CollectionLabeledData, error
 				labels.Description = desc
 			}
 
+			// Parse secrecy tags
 			if tags := parseDIFCTagsFromAny(labelsData["secrecy"]); tags != nil {
 				labels.Secrecy = *difc.NewSecrecyLabelWithTags(tags)
 			} else {
 				labels.Secrecy = *difc.NewSecrecyLabel()
 			}
 
+			// Parse integrity tags
 			if tags := parseDIFCTagsFromAny(labelsData["integrity"]); tags != nil {
 				labels.Integrity = *difc.NewIntegrityLabelWithTags(tags)
 			} else {
