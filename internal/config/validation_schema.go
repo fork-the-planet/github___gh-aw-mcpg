@@ -540,7 +540,7 @@ func formatErrorContext(ve *jsonschema.ValidationError, prefix string) string {
 	}
 
 	// For enum errors (invalid values from a set of allowed values)
-	if strings.Contains(msg, "value must be one of") || strings.Contains(msg, "must be") {
+	if strings.Contains(msg, "value must be one of") || strings.Contains(msg, "must be one of") {
 		addDetail("enum",
 			"Details: Invalid value - the field has a restricted set of allowed values",
 			"  → Check the documentation for the list of valid values")

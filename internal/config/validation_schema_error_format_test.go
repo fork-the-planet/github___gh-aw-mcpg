@@ -46,7 +46,7 @@ func TestFormatErrorContext(t *testing.T) {
 		{
 			name:         "type mismatch inferred from keyword location",
 			message:      "validation failed",
-			keywordLoc:   "/properties/type",
+			keywordLoc:   "/properties/mcpServers/additionalProperties/properties/type/type",
 			prefix:       "  ",
 			wantContains: []string{"Type mismatch", "correct type", "  Details:"},
 		},
