@@ -146,8 +146,8 @@ func runProxy(cmd *cobra.Command, args []string) error {
 
 	logProxyCmd.Printf("Starting proxy: listen=%s, guard=%s, mode=%s, tls=%v", proxyListen, proxyGuardWasm, proxyDIFCMode, proxyTLS)
 
-	if err := validateDIFCModeFlag(proxyDIFCMode); err != nil {
-		return err
+	if _, err := difc.ParseEnforcementMode(proxyDIFCMode); err != nil {
+		return fmt.Errorf("invalid --guards-mode flag: %w", err)
 	}
 
 	// Initialize loggers

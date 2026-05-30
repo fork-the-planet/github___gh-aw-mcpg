@@ -1,4 +1,4 @@
-package guard
+package config
 
 import (
 	"math"
@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPolicyToMap(t *testing.T) {
+func TestGuardPolicyToMap(t *testing.T) {
 	t.Run("returns deep copy for map input", func(t *testing.T) {
 		policy := map[string]interface{}{
 			"allow-only": map[string]interface{}{
@@ -17,7 +17,7 @@ func TestPolicyToMap(t *testing.T) {
 			},
 		}
 
-		payload, err := PolicyToMap(policy)
+		payload, err := GuardPolicyToMap(policy)
 		require.NoError(t, err)
 		require.NotNil(t, payload)
 
@@ -31,19 +31,19 @@ func TestPolicyToMap(t *testing.T) {
 	})
 
 	t.Run("nil policy returns error", func(t *testing.T) {
-		_, err := PolicyToMap(nil)
+		_, err := GuardPolicyToMap(nil)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "policy is required")
 	})
 
 	t.Run("non-object policy returns error", func(t *testing.T) {
-		_, err := PolicyToMap([]string{"not-an-object"})
+		_, err := GuardPolicyToMap([]string{"not-an-object"})
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "policy must decode to a JSON object")
 	})
 
 	t.Run("unmarshalable policy returns error", func(t *testing.T) {
-		_, err := PolicyToMap(math.NaN())
+		_, err := GuardPolicyToMap(math.NaN())
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "failed to serialize policy")
 	})

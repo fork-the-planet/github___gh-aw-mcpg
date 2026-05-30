@@ -209,8 +209,8 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate guards mode before applying
-	if err := validateDIFCModeFlag(difcMode); err != nil {
-		return err
+	if _, err := difc.ParseEnforcementMode(difcMode); err != nil {
+		return fmt.Errorf("invalid --guards-mode flag: %w", err)
 	}
 
 	// Apply command-line flags to config
@@ -237,7 +237,7 @@ func run(cmd *cobra.Command, args []string) error {
 		logger.StartupInfo("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS=%q", envSinkServerIDs)
 	}
 
-	resolvedSinkServerIDs, err := parseDIFCSinkServerIDs(difcSinkServerIDs)
+	resolvedSinkServerIDs, err := difc.ParseSinkServerIDs(difcSinkServerIDs)
 	if err != nil {
 		return fmt.Errorf("invalid --guards-sink-server-ids value: %w", err)
 	}

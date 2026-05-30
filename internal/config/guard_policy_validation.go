@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/github/gh-aw-mcpg/internal/guard"
 )
 
 // ValidateGuardPolicy validates AllowOnly or WriteSink policy input.
@@ -99,7 +97,7 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 
 	integrity := strings.ToLower(strings.TrimSpace(policy.AllowOnly.MinIntegrity))
 	if _, ok := validMinIntegrityValues[integrity]; !ok {
-		return nil, fmt.Errorf("allow-only.min-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
+		return nil, fmt.Errorf("allow-only.min-integrity must be one of: %s", strings.Join(allowedGuardPolicyIntegrityLevels, ", "))
 	}
 
 	normalized := &NormalizedGuardPolicy{MinIntegrity: integrity}
@@ -143,7 +141,7 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	// uses Rust-side default of "none" when endorsement/disapproval is evaluated).
 	if v := strings.ToLower(strings.TrimSpace(policy.AllowOnly.DisapprovalIntegrity)); v != "" {
 		if _, ok := validMinIntegrityValues[v]; !ok {
-			return nil, fmt.Errorf("allow-only.disapproval-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
+			return nil, fmt.Errorf("allow-only.disapproval-integrity must be one of: %s", strings.Join(allowedGuardPolicyIntegrityLevels, ", "))
 		}
 		normalized.DisapprovalIntegrity = v
 	}
@@ -152,7 +150,7 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	// uses Rust-side default of "approved" when evaluating reactor eligibility).
 	if v := strings.ToLower(strings.TrimSpace(policy.AllowOnly.EndorserMinIntegrity)); v != "" {
 		if _, ok := validMinIntegrityValues[v]; !ok {
-			return nil, fmt.Errorf("allow-only.endorser-min-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
+			return nil, fmt.Errorf("allow-only.endorser-min-integrity must be one of: %s", strings.Join(allowedGuardPolicyIntegrityLevels, ", "))
 		}
 		normalized.EndorserMinIntegrity = v
 	}

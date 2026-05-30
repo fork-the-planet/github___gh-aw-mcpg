@@ -26,8 +26,8 @@
 //
 // This keeps the env-var name co-located with the flag declaration.
 //
-// Exception: getDefaultDIFCMode() in flags_difc.go is kept as a named helper
-// because it contains validation logic beyond a simple env lookup.
+// Exception: difc.DefaultEnforcementMode() is kept as a named helper because
+// it contains validation logic beyond a simple env lookup.
 //
 // When adding a new flag with an environment variable override:
 //  1. Use envutil.GetEnv* directly in the RegisterFlag call.
