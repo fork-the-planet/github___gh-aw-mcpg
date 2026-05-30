@@ -266,8 +266,7 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 	}
 
 	// Compile the custom schema
-	compiler := jsonschema.NewCompiler()
-	compiler.Draft = jsonschema.Draft7
+	compiler := newDraft7Compiler()
 
 	// Add the schema with both URLs (the fetch URL and the $id URL)
 	if err := compiler.AddResource(schemaURL, strings.NewReader(string(schemaJSON))); err != nil {

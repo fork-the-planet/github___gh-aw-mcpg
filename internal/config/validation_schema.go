@@ -36,6 +36,9 @@ const (
 	// maxSchemaFetchRetries is the number of fetch attempts before giving up.
 	maxSchemaFetchRetries = 3
 
+	// maxSchemaFetchBytes bounds fetched schema size to avoid unbounded memory usage.
+	maxSchemaFetchBytes = 10 * 1024 * 1024 // 10 MiB
+
 	// embeddedSchemaID is the $id URL used when registering the embedded schema with
 	// the JSON Schema compiler. It matches the $id field in the bundled schema file.
 	embeddedSchemaID = "https://docs.github.com/gh-aw/schemas/mcp-gateway-config.schema.json"
@@ -311,13 +314,24 @@ func fetchAndFixSchema(url string) ([]byte, error) {
 	logSchema.Printf("HTTP request completed in %v", time.Since(startTime))
 
 	readStart := time.Now()
-	schemaBytes, err := io.ReadAll(resp.Body)
+	limitedBody := io.LimitReader(resp.Body, maxSchemaFetchBytes+1)
+	schemaBytes, err := io.ReadAll(limitedBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read schema response: %w", err)
+	}
+	if len(schemaBytes) > maxSchemaFetchBytes {
+		return nil, fmt.Errorf("schema response too large: exceeds %d bytes", maxSchemaFetchBytes)
 	}
 	logSchema.Printf("Schema read completed in %v (size: %d bytes)", time.Since(readStart), len(schemaBytes))
 
 	return fixSchemaBytes(schemaBytes)
+}
+
+// newDraft7Compiler creates a JSON Schema compiler configured for Draft 7.
+func newDraft7Compiler() *jsonschema.Compiler {
+	compiler := jsonschema.NewCompiler()
+	compiler.Draft = jsonschema.Draft7
+	return compiler
 }
 
 // getOrCompileSchema retrieves the cached compiled schema or compiles it on first use.
@@ -356,8 +370,7 @@ func getOrCompileSchema() (*jsonschema.Schema, error) {
 		}
 
 		// Compile the schema
-		compiler := jsonschema.NewCompiler()
-		compiler.Draft = jsonschema.Draft7
+		compiler := newDraft7Compiler()
 
 		// Add the schema using its $id URL so internal $ref references resolve correctly
 		if addErr := compiler.AddResource(schemaID, strings.NewReader(string(schemaJSON))); addErr != nil {
@@ -468,47 +481,97 @@ func formatValidationErrorRecursive(ve *jsonschema.ValidationError, sb *strings.
 func formatErrorContext(ve *jsonschema.ValidationError, prefix string) string {
 	var sb strings.Builder
 	msg := ve.Message
+	keyword := keywordFromLocation(ve.KeywordLocation)
+	added := map[string]bool{}
+
+	addDetail := func(key string, lines ...string) {
+		if added[key] {
+			return
+		}
+		for _, line := range lines {
+			sb.WriteString(fmt.Sprintf("%s%s\n", prefix, line))
+		}
+		added[key] = true
+	}
+
+	switch keyword {
+	case "additionalProperties":
+		addDetail("additionalProperties",
+			"Details: Configuration contains field(s) that are not defined in the schema",
+			"  → Check for typos in field names or remove unsupported fields")
+	case "type":
+		addDetail("type",
+			"Details: Type mismatch - the value type doesn't match what's expected",
+			"  → Verify the value is the correct type (string, number, boolean, object, array)")
+	case "enum":
+		addDetail("enum",
+			"Details: Invalid value - the field has a restricted set of allowed values",
+			"  → Check the documentation for the list of valid values")
+	case "required":
+		addDetail("required",
+			"Details: Required field(s) are missing",
+			"  → Add the required field(s) to your configuration")
+	case "pattern":
+		addDetail("pattern",
+			"Details: Value format is incorrect",
+			"  → The value must match a specific format or pattern")
+	case "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum":
+		addDetail("range",
+			"Details: Value is outside the allowed range",
+			"  → Adjust the value to be within the valid range")
+	case "oneOf":
+		addDetail("oneOf",
+			"Details: Configuration doesn't match any of the expected formats",
+			"  → Review the structure and ensure it matches one of the valid configuration types")
+	}
 
 	// For additional properties errors, explain what's wrong
 	if strings.Contains(msg, "additionalProperties") || strings.Contains(msg, "additional property") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Configuration contains field(s) that are not defined in the schema\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Check for typos in field names or remove unsupported fields\n", prefix))
+		addDetail("additionalProperties",
+			"Details: Configuration contains field(s) that are not defined in the schema",
+			"  → Check for typos in field names or remove unsupported fields")
 	}
 
 	// For type errors, show the mismatch
 	if strings.Contains(msg, "expected") && (strings.Contains(msg, "but got") || strings.Contains(msg, "type")) {
-		sb.WriteString(fmt.Sprintf("%sDetails: Type mismatch - the value type doesn't match what's expected\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Verify the value is the correct type (string, number, boolean, object, array)\n", prefix))
+		addDetail("type",
+			"Details: Type mismatch - the value type doesn't match what's expected",
+			"  → Verify the value is the correct type (string, number, boolean, object, array)")
 	}
 
 	// For enum errors (invalid values from a set of allowed values)
 	if strings.Contains(msg, "value must be one of") || strings.Contains(msg, "must be") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Invalid value - the field has a restricted set of allowed values\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Check the documentation for the list of valid values\n", prefix))
+		addDetail("enum",
+			"Details: Invalid value - the field has a restricted set of allowed values",
+			"  → Check the documentation for the list of valid values")
 	}
 
 	// For missing required properties
 	if strings.Contains(msg, "missing properties") || strings.Contains(msg, "required") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Required field(s) are missing\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Add the required field(s) to your configuration\n", prefix))
+		addDetail("required",
+			"Details: Required field(s) are missing",
+			"  → Add the required field(s) to your configuration")
 	}
 
 	// For pattern validation failures (regex patterns)
 	if strings.Contains(msg, "does not match pattern") || strings.Contains(msg, "pattern") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Value format is incorrect\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → The value must match a specific format or pattern\n", prefix))
+		addDetail("pattern",
+			"Details: Value format is incorrect",
+			"  → The value must match a specific format or pattern")
 	}
 
 	// For minimum/maximum constraint violations
 	if strings.Contains(msg, "must be >=") || strings.Contains(msg, "must be <=") || strings.Contains(msg, "minimum") || strings.Contains(msg, "maximum") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Value is outside the allowed range\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Adjust the value to be within the valid range\n", prefix))
+		addDetail("range",
+			"Details: Value is outside the allowed range",
+			"  → Adjust the value to be within the valid range")
 	}
 
 	// For oneOf errors (typically type selection issues)
 	if strings.Contains(msg, "doesn't validate with any of") || strings.Contains(msg, "oneOf") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Configuration doesn't match any of the expected formats\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Review the structure and ensure it matches one of the valid configuration types\n", prefix))
+		addDetail("oneOf",
+			"Details: Configuration doesn't match any of the expected formats",
+			"  → Review the structure and ensure it matches one of the valid configuration types")
 	}
 
 	// Add keyword location if it provides useful context
@@ -517,6 +580,20 @@ func formatErrorContext(ve *jsonschema.ValidationError, prefix string) string {
 	}
 
 	return sb.String()
+}
+
+// keywordFromLocation extracts the terminal JSON Schema keyword from a
+// keyword-location path (for example "/properties/foo/type" -> "type").
+func keywordFromLocation(keywordLocation string) string {
+	keywordLocation = strings.TrimSuffix(strings.TrimSpace(keywordLocation), "/")
+	if keywordLocation == "" {
+		return ""
+	}
+	lastSlash := strings.LastIndex(keywordLocation, "/")
+	if lastSlash == -1 {
+		return keywordLocation
+	}
+	return keywordLocation[lastSlash+1:]
 }
 
 // validateStringPatterns validates string fields against regex patterns from the schema

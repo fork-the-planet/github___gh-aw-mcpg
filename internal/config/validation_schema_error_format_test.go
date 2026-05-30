@@ -44,6 +44,13 @@ func TestFormatErrorContext(t *testing.T) {
 			wantContains: []string{"Type mismatch", "correct type", "  Details:"},
 		},
 		{
+			name:         "type mismatch inferred from keyword location",
+			message:      "validation failed",
+			keywordLoc:   "/properties/type",
+			prefix:       "  ",
+			wantContains: []string{"Type mismatch", "correct type", "  Details:"},
+		},
+		{
 			name:         "type mismatch with expected and type",
 			message:      "expected string, got 'null' type",
 			prefix:       "",
