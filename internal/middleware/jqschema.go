@@ -265,6 +265,7 @@ func runJqCode(
 // This is injection-safe: variable values are bound at the Go level and never
 // interpolated into the jq expression string.
 func CompileToolResponseFilter(filter string) (*gojq.Code, error) {
+	logMiddleware.Printf("CompileToolResponseFilter: parsing jq filter expression, len=%d", len(filter))
 	query, err := gojq.Parse(filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse tool response filter: %w", err)
@@ -275,6 +276,7 @@ func CompileToolResponseFilter(filter string) (*gojq.Code, error) {
 		return nil, fmt.Errorf("failed to compile tool response filter: %w", err)
 	}
 
+	logMiddleware.Printf("CompileToolResponseFilter: filter compiled successfully")
 	return code, nil
 }
 
@@ -301,6 +303,7 @@ func tryApplyToolResponseFilter(
 	toolName string,
 	queryID string,
 ) (*sdk.CallToolResult, interface{}) {
+	logMiddleware.Printf("tryApplyToolResponseFilter: tool=%s, queryID=%s, hasFilter=%v", toolName, queryID, filterCode != nil)
 	if filterCode == nil {
 		return result, data
 	}
@@ -358,6 +361,7 @@ func tryApplyToolResponseFilter(
 }
 
 func rewriteFilteredTextPayload(result *sdk.CallToolResult, data interface{}, filteredText string) (*sdk.CallToolResult, interface{}) {
+	logMiddleware.Printf("rewriteFilteredTextPayload: rewriting first text content item, filteredLen=%d", len(filteredText))
 	rewrittenContent := make([]sdk.Content, 0, len(result.Content))
 	rewrittenContent = append(rewrittenContent, &sdk.TextContent{Text: filteredText})
 	if len(result.Content) > 1 {
