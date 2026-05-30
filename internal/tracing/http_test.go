@@ -63,11 +63,12 @@ func TestStatusResponseWriter_Unwrap_ReturnsUnderlying(t *testing.T) {
 	assert.Same(t, rec, underlying, "Unwrap should return the wrapped ResponseWriter")
 }
 
-// TestWrapHTTPHandler_PatternMethodMismatch_ClearsRoute verifies that when a request
-// pattern contains a different HTTP method than the actual request method, the
-// http.route attribute is not added to the span.
-// This exercises the `route = ""` branch in WrapHTTPHandler.
-func TestWrapHTTPHandler_PatternMethodMismatch_ClearsRoute(t *testing.T) {
+// TestWrapHTTPHandler_PatternMethodMismatch_DoesNotPanic verifies that WrapHTTPHandler
+// handles requests whose r.Pattern contains a method prefix that doesn't match r.Method
+// (a defensive scenario that shouldn't occur with net/http mux routing).
+//
+// This still exercises the `route = ""` branch in WrapHTTPHandler.
+func TestWrapHTTPHandler_PatternMethodMismatch_DoesNotPanic(t *testing.T) {
 	// Build a request whose Pattern method differs from its actual Method.
 	// In normal mux routing this cannot happen, but direct manipulation lets us
 	// verify that WrapHTTPHandler handles it gracefully without setting http.route.
