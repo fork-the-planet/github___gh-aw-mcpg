@@ -18,20 +18,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// stdinFromString is a helper that sets os.Stdin to a pipe containing the given string,
-// calls f(), then restores os.Stdin. The caller is responsible for draining the pipe.
+// stdinFromString sets os.Stdin to a pipe containing the given string,
+// calls f(), then restores os.Stdin.
 func stdinFromString(t *testing.T, input string, f func()) {
 	t.Helper()
+
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
+
 	oldStdin := os.Stdin
 	os.Stdin = r
-	t.Cleanup(func() { os.Stdin = oldStdin })
+	defer func() {
+		os.Stdin = oldStdin
+		_ = r.Close()
+	}()
+
+	writeErrCh := make(chan error, 1)
 	go func() {
 		defer w.Close()
-		_, _ = w.Write([]byte(input))
+		_, err := w.Write([]byte(input))
+		writeErrCh <- err
 	}()
+
 	f()
+	require.NoError(t, <-writeErrCh)
 }
 
 // TestLoadFromStdin_StdinReadError covers the io.ReadAll error path (lines 298-300).
