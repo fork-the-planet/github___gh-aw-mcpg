@@ -147,14 +147,10 @@ func extractOwnerRepo(variables map[string]interface{}, query string) (string, s
 
 	// Try variables first
 	if variables != nil {
-		if v, ok := variables["owner"].(string); ok {
-			owner = v
-		}
-		if v, ok := variables["name"].(string); ok {
-			repo = v
-		}
-		if v, ok := variables["repo"].(string); ok && repo == "" {
-			repo = v
+		owner = strutil.GetStringFromMap(variables, "owner")
+		repo = strutil.GetStringFromMap(variables, "name")
+		if repo == "" {
+			repo = strutil.GetStringFromMap(variables, "repo")
 		}
 		logGraphQL.Printf("extractOwnerRepo: from variables: owner=%q repo=%q", owner, repo)
 	}

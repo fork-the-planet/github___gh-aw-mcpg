@@ -21,6 +21,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
@@ -215,9 +216,9 @@ type restBackendCaller struct {
 // from tool arguments, accepting either string or float64 JSON number inputs for
 // the identifier.
 func extractOwnerRepoNumber(argsMap map[string]interface{}, ownerKey, repoKey, numberKey, toolName string) (owner, repo, number string, err error) {
-	owner, _ = argsMap[ownerKey].(string)
-	repo, _ = argsMap[repoKey].(string)
-	number, _ = argsMap[numberKey].(string)
+	owner = strutil.GetStringFromMap(argsMap, ownerKey)
+	repo = strutil.GetStringFromMap(argsMap, repoKey)
+	number = strutil.GetStringFromMap(argsMap, numberKey)
 	if number == "" {
 		if n, ok := argsMap[numberKey].(float64); ok {
 			number = fmt.Sprintf("%d", int(n))

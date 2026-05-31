@@ -43,6 +43,7 @@ func NewValidatorClient(ctx context.Context, transport sdk.Transport) (*Validato
 // paginate collects all pages from a paginated MCP list call.
 // fetch is called with a cursor (empty string for the first page) and returns the items,
 // the next cursor (empty when done), and any error.
+// Keep loop-protection invariants aligned with internal/mcp/pagination.go:paginateAll.
 func paginate[T any](ctx context.Context, fetch func(ctx context.Context, cursor string) ([]T, string, error)) ([]T, error) {
 	var all []T
 	var cursor string
