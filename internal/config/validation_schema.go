@@ -477,6 +477,52 @@ func formatValidationErrorRecursive(ve *jsonschema.ValidationError, sb *strings.
 	}
 }
 
+// detailForKeyword returns the addDetail arguments (key and detail lines) for a
+// recognised JSON Schema keyword. Returns "", nil for unknown keywords.
+// This is used by formatErrorContext to centralise the guidance text so it is
+// only written in one place and always stays in sync between the keyword-location
+// switch and the message-fallback checks.
+func detailForKeyword(keyword string) (string, []string) {
+	switch keyword {
+	case "additionalProperties":
+		return "additionalProperties", []string{
+			"Details: Configuration contains field(s) that are not defined in the schema",
+			"  → Check for typos in field names or remove unsupported fields",
+		}
+	case "type":
+		return "type", []string{
+			"Details: Type mismatch - the value type doesn't match what's expected",
+			"  → Verify the value is the correct type (string, number, boolean, object, array)",
+		}
+	case "enum":
+		return "enum", []string{
+			"Details: Invalid value - the field has a restricted set of allowed values",
+			"  → Check the documentation for the list of valid values",
+		}
+	case "required":
+		return "required", []string{
+			"Details: Required field(s) are missing",
+			"  → Add the required field(s) to your configuration",
+		}
+	case "pattern":
+		return "pattern", []string{
+			"Details: Value format is incorrect",
+			"  → The value must match a specific format or pattern",
+		}
+	case "range":
+		return "range", []string{
+			"Details: Value is outside the allowed range",
+			"  → Adjust the value to be within the valid range",
+		}
+	case "oneOf":
+		return "oneOf", []string{
+			"Details: Configuration doesn't match any of the expected formats",
+			"  → Review the structure and ensure it matches one of the valid configuration types",
+		}
+	}
+	return "", nil
+}
+
 // formatErrorContext provides additional context about what caused the validation error
 func formatErrorContext(ve *jsonschema.ValidationError, prefix string) string {
 	var sb strings.Builder
@@ -494,84 +540,42 @@ func formatErrorContext(ve *jsonschema.ValidationError, prefix string) string {
 		added[key] = true
 	}
 
+	addFromKeyword := func(kw string) {
+		if k, lines := detailForKeyword(kw); k != "" {
+			addDetail(k, lines...)
+		}
+	}
+
+	// Primary path: classify by the terminal keyword in the schema location path.
 	switch keyword {
-	case "additionalProperties":
-		addDetail("additionalProperties",
-			"Details: Configuration contains field(s) that are not defined in the schema",
-			"  → Check for typos in field names or remove unsupported fields")
-	case "type":
-		addDetail("type",
-			"Details: Type mismatch - the value type doesn't match what's expected",
-			"  → Verify the value is the correct type (string, number, boolean, object, array)")
-	case "enum":
-		addDetail("enum",
-			"Details: Invalid value - the field has a restricted set of allowed values",
-			"  → Check the documentation for the list of valid values")
-	case "required":
-		addDetail("required",
-			"Details: Required field(s) are missing",
-			"  → Add the required field(s) to your configuration")
-	case "pattern":
-		addDetail("pattern",
-			"Details: Value format is incorrect",
-			"  → The value must match a specific format or pattern")
+	case "additionalProperties", "type", "enum", "required", "pattern", "oneOf":
+		addFromKeyword(keyword)
 	case "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum":
-		addDetail("range",
-			"Details: Value is outside the allowed range",
-			"  → Adjust the value to be within the valid range")
-	case "oneOf":
-		addDetail("oneOf",
-			"Details: Configuration doesn't match any of the expected formats",
-			"  → Review the structure and ensure it matches one of the valid configuration types")
+		addFromKeyword("range")
 	}
 
-	// For additional properties errors, explain what's wrong
+	// Fallback path: classify by message content when keyword location is absent
+	// or does not carry enough information.
 	if strings.Contains(msg, "additionalProperties") || strings.Contains(msg, "additional property") {
-		addDetail("additionalProperties",
-			"Details: Configuration contains field(s) that are not defined in the schema",
-			"  → Check for typos in field names or remove unsupported fields")
+		addFromKeyword("additionalProperties")
 	}
-
-	// For type errors, show the mismatch
 	if strings.Contains(msg, "expected") && (strings.Contains(msg, "but got") || strings.Contains(msg, "type")) {
-		addDetail("type",
-			"Details: Type mismatch - the value type doesn't match what's expected",
-			"  → Verify the value is the correct type (string, number, boolean, object, array)")
+		addFromKeyword("type")
 	}
-
-	// For enum errors (invalid values from a set of allowed values)
 	if strings.Contains(msg, "value must be one of") || strings.Contains(msg, "must be one of") {
-		addDetail("enum",
-			"Details: Invalid value - the field has a restricted set of allowed values",
-			"  → Check the documentation for the list of valid values")
+		addFromKeyword("enum")
 	}
-
-	// For missing required properties
 	if strings.Contains(msg, "missing properties") || strings.Contains(msg, "required") {
-		addDetail("required",
-			"Details: Required field(s) are missing",
-			"  → Add the required field(s) to your configuration")
+		addFromKeyword("required")
 	}
-
-	// For pattern validation failures (regex patterns)
 	if strings.Contains(msg, "does not match pattern") || strings.Contains(msg, "pattern") {
-		addDetail("pattern",
-			"Details: Value format is incorrect",
-			"  → The value must match a specific format or pattern")
+		addFromKeyword("pattern")
 	}
-
-	// For minimum/maximum constraint violations
 	if strings.Contains(msg, "must be >=") || strings.Contains(msg, "must be <=") || strings.Contains(msg, "minimum") || strings.Contains(msg, "maximum") {
-		addDetail("range",
-			"Details: Value is outside the allowed range",
-			"  → Adjust the value to be within the valid range")
+		addFromKeyword("range")
 	}
-
-	// For oneOf errors (typically type selection issues)
 	if strings.Contains(msg, "doesn't validate with any of") || strings.Contains(msg, "oneOf") {
-		addDetail("oneOf",
-			"Details: Configuration doesn't match any of the expected formats",
-			"  → Review the structure and ensure it matches one of the valid configuration types")
+		addFromKeyword("oneOf")
 	}
 
 	// Add keyword location if it provides useful context
