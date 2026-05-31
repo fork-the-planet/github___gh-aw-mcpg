@@ -154,10 +154,9 @@ func TestLoadFromStdin_ValidateCustomSchemasError_ReservedHttpKey(t *testing.T) 
 }
 
 // TestLoadFromStdin_ValidateGatewayConfigError covers the validateGatewayConfig error
-// path (lines 348-350). An all-zero W3C traceId is a valid 32-character lowercase hex
-// string that passes JSON schema validation but is rejected by validateOpenTelemetryConfig
-// because W3C Trace Context forbids an all-zero trace-id.
-func TestLoadFromStdin_ValidateGatewayConfigError_AllZeroTraceId(t *testing.T) {
+// path for invalid OpenTelemetry configuration. An all-zero W3C traceId is a valid
+// 32-character lowercase hex string that passes JSON schema validation but is rejected
+// by validateOpenTelemetryConfig because W3C Trace Context forbids an all-zero trace-id.
 	jsonConfig := `{
 		"mcpServers": {
 			"test": {
