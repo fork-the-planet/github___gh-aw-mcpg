@@ -341,7 +341,11 @@ func (us *UnifiedServer) isToolAllowed(serverID, toolName string) bool {
 	if !ok || set == nil {
 		return true
 	}
-	return set[toolName]
+	allowed := set[toolName]
+	if !allowed {
+		logUnified.Printf("isToolAllowed: tool blocked by allowlist: serverID=%s, toolName=%s", serverID, toolName)
+	}
+	return allowed
 }
 
 // callBackendTool calls a tool on a backend server with DIFC enforcement
@@ -615,10 +619,13 @@ func (us *UnifiedServer) enforceToolCallLimit(sessionID, serverID, toolName stri
 		state.ToolCallCounts = make(map[string]int)
 	}
 
-	if state.ToolCallCounts[toolName] >= limit {
+	current := state.ToolCallCounts[toolName]
+	if current >= limit {
+		logUnified.Printf("enforceToolCallLimit: limit reached: sessionID=%s, serverID=%s, toolName=%s, count=%d, limit=%d", sessionID, serverID, toolName, current, limit)
 		return fmt.Errorf("tool call limit reached for %q (max: %d)", toolName, limit)
 	}
 	state.ToolCallCounts[toolName]++
+	logUnified.Printf("enforceToolCallLimit: count incremented: sessionID=%s, serverID=%s, toolName=%s, count=%d/%d", sessionID, serverID, toolName, state.ToolCallCounts[toolName], limit)
 	return nil
 }
 
@@ -645,6 +652,7 @@ func (us *UnifiedServer) GetServerStatus() map[string]ServerStatus {
 	status := make(map[string]ServerStatus)
 
 	serverIDs := us.launcher.ServerIDs()
+	logUnified.Printf("GetServerStatus: querying status for %d servers", len(serverIDs))
 
 	for _, serverID := range serverIDs {
 		state := us.launcher.GetServerState(serverID)
@@ -656,6 +664,7 @@ func (us *UnifiedServer) GetServerStatus() map[string]ServerStatus {
 			Status: state.Status,
 			Uptime: uptime,
 		}
+		logUnified.Printf("GetServerStatus: serverID=%s, status=%s, uptime=%ds", serverID, state.Status, uptime)
 	}
 
 	return status
