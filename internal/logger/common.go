@@ -218,9 +218,9 @@ import (
 // do not need their own switch-on-level blocks.
 //
 // If a new LogLevel constant is ever added (e.g., LogLevelTrace), update all
-// three locations to keep the public API consistent:
+// required locations to keep the public API consistent:
 //  1. Add a new entry to the logFuncs map in this file.
-//  2. Update newLevelLoggerFuncs/newServerLevelLoggerFuncs in this file.
+//  2. Update newLogFuncSet in this file.
 //  3. In file_logger.go: add an exported wrapper (see LogInfo pattern).
 //  4. In markdown_logger.go: add an exported wrapper (see LogInfoToMarkdown pattern).
 //  5. In server_file_logger.go: add an exported wrapper (see LogInfoToServer pattern).
@@ -231,58 +231,53 @@ import (
 // (markdown_logger.go) and logWithLevelAndServer (server_file_logger.go).
 // When adding a new LogLevel constant, add a corresponding entry here so
 // that all dispatch sites automatically support the new level.
-func makeLevelLogger(
-	dispatch func(level LogLevel, category, format string, args ...interface{}),
-	level LogLevel,
-) func(category, format string, args ...interface{}) {
-	return func(category, format string, args ...interface{}) {
-		dispatch(level, category, format, args...)
+
+// logFuncSet is a generic bundle of per-level logging closures all sharing the
+// same function signature F. It is the single source of truth for the
+// info/warn/error/debug quad used by every logger variant.
+type logFuncSet[F any] struct {
+	info  F
+	warn  F
+	error F
+	debug F
+}
+
+// newLogFuncSet builds a logFuncSet by calling makeFunc once per log level.
+// This eliminates the structural duplication between newLevelLoggerFuncs and
+// newServerLevelLoggerFuncs — both now delegate here with their own closure.
+func newLogFuncSet[F any](makeFunc func(LogLevel) F) logFuncSet[F] {
+	return logFuncSet[F]{
+		info:  makeFunc(LogLevelInfo),
+		warn:  makeFunc(LogLevelWarn),
+		error: makeFunc(LogLevelError),
+		debug: makeFunc(LogLevelDebug),
 	}
 }
 
-type levelLoggerFuncs struct {
-	info  func(category, format string, args ...interface{})
-	warn  func(category, format string, args ...interface{})
-	error func(category, format string, args ...interface{})
-	debug func(category, format string, args ...interface{})
-}
+// levelLoggerFuncs holds per-level closures for non-server loggers.
+type levelLoggerFuncs = logFuncSet[func(string, string, ...interface{})]
 
 func newLevelLoggerFuncs(
 	dispatch func(level LogLevel, category, format string, args ...interface{}),
 ) levelLoggerFuncs {
-	return levelLoggerFuncs{
-		info:  makeLevelLogger(dispatch, LogLevelInfo),
-		warn:  makeLevelLogger(dispatch, LogLevelWarn),
-		error: makeLevelLogger(dispatch, LogLevelError),
-		debug: makeLevelLogger(dispatch, LogLevelDebug),
-	}
+	return newLogFuncSet(func(level LogLevel) func(string, string, ...interface{}) {
+		return func(category, format string, args ...interface{}) {
+			dispatch(level, category, format, args...)
+		}
+	})
 }
 
-func makeServerLevelLogger(
-	dispatch func(serverID string, level LogLevel, category, format string, args ...interface{}),
-	level LogLevel,
-) func(serverID, category, format string, args ...interface{}) {
-	return func(serverID, category, format string, args ...interface{}) {
-		dispatch(serverID, level, category, format, args...)
-	}
-}
-
-type serverLevelLoggerFuncs struct {
-	info  func(serverID, category, format string, args ...interface{})
-	warn  func(serverID, category, format string, args ...interface{})
-	error func(serverID, category, format string, args ...interface{})
-	debug func(serverID, category, format string, args ...interface{})
-}
+// serverLevelLoggerFuncs holds per-level closures for server-scoped loggers.
+type serverLevelLoggerFuncs = logFuncSet[func(string, string, string, ...interface{})]
 
 func newServerLevelLoggerFuncs(
 	dispatch func(serverID string, level LogLevel, category, format string, args ...interface{}),
 ) serverLevelLoggerFuncs {
-	return serverLevelLoggerFuncs{
-		info:  makeServerLevelLogger(dispatch, LogLevelInfo),
-		warn:  makeServerLevelLogger(dispatch, LogLevelWarn),
-		error: makeServerLevelLogger(dispatch, LogLevelError),
-		debug: makeServerLevelLogger(dispatch, LogLevelDebug),
-	}
+	return newLogFuncSet(func(level LogLevel) func(string, string, string, ...interface{}) {
+		return func(serverID, category, format string, args ...interface{}) {
+			dispatch(serverID, level, category, format, args...)
+		}
+	})
 }
 
 var logFuncs = map[LogLevel]func(string, string, ...interface{}){
