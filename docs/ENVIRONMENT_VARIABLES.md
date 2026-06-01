@@ -53,12 +53,21 @@ These variables are intended for local testing and development only:
 
 ## Containerized Deployment Variables
 
-When using `run_containerized.sh` or `run.sh`, these variables control the bind address and routing mode:
+These variables are script-specific controls for bind address and routing mode:
+
+### `run.sh` (non-containerized)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MCP_GATEWAY_HOST` | Bind address for the gateway. Read by both `run.sh` and `run_containerized.sh`. | `0.0.0.0` |
-| `MCP_GATEWAY_MODE` | Routing mode flag passed to `awmg` (e.g., `--routed`, `--unified`). Read by both `run.sh` and `run_containerized.sh`. | `--routed` |
+| `HOST` | Bind address for the gateway in `run.sh`. | `0.0.0.0` |
+| `MODE` | Routing mode flag passed to `awmg` by `run.sh` (e.g., `--routed`, `--unified`). | `--routed` |
+
+### `run_containerized.sh` (containerized)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MCP_GATEWAY_HOST` | Bind address for the gateway in `run_containerized.sh`. | `0.0.0.0` |
+| `MCP_GATEWAY_MODE` | Routing mode flag passed to `awmg` by `run_containerized.sh` (e.g., `--routed`, `--unified`). | `--routed` |
 
 ## Docker Configuration
 
@@ -70,7 +79,7 @@ When using `run_containerized.sh` or `run.sh`, these variables control the bind 
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DOCKER_API_VERSION` | Docker API version used by helper scripts such as `run.sh`, integration test scripts, and `run_containerized.sh`. The Docker Go client in `awmg` auto-negotiates API version, but an exported `DOCKER_API_VERSION` can still affect `docker` CLI subprocesses launched with the inherited environment. | Set by querying Docker daemon's current API version; falls back to `1.44` if detection fails |
+| `DOCKER_API_VERSION` | Docker API version used by helper scripts such as `run.sh`, integration test scripts, and `run_containerized.sh`. Not read directly by `awmg`; it only affects `docker` CLI subprocesses launched with the inherited environment. | Set by querying Docker daemon's current API version; falls back to `1.44` if detection fails |
 
 ## GitHub Authentication
 
