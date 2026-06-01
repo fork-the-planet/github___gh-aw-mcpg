@@ -320,21 +320,6 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	return httpServer.Close()
 }
 
-// clientAddr returns a client-friendly address from a listener address.
-// When the host is a wildcard (0.0.0.0, ::, or empty), it substitutes
-// "localhost" so the printed GH_HOST value is usable from a client.
-func clientAddr(addr string) string {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return addr
-	}
-	switch host {
-	case "", "0.0.0.0", "::", "[::]":
-		return net.JoinHostPort("localhost", port)
-	}
-	return addr
-}
-
 func configureTLSTrustEnvironment(caCertPath string) error {
 	if strings.ContainsAny(caCertPath, "\r\n") {
 		return fmt.Errorf("invalid TLS CA cert path contains newline")
