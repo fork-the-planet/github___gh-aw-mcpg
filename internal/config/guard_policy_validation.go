@@ -6,6 +6,13 @@ import (
 	"strings"
 )
 
+var allowedGuardPolicyIntegrityLevels = []string{
+	IntegrityNone,
+	IntegrityUnapproved,
+	IntegrityApproved,
+	IntegrityMerged,
+}
+
 // ValidateGuardPolicy validates AllowOnly or WriteSink policy input.
 func ValidateGuardPolicy(policy *GuardPolicy) error {
 	if policy == nil {
