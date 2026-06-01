@@ -402,7 +402,7 @@ The `customSchemas` top-level field allows you to define custom server types bey
 | `startupTimeout` | Seconds to wait for backend startup | `30` |
 | `toolTimeout` | Maximum seconds for a single tool call, enforced as a context deadline on all backend requests (stdio and HTTP) | `60` |
 | `payloadDir` | Directory for large payload files. Must be an absolute path. | `/tmp/jq-payloads` |
-| `payloadPathPrefix` | Optional path prefix (`"payloadPathPrefix"` in JSON stdin) used when returning `payloadPath` values to clients (for example when the host payload directory is mounted at a different in-container path) | (empty - use actual filesystem path) |
+| `payloadPathPrefix` (JSON stdin) / `payload_path_prefix` (TOML) | Optional path prefix used when returning `payloadPath` values to clients (for example when the host payload directory is mounted at a different in-container path) | (empty - use actual filesystem path) |
 | `payloadSizeThreshold` (JSON) / `payload_size_threshold` (TOML) | Size threshold in bytes; responses larger than this are stored to disk and returned as a `payloadPath` reference | `524288` (512 KB) |
 | `trustedBots` (JSON) / `trusted_bots` (TOML) | Optional list of additional bot usernames to trust with "approved" integrity level. Additive to the built-in trusted bot list. When specified, must be a non-empty array with non-empty string entries (spec §4.1.3.4); omit the field entirely if not needed. Example: `["my-bot[bot]", "org-automation"]` | (disabled) |
 | `keepaliveInterval` (JSON) / `keepalive_interval` (TOML) | Interval (seconds) between keepalive pings sent to HTTP backends. Prevents remote servers from expiring idle sessions. Set to `-1` to disable keepalive pings entirely. | `1500` (25 min) |
