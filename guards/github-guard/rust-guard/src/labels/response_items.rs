@@ -100,7 +100,10 @@ pub fn label_response_items(
         }
 
         // === Pull Requests - label by merged state ===
-        "list_pull_requests" | "search_pull_requests" | "pull_request_read" | "get_pull_request" => {
+        "list_pull_requests"
+        | "search_pull_requests"
+        | "pull_request_read"
+        | "get_pull_request" => {
             // For pull_request_read sub-methods that return non-PR objects (e.g.
             // get_check_runs, get_files, get_review_comments, get_reviews,
             // get_comments, get_diff, get_status), skip per-item response labeling.
@@ -113,105 +116,118 @@ pub fn label_response_items(
             if tool_name == "pull_request_read" && !method.is_empty() && method != "get" {
                 // Fall through — use resource-level labels from tool_rules
             } else {
-            // Handle array, {items: [...]}, {pull_requests: [...]}, GraphQL nested, GraphQL single, or REST single object.
-            // Work directly with &[Value] slices to avoid allocating a Vec<&Value>.
-            let single_item_buf;
-            let graphql_single_buf;
-            let items: &[Value] = if let Some(arr) = actual_response.as_array() {
-                arr.as_slice()
-            } else if let Some(items_arr) = actual_response.get("items").and_then(|v| v.as_array()) {
-                items_arr.as_slice()
-            } else if let Some(items_arr) = actual_response.get("pull_requests").and_then(|v| v.as_array()) {
-                items_arr.as_slice()
-            } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
-                nodes.as_slice()
-            } else if let Some(obj) = extract_graphql_single_object(&actual_response) {
-                graphql_single_buf = [obj.clone()];
-                &graphql_single_buf
-            } else if actual_response.is_object() && !is_graphql_wrapper(&actual_response) && !is_search_result_wrapper(&actual_response) && !is_mcp_text_wrapper(&actual_response) {
-                single_item_buf = [actual_response.as_ref().clone()];
-                &single_item_buf
-            } else {
-                &[]
-            };
-
-            if !items.is_empty() {
-                let items_to_process = limit_items_with_log(items, "list_pull_requests");
-                let (arg_owner, arg_repo, arg_repo_full) = extract_repo_scope_with_query_fallback(tool_args);
-                let default_repo_private = if !arg_owner.is_empty() && !arg_repo.is_empty() {
-                    super::backend::is_repo_private(&arg_owner, &arg_repo).unwrap_or(false)
+                // Handle array, {items: [...]}, {pull_requests: [...]}, GraphQL nested, GraphQL single, or REST single object.
+                // Work directly with &[Value] slices to avoid allocating a Vec<&Value>.
+                let single_item_buf;
+                let graphql_single_buf;
+                let items: &[Value] = if let Some(arr) = actual_response.as_array() {
+                    arr.as_slice()
+                } else if let Some(items_arr) =
+                    actual_response.get("items").and_then(|v| v.as_array())
+                {
+                    items_arr.as_slice()
+                } else if let Some(items_arr) = actual_response
+                    .get("pull_requests")
+                    .and_then(|v| v.as_array())
+                {
+                    items_arr.as_slice()
+                } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
+                    nodes.as_slice()
+                } else if let Some(obj) = extract_graphql_single_object(&actual_response) {
+                    graphql_single_buf = [obj.clone()];
+                    &graphql_single_buf
+                } else if actual_response.is_object()
+                    && !is_graphql_wrapper(&actual_response)
+                    && !is_search_result_wrapper(&actual_response)
+                    && !is_mcp_text_wrapper(&actual_response)
+                {
+                    single_item_buf = [actual_response.as_ref().clone()];
+                    &single_item_buf
                 } else {
-                    false
+                    &[]
                 };
-                let secrecy = if tool_name == "list_pull_requests" || tool_name == "pull_request_read" || tool_name == "get_pull_request" {
-                    repo_visibility_secrecy(&arg_owner, &arg_repo, &arg_repo_full, ctx)
-                } else {
-                    vec![]
-                };
-                let secrecy_shared: SharedLabels = secrecy.into();
 
-                for item in items_to_process.iter() {
-                    let number = extract_resource_number(item, "pr", &arg_repo_full);
-
-                    // Get repo info from the PR's base or head, with fallback to
-                    // extract_repo_from_item (parses repository_url, html_url, etc.)
-                    let base_head_repo = item
-                        .get("base")
-                        .and_then(|b| b.get("repo"))
-                        .and_then(|r| r.get(field_names::FULL_NAME))
-                        .and_then(|v| v.as_str())
-                        .or_else(|| {
-                            item.get("head")
-                                .and_then(|h| h.get("repo"))
-                                .and_then(|r| r.get(field_names::FULL_NAME))
-                                .and_then(|v| v.as_str())
-                        })
-                        .unwrap_or("");
-                    let item_repo_fallback = if base_head_repo.is_empty() {
-                        extract_repo_from_item(item)
+                if !items.is_empty() {
+                    let items_to_process = limit_items_with_log(items, "list_pull_requests");
+                    let (arg_owner, arg_repo, arg_repo_full) =
+                        extract_repo_scope_with_query_fallback(tool_args);
+                    let default_repo_private = if !arg_owner.is_empty() && !arg_repo.is_empty() {
+                        super::backend::is_repo_private(&arg_owner, &arg_repo).unwrap_or(false)
                     } else {
-                        String::new()
+                        false
                     };
-                    let repo_full_name = if !base_head_repo.is_empty() {
-                        base_head_repo
-                    } else if !item_repo_fallback.is_empty() {
-                        &item_repo_fallback
+                    let secrecy = if tool_name == "list_pull_requests"
+                        || tool_name == "pull_request_read"
+                        || tool_name == "get_pull_request"
+                    {
+                        repo_visibility_secrecy(&arg_owner, &arg_repo, &arg_repo_full, ctx)
                     } else {
-                        &arg_repo_full
+                        vec![]
                     };
-                    let repo_private = repo_visibility_private_for_repo_id(repo_full_name)
-                        .unwrap_or(default_repo_private);
+                    let secrecy_shared: SharedLabels = secrecy.into();
 
-                    let is_forked = item
-                        .get("base")
-                        .and_then(|b| b.get("repo"))
-                        .and_then(|r| r.get(field_names::FULL_NAME))
-                        .and_then(|v| v.as_str())
-                        .zip(
-                            item.get("head")
-                                .and_then(|h| h.get("repo"))
-                                .and_then(|r| r.get(field_names::FULL_NAME))
-                                .and_then(|v| v.as_str()),
-                        )
-                        .map(|(base, head)| !base.eq_ignore_ascii_case(head));
+                    for item in items_to_process.iter() {
+                        let number = extract_resource_number(item, "pr", &arg_repo_full);
 
-                    let integrity =
-                        pr_integrity(item, repo_full_name, repo_private, is_forked, ctx);
+                        // Get repo info from the PR's base or head, with fallback to
+                        // extract_repo_from_item (parses repository_url, html_url, etc.)
+                        let base_head_repo = item
+                            .get("base")
+                            .and_then(|b| b.get("repo"))
+                            .and_then(|r| r.get(field_names::FULL_NAME))
+                            .and_then(|v| v.as_str())
+                            .or_else(|| {
+                                item.get("head")
+                                    .and_then(|h| h.get("repo"))
+                                    .and_then(|r| r.get(field_names::FULL_NAME))
+                                    .and_then(|v| v.as_str())
+                            })
+                            .unwrap_or("");
+                        let item_repo_fallback = if base_head_repo.is_empty() {
+                            extract_repo_from_item(item)
+                        } else {
+                            String::new()
+                        };
+                        let repo_full_name = if !base_head_repo.is_empty() {
+                            base_head_repo
+                        } else if !item_repo_fallback.is_empty() {
+                            &item_repo_fallback
+                        } else {
+                            &arg_repo_full
+                        };
+                        let repo_private = repo_visibility_private_for_repo_id(repo_full_name)
+                            .unwrap_or(default_repo_private);
 
-                    labeled_items.push(LabeledItem {
-                        data: item.clone(),
-                        labels: ResourceLabels {
-                            description: format!("pr:{}#{}", repo_full_name, number),
-                            secrecy: if tool_name == "search_pull_requests" {
-                                repo_visibility_secrecy_for_repo_id(repo_full_name, ctx).into()
-                            } else {
-                                secrecy_shared.clone()
+                        let is_forked = item
+                            .get("base")
+                            .and_then(|b| b.get("repo"))
+                            .and_then(|r| r.get(field_names::FULL_NAME))
+                            .and_then(|v| v.as_str())
+                            .zip(
+                                item.get("head")
+                                    .and_then(|h| h.get("repo"))
+                                    .and_then(|r| r.get(field_names::FULL_NAME))
+                                    .and_then(|v| v.as_str()),
+                            )
+                            .map(|(base, head)| !base.eq_ignore_ascii_case(head));
+
+                        let integrity =
+                            pr_integrity(item, repo_full_name, repo_private, is_forked, ctx);
+
+                        labeled_items.push(LabeledItem {
+                            data: item.clone(),
+                            labels: ResourceLabels {
+                                description: format!("pr:{}#{}", repo_full_name, number),
+                                secrecy: if tool_name == "search_pull_requests" {
+                                    repo_visibility_secrecy_for_repo_id(repo_full_name, ctx).into()
+                                } else {
+                                    secrecy_shared.clone()
+                                },
+                                integrity: integrity.into(),
                             },
-                            integrity: integrity.into(),
-                        },
-                    });
+                        });
+                    }
                 }
-            }
             } // end else (non-sub-method)
         }
 
@@ -227,74 +243,81 @@ pub fn label_response_items(
             if tool_name == "issue_read" && !method.is_empty() && method != "get" {
                 // Fall through — use resource-level labels from tool_rules
             } else {
-            // Handle single issue, array of issues, {issues: [...]}, GraphQL nested, or GraphQL single object
-            let all_items: Vec<&Value> = if actual_response.is_array() {
-                actual_response
-                    .as_array()
-                    .map(|arr| arr.iter().collect())
-                    .unwrap_or_default()
-            } else if let Some(items_arr) = actual_response.get("items").and_then(|v| v.as_array()) {
-                items_arr.iter().collect()
-            } else if let Some(items_arr) = actual_response.get("issues").and_then(|v| v.as_array()) {
-                items_arr.iter().collect()
-            } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
-                nodes.iter().collect()
-            } else if let Some(obj) = extract_graphql_single_object(&actual_response) {
-                vec![obj]
-            } else if actual_response.is_object() && !is_graphql_wrapper(&actual_response) && !is_search_result_wrapper(&actual_response) && !is_mcp_text_wrapper(&actual_response) {
-                vec![actual_response.as_ref()]
-            } else {
-                Vec::new()
-            };
-
-            // Limit items to prevent WASM memory exhaustion
-            let items_limited = limit_items_with_log(all_items.as_slice(), "list_issues");
-
-            // Get owner/repo from tool_args for contributor verification
-            let (arg_owner, arg_repo, default_repo_full_name) = extract_repo_scope_with_query_fallback(tool_args);
-            let default_repo_private = if !arg_owner.is_empty() && !arg_repo.is_empty() {
-                super::backend::is_repo_private(&arg_owner, &arg_repo).unwrap_or(false)
-            } else {
-                false
-            };
-            let secrecy = if tool_name == "list_issues" || tool_name == "get_issue" || tool_name == "issue_read" {
-                repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo_full_name, ctx)
-            } else {
-                vec![]
-            };
-            let secrecy_shared: SharedLabels = secrecy.into();
-
-            for item in items_limited.iter().copied() {
-                let item_repo = extract_repo_from_item(item);
-                let repo_full_name: Cow<'_, str> = if item_repo.is_empty() {
-                    Cow::Borrowed(default_repo_full_name.as_str())
+                // Handle single issue, array of issues, {issues: [...]}, GraphQL nested, or GraphQL single object
+                let all_items: Vec<&Value> = if actual_response.is_array() {
+                    actual_response
+                        .as_array()
+                        .map(|arr| arr.iter().collect())
+                        .unwrap_or_default()
+                } else if let Some(items_arr) =
+                    actual_response.get("items").and_then(|v| v.as_array())
+                {
+                    items_arr.iter().collect()
+                } else if let Some(items_arr) =
+                    actual_response.get("issues").and_then(|v| v.as_array())
+                {
+                    items_arr.iter().collect()
+                } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
+                    nodes.iter().collect()
+                } else if let Some(obj) = extract_graphql_single_object(&actual_response) {
+                    vec![obj]
+                } else if actual_response.is_object()
+                    && !is_graphql_wrapper(&actual_response)
+                    && !is_search_result_wrapper(&actual_response)
+                    && !is_mcp_text_wrapper(&actual_response)
+                {
+                    vec![actual_response.as_ref()]
                 } else {
-                    Cow::Owned(item_repo)
+                    Vec::new()
                 };
 
-                let repo_private = repo_visibility_private_for_repo_id(&repo_full_name)
-                    .unwrap_or(default_repo_private);
-                let number = extract_resource_number(item, "issue", &repo_full_name);
-                let integrity = issue_integrity(
-                    item,
-                    &repo_full_name,
-                    repo_private,
-                    ctx,
-                );
+                // Limit items to prevent WASM memory exhaustion
+                let items_limited = limit_items_with_log(all_items.as_slice(), "list_issues");
 
-                labeled_items.push(LabeledItem {
-                    data: item.clone(),
-                    labels: ResourceLabels {
-                        description: format!("issue:{}#{}", repo_full_name, number),
-                        secrecy: if tool_name == "search_issues" {
-                            repo_visibility_secrecy_for_repo_id(&repo_full_name, ctx).into()
-                        } else {
-                            secrecy_shared.clone()
+                // Get owner/repo from tool_args for contributor verification
+                let (arg_owner, arg_repo, default_repo_full_name) =
+                    extract_repo_scope_with_query_fallback(tool_args);
+                let default_repo_private = if !arg_owner.is_empty() && !arg_repo.is_empty() {
+                    super::backend::is_repo_private(&arg_owner, &arg_repo).unwrap_or(false)
+                } else {
+                    false
+                };
+                let secrecy = if tool_name == "list_issues"
+                    || tool_name == "get_issue"
+                    || tool_name == "issue_read"
+                {
+                    repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo_full_name, ctx)
+                } else {
+                    vec![]
+                };
+                let secrecy_shared: SharedLabels = secrecy.into();
+
+                for item in items_limited.iter().copied() {
+                    let item_repo = extract_repo_from_item(item);
+                    let repo_full_name: Cow<'_, str> = if item_repo.is_empty() {
+                        Cow::Borrowed(default_repo_full_name.as_str())
+                    } else {
+                        Cow::Owned(item_repo)
+                    };
+
+                    let repo_private = repo_visibility_private_for_repo_id(&repo_full_name)
+                        .unwrap_or(default_repo_private);
+                    let number = extract_resource_number(item, "issue", &repo_full_name);
+                    let integrity = issue_integrity(item, &repo_full_name, repo_private, ctx);
+
+                    labeled_items.push(LabeledItem {
+                        data: item.clone(),
+                        labels: ResourceLabels {
+                            description: format!("issue:{}#{}", repo_full_name, number),
+                            secrecy: if tool_name == "search_issues" {
+                                repo_visibility_secrecy_for_repo_id(&repo_full_name, ctx).into()
+                            } else {
+                                secrecy_shared.clone()
+                            },
+                            integrity: integrity.into(),
                         },
-                        integrity: integrity.into(),
-                    },
-                });
-            }
+                    });
+                }
             } // end else (non-sub-method)
         }
 
