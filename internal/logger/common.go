@@ -218,9 +218,9 @@ import (
 // do not need their own switch-on-level blocks.
 //
 // If a new LogLevel constant is ever added (e.g., LogLevelTrace), update all
-// three locations to keep the public API consistent:
+// required locations to keep the public API consistent:
 //  1. Add a new entry to the logFuncs map in this file.
-//  2. Update newLevelLoggerFuncs/newServerLevelLoggerFuncs in this file.
+//  2. Update newLogFuncSet in this file.
 //  3. In file_logger.go: add an exported wrapper (see LogInfo pattern).
 //  4. In markdown_logger.go: add an exported wrapper (see LogInfoToMarkdown pattern).
 //  5. In server_file_logger.go: add an exported wrapper (see LogInfoToServer pattern).
