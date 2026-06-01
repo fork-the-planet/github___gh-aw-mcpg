@@ -380,6 +380,69 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 	})
 }
 
+// TestKeywordFromLocation tests the keywordFromLocation helper function which
+// extracts the terminal JSON Schema keyword from a slash-separated keyword-location path.
+func TestKeywordFromLocation(t *testing.T) {
+	tests := []struct {
+		name            string
+		keywordLocation string
+		want            string
+	}{
+		{
+			name:            "empty string returns empty",
+			keywordLocation: "",
+			want:            "",
+		},
+		{
+			name:            "whitespace-only returns empty",
+			keywordLocation: "   ",
+			want:            "",
+		},
+		{
+			name:            "trailing slash is stripped before extraction",
+			keywordLocation: "/properties/foo/type/",
+			want:            "type",
+		},
+		{
+			name:            "single keyword with no slash returns full string",
+			keywordLocation: "type",
+			want:            "type",
+		},
+		{
+			name:            "slash-prefixed single keyword returns keyword",
+			keywordLocation: "/type",
+			want:            "type",
+		},
+		{
+			name:            "standard nested path returns terminal keyword",
+			keywordLocation: "/properties/mcpServers/additionalProperties/properties/type/type",
+			want:            "type",
+		},
+		{
+			name:            "minimum keyword at end of path",
+			keywordLocation: "/properties/port/minimum",
+			want:            "minimum",
+		},
+		{
+			name:            "maximum keyword at end of path",
+			keywordLocation: "/properties/port/maximum",
+			want:            "maximum",
+		},
+		{
+			name:            "single slash returns empty string",
+			keywordLocation: "/",
+			want:            "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := keywordFromLocation(tt.keywordLocation)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // TestFormatSchemaError tests the formatSchemaError function which formats
 // JSON Schema validation errors with version information and documentation links.
 func TestFormatSchemaError(t *testing.T) {
