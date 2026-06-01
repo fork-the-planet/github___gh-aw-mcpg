@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,6 +95,31 @@ func TestUnwrapSingleObject_NonMapOriginal(t *testing.T) {
 			assert.Equal(t, filtered, result)
 		})
 	}
+}
+
+// TestUnwrapSingleObject_LegacyWrappedTopLevelArray verifies the compatibility
+// unwrap path for legacy singleton fallback output: [[original-array]] → [original-array].
+func TestUnwrapSingleObject_LegacyWrappedTopLevelArray(t *testing.T) {
+	original := []interface{}{
+		map[string]interface{}{"id": float64(1), "body": "first"},
+		map[string]interface{}{"id": float64(2), "body": "second"},
+	}
+	filtered := []interface{}{original}
+
+	result := unwrapSingleObject(original, filtered)
+
+	assert.Equal(t, original, result, "legacy wrapped array should be restored to top-level array")
+}
+
+// TestUnwrapSingleObject_ArrayNotLegacyWrapped verifies that arbitrary array
+// responses are not unwrapped unless they exactly match the legacy wrapper shape.
+func TestUnwrapSingleObject_ArrayNotLegacyWrapped(t *testing.T) {
+	original := []interface{}{[]interface{}{float64(1), float64(2)}}
+	filtered := []interface{}{[]interface{}{float64(1), float64(2)}}
+
+	result := unwrapSingleObject(original, filtered)
+
+	assert.Equal(t, filtered, result, "non-legacy array responses must be left unchanged")
 }
 
 // TestUnwrapSingleObject_SearchEnvelope verifies that a map containing
@@ -337,7 +363,7 @@ func TestDeepCloneJSON_Map(t *testing.T) {
 		"tags": []interface{}{"go", "test"},
 	}
 
-	cloned := deepCloneJSON(original)
+	cloned := strutil.DeepCloneJSON(original)
 
 	clonedMap, ok := cloned.(map[string]interface{})
 	require.True(t, ok, "cloned value should be a map")
@@ -364,7 +390,7 @@ func TestDeepCloneJSON_NestedMapAndSlice(t *testing.T) {
 		},
 	}
 
-	cloned := deepCloneJSON(original)
+	cloned := strutil.DeepCloneJSON(original)
 
 	// Mutate deeply nested value.
 	original["level1"].(map[string]interface{})["level2"].([]interface{})[0].(map[string]interface{})["x"] = float64(99)

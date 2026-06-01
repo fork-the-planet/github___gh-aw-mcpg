@@ -192,6 +192,9 @@ echo '{"mcpServers": {...}}' | ./awmg --config-stdin
 
 # Custom payload directory and size threshold (payload dir must be absolute)
 ./awmg --config config.toml --payload-dir /tmp/payloads --payload-size-threshold 1048576
+
+# Enable OTLP tracing with a 25% sample rate
+./awmg --config config.toml --otlp-endpoint http://localhost:4318 --otlp-sample-rate 0.25
 ```
 
 See [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) for the full list of environment variable overrides.

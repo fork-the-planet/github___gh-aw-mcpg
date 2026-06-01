@@ -221,6 +221,69 @@ func TestForwardToGitHub_GraphQLPathRouting(t *testing.T) {
 	}
 }
 
+// TestUpstreamHost verifies that upstreamHost correctly extracts the hostname
+// from the configured githubAPIURL across three parsing strategies:
+//
+//  1. Full URL with scheme (e.g. "https://api.github.com")       — fast path
+//  2. Scheme-less hostname (e.g. "api.github.com/api/v3")        — prepend https://
+//  3. Unresolvable value (empty string)                          — strings.Cut fallback
+func TestUpstreamHost(t *testing.T) {
+	tests := []struct {
+		name         string
+		githubAPIURL string
+		want         string
+	}{
+		{
+			name:         "full URL with scheme returns hostname",
+			githubAPIURL: "https://api.github.com",
+			want:         "api.github.com",
+		},
+		{
+			name:         "full URL with port strips port from hostname",
+			githubAPIURL: "https://api.github.com:443",
+			want:         "api.github.com",
+		},
+		{
+			name:         "http URL with port strips port from hostname",
+			githubAPIURL: "http://localhost:8080",
+			want:         "localhost",
+		},
+		{
+			// url.Parse("api.github.com") treats the value as a relative URL (no host),
+			// so the function falls through to the second path that prepends "https://".
+			name:         "scheme-less hostname uses second-parse path",
+			githubAPIURL: "api.github.com",
+			want:         "api.github.com",
+		},
+		{
+			name:         "scheme-less hostname with path strips path",
+			githubAPIURL: "api.github.com/api/v3",
+			want:         "api.github.com",
+		},
+		{
+			// Leading slashes are trimmed before the second url.Parse attempt.
+			name:         "leading slashes are stripped before second parse",
+			githubAPIURL: "///api.github.com",
+			want:         "api.github.com",
+		},
+		{
+			// An empty githubAPIURL yields an empty host from both url.Parse attempts,
+			// so upstreamHost falls back to strings.Cut and returns "".
+			name:         "empty URL returns empty string via fallback",
+			githubAPIURL: "",
+			want:         "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Server{githubAPIURL: tt.githubAPIURL}
+			got := s.upstreamHost()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // TestForwardToGitHub_ForwardsHTTPMethod verifies that the HTTP method is forwarded
 // correctly to the upstream.
 func TestForwardToGitHub_ForwardsHTTPMethod(t *testing.T) {

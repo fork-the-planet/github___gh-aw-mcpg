@@ -198,6 +198,13 @@ func TestParseOTLPHeadersWithDecoder_DecodeValues(t *testing.T) {
 	}
 }
 
+// TestParseOTLPHeadersWithDecoder_NoDecoding verifies that percent-encoded values
+// are preserved as-is when decodeValues is false.
+func TestParseOTLPHeadersWithDecoder_NoDecoding(t *testing.T) {
+	result := parseOTLPHeadersWithDecoder("Authorization=Bearer%20my-token", false)
+	assert.Equal(t, "Bearer%20my-token", result["Authorization"])
+}
+
 // TestResolveHeaders_EnvVar_InvalidPercentEncoding verifies that invalid
 // percent-encoding in OTEL_EXPORTER_OTLP_HEADERS falls back to the raw value.
 func TestResolveHeaders_EnvVar_InvalidPercentEncoding(t *testing.T) {

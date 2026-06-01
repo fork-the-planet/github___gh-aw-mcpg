@@ -17,8 +17,8 @@
 //
 // Example:
 //
-//	logger.LogRPCRequest(logger.RPCDirectionOutbound, "github", "tools/list", payload)
-//	logger.LogRPCResponse(logger.RPCDirectionInbound, "github", responsePayload, nil)
+//	logger.LogRPCRequest(logger.RPCDirectionOutbound, "github", "tools/list", payload, nil, nil)
+//	logger.LogRPCResponse(logger.RPCDirectionInbound, "github", responsePayload, nil, nil, nil)
 package logger
 
 // RPCMessageType represents the direction of an RPC message
@@ -105,23 +105,15 @@ func logRPCMessageToAll(direction RPCMessageDirection, messageType RPCMessageTyp
 	LogRPCMessageJSONLWithTags(direction, messageType, serverID, method, payload, err, agentSecrecy, agentIntegrity)
 }
 
-// LogRPCRequest logs an RPC request message to text, markdown, and JSONL logs
-func LogRPCRequest(direction RPCMessageDirection, serverID, method string, payload []byte) {
-	logRPCMessageToAll(direction, RPCMessageRequest, serverID, method, payload, nil, nil, nil)
-}
-
-// LogRPCResponse logs an RPC response message to text, markdown, and JSONL logs
-func LogRPCResponse(direction RPCMessageDirection, serverID string, payload []byte, err error) {
-	logRPCMessageToAll(direction, RPCMessageResponse, serverID, "", payload, err, nil, nil)
-}
-
-// LogRPCRequestWithAgentSnapshot logs an RPC request and includes agent DIFC tag snapshots in JSONL output.
-func LogRPCRequestWithAgentSnapshot(direction RPCMessageDirection, serverID, method string, payload []byte, agentSecrecy, agentIntegrity []string) {
+// LogRPCRequest logs an RPC request message to text, markdown, and JSONL logs.
+// agentSecrecy and agentIntegrity are optional and only affect JSONL output.
+func LogRPCRequest(direction RPCMessageDirection, serverID, method string, payload []byte, agentSecrecy, agentIntegrity []string) {
 	logRPCMessageToAll(direction, RPCMessageRequest, serverID, method, payload, nil, agentSecrecy, agentIntegrity)
 }
 
-// LogRPCResponseWithAgentSnapshot logs an RPC response and includes agent DIFC tag snapshots in JSONL output.
-func LogRPCResponseWithAgentSnapshot(direction RPCMessageDirection, serverID string, payload []byte, err error, agentSecrecy, agentIntegrity []string) {
+// LogRPCResponse logs an RPC response message to text, markdown, and JSONL logs.
+// agentSecrecy and agentIntegrity are optional and only affect JSONL output.
+func LogRPCResponse(direction RPCMessageDirection, serverID string, payload []byte, err error, agentSecrecy, agentIntegrity []string) {
 	logRPCMessageToAll(direction, RPCMessageResponse, serverID, "", payload, err, agentSecrecy, agentIntegrity)
 }
 

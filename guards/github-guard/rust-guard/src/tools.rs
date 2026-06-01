@@ -85,6 +85,7 @@ pub const READ_WRITE_OPERATIONS: &[&str] = &[
     "update_pull_request_branch",
     "pull_request_review_write",
     "issue_write",
+    "issue_write_ff_remote_mcp_issue_fields", // feature-flag variant of issue_write
     "sub_issue_write",
     "update_gist",
     // Pre-emptive entries for anticipated future MCP tools (no equivalent tool today)
@@ -399,8 +400,28 @@ mod tests {
     }
 
     #[test]
-    fn test_sub_issue_management_tools_are_read_write_operations() {
-        for op in &["add_sub_issue", "remove_sub_issue", "reprioritize_sub_issue"] {
+    fn test_issue_write_ff_remote_mcp_issue_fields_is_read_write_operation() {
+        let op = "issue_write_ff_remote_mcp_issue_fields";
+        assert!(
+            is_read_write_operation(op),
+            "{} must be classified as a read-write operation",
+            op
+        );
+        assert!(
+            !is_write_operation(op),
+            "{} should not be in WRITE_OPERATIONS (it is in READ_WRITE_OPERATIONS)",
+            op
+        );
+    }
+
+    #[test]
+    fn test_sub_issue_tools_are_read_write_operations() {
+        for op in &[
+            "sub_issue_write",
+            "add_sub_issue",
+            "remove_sub_issue",
+            "reprioritize_sub_issue",
+        ] {
             assert!(
                 is_read_write_operation(op),
                 "{} must be classified as a read-write operation",

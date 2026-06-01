@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -616,6 +617,29 @@ func TestFetchAndFixSchema_LargeSchema(t *testing.T) {
 	properties, ok := fixed["properties"].(map[string]interface{})
 	require.True(t, ok)
 	assert.Len(t, properties, 100, "Should preserve all 100 properties")
+}
+
+func TestFetchAndFixSchema_TooLargeSchema(t *testing.T) {
+	chunk := strings.Repeat("a", 1024)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		remaining := maxSchemaFetchBytes + 1
+		for remaining > 0 {
+			toWrite := len(chunk)
+			if remaining < toWrite {
+				toWrite = remaining
+			}
+			_, _ = io.WriteString(w, chunk[:toWrite])
+			remaining -= toWrite
+		}
+	}))
+	defer server.Close()
+
+	result, err := fetchAndFixSchema(server.URL)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorContains(t, err, "schema response too large")
 }
 
 // TestFetchAndFixSchema_RetrySucceedsAfterTransientError verifies that a transient

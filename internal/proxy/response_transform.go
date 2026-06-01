@@ -1,8 +1,11 @@
 package proxy
 
 import (
+	"reflect"
+
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logTransform = logger.New("proxy:response_transform")
@@ -48,6 +51,24 @@ func rewrapSearchResponse(originalData interface{}, filteredItems interface{}) i
 // This unwraps it back to obj when the original response was a single object
 // (e.g., get_file_contents, get_commit, issue_read).
 func unwrapSingleObject(originalData interface{}, filteredData interface{}) interface{} {
+	// Guard compatibility: older singleton fallback could wrap a top-level array
+	// as a single collection item, producing [[...]]. If the wrapped value is
+	// exactly the original array payload, restore the original top-level shape.
+	if originalArray, isArray := originalData.([]interface{}); isArray {
+		if arr, ok := filteredData.([]interface{}); ok && len(arr) == 1 {
+			if wrapped, ok := arr[0].([]interface{}); ok &&
+				len(wrapped) == len(originalArray) {
+				if len(wrapped) == 0 {
+					return wrapped
+				}
+				if reflect.DeepEqual(wrapped, originalArray) {
+					return wrapped
+				}
+			}
+		}
+		return filteredData
+	}
+
 	original, isMap := originalData.(map[string]interface{})
 	if !isMap {
 		return filteredData
@@ -90,7 +111,7 @@ func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCol
 	logTransform.Printf("rebuildGraphQLResponse: rebuilding with %d accessible items", filtered.GetAccessibleCount())
 
 	// Deep-clone the original data structure
-	cloned := deepCloneJSON(original)
+	cloned := strutil.DeepCloneJSON(original)
 
 	// Build accessible items set
 	accessibleItems := make([]interface{}, 0, len(filtered.Accessible))
@@ -136,24 +157,4 @@ func replaceNodesArray(v interface{}, items []interface{}) bool {
 		}
 	}
 	return false
-}
-
-// deepCloneJSON creates a deep copy of a JSON-compatible value.
-func deepCloneJSON(v interface{}) interface{} {
-	switch val := v.(type) {
-	case map[string]interface{}:
-		clone := make(map[string]interface{}, len(val))
-		for k, v := range val {
-			clone[k] = deepCloneJSON(v)
-		}
-		return clone
-	case []interface{}:
-		clone := make([]interface{}, len(val))
-		for i, v := range val {
-			clone[i] = deepCloneJSON(v)
-		}
-		return clone
-	default:
-		return v
-	}
 }

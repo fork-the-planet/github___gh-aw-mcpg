@@ -4,7 +4,91 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestEvaluateCoarseAccess(t *testing.T) {
+	t.Parallel()
+
+	evaluator := NewEvaluator() // strict mode
+
+	tests := []struct {
+		name           string
+		agentSecrecy   *SecrecyLabel
+		agentIntegrity *IntegrityLabel
+		resource       *LabeledResource
+		operation      OperationType
+		wantOutcome    CoarseCheckOutcome
+	}{
+		{
+			name: "allowed: agent has clearance for read",
+			agentSecrecy: func() *SecrecyLabel {
+				l := NewSecrecyLabel()
+				l.Label.Add("secret")
+				return l
+			}(),
+			agentIntegrity: NewIntegrityLabel(),
+			resource: func() *LabeledResource {
+				r := NewLabeledResource("test-resource")
+				r.Secrecy.Label.Add("secret")
+				return r
+			}(),
+			operation:   OperationRead,
+			wantOutcome: CoarseAllowed,
+		},
+		{
+			name:           "bypass for read: agent lacks clearance but operation is read",
+			agentSecrecy:   NewSecrecyLabel(),
+			agentIntegrity: NewIntegrityLabel(),
+			resource: func() *LabeledResource {
+				r := NewLabeledResource("test-resource")
+				r.Secrecy.Label.Add("secret")
+				return r
+			}(),
+			operation:   OperationRead,
+			wantOutcome: CoarseBypassForRead,
+		},
+		{
+			name: "denied: agent carries secret data that cannot flow to public resource (write)",
+			agentSecrecy: func() *SecrecyLabel {
+				l := NewSecrecyLabel()
+				l.Label.Add("secret")
+				return l
+			}(),
+			agentIntegrity: NewIntegrityLabel(),
+			resource:       NewLabeledResource("public-resource"),
+			operation:      OperationWrite,
+			wantOutcome:    CoarseDenied,
+		},
+		{
+			name:           "denied: agent lacks clearance and operation is read-write",
+			agentSecrecy:   NewSecrecyLabel(),
+			agentIntegrity: NewIntegrityLabel(),
+			resource: func() *LabeledResource {
+				r := NewLabeledResource("test-resource")
+				r.Secrecy.Label.Add("secret")
+				return r
+			}(),
+			operation:   OperationReadWrite,
+			wantOutcome: CoarseDenied,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			outcome, result := EvaluateCoarseAccess(evaluator, tt.agentSecrecy, tt.agentIntegrity, tt.resource, tt.operation)
+			assert.Equal(t, tt.wantOutcome, outcome)
+			require.NotNil(t, result)
+			if outcome == CoarseAllowed {
+				assert.True(t, result.IsAllowed())
+			} else {
+				assert.False(t, result.IsAllowed())
+			}
+		})
+	}
+}
 
 func TestShouldBypassCoarseDeny(t *testing.T) {
 	t.Parallel()

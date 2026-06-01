@@ -713,6 +713,37 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_list_issue_fields_matches_list_issue_types() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github"
+        });
+
+        let (_types_secrecy, types_integrity, _types_desc) = apply_tool_labels(
+            "list_issue_types",
+            &tool_args,
+            "github",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        let (_fields_secrecy, fields_integrity, _fields_desc) = apply_tool_labels(
+            "list_issue_fields",
+            &tool_args,
+            "github",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(fields_integrity, types_integrity);
+        assert_eq!(fields_integrity, project_github_label(&ctx));
+    }
+
+    #[test]
     fn test_apply_tool_labels_list_pull_requests_repo_scoped_integrity() {
         let ctx = default_ctx();
         let tool_args = json!({
@@ -3478,6 +3509,11 @@ mod tests {
         // response_items should label the PR from GraphQL format
         let items = label_response_items("list_pull_requests", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1, "Should find 1 PR in GraphQL response");
+        assert_eq!(
+            items[0].labels.description,
+            "pr:testorg/testrepo#1",
+            "PR without embedded repo should fall back to tool_args repo scope"
+        );
         assert!(
             items[0].labels.integrity.iter().any(|t| t == "approved" || t.starts_with("approved:")),
             "Merged MEMBER PR should get approved integrity, got: {:?}",
@@ -3519,6 +3555,11 @@ mod tests {
 
         let items = label_response_items("list_issues", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1, "Should find 1 issue in GraphQL response");
+        assert_eq!(
+            items[0].labels.description,
+            "issue:testorg/testrepo#10",
+            "Issue without embedded repo should fall back to tool_args repo scope"
+        );
 
         let paths = label_response_paths("list_issues", &tool_args, &response, &ctx);
         assert!(paths.is_some(), "Should generate path labels for GraphQL issue response");

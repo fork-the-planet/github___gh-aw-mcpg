@@ -227,3 +227,86 @@ func TestRandomHexFromReader(t *testing.T) {
 
 // Ensure limitedReader satisfies io.Reader (compile-time check).
 var _ io.Reader = (*limitedReader)(nil)
+
+// TestRandomBytesFromReader covers the internal randomBytesFromReader helper which is the
+// testable core of RandomBytes. Tests target all branches including the reader error path.
+func TestRandomBytesFromReader(t *testing.T) {
+	t.Run("negative n returns error without reading", func(t *testing.T) {
+		result, err := randomBytesFromReader(-1, errReader{err: errors.New("should not be called")})
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.ErrorContains(t, err, "-1")
+	})
+
+	t.Run("reader error is propagated", func(t *testing.T) {
+		readErr := errors.New("simulated read failure")
+		result, err := randomBytesFromReader(16, errReader{err: readErr})
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.ErrorIs(t, err, readErr, "original error should be wrapped")
+		assert.ErrorContains(t, err, "16")
+	})
+
+	t.Run("zero bytes returns empty slice", func(t *testing.T) {
+		result, err := randomBytesFromReader(0, bytes.NewReader([]byte{0xab, 0xcd}))
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("deterministic reader produces expected bytes", func(t *testing.T) {
+		input := []byte{0xde, 0xad, 0xbe, 0xef}
+		result, err := randomBytesFromReader(4, bytes.NewReader(input))
+		require.NoError(t, err)
+		assert.Equal(t, input, result)
+	})
+
+	t.Run("correct output length for n bytes", func(t *testing.T) {
+		for _, n := range []int{1, 8, 16, 32} {
+			result, err := randomBytesFromReader(n, bytes.NewReader(make([]byte, n)))
+			require.NoError(t, err)
+			assert.Len(t, result, n, "expected %d bytes", n)
+		}
+	})
+}
+
+// TestRandomBytes verifies that RandomBytes returns cryptographically random bytes
+// of the correct length.
+func TestRandomBytes(t *testing.T) {
+	tests := []struct {
+		name    string
+		n       int
+		wantLen int
+		wantErr bool
+	}{
+		{name: "zero bytes returns empty slice", n: 0, wantLen: 0},
+		{name: "1 byte", n: 1, wantLen: 1},
+		{name: "8 bytes (span ID size)", n: 8, wantLen: 8},
+		{name: "16 bytes", n: 16, wantLen: 16},
+		{name: "negative n returns error", n: -1, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := RandomBytes(tt.n)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, result, "result should be nil on error")
+				return
+			}
+			require.NoError(t, err)
+			assert.Len(t, result, tt.wantLen)
+		})
+	}
+}
+
+// TestRandomBytes_Uniqueness verifies RandomBytes produces distinct values across calls.
+func TestRandomBytes_Uniqueness(t *testing.T) {
+	seen := make(map[string]bool)
+	for i := 0; i < 100; i++ {
+		b, err := RandomBytes(16)
+		require.NoError(t, err)
+		key := hex.EncodeToString(b)
+		assert.False(t, seen[key], "RandomBytes should produce unique values")
+		seen[key] = true
+	}
+}

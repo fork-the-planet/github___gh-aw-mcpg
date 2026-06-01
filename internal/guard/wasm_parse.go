@@ -357,6 +357,22 @@ func (g *WasmGuard) wasmDealloc(ctx context.Context, deallocFn api.Function, ptr
 	}
 }
 
+// parseDIFCTagsFromAny converts a raw []any JSON tag list to []difc.Tag.
+// Returns nil if raw is nil or not a []any.
+func parseDIFCTagsFromAny(raw any) []difc.Tag {
+	items, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	tags := make([]difc.Tag, 0, len(items))
+	for _, item := range items {
+		if tagStr, ok := item.(string); ok {
+			tags = append(tags, difc.Tag(tagStr))
+		}
+	}
+	return tags
+}
+
 // parseResourceResponse converts the guard label_resource response to a LabeledResource.
 func parseResourceResponse(response map[string]any) (*difc.LabeledResource, difc.OperationType, error) {
 	resourceData, ok := response["resource"].(map[string]any)
@@ -371,26 +387,14 @@ func parseResourceResponse(response map[string]any) (*difc.LabeledResource, difc
 	}
 
 	// Parse secrecy tags
-	if secrecy, ok := resourceData["secrecy"].([]any); ok {
-		tags := make([]difc.Tag, 0, len(secrecy))
-		for _, t := range secrecy {
-			if tagStr, ok := t.(string); ok {
-				tags = append(tags, difc.Tag(tagStr))
-			}
-		}
+	if tags := parseDIFCTagsFromAny(resourceData["secrecy"]); tags != nil {
 		resource.Secrecy = *difc.NewSecrecyLabelWithTags(tags)
 	} else {
 		resource.Secrecy = *difc.NewSecrecyLabel()
 	}
 
 	// Parse integrity tags
-	if integrity, ok := resourceData["integrity"].([]any); ok {
-		tags := make([]difc.Tag, 0, len(integrity))
-		for _, t := range integrity {
-			if tagStr, ok := t.(string); ok {
-				tags = append(tags, difc.Tag(tagStr))
-			}
-		}
+	if tags := parseDIFCTagsFromAny(resourceData["integrity"]); tags != nil {
 		resource.Integrity = *difc.NewIntegrityLabelWithTags(tags)
 	} else {
 		resource.Integrity = *difc.NewIntegrityLabel()
@@ -439,26 +443,14 @@ func parseCollectionLabeledData(items []any) (*difc.CollectionLabeledData, error
 			}
 
 			// Parse secrecy tags
-			if secrecy, ok := labelsData["secrecy"].([]any); ok {
-				tags := make([]difc.Tag, 0, len(secrecy))
-				for _, t := range secrecy {
-					if tagStr, ok := t.(string); ok {
-						tags = append(tags, difc.Tag(tagStr))
-					}
-				}
+			if tags := parseDIFCTagsFromAny(labelsData["secrecy"]); tags != nil {
 				labels.Secrecy = *difc.NewSecrecyLabelWithTags(tags)
 			} else {
 				labels.Secrecy = *difc.NewSecrecyLabel()
 			}
 
 			// Parse integrity tags
-			if integrity, ok := labelsData["integrity"].([]any); ok {
-				tags := make([]difc.Tag, 0, len(integrity))
-				for _, t := range integrity {
-					if tagStr, ok := t.(string); ok {
-						tags = append(tags, difc.Tag(tagStr))
-					}
-				}
+			if tags := parseDIFCTagsFromAny(labelsData["integrity"]); tags != nil {
 				labels.Integrity = *difc.NewIntegrityLabelWithTags(tags)
 			} else {
 				labels.Integrity = *difc.NewIntegrityLabel()

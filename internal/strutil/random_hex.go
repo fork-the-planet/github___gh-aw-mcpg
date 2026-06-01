@@ -10,15 +10,30 @@ import (
 	"time"
 )
 
-// randomHexFromReader returns a hex-encoded string of n random bytes read from r.
-// It is the testable core of RandomHex.
-func randomHexFromReader(n int, r io.Reader) (string, error) {
+// randomBytesFromReader returns n random bytes read from r.
+// It is the testable core of RandomBytes.
+func randomBytesFromReader(n int, r io.Reader) ([]byte, error) {
 	if n < 0 {
-		return "", fmt.Errorf("failed to generate random bytes: negative size %d", n)
+		return nil, fmt.Errorf("failed to generate random bytes: negative size %d", n)
 	}
 	b := make([]byte, n)
 	if _, err := io.ReadFull(r, b); err != nil {
-		return "", fmt.Errorf("failed to generate %d random bytes: %w", n, err)
+		return nil, fmt.Errorf("failed to generate %d random bytes: %w", n, err)
+	}
+	return b, nil
+}
+
+// RandomBytes returns n cryptographically random bytes.
+func RandomBytes(n int) ([]byte, error) {
+	return randomBytesFromReader(n, rand.Reader)
+}
+
+// randomHexFromReader returns a hex-encoded string of n random bytes read from r.
+// It is the testable core of RandomHex.
+func randomHexFromReader(n int, r io.Reader) (string, error) {
+	b, err := randomBytesFromReader(n, r)
+	if err != nil {
+		return "", err
 	}
 	return hex.EncodeToString(b), nil
 }

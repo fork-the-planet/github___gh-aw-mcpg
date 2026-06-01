@@ -2,6 +2,7 @@ package difc
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
@@ -87,6 +88,20 @@ func ParseEnforcementMode(s string) (EnforcementMode, error) {
 	default:
 		return EnforcementStrict, fmt.Errorf("unknown enforcement mode: %s (valid modes: %s, %s, %s)", s, ModeStrict, ModeFilter, ModePropagate)
 	}
+}
+
+// DefaultEnforcementMode returns the default guards mode, checking
+// MCP_GATEWAY_GUARDS_MODE first and falling back to strict.
+func DefaultEnforcementMode() string {
+	if envMode := os.Getenv("MCP_GATEWAY_GUARDS_MODE"); envMode != "" {
+		mode := strings.ToLower(envMode)
+		if _, err := ParseEnforcementMode(mode); err == nil {
+			logEvaluator.Printf("Guards mode set from MCP_GATEWAY_GUARDS_MODE: %s", mode)
+			return mode
+		}
+		logEvaluator.Printf("MCP_GATEWAY_GUARDS_MODE value %q is invalid, falling back to default: %s", envMode, ModeStrict)
+	}
+	return ModeStrict
 }
 
 // DIFCComponents holds the set of DIFC objects needed by a server or proxy.

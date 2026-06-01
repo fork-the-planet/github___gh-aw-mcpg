@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logHelpers = logger.New("server:helpers")
@@ -95,7 +95,7 @@ func peekRequestBody(r *http.Request) ([]byte, error) {
 // It reads the body, logs it, and restores it so it can be read again.
 // The backendID parameter is optional and can be empty for unified mode.
 func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
-	logHelpers.Printf("Checking request body: method=%s, hasBody=%v, sessionID=%s", r.Method, r.Body != nil, auth.TruncateSessionID(sessionID))
+	logHelpers.Printf("Checking request body: method=%s, hasBody=%v, sessionID=%s", r.Method, r.Body != nil, strutil.TruncateSessionID(sessionID))
 
 	bodyBytes, err := peekRequestBody(r)
 	if err != nil {
@@ -107,14 +107,14 @@ func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
 		return
 	}
 
-	logHelpers.Printf("Request body read: size=%d bytes, sessionID=%s, backendID=%s", len(bodyBytes), auth.TruncateSessionID(sessionID), backendID)
+	logHelpers.Printf("Request body read: size=%d bytes, sessionID=%s, backendID=%s", len(bodyBytes), strutil.TruncateSessionID(sessionID), backendID)
 
 	sanitizedBody := sanitize.SanitizeString(string(bodyBytes))
 
 	if backendID != "" {
 		logger.LogDebug("client", "MCP client request body, backend=%s, body=%s", backendID, sanitizedBody)
 	} else {
-		logger.LogDebug("client", "MCP request body, session=%s, body=%s", auth.TruncateSessionID(sessionID), sanitizedBody)
+		logger.LogDebug("client", "MCP request body, session=%s, body=%s", strutil.TruncateSessionID(sessionID), sanitizedBody)
 	}
 	logHelpers.Print("Request body logged for debugging")
 }
@@ -125,5 +125,5 @@ func truncateCacheKeyForLog(key string) string {
 		return key
 	}
 
-	return fmt.Sprintf("%s/%s", backendID, auth.TruncateSessionID(sessionID))
+	return fmt.Sprintf("%s/%s", backendID, strutil.TruncateSessionID(sessionID))
 }

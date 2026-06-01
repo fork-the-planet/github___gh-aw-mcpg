@@ -26,6 +26,7 @@ var validMinIntegrityValues = map[string]struct{}{
 
 // GuardPolicy represents the policy payload passed to guard label_agent.
 type GuardPolicy struct {
+	// Hyphenated keys intentionally match the policy schema field names.
 	AllowOnly *AllowOnlyPolicy `toml:"allow-only" json:"allow-only,omitempty"`
 	WriteSink *WriteSinkPolicy `toml:"write-sink" json:"write-sink,omitempty"`
 }
@@ -38,33 +39,35 @@ type WriteSinkPolicy struct {
 
 // AllowOnlyPolicy configures scope and minimum required integrity.
 type AllowOnlyPolicy struct {
-	Repos                interface{} `toml:"repos" json:"repos"`
-	MinIntegrity         string      `toml:"min-integrity" json:"min-integrity"`
-	BlockedUsers         []string    `toml:"blocked-users" json:"blocked-users,omitempty"`
-	ApprovalLabels       []string    `toml:"approval-labels" json:"approval-labels,omitempty"`
-	TrustedUsers         []string    `toml:"trusted-users" json:"trusted-users,omitempty"`
-	EndorsementReactions []string    `toml:"endorsement-reactions" json:"endorsement-reactions,omitempty"`
-	DisapprovalReactions []string    `toml:"disapproval-reactions" json:"disapproval-reactions,omitempty"`
-	DisapprovalIntegrity string      `toml:"disapproval-integrity" json:"disapproval-integrity,omitempty"`
-	EndorserMinIntegrity string      `toml:"endorser-min-integrity" json:"endorser-min-integrity,omitempty"`
-	PromotionLabel       string      `toml:"promotion-label" json:"promotion-label,omitempty"`
-	DemotionLabel        string      `toml:"demotion-label" json:"demotion-label,omitempty"`
+	Repos                interface{}    `toml:"repos" json:"repos"`
+	MinIntegrity         string         `toml:"min-integrity" json:"min-integrity"`
+	ToolCallLimits       map[string]int `toml:"tool-call-limits" json:"tool-call-limits,omitempty"`
+	BlockedUsers         []string       `toml:"blocked-users" json:"blocked-users,omitempty"`
+	ApprovalLabels       []string       `toml:"approval-labels" json:"approval-labels,omitempty"`
+	TrustedUsers         []string       `toml:"trusted-users" json:"trusted-users,omitempty"`
+	EndorsementReactions []string       `toml:"endorsement-reactions" json:"endorsement-reactions,omitempty"`
+	DisapprovalReactions []string       `toml:"disapproval-reactions" json:"disapproval-reactions,omitempty"`
+	DisapprovalIntegrity string         `toml:"disapproval-integrity" json:"disapproval-integrity,omitempty"`
+	EndorserMinIntegrity string         `toml:"endorser-min-integrity" json:"endorser-min-integrity,omitempty"`
+	PromotionLabel       string         `toml:"promotion-label" json:"promotion-label,omitempty"`
+	DemotionLabel        string         `toml:"demotion-label" json:"demotion-label,omitempty"`
 }
 
 // NormalizedGuardPolicy is a canonical policy representation for caching and observability.
 type NormalizedGuardPolicy struct {
-	ScopeKind            string   `json:"scope_kind"`
-	ScopeValues          []string `json:"scope_values,omitempty"`
-	MinIntegrity         string   `json:"min-integrity"`
-	BlockedUsers         []string `json:"blocked-users,omitempty"`
-	ApprovalLabels       []string `json:"approval-labels,omitempty"`
-	TrustedUsers         []string `json:"trusted-users,omitempty"`
-	EndorsementReactions []string `json:"endorsement-reactions,omitempty"`
-	DisapprovalReactions []string `json:"disapproval-reactions,omitempty"`
-	DisapprovalIntegrity string   `json:"disapproval-integrity,omitempty"`
-	EndorserMinIntegrity string   `json:"endorser-min-integrity,omitempty"`
-	PromotionLabel       string   `json:"promotion-label,omitempty"`
-	DemotionLabel        string   `json:"demotion-label,omitempty"`
+	ScopeKind            string         `json:"scope_kind"`
+	ScopeValues          []string       `json:"scope_values,omitempty"`
+	MinIntegrity         string         `json:"min-integrity"`
+	ToolCallLimits       map[string]int `json:"tool-call-limits,omitempty"`
+	BlockedUsers         []string       `json:"blocked-users,omitempty"`
+	ApprovalLabels       []string       `json:"approval-labels,omitempty"`
+	TrustedUsers         []string       `json:"trusted-users,omitempty"`
+	EndorsementReactions []string       `json:"endorsement-reactions,omitempty"`
+	DisapprovalReactions []string       `json:"disapproval-reactions,omitempty"`
+	DisapprovalIntegrity string         `json:"disapproval-integrity,omitempty"`
+	EndorserMinIntegrity string         `json:"endorser-min-integrity,omitempty"`
+	PromotionLabel       string         `json:"promotion-label,omitempty"`
+	DemotionLabel        string         `json:"demotion-label,omitempty"`
 }
 
 func (p *GuardPolicy) UnmarshalJSON(data []byte) error {
@@ -144,6 +147,10 @@ func (p *AllowOnlyPolicy) UnmarshalJSON(data []byte) error {
 			if err := json.Unmarshal(value, &p.MinIntegrity); err != nil {
 				return fmt.Errorf("invalid allow-only.min-integrity: %w", err)
 			}
+		case "tool-call-limits":
+			if err := json.Unmarshal(value, &p.ToolCallLimits); err != nil {
+				return fmt.Errorf("invalid allow-only.tool-call-limits: %w", err)
+			}
 		case "blocked-users":
 			if err := json.Unmarshal(value, &p.BlockedUsers); err != nil {
 				return fmt.Errorf("invalid allow-only.blocked-users: %w", err)
@@ -198,17 +205,18 @@ func (p *AllowOnlyPolicy) UnmarshalJSON(data []byte) error {
 
 func (p AllowOnlyPolicy) MarshalJSON() ([]byte, error) {
 	type serializedAllowOnly struct {
-		Repos                interface{} `json:"repos"`
-		MinIntegrity         string      `json:"min-integrity"`
-		BlockedUsers         []string    `json:"blocked-users,omitempty"`
-		ApprovalLabels       []string    `json:"approval-labels,omitempty"`
-		TrustedUsers         []string    `json:"trusted-users,omitempty"`
-		EndorsementReactions []string    `json:"endorsement-reactions,omitempty"`
-		DisapprovalReactions []string    `json:"disapproval-reactions,omitempty"`
-		DisapprovalIntegrity string      `json:"disapproval-integrity,omitempty"`
-		EndorserMinIntegrity string      `json:"endorser-min-integrity,omitempty"`
-		PromotionLabel       string      `json:"promotion-label,omitempty"`
-		DemotionLabel        string      `json:"demotion-label,omitempty"`
+		Repos                interface{}    `json:"repos"`
+		MinIntegrity         string         `json:"min-integrity"`
+		ToolCallLimits       map[string]int `json:"tool-call-limits,omitempty"`
+		BlockedUsers         []string       `json:"blocked-users,omitempty"`
+		ApprovalLabels       []string       `json:"approval-labels,omitempty"`
+		TrustedUsers         []string       `json:"trusted-users,omitempty"`
+		EndorsementReactions []string       `json:"endorsement-reactions,omitempty"`
+		DisapprovalReactions []string       `json:"disapproval-reactions,omitempty"`
+		DisapprovalIntegrity string         `json:"disapproval-integrity,omitempty"`
+		EndorserMinIntegrity string         `json:"endorser-min-integrity,omitempty"`
+		PromotionLabel       string         `json:"promotion-label,omitempty"`
+		DemotionLabel        string         `json:"demotion-label,omitempty"`
 	}
 
 	return json.Marshal(serializedAllowOnly(p))

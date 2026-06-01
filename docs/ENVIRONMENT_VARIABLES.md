@@ -22,7 +22,7 @@ When running locally (`run.sh`), these variables are optional (warnings shown if
 | `MCP_GATEWAY_DOMAIN` | Gateway domain | `localhost` |
 | `MCP_GATEWAY_API_KEY` | Informational only — not read directly by the binary; must be referenced in your config via `"${MCP_GATEWAY_API_KEY}"` to enable authentication | (disabled) |
 | `MCP_GATEWAY_LOG_DIR` | Log file directory (sets default for `--log-dir` flag) | `/tmp/gh-aw/mcp-logs` |
-| `MCP_GATEWAY_WASM_CACHE_DIR` | Disk-backed wazero compilation cache directory (sets default for `--wasm-cache-dir`; defaults to `<log-dir>/wazero-cache`) | `/tmp/gh-aw/mcp-logs/wazero-cache` |
+| `MCP_GATEWAY_WASM_CACHE_DIR` | Disk-backed wazero compilation cache directory (sets default for `--wasm-cache-dir`; defaults to `<parent-of-log-dir>/wazero-cache`, a sibling of the log directory) | `/tmp/gh-aw/wazero-cache` |
 | `MCP_GATEWAY_PAYLOAD_DIR` | Large payload storage directory (sets default for `--payload-dir` flag). Must be an absolute path. | `/tmp/jq-payloads` |
 | `MCP_GATEWAY_PAYLOAD_PATH_PREFIX` | Path prefix for remapping payloadPath returned to clients (sets default for `--payload-path-prefix` flag) | (empty - use actual filesystem path) |
 | `MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD` | Size threshold in bytes for payload storage (sets default for `--payload-size-threshold` flag) | `524288` |
@@ -49,15 +49,25 @@ These variables are intended for local testing and development only:
 |----------|-------------|---------|
 | `AWMG_BINARY_PATH` | Override binary path used by integration tests (for example, to test a prebuilt `awmg` binary). | (disabled) |
 | `AWMG_WASM_GUARD_PATH` | Override WASM guard path used by proxy integration tests when default build output paths are unavailable. | (disabled) |
+| `TAVILY_API_KEY` | Tavily API key for integration tests in `test/integration/`. When set, tests that call the real Tavily API are enabled; without it, those tests are skipped. | (disabled) |
 
 ## Containerized Deployment Variables
 
-When using `run_containerized.sh`, these additional variables are available:
+These variables are script-specific controls for bind address and routing mode:
+
+### `run.sh` (non-containerized)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MCP_GATEWAY_HOST` | Bind address for the gateway | `0.0.0.0` |
-| `MCP_GATEWAY_MODE` | Routing mode flag passed to `awmg` (e.g., `--routed`, `--unified`) | `--routed` |
+| `HOST` | Bind address for the gateway in `run.sh`. | `0.0.0.0` |
+| `MODE` | Routing mode flag passed to `awmg` by `run.sh` (e.g., `--routed`, `--unified`). | `--routed` |
+
+### `run_containerized.sh` (containerized)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MCP_GATEWAY_HOST` | Bind address for the gateway in `run_containerized.sh`. | `0.0.0.0` |
+| `MCP_GATEWAY_MODE` | Routing mode flag passed to `awmg` by `run_containerized.sh` (e.g., `--routed`, `--unified`). | `--routed` |
 
 ## Docker Configuration
 
@@ -69,7 +79,7 @@ When using `run_containerized.sh`, these additional variables are available:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DOCKER_API_VERSION` | Docker API version used by helper scripts such as `run.sh`, integration test scripts, and `run_containerized.sh`. The Docker Go client in `awmg` auto-negotiates API version, but an exported `DOCKER_API_VERSION` can still affect `docker` CLI subprocesses launched with the inherited environment. | Set by querying Docker daemon's current API version; falls back to `1.44` if detection fails |
+| `DOCKER_API_VERSION` | Docker API version used by helper scripts such as `run.sh`, integration test scripts, and `run_containerized.sh`. Not read directly by `awmg`; it only affects `docker` CLI subprocesses launched with the inherited environment. | Set by querying Docker daemon's current API version; falls back to `1.44` if detection fails |
 
 ## GitHub Authentication
 

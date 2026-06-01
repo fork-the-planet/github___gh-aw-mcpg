@@ -25,35 +25,34 @@ func (c *Connection) logReconnectResult(err error) {
 	}
 }
 
-// logOutboundRPCRequest logs an outbound RPC request, optionally attaching agent DIFC tag snapshots.
-// When shouldAttachTags is true, snapshot must be non-nil.
-func logOutboundRPCRequest(serverID string, method string, payload []byte, shouldAttachTags bool, snapshot *AgentTagsSnapshot) {
-	if shouldAttachTags {
-		logger.LogRPCRequestWithAgentSnapshot(logger.RPCDirectionOutbound, serverID, method, payload, snapshot.Secrecy, snapshot.Integrity)
-	} else {
-		logger.LogRPCRequest(logger.RPCDirectionOutbound, serverID, method, payload)
+func snapshotTags(snapshot *AgentTagsSnapshot) ([]string, []string) {
+	if snapshot == nil {
+		return nil, nil
 	}
+	return snapshot.Secrecy, snapshot.Integrity
+}
+
+// logOutboundRPCRequest logs an outbound RPC request, optionally attaching agent DIFC tag snapshots.
+func logOutboundRPCRequest(serverID string, method string, payload []byte, snapshot *AgentTagsSnapshot) {
+	agentSecrecy, agentIntegrity := snapshotTags(snapshot)
+	logger.LogRPCRequest(logger.RPCDirectionOutbound, serverID, method, payload, agentSecrecy, agentIntegrity)
 }
 
 // logInboundRPCResponse logs an inbound RPC response, optionally attaching agent DIFC tag snapshots.
-// When shouldAttachTags is true, snapshot must be non-nil.
-func logInboundRPCResponse(serverID string, payload []byte, err error, shouldAttachTags bool, snapshot *AgentTagsSnapshot) {
-	if shouldAttachTags {
-		logger.LogRPCResponseWithAgentSnapshot(logger.RPCDirectionInbound, serverID, payload, err, snapshot.Secrecy, snapshot.Integrity)
-	} else {
-		logger.LogRPCResponse(logger.RPCDirectionInbound, serverID, payload, err)
-	}
+func logInboundRPCResponse(serverID string, payload []byte, err error, snapshot *AgentTagsSnapshot) {
+	agentSecrecy, agentIntegrity := snapshotTags(snapshot)
+	logger.LogRPCResponse(logger.RPCDirectionInbound, serverID, payload, err, agentSecrecy, agentIntegrity)
 }
 
 // logInboundRPCResponseFromResult attempts to marshal a response payload for logging,
 // silently ignores marshal failures, logs the inbound response, and returns the
 // original result and error unchanged.
-func logInboundRPCResponseFromResult(serverID string, result *Response, err error, shouldAttachTags bool, snapshot *AgentTagsSnapshot) (*Response, error) {
+func logInboundRPCResponseFromResult(serverID string, result *Response, err error, snapshot *AgentTagsSnapshot) (*Response, error) {
 	var responsePayload []byte
 	if result != nil {
 		responsePayload, _ = json.Marshal(result)
 	}
-	logInboundRPCResponse(serverID, responsePayload, err, shouldAttachTags, snapshot)
+	logInboundRPCResponse(serverID, responsePayload, err, snapshot)
 	return result, err
 }
 

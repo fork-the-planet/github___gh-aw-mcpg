@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/github/gh-aw-mcpg/internal/config"
 )
 
 // normalizePolicyPayload coerces a policy value to a map[string]interface{}.
@@ -56,7 +58,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		}
 	}
 
-	payload, err := PolicyToMap(policy)
+	payload, err := config.GuardPolicyToMap(policy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode label_agent policy payload: %w", err)
 	}
@@ -191,7 +193,7 @@ func BuildLabelAgentPayload(policy interface{}, trustedBots []string, trustedUse
 	// Convert the policy to a generic map so we can inject the trusted-bots and
 	// trusted-users keys alongside the allow-only policy without altering the
 	// policy itself.
-	payload, err := PolicyToMap(policy)
+	payload, err := config.GuardPolicyToMap(policy)
 	if err != nil {
 		// If we can't convert the policy, return it as-is; buildStrictLabelAgentPayload
 		// will surface the error later.

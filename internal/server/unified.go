@@ -3,14 +3,11 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
-
-	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
@@ -20,6 +17,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/launcher"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	"github.com/github/gh-aw-mcpg/internal/proxy"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -28,6 +26,9 @@ import (
 var logUnified = logger.New("server:unified")
 
 const wasmGuardsDirEnvVar = "MCP_GATEWAY_WASM_GUARDS_DIR"
+const rateLimitExceededStatus = "rate limit exceeded"
+
+var errRateLimitExceeded = errors.New(rateLimitExceededStatus)
 
 // MCPProtocolVersion is the MCP protocol version supported by this gateway
 const MCPProtocolVersion = mcp.MCPProtocolVersion
@@ -50,6 +51,9 @@ type GuardSessionState struct {
 	PolicySource     string
 	DIFCMode         difc.EnforcementMode
 	NormalizedPolicy map[string]interface{}
+	ToolCallLimits   map[string]int
+	ToolCallCounts   map[string]int
+	CallCountMu      sync.Mutex
 }
 
 // ServerStatus represents the health status of a backend server
@@ -278,7 +282,7 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 		return nil, fmt.Errorf("get_collaborator_permission: unexpected args type: %T", args)
 	}
 
-	owner, repo, username, err := httputil.ParseCollaboratorPermissionArgs(argsMap)
+	owner, repo, username, err := proxy.ParseCollaboratorPermissionArgs(argsMap)
 	if err != nil {
 		logUnified.Printf("get_collaborator_permission: missing required args (owner=%q repo=%q username=%q)", owner, repo, username)
 		return nil, err
@@ -291,7 +295,7 @@ func (g *guardBackendCaller) callCollaboratorPermission(ctx context.Context, arg
 	}
 
 	apiURL := envutil.DeriveGitHubAPIURL(envutil.DefaultGitHubAPIBaseURL)
-	result, err := httputil.FetchCollaboratorPermission(
+	result, err := proxy.FetchCollaboratorPermission(
 		ctx,
 		owner,
 		repo,
@@ -337,7 +341,11 @@ func (us *UnifiedServer) isToolAllowed(serverID, toolName string) bool {
 	if !ok || set == nil {
 		return true
 	}
-	return set[toolName]
+	allowed := set[toolName]
+	if !allowed {
+		logUnified.Printf("isToolAllowed: tool blocked by allowlist: serverID=%s, toolName=%s", serverID, toolName)
+	}
+	return allowed
 }
 
 // callBackendTool calls a tool on a backend server with DIFC enforcement
@@ -368,19 +376,13 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 
 	// Start an OTEL span for the full tool call lifecycle (spans all phases 0–6)
 	// Attribute names follow the OpenTelemetry gen_ai semantic conventions
-	ctx, toolSpan := us.GetTracer().Start(ctx, "mcp.tool_call",
-		oteltrace.WithAttributes(
-			tracing.GenAIAgentID.String(serverID),
-			tracing.MCPMethod.String("tools/call"),
-			tracing.GenAIToolName.String(toolName),
-		),
-		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
-	)
+	ctx, toolSpan := tracing.StartToolCallSpan(ctx, us.GetTracer(), serverID, toolName)
 	// httpStatusCode tracks the conceptual HTTP status of the proxied response (spec §4.1.3.6).
-	// It starts at 200 and is updated to 500 (error) or 403 (access denied) before each exit.
+	// It starts at 200 and is updated to 500 (error), 403 (access denied), or 429 (budget
+	// exhaustion) before each exit.
 	httpStatusCode := 200
 	defer func() {
-		toolSpan.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(httpStatusCode))
+		toolSpan.SetAttributes(tracing.MCPResponseStatus.Int(httpStatusCode))
 		toolSpan.End()
 	}()
 
@@ -396,8 +398,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			toolName, serverID)
 		httpStatusCode = 403
 		deniedErr := fmt.Errorf("tool %q is not in the allowed-tools list for this server", toolName)
-		toolSpan.RecordError(deniedErr)
-		toolSpan.SetStatus(codes.Error, "tool not allowed")
+		tracing.RecordSpanError(toolSpan, deniedErr, "tool not allowed")
 		return mcp.NewErrorCallToolResult(deniedErr)
 	}
 
@@ -414,78 +415,57 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		httpStatusCode = 500
 		return mcp.NewErrorCallToolResult(fmt.Errorf("guard session initialization failed: %w", err))
 	}
+	if err := us.enforceToolCallLimit(sessionID, serverID, toolName); err != nil {
+		httpStatusCode = 429
+		tracing.RecordSpanError(toolSpan, err, "tool call limit reached")
+		return mcp.NewErrorCallToolResult(err)
+	}
 
 	requestEvaluator := difc.NewEvaluatorWithMode(enforcementMode)
 
-	// **Phase 0: Extract agent ID and get/create agent labels**
+	// **Phases 0–2: Get agent labels, label resource, coarse access check**
 	agentID := guard.GetAgentIDFromContext(ctx)
-	agentLabels := us.AgentRegistry.GetOrCreate(agentID)
-	logUnified.Printf("[DIFC] Agent %s | Secrecy: %v | Integrity: %v",
-		agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
-
-	ctx = context.WithValue(ctx, mcp.AgentTagsSnapshotContextKey, &mcp.AgentTagsSnapshot{
-		Secrecy:   difc.TagsToStrings(agentLabels.GetSecrecyTags()),
-		Integrity: difc.TagsToStrings(agentLabels.GetIntegrityTags()),
-	})
-
-	// Store request state for guards that need request context during response labeling.
-	// This allows LabelResponse() to access the original tool arguments.
-	ctx = guard.SetRequestStateInContext(ctx, map[string]interface{}{
-		"tool_args": args,
-	})
-
-	// **Phase 1: Guard labels the resource**
-	resource, operation, err := g.LabelResource(ctx, toolName, args, backendCaller, us.Capabilities)
+	pipelineIn := guard.PipelineInput{
+		AgentID:         agentID,
+		ToolName:        toolName,
+		Args:            args,
+		Guard:           g,
+		Evaluator:       requestEvaluator,
+		AgentRegistry:   us.AgentRegistry,
+		Capabilities:    us.Capabilities,
+		EnforcementMode: enforcementMode,
+		BackendCaller:   backendCaller,
+	}
+	ctx, pre, err := guard.RunPipelinePrePhases(ctx, pipelineIn)
 	if err != nil {
+		if denied, ok := err.(*guard.PipelineAccessDenied); ok {
+			logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s",
+				agentID, denied.Resource.Description, denied.EvalResult.Reason)
+			detailedErr := difc.FormatViolationError(denied.EvalResult,
+				denied.AgentLabels.Secrecy, denied.AgentLabels.Integrity, denied.Resource)
+			tracing.RecordSpanError(toolSpan, detailedErr, "access denied: "+denied.EvalResult.Reason)
+			httpStatusCode = 403
+			return mcp.NewErrorCallToolResult(detailedErr)
+		}
 		logger.LogWarn("difc", "Guard labeling failed: %v", err)
 		httpStatusCode = 500
 		return mcp.NewErrorCallToolResult(fmt.Errorf("guard labeling failed: %w", err))
 	}
 
-	logUnified.Printf("[DIFC] Resource: %s | Operation: %s | Secrecy: %v | Integrity: %v",
-		resource.Description, operation, resource.Secrecy.Label.GetTags(), resource.Integrity.Label.GetTags())
-
-	// **Phase 2: Reference Monitor performs coarse-grained access check**
-	// For read operations in any mode, we skip the coarse-grained block
-	// and let the request proceed. Fine-grained filtering at Phase 5 will filter
-	// individual items from the response based on their actual labels from LabelResponse().
-	isReadOperation := difc.ShouldBypassCoarseDeny(operation)
-	result := requestEvaluator.Evaluate(agentLabels.Secrecy, agentLabels.Integrity, resource, operation)
-
-	if !result.IsAllowed() {
-		if isReadOperation {
-			// Read operation in any mode - skip coarse-grained block
-			// The guard will label response items and Phase 5 will enforce per-item policy
-			logUnified.Printf("[DIFC] Coarse-grained check failed for read in %s mode - proceeding to backend for response labeling", enforcementMode)
-			logUnified.Printf("[DIFC] Response items will be evaluated at Phase 5 based on per-item labels from LabelResponse()")
-		} else {
-			// Non-read operation - block the request
-			logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s", agentID, resource.Description, result.Reason)
-			detailedErr := difc.FormatViolationError(result, agentLabels.Secrecy, agentLabels.Integrity, resource)
-			toolSpan.RecordError(detailedErr)
-			toolSpan.SetStatus(codes.Error, "access denied: "+result.Reason)
-			httpStatusCode = 403
-			return mcp.NewErrorCallToolResult(detailedErr)
-		}
-	} else {
-		logUnified.Printf("[DIFC] Access ALLOWED for agent %s to %s", agentID, resource.Description)
-	}
+	// Add agent tags snapshot to context for enriched MCP backend logging (Phase 3).
+	ctx = context.WithValue(ctx, mcp.AgentTagsSnapshotContextKey, &mcp.AgentTagsSnapshot{
+		Secrecy:   difc.TagsToStrings(pre.AgentLabels.GetSecrecyTags()),
+		Integrity: difc.TagsToStrings(pre.AgentLabels.GetIntegrityTags()),
+	})
 
 	// **Phase 3: Execute the backend call**
-	execCtx, execSpan := us.GetTracer().Start(ctx, "gateway.backend.execute",
-		oteltrace.WithAttributes(
-			tracing.GenAIToolName.String(toolName),
-			tracing.GenAIAgentID.String(serverID),
-		),
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
+	execCtx, execSpan := tracing.StartBackendExecuteSpan(ctx, us.GetTracer(), serverID, toolName)
 	defer execSpan.End()
 
 	// Check the circuit breaker before calling the backend.
 	cb := us.getCircuitBreaker(serverID)
 	if err := cb.Allow(); err != nil {
-		execSpan.RecordError(err)
-		execSpan.SetStatus(codes.Error, "circuit breaker open")
+		tracing.RecordSpanError(execSpan, err, "circuit breaker open")
 		httpStatusCode = 429
 		return mcp.NewErrorCallToolResult(err)
 	}
@@ -497,8 +477,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		// breaker state unchanged so genuine rate-limit history is preserved.
 		// Use a generic error message for trace recording to avoid leaking internal details
 		// to trace backends; the full error is returned to the caller and logged separately.
-		execSpan.RecordError(fmt.Errorf("tool execution failed"))
-		execSpan.SetStatus(codes.Error, "tool execution failed")
+		tracing.RecordSpanError(execSpan, fmt.Errorf("tool execution failed"), "tool execution failed")
 		httpStatusCode = 500
 		return mcp.NewErrorCallToolResult(err)
 	}
@@ -507,6 +486,8 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	if rateLimited, resetAt := isRateLimitToolResult(backendResult); rateLimited {
 		cb.RecordRateLimit(resetAt)
 		execSpan.SetAttributes(tracing.RateLimitHit.Bool(true))
+		toolSpan.SetAttributes(tracing.RateLimitHit.Bool(true))
+		tracing.RecordSpanErrorOnAll(errRateLimitExceeded, rateLimitExceededStatus, execSpan, toolSpan)
 		httpStatusCode = 429
 		// Preserve the original backend error text so the agent sees the actual upstream
 		// rate-limit details. ErrCircuitOpen is only returned when cb.Allow() rejects
@@ -520,21 +501,11 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	cb.RecordSuccess()
 
 	// **Phase 4: Guard labels the response data (for fine-grained filtering)**
-	// Per spec: LabelResponse() is only called for read operations in all modes,
-	// and for read-write operations in filter/propagate modes.
-	// For write operations and read-write in strict mode, skip LabelResponse().
-	shouldCallLabelResponse := difc.ShouldCallLabelResponse(operation, enforcementMode)
-
-	var labeledData difc.LabeledData
-	if shouldCallLabelResponse {
-		labeledData, err = g.LabelResponse(ctx, toolName, backendResult, backendCaller, us.Capabilities)
-		if err != nil {
-			logger.LogWarn("difc", "Response labeling failed: %v", err)
-			httpStatusCode = 500
-			return mcp.NewErrorCallToolResult(fmt.Errorf("response labeling failed: %w", err))
-		}
-	} else {
-		logUnified.Printf("[DIFC] Skipping LabelResponse() for %s operation in %s mode", operation, enforcementMode)
+	labeledData, err := guard.RunPipelinePhase4(ctx, pipelineIn, pre, backendResult)
+	if err != nil {
+		logger.LogWarn("difc", "Response labeling failed: %v", err)
+		httpStatusCode = 500
+		return mcp.NewErrorCallToolResult(fmt.Errorf("response labeling failed: %w", err))
 	}
 
 	// **Phase 5: Reference Monitor performs fine-grained filtering (if applicable)**
@@ -544,7 +515,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		// Guard provided fine-grained labels - check if it's a collection
 		if collection, ok := labeledData.(*difc.CollectionLabeledData); ok {
 			// Filter collection based on agent labels
-			filtered := requestEvaluator.FilterCollection(agentLabels.Secrecy, agentLabels.Integrity, collection, operation)
+			filtered := requestEvaluator.FilterCollection(pre.AgentLabels.Secrecy, pre.AgentLabels.Integrity, collection, pre.Operation)
 
 			logUnified.Printf("[DIFC] Filtered collection: %d/%d items accessible",
 				filtered.GetAccessibleCount(), filtered.TotalCount)
@@ -593,27 +564,13 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 				return mcp.NewErrorCallToolResult(fmt.Errorf("failed to convert labeled data: %w", err))
 			}
 		}
-
-		// **Phase 6: Accumulate labels from this operation (for reads in PROPAGATE mode only)**
-		// Label accumulation should only happen when mode is EnforcementPropagate
-		// Filter mode does NOT accumulate - it just filters what the agent can see
-		if difc.ShouldAccumulateReadLabels(operation, enforcementMode) {
-			overall := labeledData.Overall()
-			agentLabels.AccumulateFromRead(overall)
-			logUnified.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
-				agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
-		}
 	} else {
 		// No fine-grained labeling - use original backend result
 		finalResult = backendResult
-
-		// **Phase 6: Accumulate labels from resource (for reads in PROPAGATE mode only)**
-		if difc.ShouldAccumulateReadLabels(operation, enforcementMode) {
-			agentLabels.AccumulateFromRead(resource)
-			logUnified.Printf("[DIFC] Agent %s accumulated labels (propagate mode) | Secrecy: %v | Integrity: %v",
-				agentID, agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
-		}
 	}
+
+	// **Phase 6: Label accumulation (propagate mode)**
+	guard.RunPipelinePhase6(pre, labeledData, enforcementMode)
 
 	// Convert finalResult to SDK CallToolResult format
 	callResult, err := mcp.ConvertToCallToolResult(finalResult)
@@ -633,6 +590,43 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	}
 
 	return callResult, finalResult, nil
+}
+
+// enforceToolCallLimit applies the configured per-session budget for toolName on
+// the given server, incrementing the call counter for in-budget attempts and
+// returning an error without incrementing when the session has exhausted its limit.
+func (us *UnifiedServer) enforceToolCallLimit(sessionID, serverID, toolName string) error {
+	us.sessionMu.RLock()
+	session := us.sessions[sessionID]
+	var state *GuardSessionState
+	if session != nil {
+		state = session.GuardInit[serverID]
+	}
+	us.sessionMu.RUnlock()
+
+	if state == nil || len(state.ToolCallLimits) == 0 {
+		return nil
+	}
+
+	state.CallCountMu.Lock()
+	defer state.CallCountMu.Unlock()
+
+	limit, ok := state.ToolCallLimits[toolName]
+	if !ok || limit == 0 {
+		return nil
+	}
+	if state.ToolCallCounts == nil {
+		state.ToolCallCounts = make(map[string]int)
+	}
+
+	current := state.ToolCallCounts[toolName]
+	if current >= limit {
+		logUnified.Printf("enforceToolCallLimit: limit reached: sessionID=%s, serverID=%s, toolName=%s, count=%d, limit=%d", sessionID, serverID, toolName, current, limit)
+		return fmt.Errorf("tool call limit reached for %q (max: %d)", toolName, limit)
+	}
+	state.ToolCallCounts[toolName]++
+	logUnified.Printf("enforceToolCallLimit: count incremented: sessionID=%s, serverID=%s, toolName=%s, count=%d/%d", sessionID, serverID, toolName, state.ToolCallCounts[toolName], limit)
+	return nil
 }
 
 // Run starts the unified MCP server on the specified transport
@@ -658,6 +652,7 @@ func (us *UnifiedServer) GetServerStatus() map[string]ServerStatus {
 	status := make(map[string]ServerStatus)
 
 	serverIDs := us.launcher.ServerIDs()
+	logUnified.Printf("GetServerStatus: querying status for %d servers", len(serverIDs))
 
 	for _, serverID := range serverIDs {
 		state := us.launcher.GetServerState(serverID)
@@ -669,6 +664,7 @@ func (us *UnifiedServer) GetServerStatus() map[string]ServerStatus {
 			Status: state.Status,
 			Uptime: uptime,
 		}
+		logUnified.Printf("GetServerStatus: serverID=%s, status=%s, uptime=%ds", serverID, state.Status, uptime)
 	}
 
 	return status

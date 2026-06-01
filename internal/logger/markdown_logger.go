@@ -186,35 +186,29 @@ func logWithMarkdown(level LogLevel, category, format string, args ...interface{
 	})
 }
 
-// The var block and exported wrappers below follow the Log-Level Quad-Function Pattern
-// documented in common.go. The four-level set (Info/Warn/Error/Debug) is stable and
-// intentionally repeated across file_logger.go, markdown_logger.go, and
-// server_file_logger.go. See common.go for the rationale and update instructions.
-var (
-	logInfoToMarkdown  = makeLevelLogger(logWithMarkdown, LogLevelInfo)
-	logWarnToMarkdown  = makeLevelLogger(logWithMarkdown, LogLevelWarn)
-	logErrorToMarkdown = makeLevelLogger(logWithMarkdown, LogLevelError)
-	logDebugToMarkdown = makeLevelLogger(logWithMarkdown, LogLevelDebug)
-)
+// The exported wrappers below follow the Log-Level Quad-Function Pattern
+// documented in common.go, with shared per-level closure registration handled
+// by newLevelLoggerFuncs.
+var markdownLevelLoggers = newLevelLoggerFuncs(logWithMarkdown)
 
 // LogInfoToMarkdown logs to both regular and markdown loggers.
 func LogInfoToMarkdown(category, format string, args ...interface{}) {
-	logInfoToMarkdown(category, format, args...)
+	markdownLevelLoggers.info(category, format, args...)
 }
 
 // LogWarnToMarkdown logs to both regular and markdown loggers.
 func LogWarnToMarkdown(category, format string, args ...interface{}) {
-	logWarnToMarkdown(category, format, args...)
+	markdownLevelLoggers.warn(category, format, args...)
 }
 
 // LogErrorToMarkdown logs to both regular and markdown loggers.
 func LogErrorToMarkdown(category, format string, args ...interface{}) {
-	logErrorToMarkdown(category, format, args...)
+	markdownLevelLoggers.error(category, format, args...)
 }
 
 // LogDebugToMarkdown logs to both regular and markdown loggers.
 func LogDebugToMarkdown(category, format string, args ...interface{}) {
-	logDebugToMarkdown(category, format, args...)
+	markdownLevelLoggers.debug(category, format, args...)
 }
 
 // CloseMarkdownLogger closes the global markdown logger

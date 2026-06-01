@@ -120,43 +120,37 @@ func logWithLevel(level LogLevel, category, format string, args ...interface{}) 
 	})
 }
 
-// The var block and exported wrappers below follow the Log-Level Quad-Function Pattern
-// documented in common.go. The four-level set (Info/Warn/Error/Debug) is stable and
-// intentionally repeated across file_logger.go, markdown_logger.go, and
-// server_file_logger.go. See common.go for the rationale and update instructions.
-var (
-	logInfo  = makeLevelLogger(logWithLevel, LogLevelInfo)
-	logWarn  = makeLevelLogger(logWithLevel, LogLevelWarn)
-	logError = makeLevelLogger(logWithLevel, LogLevelError)
-	logDebug = makeLevelLogger(logWithLevel, LogLevelDebug)
-)
+// The exported wrappers below follow the Log-Level Quad-Function Pattern
+// documented in common.go, with shared per-level closure registration handled
+// by newLevelLoggerFuncs.
+var fileLevelLoggers = newLevelLoggerFuncs(logWithLevel)
 
 // LogInfo logs an informational message to the unified file logger sink.
 // The underlying filename depends on logger initialization. For
 // destination-specific logging use LogInfoToMarkdown or LogInfoToServer.
 func LogInfo(category, format string, args ...interface{}) {
-	logInfo(category, format, args...)
+	fileLevelLoggers.info(category, format, args...)
 }
 
 // LogWarn logs a warning message to the unified file logger sink.
 // The underlying filename depends on logger initialization. For
 // destination-specific logging use LogWarnToMarkdown or LogWarnToServer.
 func LogWarn(category, format string, args ...interface{}) {
-	logWarn(category, format, args...)
+	fileLevelLoggers.warn(category, format, args...)
 }
 
 // LogError logs an error message to the unified file logger sink.
 // The underlying filename depends on logger initialization. For
 // destination-specific logging use LogErrorToMarkdown or LogErrorToServer.
 func LogError(category, format string, args ...interface{}) {
-	logError(category, format, args...)
+	fileLevelLoggers.error(category, format, args...)
 }
 
 // LogDebug logs a debug message to the unified file logger sink.
 // The underlying filename depends on logger initialization. For
 // destination-specific logging use LogDebugToMarkdown or LogDebugToServer.
 func LogDebug(category, format string, args ...interface{}) {
-	logDebug(category, format, args...)
+	fileLevelLoggers.debug(category, format, args...)
 }
 
 // CloseGlobalLogger closes the global file logger

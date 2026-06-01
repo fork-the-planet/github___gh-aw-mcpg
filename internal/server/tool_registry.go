@@ -95,6 +95,13 @@ func (us *UnifiedServer) registerAllTools() error {
 	}
 }
 
+func logRegistrationIncomplete(failedServers []string, totalServers int) {
+	if len(failedServers) > 0 {
+		logger.LogError("backend", "Tool registration incomplete: %d of %d backends failed: %v — agents will not see tools from these servers",
+			len(failedServers), totalServers, failedServers)
+	}
+}
+
 // registerAllToolsSequential registers tools from backend servers sequentially
 func (us *UnifiedServer) registerAllToolsSequential(serverIDs []string) error {
 	logUnified.Printf("Registering tools sequentially from %d backends", len(serverIDs))
@@ -108,11 +115,7 @@ func (us *UnifiedServer) registerAllToolsSequential(serverIDs []string) error {
 		}
 	}
 
-	if len(failedServers) > 0 {
-		logger.LogError("backend", "Tool registration incomplete: %d of %d backends failed: %v — agents will not see tools from these servers",
-			len(failedServers), len(serverIDs), failedServers)
-	}
-
+	logRegistrationIncomplete(failedServers, len(serverIDs))
 	logUnified.Printf("Tool registration complete: total tools=%d", len(us.tools))
 	return nil
 }
@@ -162,10 +165,7 @@ func (us *UnifiedServer) registerAllToolsParallel(serverIDs []string) error {
 		}
 	}
 
-	if failureCount > 0 {
-		logger.LogError("backend", "Tool registration incomplete: %d of %d backends failed: %v — agents will not see tools from these servers",
-			failureCount, len(serverIDs), failedServers)
-	}
+	logRegistrationIncomplete(failedServers, len(serverIDs))
 
 	logger.LogInfo("backend", "Tool registration complete: %d succeeded, %d failed, total tools=%d", successCount, failureCount, len(us.tools))
 	return nil

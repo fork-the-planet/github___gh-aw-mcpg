@@ -42,6 +42,72 @@ func extractContentText(t *testing.T, result interface{}) string {
 	return text
 }
 
+func TestRestBackendCaller_ExtractOwnerRepoNumber(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       map[string]interface{}
+		numberKey  string
+		toolName   string
+		wantOwner  string
+		wantRepo   string
+		wantNumber string
+		wantErr    string
+	}{
+		{
+			name: "string number",
+			args: map[string]interface{}{
+				"owner":      "myorg",
+				"repo":       "myrepo",
+				"pullNumber": "42",
+			},
+			numberKey:  "pullNumber",
+			toolName:   "pull_request_read",
+			wantOwner:  "myorg",
+			wantRepo:   "myrepo",
+			wantNumber: "42",
+		},
+		{
+			name: "float64 number",
+			args: map[string]interface{}{
+				"owner":        "myorg",
+				"repo":         "myrepo",
+				"issue_number": float64(7),
+			},
+			numberKey:  "issue_number",
+			toolName:   "issue_read",
+			wantOwner:  "myorg",
+			wantRepo:   "myrepo",
+			wantNumber: "7",
+		},
+		{
+			name: "missing values",
+			args: map[string]interface{}{
+				"owner":      "myorg",
+				"pullNumber": "",
+			},
+			numberKey: "pullNumber",
+			toolName:  "pull_request_read",
+			wantErr:   "pull_request_read: missing owner/repo/pullNumber",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			owner, repo, number, err := extractOwnerRepoNumber(tt.args, "owner", "repo", tt.numberKey, tt.toolName)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.EqualError(t, err, tt.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantOwner, owner)
+			assert.Equal(t, tt.wantRepo, repo)
+			assert.Equal(t, tt.wantNumber, number)
+		})
+	}
+}
+
 // TestRestBackendCaller_PullRequestRead tests the pull_request_read branch of CallTool.
 func TestRestBackendCaller_PullRequestRead(t *testing.T) {
 	mux := http.NewServeMux()

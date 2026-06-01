@@ -258,8 +258,7 @@ func newPlainJSONConn(t *testing.T, serverURL string, headers map[string]string)
 
 // TestSendRequestWithServerID_AgentTags_PlainJSONSuccess verifies that when
 // shouldAttachAgentTags is true the function still returns the correct result
-// via the plain JSON-RPC HTTP path (exercises the LogRPCRequestWithAgentSnapshot /
-// LogRPCResponseWithAgentSnapshot branches).
+// via the plain JSON-RPC HTTP path (exercises request/response logging with optional agent tags).
 func TestSendRequestWithServerID_AgentTags_PlainJSONSuccess(t *testing.T) {
 	difc.SetSinkServerIDs([]string{"sink-server"})
 	t.Cleanup(func() { difc.SetSinkServerIDs(nil) })

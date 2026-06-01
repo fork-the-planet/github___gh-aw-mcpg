@@ -10,8 +10,8 @@ use super::constants::{field_names, scope_names, SENSITIVE_FILE_KEYWORDS, SENSIT
 use super::helpers::{
     author_association_floor_from_str,
     elevate_via_collaborator_permission, ensure_integrity_baseline,
-    extract_number_as_string, extract_repo_info, extract_repo_info_from_search_query,
-    format_repo_id, is_any_trusted_actor, is_default_branch_commit_context,
+    extract_number_as_string, extract_repo_info_from_search_query,
+    format_repo_id, get_string_field, is_any_trusted_actor, is_default_branch_commit_context,
     is_default_branch_ref, max_integrity,
     merged_integrity, policy_private_scope_label, private_user_label, project_github_label,
     reader_integrity, writer_integrity, PolicyContext,
@@ -122,7 +122,8 @@ pub fn apply_tool_labels(
     mut desc: String,
     ctx: &PolicyContext,
 ) -> (Vec<String>, Vec<String>, String) {
-    let (owner, repo, _) = extract_repo_info(tool_args);
+    let owner = get_string_field(tool_args, field_names::OWNER);
+    let repo = get_string_field(tool_args, field_names::REPO);
     let mut baseline_scope: Cow<'_, str> = Cow::Borrowed(repo_id);
     let repo_private = if owner.is_empty() || repo.is_empty() {
         None
@@ -319,31 +320,17 @@ pub fn apply_tool_labels(
             };
         }
 
-        // === Security: Secret Scanning ===
-        "list_secret_scanning_alerts" | "get_secret_scanning_alert" => {
-            // S(alert) = private:owner/repo - alerts may contain actual secret values
-            // Treated as private regardless of repo visibility (secrets in public repos are still sensitive)
-            // I(alert) = approved - automated detection
-            secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Security: Code Scanning & Dependabot ===
-        "list_code_scanning_alerts"
+        // === Security-sensitive data: always private regardless of repo visibility ===
+        // Covers: secret scanning alerts (may contain actual secret values), code scanning
+        // and Dependabot alerts (security findings), and Actions job logs (may contain
+        // accidentally-printed CI tokens). All are private:repo + writer integrity.
+        "list_secret_scanning_alerts"
+        | "get_secret_scanning_alert"
+        | "list_code_scanning_alerts"
         | "get_code_scanning_alert"
         | "list_dependabot_alerts"
-        | "get_dependabot_alert" => {
-            // S(alert) = private:repo - security findings are sensitive
-            // I(alert) = approved - tool output, not user-controlled
-            secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Actions: Job Logs ===
-        "get_job_logs" => {
-            // Job logs may contain CI secrets (e.g. accidentally printed tokens) even in public repos.
-            // Always treat as private regardless of repository visibility.
-            // S(logs) = private:owner/repo; I(logs) = approved (system-generated output)
+        | "get_dependabot_alert"
+        | "get_job_logs" => {
             secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
             integrity = writer_integrity(repo_id, ctx);
         }
@@ -460,7 +447,13 @@ pub fn apply_tool_labels(
         "list_issue_types" => {
             // Org-level issue types
             // S = inherits from org
-            // I = project:org - maintained by org admins
+            // I = approved:github (GitHub-global approved integrity via project_github_label)
+            integrity = project_github_label(ctx);
+        }
+        "list_issue_fields" => {
+            // Org-level custom issue field definitions (field names/types/allowed values)
+            // S = inherits from org
+            // I = approved:github (GitHub-global approved integrity via project_github_label)
             integrity = project_github_label(ctx);
         }
 
@@ -559,34 +552,25 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
-        // === Issue/PR write operations (repo-scoped) ===
-        "create_issue" | "issue_write" | "sub_issue_write" | "add_issue_comment"
-        | "create_pull_request" | "create_pull_request_with_copilot"
-        | "update_pull_request" | "merge_pull_request"
-        | "pull_request_review_write" | "add_comment_to_pending_review"
-        | "add_reply_to_pull_request_comment" => {
-            // Write operations that return the created/modified resource.
-            // S = S(repo) — response contains repo-scoped content
-            // I = writer (agent-authored content)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Discussion comment write (repo-scoped) ===
-        "discussion_comment_write" => {
-            // Creates or edits GitHub Discussion comments via GraphQL mutations
-            // (addDiscussionComment / updateDiscussionComment).
-            // S = S(repo) — response contains repo-scoped content
-            // I = writer (agent-authored content)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Granular repo-scoped write operations ===
-        // Covers granular issue mutation tools (including custom field mutations),
-        // sub-issue management, granular PR mutation tools, and PR review tools.
-        // All follow: S = S(repo), I = writer.
-        "update_issue_assignees"
+        // === Repo-scoped write operations ===
+        // All listed tools follow: S = S(repo), I = writer.
+        // Issue/PR writes
+        "create_issue"
+        | "issue_write"
+        | "issue_write_ff_remote_mcp_issue_fields"
+        | "sub_issue_write"
+        | "add_issue_comment"
+        | "create_pull_request"
+        | "create_pull_request_with_copilot"
+        | "update_pull_request"
+        | "merge_pull_request"
+        | "pull_request_review_write"
+        | "add_comment_to_pending_review"
+        | "add_reply_to_pull_request_comment"
+        // Discussion
+        | "discussion_comment_write"
+        // Granular issue mutation
+        | "update_issue_assignees"
         | "update_issue_body"
         | "update_issue_labels"
         | "update_issue_milestone"
@@ -594,30 +578,50 @@ pub fn apply_tool_labels(
         | "update_issue_title"
         | "update_issue_type"
         | "set_issue_fields"
+        // Sub-issues
         | "add_sub_issue"
         | "remove_sub_issue"
         | "reprioritize_sub_issue"
+        // Granular PR mutation
         | "update_pull_request_body"
         | "update_pull_request_draft_state"
         | "update_pull_request_state"
         | "update_pull_request_title"
+        // PR reviews
         | "add_pull_request_review_comment"
         | "create_pull_request_review"
         | "delete_pending_pull_request_review"
         | "request_pull_request_reviewers"
         | "resolve_review_thread"
         | "submit_pending_pull_request_review"
-        | "unresolve_review_thread" => {
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Repo content and structure write operations ===
-        "create_or_update_file" | "push_files" | "delete_file" | "create_branch"
-        | "update_pull_request_branch" => {
-            // Write operations that modify repo content/structure.
-            // S = S(repo) — response references repo-scoped content
-            // I = writer (agent-authored content)
+        | "unresolve_review_thread"
+        // Repo content/structure
+        | "create_or_update_file"
+        | "push_files"
+        | "delete_file"
+        | "create_branch"
+        | "update_pull_request_branch"
+        // Labels, Actions, workflow management ("run_workflow" and "delete_workflow_run_logs" are deprecated aliases for "actions_run_trigger")
+        | "label_write"
+        | "actions_run_trigger"
+        | "run_workflow"
+        | "delete_workflow_run_logs"
+        | "cancel_workflow_run"
+        | "force_cancel_workflow_run"
+        | "rerun_workflow_run"
+        | "rerun_failed_jobs"
+        | "rerun_workflow_job"
+        // Copilot / repo settings / revert
+        | "assign_copilot_to_issue"
+        | "request_copilot_review"
+        | "edit_repository"
+        | "revert_pull_request"
+        // Pre-emptive: issue comment, releases
+        | "update_issue_comment"
+        | "delete_issue_comment"
+        | "create_release"
+        | "edit_release"
+        | "delete_release" => {
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             integrity = writer_integrity(repo_id, ctx);
         }
@@ -643,36 +647,6 @@ pub fn apply_tool_labels(
             }
         }
 
-        // === Label write operations (repo-scoped) ===
-        "label_write" => {
-            // Label creates/updates/deletes return repo-scoped content.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Actions: Workflow run triggers ===
-        "actions_run_trigger"
-        // Deprecated aliases that map to actions_run_trigger
-        | "run_workflow" | "delete_workflow_run_logs" => {
-            // Triggering a workflow run returns repo-scoped metadata.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Actions: Workflow run cancel/rerun ===
-        "cancel_workflow_run"
-        | "force_cancel_workflow_run"
-        | "rerun_workflow_run"
-        | "rerun_failed_jobs"
-        | "rerun_workflow_job" => {
-            // These modify workflow run state; repo-scoped write.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
         // === Copilot coding-agent task (blocked: unsupported agent operation) ===
         "create_agent_task" => {
             // Creates a Copilot coding-agent job that modifies repo branches and opens a PR.
@@ -680,30 +654,6 @@ pub fn apply_tool_labels(
             // classified before the integrity override in label_resource.
             // S = S(repo); I = blocked (override applied in label_resource)
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-        }
-
-        // === Copilot agent operations (repo-scoped) ===
-        "assign_copilot_to_issue" | "request_copilot_review" => {
-            // Copilot assignment/review requests return repo-scoped content.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Repository settings edit (can change visibility) ===
-        "edit_repository" => {
-            // Can change repo visibility, security settings, default branch.
-            // S = S(repo); I = writer (requires admin access)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === PR revert (creates revert branch + PR) ===
-        "revert_pull_request" => {
-            // Creates a new branch + PR reverting a merged PR.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
         }
 
         // === Deploy key management (SSH key with optional write access) ===
@@ -732,22 +682,6 @@ pub fn apply_tool_labels(
             secrecy = vec![];
             baseline_scope = Cow::Borrowed(scope_names::GITHUB);
             integrity = project_github_label(ctx);
-        }
-
-        // === Issue/PR comment editing/deletion (pre-emptive) ===
-        "update_issue_comment" | "delete_issue_comment" => {
-            // Editing or deleting an issue/PR comment is a repo-scoped write.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Release management (pre-emptive) ===
-        "create_release" | "edit_release" | "delete_release" => {
-            // Release operations are repo-scoped writes.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
         }
 
         // === Gist deletion (pre-emptive) ===
@@ -948,6 +882,87 @@ mod tests {
     }
 
     #[test]
+    fn apply_tool_labels_issue_comment_edit_delete_is_repo_scoped_write() {
+        let ctx = default_ctx();
+        let tool_args = serde_json::json!({ "owner": "github", "repo": "copilot", "comment_id": 42 });
+        let repo_id = "github/copilot";
+
+        for op in &["update_issue_comment", "delete_issue_comment"] {
+            let (secrecy, integrity, _desc) = super::apply_tool_labels(
+                op,
+                &tool_args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{op} must have writer integrity"
+            );
+            assert!(secrecy.is_empty(), "{op}: public repo should have empty secrecy");
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_issue_write_ff_matches_issue_write() {
+        let ctx = default_ctx();
+        let tool_args = serde_json::json!({ "owner": "github", "repo": "copilot", "issue_number": 42 });
+        let repo_id = "github/copilot";
+
+        let issue_write_labels = super::apply_tool_labels(
+            "issue_write",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        let issue_write_ff_labels = super::apply_tool_labels(
+            "issue_write_ff_remote_mcp_issue_fields",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(
+            issue_write_ff_labels, issue_write_labels,
+            "issue_write FF variant must match issue_write labels and description"
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_release_management_is_repo_scoped_write() {
+        let ctx = default_ctx();
+        let tool_args = serde_json::json!({ "owner": "github", "repo": "copilot", "tag_name": "v1.0.0" });
+        let repo_id = "github/copilot";
+
+        for op in &["create_release", "edit_release", "delete_release"] {
+            let (secrecy, integrity, _desc) = super::apply_tool_labels(
+                op,
+                &tool_args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{op} must have writer integrity"
+            );
+            assert!(secrecy.is_empty(), "{op}: public repo should have empty secrecy");
+        }
+    }
+
+    #[test]
     fn apply_tool_labels_list_repository_collaborators_is_repo_scoped_metadata() {
         let ctx = default_ctx();
         let args = serde_json::json!({"owner": "octocat", "repo": "hello-world"});
@@ -1038,6 +1053,51 @@ mod tests {
             integrity,
             writer_integrity(repo_id, &ctx),
             "get_job_logs: expected writer-level integrity",
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_actions_get_artifact_download_is_always_private() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({
+            "owner": "octocat",
+            "repo": "hello-world",
+            "method": "download_workflow_run_artifact",
+        });
+        let repo_id = "octocat/hello-world";
+
+        let (secrecy, integrity, _) = super::apply_tool_labels(
+            "actions_get", &args, repo_id, vec![], vec![], String::new(), &ctx,
+        );
+        assert_eq!(
+            secrecy,
+            private_label("octocat", "hello-world", repo_id, &ctx),
+            "actions_get download_workflow_run_artifact must always be private",
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "actions_get must produce writer-level integrity",
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_actions_get_non_artifact_inherits_repo_visibility() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({
+            "owner": "octocat",
+            "repo": "hello-world",
+            "method": "list_workflow_runs",
+        });
+        let repo_id = "octocat/hello-world";
+
+        let (_, integrity, _) = super::apply_tool_labels(
+            "actions_get", &args, repo_id, vec![], vec![], String::new(), &ctx,
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "actions_get non-artifact method must produce writer-level integrity",
         );
     }
 }

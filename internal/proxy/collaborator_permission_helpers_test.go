@@ -1,4 +1,4 @@
-package httputil
+package proxy
 
 import (
 	"context"
@@ -167,7 +167,7 @@ func TestLogAndWrapCollaboratorPermission(t *testing.T) {
 	})
 }
 
-func TestFetchCollaboratorPermission(t *testing.T) {
+func TestFetchCollaboratorPermissionHelper(t *testing.T) {
 	t.Run("successfully fetches and wraps response", func(t *testing.T) {
 		var gotPath string
 		result, err := FetchCollaboratorPermission(

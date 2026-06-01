@@ -72,6 +72,7 @@ const paginateAllMaxPages = 100
 // paginateAll collects all items across paginated SDK list calls.
 // It returns an error if the backend returns more than paginateAllMaxPages pages,
 // protecting against runaway backends.
+// Keep loop-protection invariants aligned with internal/testutil/mcptest/validator.go:paginate.
 func paginateAll[T any](
 	serverID string,
 	itemKind string,

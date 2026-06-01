@@ -423,6 +423,10 @@ func (c *Connection) SendRequest(method string, params interface{}) (*Response, 
 func (c *Connection) SendRequestWithServerID(ctx context.Context, method string, params interface{}, serverID string) (*Response, error) {
 	snapshot, hasSnapshot := GetAgentTagsSnapshotFromContext(ctx)
 	shouldAttachAgentTags := hasSnapshot && difc.IsSinkServerID(serverID)
+	var loggingSnapshot *AgentTagsSnapshot
+	if shouldAttachAgentTags {
+		loggingSnapshot = snapshot
+	}
 
 	// Log the outbound request to backend server
 	requestPayload, _ := json.Marshal(map[string]interface{}{
@@ -430,7 +434,7 @@ func (c *Connection) SendRequestWithServerID(ctx context.Context, method string,
 		"method":  method,
 		"params":  params,
 	})
-	logOutboundRPCRequest(serverID, method, requestPayload, shouldAttachAgentTags, snapshot)
+	logOutboundRPCRequest(serverID, method, requestPayload, loggingSnapshot)
 
 	var result *Response
 	var err error
@@ -449,7 +453,7 @@ func (c *Connection) SendRequestWithServerID(ctx context.Context, method string,
 		result, err = c.callSDKMethod(method, params)
 	}
 
-	return logInboundRPCResponseFromResult(serverID, result, err, shouldAttachAgentTags, snapshot)
+	return logInboundRPCResponseFromResult(serverID, result, err, loggingSnapshot)
 }
 
 // requireSession validates that a session is available for SDK operations.

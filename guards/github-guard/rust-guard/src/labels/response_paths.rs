@@ -7,6 +7,7 @@
 //! Returns JSON paths like `/items/0`, `/items/1` pointing to labeled objects
 //! in the response, rather than cloning the entire data.
 
+use std::borrow::Cow;
 use super::constants::{field_names, label_constants, scope_names};
 use super::extract_mcp_response;
 use super::helpers::*;
@@ -626,7 +627,15 @@ pub fn label_response_paths(
                     labeled_paths.push(PathLabelEntry {
                         path: make_item_path(&items_path, i),
                         labels: crate::ResourceLabels {
-                            description: format!("project-item:{}", item_type.to_lowercase()),
+                            description: {
+                                let type_lower: Cow<'_, str> = match item_type {
+                                    "ISSUE" => Cow::Borrowed("issue"),
+                                    "PULL_REQUEST" => Cow::Borrowed("pull_request"),
+                                    "DRAFT_ISSUE" => Cow::Borrowed("draft_issue"),
+                                    other => Cow::Owned(other.to_lowercase()),
+                                };
+                                format!("project-item:{}", type_lower)
+                            },
                             secrecy: secrecy.into(),
                             integrity: integrity.into(),
                         },

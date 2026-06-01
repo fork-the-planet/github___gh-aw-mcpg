@@ -71,38 +71,6 @@ func (c *TracingConfig) GetSampleRate() float64 {
 	return *c.SampleRate
 }
 
-func init() {
-	// Register default setter for Tracing config
-	RegisterDefaults(func(cfg *Config) {
-		if cfg.Gateway != nil && cfg.Gateway.Tracing != nil {
-			if cfg.Gateway.Tracing.ServiceName == "" {
-				cfg.Gateway.Tracing.ServiceName = DefaultTracingServiceName
-			}
-		}
-	})
-
-	// Register stdin converter for the opentelemetry gateway config field (spec §4.1.3.6).
-	RegisterStdinConverter(func(cfg *Config, stdinCfg *StdinConfig) {
-		if stdinCfg.Gateway == nil || stdinCfg.Gateway.OpenTelemetry == nil {
-			return
-		}
-		otel := stdinCfg.Gateway.OpenTelemetry
-		if cfg.Gateway == nil {
-			cfg.Gateway = &GatewayConfig{}
-		}
-		cfg.Gateway.Tracing = &TracingConfig{
-			Endpoint:    otel.Endpoint,
-			Headers:     otel.Headers,
-			TraceID:     otel.TraceID,
-			SpanID:      otel.SpanID,
-			ServiceName: otel.ServiceName,
-		}
-		if cfg.Gateway.Tracing.ServiceName == "" {
-			cfg.Gateway.Tracing.ServiceName = DefaultTracingServiceName
-		}
-	})
-}
-
 // expandTracingVariables expands ${VAR} expressions in TracingConfig fields.
 // This is called for TOML-loaded configs before validation, mirroring the
 // stdin JSON path where ExpandRawJSONVariables handles expansion.
@@ -141,4 +109,36 @@ func expandTracingVariables(cfg *TracingConfig) error {
 
 	logValidation.Print("Tracing config variable expansion completed")
 	return nil
+}
+
+func init() {
+	// Register default setter for Tracing config
+	RegisterDefaults(func(cfg *Config) {
+		if cfg.Gateway != nil && cfg.Gateway.Tracing != nil {
+			if cfg.Gateway.Tracing.ServiceName == "" {
+				cfg.Gateway.Tracing.ServiceName = DefaultTracingServiceName
+			}
+		}
+	})
+
+	// Register stdin converter for the opentelemetry gateway config field (spec §4.1.3.6).
+	RegisterStdinConverter(func(cfg *Config, stdinCfg *StdinConfig) {
+		if stdinCfg.Gateway == nil || stdinCfg.Gateway.OpenTelemetry == nil {
+			return
+		}
+		otel := stdinCfg.Gateway.OpenTelemetry
+		if cfg.Gateway == nil {
+			cfg.Gateway = &GatewayConfig{}
+		}
+		cfg.Gateway.Tracing = &TracingConfig{
+			Endpoint:    otel.Endpoint,
+			Headers:     otel.Headers,
+			TraceID:     otel.TraceID,
+			SpanID:      otel.SpanID,
+			ServiceName: otel.ServiceName,
+		}
+		if cfg.Gateway.Tracing.ServiceName == "" {
+			cfg.Gateway.Tracing.ServiceName = DefaultTracingServiceName
+		}
+	})
 }

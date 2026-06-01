@@ -59,7 +59,34 @@ When running `awmg` directly (outside `docker run`), useful CLI flags include:
 - `--config-stdin`: Read JSON config from stdin (required when piping config, e.g. `cat config.json | awmg --config-stdin --routed`).
 - `--env <file>`: Load environment variables from a `.env` file before startup.
 - `-v`, `-vv`, `-vvv`: Increase verbosity (`info`, `debug`, `trace`).
-- Containerized-only startup env vars such as `MCP_GATEWAY_HOST` and `MCP_GATEWAY_MODE` are documented in [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md).
+- A complete reference for all environment variables — including guard policy, TLS, tracing, authentication tokens, and containerized deployment — is in [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md).
+
+## Authentication
+
+The gateway reads a GitHub token from the first non-empty value of these variables (checked in priority order):
+
+| Variable | Description |
+|----------|-------------|
+| `GITHUB_MCP_SERVER_TOKEN` | Highest-priority GitHub auth token |
+| `GITHUB_TOKEN` | Standard GitHub token (set automatically in GitHub Actions) |
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | Personal access token |
+| `GH_TOKEN` | Lowest-priority fallback (set by GitHub CLI) |
+
+For proxy mode, a token is needed only when clients do not send their own `Authorization` header. In unified gateway mode, collaborator permission checks require one of these to be set. See [`docs/ENVIRONMENT_VARIABLES.md`](docs/ENVIRONMENT_VARIABLES.md) for full details.
+
+## Tracing
+
+The gateway supports OpenTelemetry distributed tracing. Set these variables to enable it:
+
+| Variable | Description |
+|----------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP endpoint (e.g., `http://localhost:4318`); tracing is disabled when empty |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated `key=value` headers for OTLP export (W3C Baggage format); used as fallback when not set in config |
+| `OTEL_SERVICE_NAME` | Service name reported in traces (default: `mcp-gateway`) |
+
+Use `--otlp-sample-rate <float>` to control trace sampling (range `0.0`–`1.0`, default `1.0`).
+
+See [`docs/ENVIRONMENT_VARIABLES.md`](docs/ENVIRONMENT_VARIABLES.md) for full details.
 
 ## Guard Policies
 
@@ -103,11 +130,14 @@ Restricts which repositories a guard allows and at what integrity level:
 
 **`trusted-users`** *(optional)* — Array of GitHub usernames whose content is unconditionally elevated to `approved` integrity. Useful for granting specific external contributors (e.g., trusted open-source maintainers) the same treatment as repository members, without lowering `min-integrity` globally. Uses `max(base, approved)` so it never lowers integrity. Does not override `blocked-users`.
 
+**`tool-call-limits`** *(optional)* — Map of tool names to per-session call limits enforced by the gateway before the backend is invoked. Positive values hard-limit that tool for the session, while `0` or an omitted entry leaves the tool unlimited.
+
 ```json
 "guard-policies": {
   "allow-only": {
     "repos": ["myorg/*"],
     "min-integrity": "approved",
+    "tool-call-limits": {"issue_read": 1},
     "blocked-users": ["spam-bot", "compromised-user"],
     "approval-labels": ["human-reviewed", "safe-for-agent"],
     "trusted-users": ["alice", "trusted-contributor"]
@@ -143,6 +173,20 @@ The `accept` entries must match the secrecy tags assigned by the guard. Key mapp
 | `["owner/prefix*"]` | `["private:owner/prefix*"]` |
 
 See **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** for the complete mapping table and accept pattern reference.
+
+## Gateway Configuration
+
+Key gateway-level configuration fields (set under `[gateway]` in TOML or `"gateway"` in JSON):
+
+| Field | Description |
+|-------|-------------|
+| `api_key` / `apiKey` | API key for gateway authentication (MCP spec 7.1) |
+| `port` | Listen port |
+| `payload_dir` / `payloadDir` | Directory for large payload storage (must be absolute path) |
+| `payload_size_threshold` / `payloadSizeThreshold` | Size threshold in bytes for payload storage (default: `524288`) |
+| `trusted_bots` / `trustedBots` | Additional bot usernames to treat as trusted with "approved" integrity. Additive to the built-in trusted bot list. Non-empty array when present. Example: `["my-bot[bot]"]` |
+
+For the full gateway field list (including rate limiting, tracing, keepalive, and more), see **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**.
 
 ## Architecture
 

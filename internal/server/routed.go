@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -106,7 +106,7 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 		}
 	}
 
-	logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, auth.TruncateSessionID(sessionID))
+	logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, strutil.TruncateSessionID(sessionID))
 	server := creator()
 	c.servers[key] = &filteredServerEntry{server: server, lastUsed: now}
 	return server
@@ -151,14 +151,12 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 				return serverCache.getOrCreate(backendID, sessionID, func() *sdk.Server {
 					return createFilteredServer(unifiedServer, backendID)
 				})
-			}, mcpHandlerConfig{
-				handlerLog:     logRouted,
-				sessionTimeout: sessionTimeout,
-				logTag:         "routed:" + backendID,
-				unifiedServer:  unifiedServer,
-				apiKey:         apiKey,
-				hmacSecret:     hmacSecret,
-			})
+			}, buildDefaultHandlerConfig(unifiedServer, sessionTimeout, defaultHandlerConfigOptions{
+				handlerLog: logRouted,
+				logTag:     "routed:" + backendID,
+				apiKey:     apiKey,
+				hmacSecret: hmacSecret,
+			}))
 
 			// Mount the handler at both /mcp/<server> and /mcp/<server>/
 			mux.Handle(route+"/", finalHandler)

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSetSinkServerIDs(t *testing.T) {
@@ -112,4 +113,35 @@ func TestIsSinkServerID(t *testing.T) {
 		}
 		wg.Wait()
 	})
+}
+
+func TestParseSinkServerIDs(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		expect  []string
+		wantErr bool
+	}{
+		{name: "empty input", input: "", expect: nil},
+		{name: "single server id", input: "safeoutputs", expect: []string{"safeoutputs"}},
+		{name: "multiple server ids", input: "safeoutputs,github", expect: []string{"safeoutputs", "github"}},
+		{name: "trims whitespace around separators", input: " safeoutputs , github ", expect: []string{"safeoutputs", "github"}},
+		{name: "deduplicates server ids", input: "safeoutputs,github,safeoutputs", expect: []string{"safeoutputs", "github"}},
+		{name: "consecutive commas skip empty parts", input: "safeoutputs,,github", expect: []string{"safeoutputs", "github"}},
+		{name: "trailing comma skips empty part", input: "safeoutputs,github,", expect: []string{"safeoutputs", "github"}},
+		{name: "rejects embedded whitespace", input: "safe outputs", wantErr: true},
+		{name: "rejects embedded tab", input: "safe\toutputs", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseSinkServerIDs(tt.input)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.expect, result)
+		})
+	}
 }

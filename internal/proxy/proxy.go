@@ -21,6 +21,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
@@ -211,6 +212,24 @@ type restBackendCaller struct {
 	clientAuth string
 }
 
+// extractOwnerRepoNumber reads owner, repo, and a numeric resource identifier
+// from tool arguments, accepting either string or float64 JSON number inputs for
+// the identifier.
+func extractOwnerRepoNumber(argsMap map[string]interface{}, ownerKey, repoKey, numberKey, toolName string) (owner, repo, number string, err error) {
+	owner = strutil.GetStringFromMap(argsMap, ownerKey)
+	repo = strutil.GetStringFromMap(argsMap, repoKey)
+	number = strutil.GetStringFromMap(argsMap, numberKey)
+	if number == "" {
+		if n, ok := argsMap[numberKey].(float64); ok {
+			number = fmt.Sprintf("%d", int(n))
+		}
+	}
+	if owner == "" || repo == "" || number == "" {
+		err = fmt.Errorf("%s: missing %s/%s/%s", toolName, ownerKey, repoKey, numberKey)
+	}
+	return
+}
+
 func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args interface{}) (interface{}, error) {
 	argsMap, ok := args.(map[string]interface{})
 	if !ok {
@@ -223,30 +242,16 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 	)
 	switch toolName {
 	case "pull_request_read":
-		owner, _ := argsMap["owner"].(string)
-		repo, _ := argsMap["repo"].(string)
-		number, _ := argsMap["pullNumber"].(string)
-		if number == "" {
-			if n, ok := argsMap["pullNumber"].(float64); ok {
-				number = fmt.Sprintf("%d", int(n))
-			}
-		}
-		if owner == "" || repo == "" || number == "" {
-			return nil, fmt.Errorf("pull_request_read: missing owner/repo/pullNumber")
+		owner, repo, number, err := extractOwnerRepoNumber(argsMap, "owner", "repo", "pullNumber", toolName)
+		if err != nil {
+			return nil, err
 		}
 		apiPath = fmt.Sprintf("/repos/%s/%s/pulls/%s", owner, repo, number)
 
 	case "issue_read":
-		owner, _ := argsMap["owner"].(string)
-		repo, _ := argsMap["repo"].(string)
-		number, _ := argsMap["issue_number"].(string)
-		if number == "" {
-			if n, ok := argsMap["issue_number"].(float64); ok {
-				number = fmt.Sprintf("%d", int(n))
-			}
-		}
-		if owner == "" || repo == "" || number == "" {
-			return nil, fmt.Errorf("issue_read: missing owner/repo/issue_number")
+		owner, repo, number, err := extractOwnerRepoNumber(argsMap, "owner", "repo", "issue_number", toolName)
+		if err != nil {
+			return nil, err
 		}
 		apiPath = fmt.Sprintf("/repos/%s/%s/issues/%s", owner, repo, number)
 
@@ -263,7 +268,7 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 
 	case "get_collaborator_permission":
 		var parseErr error
-		collabOwner, collabRepo, collabUsername, parseErr = httputil.ParseCollaboratorPermissionArgs(argsMap)
+		collabOwner, collabRepo, collabUsername, parseErr = ParseCollaboratorPermissionArgs(argsMap)
 		if parseErr != nil {
 			logProxy.Printf("restBackendCaller: get_collaborator_permission missing args (owner=%q repo=%q username=%q)", collabOwner, collabRepo, collabUsername)
 			return nil, parseErr
@@ -288,7 +293,7 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 	}
 	// For get_collaborator_permission, reuse shared REST call helper.
 	if toolName == "get_collaborator_permission" {
-		result, err := httputil.FetchCollaboratorPermission(
+		result, err := FetchCollaboratorPermission(
 			ctx,
 			collabOwner,
 			collabRepo,
@@ -327,6 +332,25 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 
 	// Wrap in MCP response format: {content: [{type: "text", text: "..."}]}
 	return mcp.BuildMCPTextResponse(string(body)), nil
+}
+
+// upstreamHost returns the hostname of the upstream GitHub API URL.
+// It is used to populate the server.address OTel attribute on the
+// proxy.backend.forward span.
+func (s *Server) upstreamHost() string {
+	u, err := url.Parse(s.githubAPIURL)
+	if err == nil && u.Host != "" {
+		return u.Hostname()
+	}
+
+	// Handle scheme-less config values like "api.github.com" or "api.github.com/api/v3".
+	u, err = url.Parse("https://" + strings.TrimLeft(s.githubAPIURL, "/"))
+	if err == nil && u.Host != "" {
+		return u.Hostname()
+	}
+
+	host, _, _ := strings.Cut(strings.TrimLeft(s.githubAPIURL, "/"), "/")
+	return host
 }
 
 // forwardToGitHub sends a request to the upstream GitHub API.

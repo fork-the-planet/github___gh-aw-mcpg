@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -327,6 +327,84 @@ func TestWrapHTTPHandler_GeneratesRootSpan(t *testing.T) {
 
 	assert.True(t, capturedSpanCtx.IsValid(), "should have a valid span context even without traceparent")
 	assert.False(t, capturedSpanCtx.IsRemote(), "span should not be marked remote — it is a local root span")
+}
+
+// TestWrapHTTPHandler_UsesHTTPRouteWhenPatternAvailable verifies that handler
+// patterns are recorded as http.route instead of high-cardinality concrete paths.
+func TestWrapHTTPHandler_UsesHTTPRouteWhenPatternAvailable(t *testing.T) {
+	ctx := context.Background()
+
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	_, exporter, cleanup := newInMemoryProvider(t)
+	defer cleanup()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mux := http.NewServeMux()
+	mux.Handle("GET /mcp/{serverID}", tracing.WrapHTTPHandler(inner, "test.route"))
+
+	req := httptest.NewRequest(http.MethodGet, "/mcp/github", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1, "expected exactly one span")
+
+	var foundRoute, foundPath bool
+	for _, attr := range spans[0].Attributes {
+		if attr.Key == semconv.HTTPRouteKey {
+			assert.Equal(t, "/mcp/{serverID}", attr.Value.AsString())
+			foundRoute = true
+		}
+		if attr.Key == semconv.URLPathKey {
+			assert.Equal(t, "/mcp/github", attr.Value.AsString())
+			foundPath = true
+		}
+	}
+	assert.True(t, foundRoute, "http.route attribute must be present")
+	assert.True(t, foundPath, "url.path attribute must be present")
+}
+
+// TestWrapHTTPHandler_UsesURLPathWhenPatternUnavailable verifies url.path is
+// always captured and http.route is omitted when no route template is available.
+func TestWrapHTTPHandler_UsesURLPathWhenPatternUnavailable(t *testing.T) {
+	ctx := context.Background()
+
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	_, exporter, cleanup := newInMemoryProvider(t)
+	defer cleanup()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/unmatched/path", nil)
+	rr := httptest.NewRecorder()
+	tracing.WrapHTTPHandler(inner, "test.route.fallback").ServeHTTP(rr, req)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1, "expected exactly one span")
+
+	var foundRoute, foundPath bool
+	for _, attr := range spans[0].Attributes {
+		if attr.Key == semconv.HTTPRouteKey {
+			foundRoute = true
+		}
+		if attr.Key == semconv.URLPathKey {
+			assert.Equal(t, "/unmatched/path", attr.Value.AsString())
+			foundPath = true
+		}
+	}
+	assert.False(t, foundRoute, "http.route attribute should be omitted when route template is unavailable")
+	assert.True(t, foundPath, "url.path attribute must be present")
 }
 
 // TestInitProvider_WithHeaders verifies that OTLP export headers are forwarded
@@ -732,6 +810,22 @@ func TestWrapHTTPHandler_5xxSetsSpanStatusError(t *testing.T) {
 	assert.Equal(t, codes.Error, span.Status.Code, "5xx must set span status to Error")
 	assert.NotEmpty(t, span.Status.Description, "5xx must provide a non-empty status description")
 
+	var foundException, foundStackTrace bool
+	for _, event := range span.Events {
+		if event.Name != "exception" {
+			continue
+		}
+		foundException = true
+		for _, attr := range event.Attributes {
+			if attr.Key == "exception.stacktrace" {
+				assert.NotEmpty(t, attr.Value.AsString(), "recorded exception should include stacktrace")
+				foundStackTrace = true
+			}
+		}
+	}
+	assert.True(t, foundException, "5xx should record an exception event")
+	assert.True(t, foundStackTrace, "5xx exception event should include stacktrace")
+
 	var found bool
 	for _, attr := range span.Attributes {
 		if attr.Key == semconv.HTTPResponseStatusCodeKey {
@@ -740,4 +834,32 @@ func TestWrapHTTPHandler_5xxSetsSpanStatusError(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "http.response.status_code attribute must be present on the span")
+}
+
+func TestWrapHTTPHandler_Unknown5xxUsesFallbackStatusDescription(t *testing.T) {
+	ctx := context.Background()
+
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	_, exporter, cleanup := newInMemoryProvider(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	rr := httptest.NewRecorder()
+
+	const unknown5xx = 599
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(unknown5xx)
+	})
+
+	tracing.WrapHTTPHandler(inner, "test.unknown5xx").ServeHTTP(rr, req)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1, "expected exactly one span")
+	span := spans[0]
+
+	assert.Equal(t, codes.Error, span.Status.Code, "unknown 5xx must set span status to Error")
+	assert.Equal(t, "HTTP 599", span.Status.Description, "unknown 5xx should use HTTP <code> fallback description")
 }

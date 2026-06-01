@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/github/gh-aw-mcpg/internal/guard"
 )
 
 // ValidateGuardPolicy validates AllowOnly or WriteSink policy input.
@@ -99,7 +97,7 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 
 	integrity := strings.ToLower(strings.TrimSpace(policy.AllowOnly.MinIntegrity))
 	if _, ok := validMinIntegrityValues[integrity]; !ok {
-		return nil, fmt.Errorf("allow-only.min-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
+		return nil, fmt.Errorf("allow-only.min-integrity must be one of: %s", strings.Join(allowedGuardPolicyIntegrityLevels, ", "))
 	}
 
 	normalized := &NormalizedGuardPolicy{MinIntegrity: integrity}
@@ -107,6 +105,11 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	logGuardPolicy.Printf("Normalizing guard policy: integrity=%s, reposType=%T", integrity, policy.AllowOnly.Repos)
 
 	var err error
+
+	normalized.ToolCallLimits, err = normalizeToolCallLimits(policy.AllowOnly.ToolCallLimits)
+	if err != nil {
+		return nil, err
+	}
 
 	// Validate and normalize blocked-users, approval-labels, trusted-users.
 	// Dedup uses lowercased keys; original trimmed values are stored.
@@ -138,7 +141,7 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	// uses Rust-side default of "none" when endorsement/disapproval is evaluated).
 	if v := strings.ToLower(strings.TrimSpace(policy.AllowOnly.DisapprovalIntegrity)); v != "" {
 		if _, ok := validMinIntegrityValues[v]; !ok {
-			return nil, fmt.Errorf("allow-only.disapproval-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
+			return nil, fmt.Errorf("allow-only.disapproval-integrity must be one of: %s", strings.Join(allowedGuardPolicyIntegrityLevels, ", "))
 		}
 		normalized.DisapprovalIntegrity = v
 	}
@@ -147,7 +150,7 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	// uses Rust-side default of "approved" when evaluating reactor eligibility).
 	if v := strings.ToLower(strings.TrimSpace(policy.AllowOnly.EndorserMinIntegrity)); v != "" {
 		if _, ok := validMinIntegrityValues[v]; !ok {
-			return nil, fmt.Errorf("allow-only.endorser-min-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
+			return nil, fmt.Errorf("allow-only.endorser-min-integrity must be one of: %s", strings.Join(allowedGuardPolicyIntegrityLevels, ", "))
 		}
 		normalized.EndorserMinIntegrity = v
 	}
@@ -329,6 +332,25 @@ func normalizeStringSlice(field string, input []string, caseNorm func(string) st
 				out = append(out, v)
 			}
 		}
+	}
+	return out, nil
+}
+
+func normalizeToolCallLimits(input map[string]int) (map[string]int, error) {
+	if len(input) == 0 {
+		return nil, nil
+	}
+
+	out := make(map[string]int, len(input))
+	for toolName, limit := range input {
+		toolName = strings.TrimSpace(toolName)
+		if toolName == "" {
+			return nil, fmt.Errorf("allow-only.tool-call-limits keys must not be empty")
+		}
+		if limit < 0 {
+			return nil, fmt.Errorf("allow-only.tool-call-limits[%q] must be >= 0", toolName)
+		}
+		out[toolName] = limit
 	}
 	return out, nil
 }

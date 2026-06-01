@@ -44,6 +44,13 @@ func TestFormatErrorContext(t *testing.T) {
 			wantContains: []string{"Type mismatch", "correct type", "  Details:"},
 		},
 		{
+			name:         "type mismatch inferred from keyword location",
+			message:      "validation failed",
+			keywordLoc:   "/properties/mcpServers/additionalProperties/properties/type/type",
+			prefix:       "  ",
+			wantContains: []string{"Type mismatch", "correct type", "  Details:"},
+		},
+		{
 			name:         "type mismatch with expected and type",
 			message:      "expected string, got 'null' type",
 			prefix:       "",
@@ -84,6 +91,13 @@ func TestFormatErrorContext(t *testing.T) {
 			message:      "pattern validation failed",
 			prefix:       "  ",
 			wantContains: []string{"Value format is incorrect", "  Details:"},
+		},
+		{
+			name:         "range inferred from keyword location minimum",
+			message:      "validation failed",
+			keywordLoc:   "/properties/mcpServers/additionalProperties/properties/retries/minimum",
+			prefix:       "  ",
+			wantContains: []string{"outside the allowed range", "Adjust the value", "  Details:"},
 		},
 		{
 			name:         "minimum constraint violation",
@@ -180,6 +194,21 @@ func TestFormatErrorContext(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDetailForKeyword(t *testing.T) {
+	t.Run("known keyword returns details", func(t *testing.T) {
+		key, lines := detailForKeyword("additionalProperties")
+		assert.Equal(t, "additionalProperties", key)
+		require.Len(t, lines, 2)
+		assert.Contains(t, lines[0], "Configuration contains field(s)")
+	})
+
+	t.Run("unknown keyword returns empty values", func(t *testing.T) {
+		key, lines := detailForKeyword("unknown")
+		assert.Empty(t, key)
+		assert.Nil(t, lines)
+	})
 }
 
 // TestFormatValidationErrorRecursive tests the formatValidationErrorRecursive function
@@ -349,6 +378,69 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 		assert.Contains(t, result, "outside the allowed range",
 			"formatValidationErrorRecursive should include context from formatErrorContext")
 	})
+}
+
+// TestKeywordFromLocation tests the keywordFromLocation helper function which
+// extracts the terminal JSON Schema keyword from a slash-separated keyword-location path.
+func TestKeywordFromLocation(t *testing.T) {
+	tests := []struct {
+		name            string
+		keywordLocation string
+		want            string
+	}{
+		{
+			name:            "empty string returns empty",
+			keywordLocation: "",
+			want:            "",
+		},
+		{
+			name:            "whitespace-only returns empty",
+			keywordLocation: "   ",
+			want:            "",
+		},
+		{
+			name:            "trailing slash is stripped before extraction",
+			keywordLocation: "/properties/foo/type/",
+			want:            "type",
+		},
+		{
+			name:            "single keyword with no slash returns full string",
+			keywordLocation: "type",
+			want:            "type",
+		},
+		{
+			name:            "slash-prefixed single keyword returns keyword",
+			keywordLocation: "/type",
+			want:            "type",
+		},
+		{
+			name:            "standard nested path returns terminal keyword",
+			keywordLocation: "/properties/mcpServers/additionalProperties/properties/type/type",
+			want:            "type",
+		},
+		{
+			name:            "minimum keyword at end of path",
+			keywordLocation: "/properties/port/minimum",
+			want:            "minimum",
+		},
+		{
+			name:            "maximum keyword at end of path",
+			keywordLocation: "/properties/port/maximum",
+			want:            "maximum",
+		},
+		{
+			name:            "single slash returns empty string",
+			keywordLocation: "/",
+			want:            "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := keywordFromLocation(tt.keywordLocation)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 // TestFormatSchemaError tests the formatSchemaError function which formats
