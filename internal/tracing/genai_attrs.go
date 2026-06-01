@@ -12,6 +12,9 @@ import (
 // These are aliases for the official OpenTelemetry gen_ai semconv constants
 // (semconv/v1.34.0), re-exported here for convenience.
 const (
+	// GenAISystem identifies the GenAI system family for MCP spans.
+	GenAISystem = semconv.GenAISystemKey
+
 	// GenAIToolName is the name of the tool utilized by the agent.
 	GenAIToolName = semconv.GenAIToolNameKey
 

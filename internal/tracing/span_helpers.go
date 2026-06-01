@@ -6,7 +6,7 @@ import (
 	"context"
 
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -16,6 +16,9 @@ import (
 func RecordSpanError(span oteltrace.Span, err error, msg string) {
 	logTracing.Printf("Recording span error: msg=%s, err=%v", msg, err)
 	span.RecordError(err, oteltrace.WithStackTrace(true))
+	if err != nil {
+		span.SetAttributes(semconv.ErrorType(err))
+	}
 	span.SetStatus(codes.Error, msg)
 }
 
@@ -34,6 +37,7 @@ func StartToolCallSpan(ctx context.Context, tracer oteltrace.Tracer, serverID, t
 	logTracing.Printf("Starting tool call span: serverID=%s, toolName=%s", serverID, toolName)
 	return tracer.Start(ctx, "mcp.tool_call",
 		oteltrace.WithAttributes(
+			GenAISystem.String("mcp"),
 			GenAIAgentID.String(serverID),
 			MCPMethod.String("tools/call"),
 			GenAIToolName.String(toolName),

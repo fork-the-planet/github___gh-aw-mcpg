@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -50,6 +50,7 @@ func TestRecordSpanError_SetsStatusAndRecordsEvent(t *testing.T) {
 
 	assert.Equal(t, "Error", recorded.Status.Code.String(), "span status should be Error")
 	assert.Equal(t, "test failure", recorded.Status.Description)
+	assert.True(t, hasAttr(recorded.Attributes, semconv.ErrorTypeKey, "*errors.errorString"))
 
 	var foundStackTrace bool
 	for _, event := range recorded.Events {
@@ -138,6 +139,7 @@ func TestStartToolCallSpan(t *testing.T) {
 	s := spans[0]
 	assert.Equal(t, "mcp.tool_call", s.Name)
 	assert.Equal(t, oteltrace.SpanKindInternal, s.SpanKind)
+	assert.True(t, hasAttr(s.Attributes, GenAISystem, "mcp"))
 	assert.True(t, hasAttr(s.Attributes, GenAIAgentID, "srv1"))
 	assert.True(t, hasAttr(s.Attributes, MCPMethod, "tools/call"))
 	assert.True(t, hasAttr(s.Attributes, GenAIToolName, "my_tool"))
