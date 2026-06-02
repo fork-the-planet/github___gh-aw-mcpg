@@ -560,12 +560,19 @@ pub fn get_collaborator_permission_with_callback(
         .and_then(|v| v.as_str())
         .map(String::from);
 
+    #[cfg(test)]
     let login = data
         .get("user")
         .and_then(|u| u.get("login"))
         .and_then(|v| v.as_str())
         .map(String::from);
 
+    #[cfg(not(test))]
+    crate::log_info(&format!(
+        "get_collaborator_permission: {}/{} user {} → permission={:?}",
+        owner, repo, username, permission
+    ));
+    #[cfg(test)]
     crate::log_info(&format!(
         "get_collaborator_permission: {}/{} user {} → permission={:?} login={:?}",
         owner, repo, username, permission, login
