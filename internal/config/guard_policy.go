@@ -17,6 +17,9 @@ const (
 	IntegrityMerged     = "merged"
 )
 
+// AllIntegrityLevels is the canonical ordered list of all valid integrity-level values.
+var AllIntegrityLevels = []string{IntegrityNone, IntegrityUnapproved, IntegrityApproved, IntegrityMerged}
+
 var validMinIntegrityValues = map[string]struct{}{
 	IntegrityNone:       {},
 	IntegrityUnapproved: {},

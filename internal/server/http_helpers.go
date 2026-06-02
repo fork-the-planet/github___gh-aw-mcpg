@@ -2,11 +2,9 @@ package server
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/httputil"
@@ -117,13 +115,4 @@ func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
 		logger.LogDebug("client", "MCP request body, session=%s, body=%s", strutil.TruncateSessionID(sessionID), sanitizedBody)
 	}
 	logHelpers.Print("Request body logged for debugging")
-}
-
-func truncateCacheKeyForLog(key string) string {
-	backendID, sessionID, found := strings.Cut(key, "/")
-	if !found {
-		return key
-	}
-
-	return fmt.Sprintf("%s/%s", backendID, strutil.TruncateSessionID(sessionID))
 }

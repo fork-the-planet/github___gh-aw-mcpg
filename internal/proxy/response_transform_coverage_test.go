@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/jsonutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -363,7 +363,7 @@ func TestDeepCloneJSON_Map(t *testing.T) {
 		"tags": []interface{}{"go", "test"},
 	}
 
-	cloned := strutil.DeepCloneJSON(original)
+	cloned := jsonutil.DeepCloneJSON(original)
 
 	clonedMap, ok := cloned.(map[string]interface{})
 	require.True(t, ok, "cloned value should be a map")
@@ -390,7 +390,7 @@ func TestDeepCloneJSON_NestedMapAndSlice(t *testing.T) {
 		},
 	}
 
-	cloned := strutil.DeepCloneJSON(original)
+	cloned := jsonutil.DeepCloneJSON(original)
 
 	// Mutate deeply nested value.
 	original["level1"].(map[string]interface{})["level2"].([]interface{})[0].(map[string]interface{})["x"] = float64(99)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -210,4 +211,15 @@ func createFilteredServer(unifiedServer *UnifiedServer, backendID string) *sdk.S
 	}
 
 	return server
+}
+
+// truncateCacheKeyForLog returns a log-safe version of a cache key of the form
+// "backendID/sessionID" by truncating the session ID portion.
+func truncateCacheKeyForLog(key string) string {
+	backendID, sessionID, found := strings.Cut(key, "/")
+	if !found {
+		return key
+	}
+
+	return fmt.Sprintf("%s/%s", backendID, strutil.TruncateSessionID(sessionID))
 }
