@@ -239,13 +239,27 @@
         },
         "toolTimeout": {
           "type": "integer",
-          "description": "Per-server maximum time (seconds) to wait for a single tool invocation. Overrides the global gateway.toolTimeout for this server. Minimum: 10.",
-          "minimum": 10
+          "description": "Per-server maximum time (seconds) to wait for a single tool invocation. Overrides the global gateway.toolTimeout for this server. Minimum: 10 (0 = unset).",
+          "anyOf": [
+            {
+              "const": 0
+            },
+            {
+              "minimum": 10
+            }
+          ]
         },
         "tool_timeout": {
           "type": "integer",
-          "description": "Legacy snake_case alias for toolTimeout. Prefer toolTimeout.",
-          "minimum": 10
+          "description": "Legacy snake_case alias for toolTimeout. Prefer toolTimeout. Minimum: 10 (0 = unset).",
+          "anyOf": [
+            {
+              "const": 0
+            },
+            {
+              "minimum": 10
+            }
+          ]
         }
       },
       "required": [
