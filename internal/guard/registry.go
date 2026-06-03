@@ -64,9 +64,11 @@ func (r *Registry) HasNonNoopGuard() bool {
 	defer r.mu.RUnlock()
 	for _, g := range r.guards {
 		if g.Name() != "noop" {
+			debugLog.Printf("HasNonNoopGuard: found non-noop guard=%s, registeredCount=%d", g.Name(), len(r.guards))
 			return true
 		}
 	}
+	debugLog.Printf("HasNonNoopGuard: all %d registered guard(s) are noop", len(r.guards))
 	return false
 }
 
@@ -88,6 +90,7 @@ func (r *Registry) List() []string {
 	for id := range r.guards {
 		serverIDs = append(serverIDs, id)
 	}
+	debugLog.Printf("List: returning %d registered server ID(s)", len(serverIDs))
 	return serverIDs
 }
 
@@ -100,6 +103,7 @@ func (r *Registry) GetGuardInfo() map[string]string {
 	for serverID, guard := range r.guards {
 		info[serverID] = guard.Name()
 	}
+	debugLog.Printf("GetGuardInfo: returning info for %d guard(s)", len(info))
 	return info
 }
 
