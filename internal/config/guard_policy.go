@@ -155,6 +155,9 @@ func GuardPolicyToMap(policy interface{}) (map[string]interface{}, error) {
 	if err := json.Unmarshal(policyJSON, &payload); err != nil {
 		return nil, fmt.Errorf("policy must decode to a JSON object: %w", err)
 	}
+	if payload == nil {
+		return nil, fmt.Errorf("policy must decode to a JSON object")
+	}
 
 	return payload, nil
 }
