@@ -10,14 +10,6 @@ import (
 // AllowedIntegrityLevels is derived from the canonical integrity levels in config.
 var AllowedIntegrityLevels = config.AllIntegrityLevels()
 
-var allowedIntegrityLevelSet = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(AllowedIntegrityLevels))
-	for _, level := range AllowedIntegrityLevels {
-		m[level] = struct{}{}
-	}
-	return m
-}()
-
 func invalidIntegrityFieldError(fieldName string) error {
 	return fmt.Errorf(
 		"invalid %s value: expected one of %s",
@@ -33,8 +25,7 @@ func validateIntegrityField(fieldName string, raw interface{}) error {
 	if !ok {
 		return invalidIntegrityFieldError(fieldName)
 	}
-	normalized := strings.ToLower(strings.TrimSpace(s))
-	if _, ok := allowedIntegrityLevelSet[normalized]; ok {
+	if _, err := config.NormalizeIntegrityLevel(s, false); err == nil {
 		return nil
 	}
 	return invalidIntegrityFieldError(fieldName)

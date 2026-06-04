@@ -6,8 +6,6 @@ import (
 	"strings"
 )
 
-var allowedGuardPolicyIntegrityLevels = AllIntegrityLevels()
-
 // ValidateGuardPolicy validates AllowOnly or WriteSink policy input.
 func ValidateGuardPolicy(policy *GuardPolicy) error {
 	if policy == nil {
@@ -200,12 +198,9 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 }
 
 func validateAndNormalizeIntegrityField(fieldPath, raw string, optional bool) (string, error) {
-	v := strings.ToLower(strings.TrimSpace(raw))
-	if v == "" && optional {
-		return "", nil
-	}
-	if _, ok := validMinIntegrityValues[v]; !ok {
-		return "", fmt.Errorf("%s must be one of: %s", fieldPath, strings.Join(allowedGuardPolicyIntegrityLevels, ", "))
+	v, err := NormalizeIntegrityLevel(raw, optional)
+	if err != nil {
+		return "", fmt.Errorf("%s %w", fieldPath, err)
 	}
 	return v, nil
 }

@@ -18,6 +18,49 @@ func TestAllIntegrityLevelsReturnsCopy(t *testing.T) {
 	assert.Equal(t, IntegrityNone, AllIntegrityLevels()[0])
 }
 
+func TestNormalizeIntegrityLevel(t *testing.T) {
+	tests := []struct {
+		name            string
+		raw             string
+		optional        bool
+		want            string
+		wantErrContains string
+	}{
+		{
+			name:     "normalizes case and whitespace",
+			raw:      "  ApProVed ",
+			optional: false,
+			want:     "approved",
+		},
+		{
+			name:     "optional empty allowed",
+			raw:      " ",
+			optional: true,
+			want:     "",
+		},
+		{
+			name:            "invalid value rejected",
+			raw:             "invalid",
+			optional:        false,
+			wantErrContains: "must be one of: none, unapproved, approved, merged",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NormalizeIntegrityLevel(tt.raw, tt.optional)
+			if tt.wantErrContains != "" {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErrContains)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // TestNormalizeGuardPolicy tests NormalizeGuardPolicy with all branch paths.
 func TestNormalizeGuardPolicy(t *testing.T) {
 	tests := []struct {

@@ -152,7 +152,7 @@ func BuildAllowOnlyPolicy(public bool, owner, repo, minIntegrity string) (*Guard
 		return nil, fmt.Errorf("min-integrity is required")
 	}
 	if !hasIntegrity {
-		return nil, fmt.Errorf("min-integrity must be one of: %s", strings.Join(allowedGuardPolicyIntegrityLevels, ", "))
+		return nil, fmt.Errorf("min-integrity must be one of: %s", strings.Join(allIntegrityLevels, ", "))
 	}
 
 	var repos interface{}
