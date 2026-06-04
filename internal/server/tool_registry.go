@@ -69,6 +69,13 @@ func getToolResponseFilter(cfg *config.Config, serverID, toolName string) string
 	return strings.TrimSpace(serverCfg.ToolResponseFilters[toolName])
 }
 
+// isSingularReadTool returns true when toolName refers to a tool expected to
+// return a single resource (e.g. get_*, *_read). List/search tools are treated
+// as collection tools even if they happen to return one item.
+func isSingularReadTool(toolName string) bool {
+	return !strings.HasPrefix(toolName, "list_") && !strings.HasPrefix(toolName, "search_")
+}
+
 // registerAllTools fetches and registers tools from all backend servers
 func (us *UnifiedServer) registerAllTools() error {
 	logger.LogInfo("backend", "Starting tool registration for %d backends", len(us.launcher.ServerIDs()))

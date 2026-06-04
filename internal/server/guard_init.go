@@ -12,13 +12,10 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logGuardInit = logger.New("server:guard_init")
-
-func newNoopGuard() guard.Guard {
-	return guard.NewNoopGuard()
-}
 
 // legacyPolicySource is returned by resolveGuardPolicy when no explicit policy
 // is configured and the caller should fall back to legacy session-label semantics.
@@ -85,7 +82,7 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 				g, err = us.createGuardFromConfig(guardName, guardCfg)
 				if err != nil {
 					logger.LogWarnToServer(serverID, "difc", "Failed to create guard '%s': %v (falling back to noop)", guardName, err)
-					g = newNoopGuard()
+					g = guard.NewNoopGuard()
 				}
 			} else {
 				// Guard name specified but no config found - try registered guard types
@@ -93,12 +90,12 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 				g, err = guard.CreateGuard(guardName)
 				if err != nil {
 					logger.LogWarnToServer(serverID, "difc", "Guard '%s' not found: %v (falling back to noop)", guardName, err)
-					g = newNoopGuard()
+					g = guard.NewNoopGuard()
 				}
 			}
 		} else {
 			// No guard configured - use noop
-			g = newNoopGuard()
+			g = guard.NewNoopGuard()
 		}
 	}
 
@@ -134,7 +131,7 @@ func (us *UnifiedServer) requireGuardPolicyIfGuardEnabled(serverID string, g gua
 		}
 
 		logger.LogWarnToServer(serverID, "difc", "Guard '%s' is available but no guard policy is set; falling back to noop guard", g.Name())
-		return newNoopGuard(), nil
+		return guard.NewNoopGuard(), nil
 	}
 
 	return g, nil
@@ -215,7 +212,7 @@ func (us *UnifiedServer) logWASMGuardsDirConfiguration() {
 func (us *UnifiedServer) createGuardFromConfig(name string, cfg *config.GuardConfig) (guard.Guard, error) {
 	switch cfg.Type {
 	case "noop", "":
-		return newNoopGuard(), nil
+		return guard.NewNoopGuard(), nil
 
 	case "wasm":
 		// WASM guard loading - requires path
@@ -384,7 +381,7 @@ func (us *UnifiedServer) ensureGuardInitialized(
 	}
 	var toolCallLimits map[string]int
 	if policy.AllowOnly != nil {
-		toolCallLimits = copyToolCallLimits(policy.AllowOnly.ToolCallLimits)
+		toolCallLimits = strutil.CopyTrimmedStringIntMap(policy.AllowOnly.ToolCallLimits)
 	}
 	session.GuardInit[serverID] = &GuardSessionState{
 		Initialized:      true,
@@ -400,20 +397,6 @@ func (us *UnifiedServer) ensureGuardInitialized(
 		sessionID, source, mode, normalizedPolicy)
 
 	return mode, nil
-}
-
-// copyToolCallLimits returns a defensive copy of tool-call-limits so per-session
-// counters cannot be affected by later config mutations. Keys are trimmed of
-// surrounding whitespace to match the normalization applied during validation.
-func copyToolCallLimits(input map[string]int) map[string]int {
-	if len(input) == 0 {
-		return nil
-	}
-	out := make(map[string]int, len(input))
-	for toolName, limit := range input {
-		out[strings.TrimSpace(toolName)] = limit
-	}
-	return out
 }
 
 // getTrustedBots returns the configured list of additional trusted bot usernames,
