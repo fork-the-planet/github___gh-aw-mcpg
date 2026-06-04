@@ -149,6 +149,20 @@ func TestLoadEnvFile_OnlyComments(t *testing.T) {
 	require.NoError(t, err, "File with only comments should be processed without error")
 }
 
+// TestLoadEnvFile_EmptyKey verifies that a line with an empty key (e.g. "=value")
+// causes LoadEnvFile to return an error, because os.Setenv("", ...) is invalid.
+func TestLoadEnvFile_EmptyKey(t *testing.T) {
+	tmpDir := t.TempDir()
+	envFilePath := filepath.Join(tmpDir, ".env")
+	// A line starting with '=' has an empty key; os.Setenv("", ...) returns an error.
+	content := "=somevalue\n"
+	require.NoError(t, os.WriteFile(envFilePath, []byte(content), 0644))
+
+	err := LoadEnvFile(envFilePath)
+	require.Error(t, err, "A line with an empty key should cause LoadEnvFile to return an error")
+	assert.Contains(t, err.Error(), "failed to set")
+}
+
 // TestLoadEnvFile_EqualsInValue verifies that values containing '=' are
 // preserved correctly (SplitN(..., 2) must not split on the second '=').
 func TestLoadEnvFile_EqualsInValue(t *testing.T) {
