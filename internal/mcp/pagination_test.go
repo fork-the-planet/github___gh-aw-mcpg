@@ -320,18 +320,25 @@ func TestListSDKItems_NilSession(t *testing.T) {
 	conn := newTestConnection(t)
 	conn.session = nil
 	listCalled := false
+	type fakeItem struct {
+		Name string
+	}
+	type fakeListResult struct {
+		Items      []fakeItem
+		NextCursor string
+	}
 
 	_, err := listSDKItems(
 		conn,
 		"tools",
-		func(_ string) (string, error) {
+		func(_ string) (fakeListResult, error) {
 			listCalled = true
-			return "", nil
+			return fakeListResult{}, nil
 		},
-		func(_ string) paginatedPage[string] {
-			return paginatedPage[string]{Items: []string{"a"}}
+		func(result fakeListResult) paginatedPage[fakeItem] {
+			return paginatedPage[fakeItem]{Items: result.Items, NextCursor: result.NextCursor}
 		},
-		func(items []string) []string { return items },
+		func(items []fakeItem) []fakeItem { return items },
 	)
 
 	require.Error(t, err)

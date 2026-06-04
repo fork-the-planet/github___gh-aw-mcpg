@@ -130,11 +130,11 @@ func listMCPItems[Item any, Result any](
 }
 
 // listSDKItems adapts cursor-based SDK list calls to listMCPItems.
-// Item is the per-entry type (for example *sdk.Tool), SDKResult is the SDK list
-// response type (for example *sdk.ListToolsResult), and Result is the final
-// marshalled response result wrapper. list executes a page request for a cursor,
-// toPage extracts items and next cursor from SDKResult, and buildResult wraps the
-// collected items for JSON-RPC response marshalling.
+// Item is the per-entry type (e.g. *sdk.Tool), SDKResult is the SDK list
+// response type (e.g. *sdk.ListToolsResult), and Result is the final marshalled
+// response wrapper. list executes a page request for a cursor, toPage extracts
+// items and next cursor from SDKResult, and buildResult wraps the collected items
+// for JSON-RPC response marshalling.
 func listSDKItems[Item any, SDKResult any, Result any](
 	c *Connection,
 	kind string,
