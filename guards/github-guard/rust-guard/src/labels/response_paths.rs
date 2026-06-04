@@ -413,8 +413,9 @@ pub fn label_response_paths(
             } else {
                 writer_integrity(&arg_repo_full, ctx)
             };
-            let secrecy_shared: crate::SharedLabels = secrecy.clone().into();
-            let file_integrity_shared: crate::SharedLabels = file_integrity.clone().into();
+            // Convert to SharedLabels (Arc<Vec<_>>) first — O(1) Arc clones in the loop.
+            let secrecy_shared: crate::SharedLabels = secrecy.into();
+            let file_integrity_shared: crate::SharedLabels = file_integrity.into();
 
             if let Some(items) = actual_response.as_array() {
                 let limited_items = limit_items_with_log(items, "get_file_contents");
@@ -435,8 +436,8 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "file_contents".to_string(),
-                        secrecy: secrecy.into(),
-                        integrity: file_integrity.into(),
+                        secrecy: secrecy_shared,
+                        integrity: file_integrity_shared,
                     }),
                     items_path: None,
                 });
@@ -459,7 +460,8 @@ pub fn label_response_paths(
                 };
                 let default_secrecy =
                     repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx);
-                let default_secrecy_shared: crate::SharedLabels = default_secrecy.clone().into();
+                // Convert to SharedLabels (Arc<Vec<_>>) first — O(1) Arc clones in the loop.
+                let default_secrecy_shared: crate::SharedLabels = default_secrecy.into();
 
                 let limited_items = limit_items_with_log(items, "list_releases");
                 let mut labeled_paths = Vec::with_capacity(limited_items.len());
@@ -489,7 +491,7 @@ pub fn label_response_paths(
                     labeled_paths,
                     default_labels: Some(crate::ResourceLabels {
                         description: "release".to_string(),
-                        secrecy: default_secrecy.into(),
+                        secrecy: default_secrecy_shared,
                         integrity: merged_integrity(&default_repo, ctx).into(),
                     }),
                     items_path: None, // Root array
@@ -958,6 +960,143 @@ mod tests {
             entry.labels.integrity,
             writer_integrity("octocat", &ctx()),
             "draft issue should use owner-scoped writer integrity"
+        );
+    }
+
+    #[test]
+    fn get_file_contents_default_branch_gets_merged_integrity() {
+        let tool_args = json!({"owner": "octocat", "repo": "hello", "ref": "main"});
+        let items = json!([{"name": "README.md", "content": "aGVsbG8="}]);
+        let response = json!({
+            "content": [{
+                "type": "text",
+                "text": serde_json::to_string(&items).expect("response should serialize")
+            }]
+        });
+
+        let result = label_response_paths("get_file_contents", &tool_args, &response, &ctx())
+            .expect("get_file_contents should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 1);
+        assert_eq!(result.labeled_paths[0].path, "/0");
+
+        // Default branch (main) → merged integrity on both the per-item entry and default_labels.
+        let merged_label = format!("{}octocat/hello", label_constants::MERGED_PREFIX);
+        let item_integrity = &result.labeled_paths[0].labels.integrity;
+        assert!(
+            item_integrity.contains(&merged_label),
+            "default-branch file should have merged integrity; got {:?}",
+            item_integrity
+        );
+        let default_integrity = &result
+            .default_labels
+            .as_ref()
+            .expect("default_labels should be set")
+            .integrity;
+        assert!(
+            default_integrity.contains(&merged_label),
+            "default-branch default_labels should have merged integrity; got {:?}",
+            default_integrity
+        );
+        // Public repo → empty secrecy
+        assert!(
+            result.labeled_paths[0].labels.secrecy.is_empty(),
+            "public repo file should have empty secrecy"
+        );
+    }
+
+    #[test]
+    fn get_file_contents_non_default_branch_gets_writer_integrity() {
+        let tool_args =
+            json!({"owner": "octocat", "repo": "hello", "ref": "feature/my-branch"});
+        let items = json!([{"name": "src/main.rs", "content": "Zm4gbWFpbigpIHt9"}]);
+        let response = json!({
+            "content": [{
+                "type": "text",
+                "text": serde_json::to_string(&items).expect("response should serialize")
+            }]
+        });
+
+        let result = label_response_paths("get_file_contents", &tool_args, &response, &ctx())
+            .expect("get_file_contents should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 1);
+
+        // Non-default branch → writer integrity, NOT merged integrity.
+        let item_integrity = &result.labeled_paths[0].labels.integrity;
+        assert!(
+            !item_integrity
+                .iter()
+                .any(|l| l.starts_with(label_constants::MERGED_PREFIX)),
+            "non-default-branch file should NOT have merged integrity; got {:?}",
+            item_integrity
+        );
+        let writer_label = format!(
+            "{}octocat/hello",
+            label_constants::WRITER_PREFIX
+        );
+        assert!(
+            item_integrity.contains(&writer_label),
+            "non-default-branch file should have writer integrity; got {:?}",
+            item_integrity
+        );
+        let default_integrity = &result
+            .default_labels
+            .as_ref()
+            .expect("default_labels should be set")
+            .integrity;
+        assert!(
+            !default_integrity
+                .iter()
+                .any(|l| l.starts_with(label_constants::MERGED_PREFIX)),
+            "non-default-branch default_labels should NOT have merged integrity; got {:?}",
+            default_integrity
+        );
+    }
+
+    #[test]
+    fn list_releases_produces_merged_integrity_per_item() {
+        let tool_args = json!({"owner": "octocat", "repo": "hello"});
+        let items = json!([
+            {"tag_name": "v1.0.0", "name": "First release"},
+            {"tag_name": "v1.1.0", "name": "Second release"}
+        ]);
+        let response = json!({
+            "content": [{
+                "type": "text",
+                "text": serde_json::to_string(&items).expect("response should serialize")
+            }]
+        });
+
+        let result = label_response_paths("list_releases", &tool_args, &response, &ctx())
+            .expect("list_releases should produce path labels");
+
+        assert_eq!(result.labeled_paths.len(), 2);
+
+        // All releases → merged integrity (they represent merged/tagged code).
+        let merged_label = format!("{}octocat/hello", label_constants::MERGED_PREFIX);
+        for entry in &result.labeled_paths {
+            assert!(
+                entry.labels.integrity.contains(&merged_label),
+                "release entry should have merged integrity; got {:?}",
+                entry.labels.integrity
+            );
+            // Public repo → empty secrecy.
+            assert!(
+                entry.labels.secrecy.is_empty(),
+                "public repo release should have empty secrecy"
+            );
+        }
+        // default_labels should also carry merged integrity.
+        let default_integrity = &result
+            .default_labels
+            .as_ref()
+            .expect("default_labels should be set")
+            .integrity;
+        assert!(
+            default_integrity.contains(&merged_label),
+            "list_releases default_labels should have merged integrity; got {:?}",
+            default_integrity
         );
     }
 
