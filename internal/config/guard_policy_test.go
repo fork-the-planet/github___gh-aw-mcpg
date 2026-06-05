@@ -74,12 +74,12 @@ func TestNormalizeGuardPolicy(t *testing.T) {
 		{
 			name:    "nil policy",
 			policy:  nil,
-			wantErr: "policy must include allow-only",
+			wantErr: errMsgPolicyMissingKey,
 		},
 		{
 			name:    "policy with nil AllowOnly",
 			policy:  &GuardPolicy{AllowOnly: nil},
-			wantErr: "policy must include allow-only",
+			wantErr: errMsgPolicyMissingKey,
 		},
 		{
 			name: "repos string all",
@@ -624,9 +624,9 @@ func TestGuardPolicyUnmarshalJSON(t *testing.T) {
 			wantErr: `unsupported field "extra"`,
 		},
 		{
-			name:    "missing allow-only field",
+			name:    "missing allow-only and write-sink fields",
 			json:    `{}`,
-			wantErr: "policy must include allow-only",
+			wantErr: errMsgPolicyMissingKey,
 		},
 		{
 			name: "canonical allow-only key",
@@ -1028,7 +1028,7 @@ func TestValidateGuardPolicy(t *testing.T) {
 	t.Run("nil policy returns error", func(t *testing.T) {
 		err := ValidateGuardPolicy(nil)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "policy must include allow-only")
+		assert.EqualError(t, err, errMsgPolicyMissingKey)
 	})
 
 	t.Run("valid policy returns nil", func(t *testing.T) {

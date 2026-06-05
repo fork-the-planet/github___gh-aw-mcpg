@@ -1,16 +1,19 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 )
 
+const errMsgPolicyMissingKey = "policy must include allow-only or write-sink"
+
 // ValidateGuardPolicy validates AllowOnly or WriteSink policy input.
 func ValidateGuardPolicy(policy *GuardPolicy) error {
 	if policy == nil {
 		logGuardPolicy.Print("ValidateGuardPolicy: policy is nil")
-		return fmt.Errorf("policy must include allow-only or write-sink")
+		return errors.New(errMsgPolicyMissingKey)
 	}
 	if policy.WriteSink != nil {
 		logGuardPolicy.Printf("ValidateGuardPolicy: delegating to write-sink validation, acceptCount=%d", len(policy.WriteSink.Accept))
@@ -88,7 +91,7 @@ func validateAcceptEntry(entry string) error {
 // NormalizeGuardPolicy validates and normalizes an allow-only policy shape.
 func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	if policy == nil || (policy.AllowOnly == nil && policy.WriteSink == nil) {
-		return nil, fmt.Errorf("policy must include allow-only or write-sink")
+		return nil, errors.New(errMsgPolicyMissingKey)
 	}
 	if policy.AllowOnly == nil {
 		// Write-sink policies don't produce a NormalizedGuardPolicy
