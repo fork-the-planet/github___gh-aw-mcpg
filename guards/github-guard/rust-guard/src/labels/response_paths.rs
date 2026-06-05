@@ -462,6 +462,8 @@ pub fn label_response_paths(
                     repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx);
                 // Convert to SharedLabels (Arc<Vec<_>>) first — O(1) Arc clones in the loop.
                 let default_secrecy_shared: crate::SharedLabels = default_secrecy.into();
+                let default_merged_shared: crate::SharedLabels =
+                    merged_integrity(&default_repo, ctx).into();
 
                 let limited_items = limit_items_with_log(items, "list_releases");
                 let mut labeled_paths = Vec::with_capacity(limited_items.len());
@@ -476,13 +478,18 @@ pub fn label_response_paths(
                     };
 
                     let tag = get_str_or(item, "tag_name", "unknown");
+                    let integrity: crate::SharedLabels = if item_repo.is_empty() {
+                        default_merged_shared.clone()
+                    } else {
+                        merged_integrity(repo_for_labels, ctx).into()
+                    };
 
                     labeled_paths.push(PathLabelEntry {
                         path: format!("/{}", i),
                         labels: crate::ResourceLabels {
                             description: format!("release:{}@{}", repo_for_labels, tag),
                             secrecy: default_secrecy_shared.clone(),
-                            integrity: merged_integrity(repo_for_labels, ctx).into(),
+                            integrity,
                         },
                     });
                 }
@@ -492,7 +499,7 @@ pub fn label_response_paths(
                     default_labels: Some(crate::ResourceLabels {
                         description: "release".to_string(),
                         secrecy: default_secrecy_shared,
-                        integrity: merged_integrity(&default_repo, ctx).into(),
+                        integrity: default_merged_shared,
                     }),
                     items_path: None, // Root array
                 });
