@@ -33,6 +33,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/github/gh-aw-mcpg/internal/config/rules"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
@@ -461,6 +462,13 @@ func LoadFromFile(path string) (*Config, error) {
 		return nil, err
 	}
 
+	// Validate payload_size_threshold per spec §4.1.3.3 when explicitly set in TOML.
+	if md.IsDefined("gateway", "payload_size_threshold") {
+		if err := rules.PositiveInteger(cfg.Gateway.PayloadSizeThreshold, "payload_size_threshold", "gateway.payload_size_threshold"); err != nil {
+			return nil, err
+		}
+	}
+
 	// Merge opentelemetry key into tracing when present (spec §4.1.3.6).
 	// opentelemetry takes precedence over the legacy tracing key.
 	if cfg.Gateway.Opentelemetry != nil {
@@ -485,12 +493,6 @@ func LoadFromFile(path string) (*Config, error) {
 
 	// Apply feature-specific defaults
 	applyDefaults(&cfg)
-
-	// Validate payload_size_threshold per spec §4.1.3.3: must be positive integer.
-	// applyDefaults replaces 0 with the default, so only negative values remain to catch.
-	if cfg.Gateway.PayloadSizeThreshold < 0 {
-		return nil, fmt.Errorf("gateway.payload_size_threshold must be a positive integer, got %d (spec §4.1.3.3)", cfg.Gateway.PayloadSizeThreshold)
-	}
 
 	if err := validateGuardPolicies(&cfg); err != nil {
 		return nil, err

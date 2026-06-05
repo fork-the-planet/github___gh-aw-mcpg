@@ -151,6 +151,64 @@ func TestTimeoutPositive(t *testing.T) {
 	}
 }
 
+func TestPositiveInteger(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     int
+		fieldName string
+		jsonPath  string
+		shouldErr bool
+		errMsg    string
+	}{
+		{
+			name:      "valid value 1",
+			value:     1,
+			fieldName: "payloadSizeThreshold",
+			jsonPath:  "gateway.payloadSizeThreshold",
+			shouldErr: false,
+		},
+		{
+			name:      "valid larger value",
+			value:     524288,
+			fieldName: "payload_size_threshold",
+			jsonPath:  "gateway.payload_size_threshold",
+			shouldErr: false,
+		},
+		{
+			name:      "zero rejected",
+			value:     0,
+			fieldName: "payloadSizeThreshold",
+			jsonPath:  "gateway.payloadSizeThreshold",
+			shouldErr: true,
+			errMsg:    "payloadSizeThreshold must be a positive integer, got 0",
+		},
+		{
+			name:      "negative value rejected",
+			value:     -1,
+			fieldName: "payload_size_threshold",
+			jsonPath:  "gateway.payload_size_threshold",
+			shouldErr: true,
+			errMsg:    "payload_size_threshold must be a positive integer, got -1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := PositiveInteger(tt.value, tt.fieldName, tt.jsonPath)
+
+			if tt.shouldErr {
+				require.NotNil(t, err, "Expected validation error but got none")
+				assert.Contains(t, err.Message, tt.errMsg, "Error message should contain expected text")
+				assert.Equal(t, tt.jsonPath, err.JSONPath, "JSONPath should match")
+				assert.Equal(t, tt.fieldName, err.Field, "Field name should match")
+				assert.NotEmpty(t, err.Suggestion, "Suggestion should be non-empty")
+			} else {
+				require.NoError(t, validationErrAsError(err), "Unexpected validation error")
+			}
+		})
+	}
+}
+
 func TestMountFormat(t *testing.T) {
 	tests := []struct {
 		name      string

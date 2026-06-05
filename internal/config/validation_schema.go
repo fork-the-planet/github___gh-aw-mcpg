@@ -243,6 +243,21 @@ func fixSchemaBytes(schemaBytes []byte) ([]byte, error) {
 				logSchema.Print("Added trustedBots and keepaliveInterval fields to gatewayConfig")
 			}
 		}
+
+		// Add headers to opentelemetryConfig.
+		// Spec §4.1.3.6 and this implementation support a comma-separated headers field,
+		// but the bundled v0.64.4 schema omits it and would otherwise reject the field
+		// because opentelemetryConfig sets additionalProperties=false.
+		if otelConfig, ok := definitions["opentelemetryConfig"].(map[string]interface{}); ok {
+			if props, ok := otelConfig["properties"].(map[string]interface{}); ok {
+				headersAction := ensureProperty(props, "headers", map[string]interface{}{
+					"type":        "string",
+					"description": "Comma-separated key=value HTTP headers for OTLP export requests. Supports ${VAR} expansion.",
+					"minLength":   1,
+				})
+				logSchema.Printf("%s headers field in opentelemetryConfig", headersAction)
+			}
+		}
 	}
 
 	fixedBytes, err := json.Marshal(schema)

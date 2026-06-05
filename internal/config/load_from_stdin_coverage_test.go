@@ -181,6 +181,41 @@ func TestLoadFromStdin_ValidateGatewayConfigError_AllZeroTraceId(t *testing.T) {
 	assert.ErrorContains(t, loadErr, "traceId")
 }
 
+// TestLoadFromStdin_OpenTelemetryHeaders verifies that gateway.opentelemetry.headers
+// passes schema validation and is converted into the runtime tracing config.
+func TestLoadFromStdin_OpenTelemetryHeaders(t *testing.T) {
+	jsonConfig := `{
+		"mcpServers": {
+			"test": {
+				"container": "test:latest"
+			}
+		},
+		"gateway": {
+			"port": 8080,
+			"domain": "localhost",
+			"apiKey": "test-key",
+			"opentelemetry": {
+				"endpoint": "https://otel-collector.example.com",
+				"headers": "X-Test=value"
+			}
+		}
+	}`
+
+	var (
+		cfg     *Config
+		loadErr error
+	)
+	stdinFromString(t, jsonConfig, func() {
+		cfg, loadErr = LoadFromStdin()
+	})
+
+	require.NoError(t, loadErr)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.Gateway)
+	require.NotNil(t, cfg.Gateway.Tracing)
+	assert.Equal(t, "X-Test=value", cfg.Gateway.Tracing.Headers)
+}
+
 // TestNormalizeLocalType_NonObjectServerValue covers the continue branch (line 616-617)
 // in normalizeLocalType. When a server value inside mcpServers is not a JSON object
 // (e.g., an integer), the type assertion to map[string]interface{} fails and the loop

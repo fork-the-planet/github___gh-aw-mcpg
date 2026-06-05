@@ -286,6 +286,36 @@ func TestFixSchemaBytes_AddRegistryAndGuardPoliciesToHttpConfig(t *testing.T) {
 	assert.True(t, hasURL, "original url field should be preserved in httpServerConfig.properties")
 }
 
+// TestFixSchemaBytes_AddHeadersToOpenTelemetryConfig covers the injection of
+// headers into opentelemetryConfig.properties.
+func TestFixSchemaBytes_AddHeadersToOpenTelemetryConfig(t *testing.T) {
+	schema := map[string]interface{}{
+		"$schema": "http://json-schema.org/draft-07/schema#",
+		"definitions": map[string]interface{}{
+			"opentelemetryConfig": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"endpoint": map[string]interface{}{"type": "string"},
+				},
+			},
+		},
+	}
+
+	result, err := fixSchemaBytes(marshalSchema(t, schema))
+	require.NoError(t, err)
+
+	got := unmarshalSchema(t, result)
+	defs := got["definitions"].(map[string]interface{})
+	otelConf := defs["opentelemetryConfig"].(map[string]interface{})
+	props := otelConf["properties"].(map[string]interface{})
+
+	headers, hasHeaders := props["headers"]
+	require.True(t, hasHeaders, "headers field should be added to opentelemetryConfig.properties")
+	headersMap := headers.(map[string]interface{})
+	assert.Equal(t, "string", headersMap["type"], "headers.type should be 'string'")
+	assert.NotEmpty(t, headersMap["description"], "headers.description should be set")
+}
+
 // TestFixSchemaBytes_RegistryGuardPolicies_MissingSubStructures verifies that the
 // registry/guard-policies injection is skipped gracefully when sub-structures are absent.
 func TestFixSchemaBytes_RegistryGuardPolicies_MissingSubStructures(t *testing.T) {
@@ -355,6 +385,11 @@ func TestFixSchemaBytes_AllTransformationsApplied(t *testing.T) {
 					"url": map[string]interface{}{"type": "string"},
 				},
 			},
+			"opentelemetryConfig": map[string]interface{}{
+				"properties": map[string]interface{}{
+					"endpoint": map[string]interface{}{"type": "string"},
+				},
+			},
 		},
 		// Trigger #2: customSchemas.patternProperties with negative-lookahead key
 		"properties": map[string]interface{}{
@@ -406,6 +441,11 @@ func TestFixSchemaBytes_AllTransformationsApplied(t *testing.T) {
 	_, hasHTTPGP := httpProps["guard-policies"]
 	assert.True(t, hasHTTPRegistry, "registry should be injected into httpServerConfig")
 	assert.True(t, hasHTTPGP, "guard-policies should be injected into httpServerConfig")
+
+	otelConf := defs["opentelemetryConfig"].(map[string]interface{})
+	otelProps := otelConf["properties"].(map[string]interface{})
+	_, hasOTelHeaders := otelProps["headers"]
+	assert.True(t, hasOTelHeaders, "headers should be injected into opentelemetryConfig")
 }
 
 // TestFixSchemaBytes_PreservesSchemaIntegrity verifies that fixSchemaBytes preserves

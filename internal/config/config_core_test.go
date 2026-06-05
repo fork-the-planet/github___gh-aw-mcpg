@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -520,21 +521,39 @@ audience = "https://example.com"
 	assert.ErrorContains(t, err, "Remove the auth configuration or change the server type to \"http\"")
 }
 
-// TestLoadFromFile_NegativePayloadSizeThresholdRejected verifies that TOML configs with
-// a negative payload_size_threshold are rejected per spec §4.1.3.3.
-func TestLoadFromFile_NegativePayloadSizeThresholdRejected(t *testing.T) {
-	path := writeTempTOML(t, `
+// TestLoadFromFile_InvalidPayloadSizeThresholdRejected verifies that TOML configs with
+// invalid payload_size_threshold values are rejected per spec §4.1.3.3.
+func TestLoadFromFile_InvalidPayloadSizeThresholdRejected(t *testing.T) {
+	tests := []struct {
+		name      string
+		threshold int
+	}{
+		{
+			name:      "zero value",
+			threshold: 0,
+		},
+		{
+			name:      "negative value",
+			threshold: -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeTempTOML(t, fmt.Sprintf(`
 [gateway]
-payload_size_threshold = -1
+payload_size_threshold = %d
 
 [servers.github]
 command = "docker"
 args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
-`)
-	cfg, err := LoadFromFile(path)
-	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.ErrorContains(t, err, "payload_size_threshold must be a positive integer")
+`, tt.threshold))
+			cfg, err := LoadFromFile(path)
+			require.Error(t, err)
+			assert.Nil(t, cfg)
+			assert.ErrorContains(t, err, "payload_size_threshold must be a positive integer")
+		})
+	}
 }
 
 // TestHTTPKeepaliveInterval tests all branches of the HTTPKeepaliveInterval method.
