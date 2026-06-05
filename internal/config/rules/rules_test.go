@@ -180,7 +180,7 @@ func TestPositiveInteger(t *testing.T) {
 			fieldName: "payloadSizeThreshold",
 			jsonPath:  "gateway.payloadSizeThreshold",
 			shouldErr: true,
-			errMsg:    "payloadSizeThreshold must be a positive integer, got 0",
+			errMsg:    "payloadSizeThreshold must be a positive integer (>= 1), got 0",
 		},
 		{
 			name:      "negative value rejected",
@@ -188,7 +188,7 @@ func TestPositiveInteger(t *testing.T) {
 			fieldName: "payload_size_threshold",
 			jsonPath:  "gateway.payload_size_threshold",
 			shouldErr: true,
-			errMsg:    "payload_size_threshold must be a positive integer, got -1",
+			errMsg:    "payload_size_threshold must be a positive integer (>= 1), got -1",
 		},
 	}
 
