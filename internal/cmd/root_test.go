@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -111,6 +112,34 @@ func TestPreRunValidation(t *testing.T) {
 		assert.NoError(t, err)
 		// Level 1 doesn't set DEBUG env var
 		assert.Empty(t, os.Getenv(logger.EnvDebug))
+	})
+
+	t.Run("verbosity level 1 does not emit startup noise", func(t *testing.T) {
+		origDebug, wasSet := os.LookupEnv(logger.EnvDebug)
+		t.Cleanup(func() {
+			if wasSet {
+				os.Setenv(logger.EnvDebug, origDebug)
+			} else {
+				os.Unsetenv(logger.EnvDebug)
+			}
+		})
+		os.Unsetenv(logger.EnvDebug)
+
+		var logBuf bytes.Buffer
+		origLogWriter := log.Writer()
+		log.SetOutput(&logBuf)
+		t.Cleanup(func() {
+			log.SetOutput(origLogWriter)
+		})
+
+		configFile = "test.toml"
+		configStdin = false
+		verbosity = 1
+
+		err := preRun(&cobra.Command{}, nil)
+		assert.NoError(t, err)
+		assert.Empty(t, os.Getenv(logger.EnvDebug))
+		assert.Empty(t, logBuf.String(), "verbosity level 1 should not emit log output")
 	})
 
 	t.Run("verbosity level 2 sets DEBUG for main packages", func(t *testing.T) {

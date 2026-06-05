@@ -106,12 +106,11 @@ func TestRegisterFlagCompletions(t *testing.T) {
 	t.Run("config flag completion returns toml extension filter", func(t *testing.T) {
 		cmd := setupCmd(t)
 
-		compFunc, ok := cmd.GetFlagCompletionFunc("config")
-		require.True(t, ok, "config flag should have a completion function")
-		completions, directive := compFunc(cmd, nil, "")
-		assert.Equal(t, []string{"toml"}, completions,
+		flag := cmd.Flags().Lookup("config")
+		require.NotNil(t, flag, "config flag should be registered")
+		require.NotNil(t, flag.Annotations, "config flag should have completion annotations")
+		assert.Equal(t, []string{"toml"}, flag.Annotations[cobra.BashCompFilenameExt],
 			"config flag should complete with .toml extension")
-		assert.Equal(t, cobra.ShellCompDirectiveFilterFileExt, directive)
 	})
 
 	t.Run("log-dir flag completion returns directory filter", func(t *testing.T) {
@@ -147,12 +146,11 @@ func TestRegisterFlagCompletions(t *testing.T) {
 	t.Run("env flag completion returns .env extension filter", func(t *testing.T) {
 		cmd := setupCmd(t)
 
-		compFunc, ok := cmd.GetFlagCompletionFunc("env")
-		require.True(t, ok, "env flag should have a completion function")
-		completions, directive := compFunc(cmd, nil, "")
-		assert.Equal(t, []string{"env"}, completions,
+		flag := cmd.Flags().Lookup("env")
+		require.NotNil(t, flag, "env flag should be registered")
+		require.NotNil(t, flag.Annotations, "env flag should have completion annotations")
+		assert.Equal(t, []string{"env"}, flag.Annotations[cobra.BashCompFilenameExt],
 			"env flag should complete with .env extension")
-		assert.Equal(t, cobra.ShellCompDirectiveFilterFileExt, directive)
 	})
 
 	t.Run("guards-mode flag completion returns valid enum values", func(t *testing.T) {

@@ -73,9 +73,7 @@ func applyFlagOrEnv[T comparable](cmd *cobra.Command, flagName string, field *T,
 func registerFlagCompletions(cmd *cobra.Command) {
 	debugLog.Print("Registering flag completion functions")
 	// File and directory completions
-	cmd.RegisterFlagCompletionFunc("config", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-		return []string{"toml"}, cobra.ShellCompDirectiveFilterFileExt
-	})
+	_ = cmd.MarkFlagFilename("config", "toml")
 	cmd.RegisterFlagCompletionFunc("log-dir", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveFilterDirs
 	})
@@ -85,9 +83,7 @@ func registerFlagCompletions(cmd *cobra.Command) {
 	cmd.RegisterFlagCompletionFunc("wasm-cache-dir", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveFilterDirs
 	})
-	cmd.RegisterFlagCompletionFunc("env", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-		return []string{"env"}, cobra.ShellCompDirectiveFilterFileExt
-	})
+	_ = cmd.MarkFlagFilename("env", "env")
 
 	// Enum completions for DIFC flags.
 	// Note: the proxy subcommand registers its own guards-mode completion for its
