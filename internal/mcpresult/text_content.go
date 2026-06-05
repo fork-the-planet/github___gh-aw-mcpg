@@ -31,8 +31,13 @@ func ExtractTextContent(result map[string]interface{}) string {
 	var text strings.Builder
 	for _, item := range items {
 		itemType, _ := item["type"].(string)
-		if itemType != "" && itemType != "text" {
+		switch itemType {
+		case "", "text":
+			// keep
+		case "image", "audio", "resource":
 			continue
+		default:
+			// Unknown types are treated as text for compatibility with ConvertToCallToolResult.
 		}
 		itemText, _ := item["text"].(string)
 		if itemText == "" {
