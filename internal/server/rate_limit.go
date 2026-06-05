@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/github/gh-aw-mcpg/internal/mcp"
 )
 
 // extractRateLimitErrorText extracts the text content from a raw tool result
@@ -15,16 +17,8 @@ func extractRateLimitErrorText(result interface{}) string {
 		logCircuitBreaker.Print("extractRateLimitErrorText: result is not a map, using default message")
 		return "rate limit exceeded"
 	}
-	contents, _ := m["content"].([]interface{})
-	logCircuitBreaker.Printf("extractRateLimitErrorText: scanning %d content items for error text", len(contents))
-	for _, c := range contents {
-		cm, ok := c.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		if text, ok := cm["text"].(string); ok && text != "" {
-			return text
-		}
+	if text := mcp.ExtractTextContentFromResult(m); text != "" {
+		return text
 	}
 	logCircuitBreaker.Print("extractRateLimitErrorText: no text content found, using default message")
 	return "rate limit exceeded"
@@ -49,19 +43,11 @@ func isRateLimitToolResult(result interface{}) (bool, time.Time) {
 		return false, time.Time{}
 	}
 
-	contents, _ := m["content"].([]interface{})
-	logCircuitBreaker.Printf("Inspecting error tool result for rate limit: contentItems=%d", len(contents))
-	for _, c := range contents {
-		cm, ok := c.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		text, _ := cm["text"].(string)
-		if isRateLimitText(text) {
-			resetAt := parseRateLimitResetFromText(text)
-			logCircuitBreaker.Printf("Rate limit detected in tool result: hasResetAt=%v", !resetAt.IsZero())
-			return true, resetAt
-		}
+	text := mcp.ExtractTextContentFromResult(m)
+	if isRateLimitText(text) {
+		resetAt := parseRateLimitResetFromText(text)
+		logCircuitBreaker.Printf("Rate limit detected in tool result: hasResetAt=%v", !resetAt.IsZero())
+		return true, resetAt
 	}
 	return false, time.Time{}
 }

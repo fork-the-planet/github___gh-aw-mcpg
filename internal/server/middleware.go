@@ -184,7 +184,7 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 				if jsonrpcResp.Error != nil {
 					// Error response - this is what we're particularly interested in
 					logSDK.Printf("<<< SDK Response [%s] ERROR status=%d duration=%v",
-						mode, lw.StatusCode(), duration)
+						mode, lw.StatusCode, duration)
 					logSDK.Printf("    JSON-RPC Error: code=%d message=%q",
 						jsonrpcResp.Error.Code, jsonrpcResp.Error.Message)
 
@@ -225,7 +225,7 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 				} else {
 					// Success response
 					logSDK.Printf("<<< SDK Response [%s] SUCCESS status=%d duration=%v",
-						mode, lw.StatusCode(), duration)
+						mode, lw.StatusCode, duration)
 					logSDK.Printf("    JSON-RPC Response id=%v has result=%v",
 						jsonrpcResp.ID, jsonrpcResp.Result != nil)
 
@@ -236,7 +236,7 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 			} else {
 				// Could be SSE stream or other format
 				logSDK.Printf("<<< SDK Response [%s] status=%d duration=%v (non-JSON or stream)",
-					mode, lw.StatusCode(), duration)
+					mode, lw.StatusCode, duration)
 				if len(responseBody) < 500 {
 					logSDK.Printf("    Raw response: %s", string(responseBody))
 				} else {
@@ -245,7 +245,7 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 			}
 		} else {
 			logSDK.Printf("<<< SDK Response [%s] status=%d duration=%v (empty body)",
-				mode, lw.StatusCode(), duration)
+				mode, lw.StatusCode, duration)
 		}
 	})
 }

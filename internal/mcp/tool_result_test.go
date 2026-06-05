@@ -611,6 +611,45 @@ func TestBuildMCPTextResponse(t *testing.T) {
 	assert.Equal(text, content[0]["text"])
 }
 
+func TestExtractTextContentFromResult(t *testing.T) {
+	t.Run("extracts concatenated text from interface slice", func(t *testing.T) {
+		result := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{"type": "text", "text": "hello "},
+				map[string]interface{}{"type": "text", "text": "world"},
+			},
+		}
+
+		assert.Equal(t, "hello world", ExtractTextContentFromResult(result))
+	})
+
+	t.Run("extracts text from BuildMCPTextResponse output", func(t *testing.T) {
+		assert.Equal(t, "hello", ExtractTextContentFromResult(BuildMCPTextResponse("hello")))
+	})
+
+	t.Run("treats missing type as text for compatibility", func(t *testing.T) {
+		result := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{"text": "rate limit exceeded"},
+			},
+		}
+
+		assert.Equal(t, "rate limit exceeded", ExtractTextContentFromResult(result))
+	})
+
+	t.Run("skips non-text items and malformed entries", func(t *testing.T) {
+		result := map[string]interface{}{
+			"content": []interface{}{
+				"not-a-map",
+				map[string]interface{}{"type": "image", "text": "ignored"},
+				map[string]interface{}{"type": "text", "text": "kept"},
+			},
+		}
+
+		assert.Equal(t, "kept", ExtractTextContentFromResult(result))
+	})
+}
+
 // BenchmarkConvertToCallToolResult_TextContent benchmarks the common case:
 // a map[string]interface{} with text content items (fast path).
 func BenchmarkConvertToCallToolResult_TextContent(b *testing.B) {

@@ -53,7 +53,7 @@ func TestLoggingResponseWriter_WriteHeader(t *testing.T) {
 			lw.WriteHeader(tt.statusCode)
 
 			// Verify status code is captured
-			assert.Equal(t, tt.wantStatusCode, lw.StatusCode(), "Status code should be captured")
+			assert.Equal(t, tt.wantStatusCode, lw.StatusCode, "Status code should be captured")
 		})
 	}
 }
@@ -134,7 +134,7 @@ func TestLoggingResponseWriter_DefaultStatusCode(t *testing.T) {
 	lw.Write([]byte("test"))
 
 	// Default status code should be 200
-	assert.Equal(t, http.StatusOK, lw.StatusCode(), "Default status code should be 200")
+	assert.Equal(t, http.StatusOK, lw.StatusCode, "Default status code should be 200")
 }
 
 // TestCreateHTTPServerForMCP_OAuth tests OAuth discovery endpoint

@@ -57,7 +57,7 @@ func withResponseLogging(handler http.Handler) http.Handler {
 		handler.ServeHTTP(lw, r)
 		if len(lw.Body()) > 0 {
 			sanitizedBody := sanitize.SanitizeString(string(lw.Body()))
-			logHelpers.Printf("[%s] %s %s - Status: %d, Response: %s", r.RemoteAddr, r.Method, r.URL.Path, lw.StatusCode(), sanitizedBody)
+			logHelpers.Printf("[%s] %s %s - Status: %d, Response: %s", r.RemoteAddr, r.Method, r.URL.Path, lw.StatusCode, sanitizedBody)
 		}
 	})
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/mcpresult"
 )
 
 var logPathLabels = logger.New("difc:path_labels")
@@ -105,21 +106,8 @@ func unwrapMCPResponse(data interface{}) (interface{}, bool) {
 		return data, false
 	}
 
-	content, ok := dataMap["content"].([]interface{})
-	if !ok || len(content) == 0 {
-		return data, false
-	}
-
-	first, ok := content[0].(map[string]interface{})
-	if !ok {
-		return data, false
-	}
-
-	// Check if this looks like an MCP text content item
-	textType, hasType := first["type"].(string)
-	text, hasText := first["text"].(string)
-
-	if !hasType || textType != "text" || !hasText {
+	text := mcpresult.ExtractTextContent(dataMap)
+	if text == "" {
 		return data, false
 	}
 

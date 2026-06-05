@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/mcpresult"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -186,6 +187,13 @@ func NewErrorCallToolResult(err error) (*sdk.CallToolResult, interface{}, error)
 			&sdk.TextContent{Text: err.Error()},
 		},
 	}, nil, err
+}
+
+// ExtractTextContentFromResult returns the concatenated text from text content
+// items in a raw MCP tool result map. Content items with a missing "type" are
+// treated as text items for compatibility with older callers and tests.
+func ExtractTextContentFromResult(result map[string]interface{}) string {
+	return mcpresult.ExtractTextContent(result)
 }
 
 // BuildMCPTextResponse returns a raw MCP response map with a single text content item.
