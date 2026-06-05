@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
@@ -31,6 +32,8 @@ var tlsTrustEnvKeys = []string{
 	"CURL_CA_BUNDLE",
 	"REQUESTS_CA_BUNDLE",
 }
+
+const proxyShutdownTimeout = 5 * time.Second
 
 // Proxy subcommand flag variables
 var (
@@ -115,7 +118,7 @@ Local usage:
 	cmd.Flags().StringVarP(&proxyListen, "listen", "l", "127.0.0.1:8080", "Proxy listen address")
 	cmd.Flags().StringVar(&proxyLogDir, "log-dir", defaultProxyLogDir, "Log file directory")
 	cmd.Flags().StringVar(&proxyWasmCacheDir, "wasm-cache-dir", resolveWasmCacheDir(false, "", defaultProxyLogDir), "Directory for disk-backed wazero compilation cache (default: sibling of <log-dir>, named wazero-cache)")
-	cmd.Flags().StringVar(&proxyDIFCMode, "guards-mode", "filter", "DIFC enforcement mode: strict, filter, propagate")
+	cmd.Flags().StringVar(&proxyDIFCMode, "guards-mode", difc.DefaultEnforcementMode(), "DIFC enforcement mode: strict, filter, propagate")
 	cmd.Flags().StringVar(&proxyAPIURL, "github-api-url", "", "Upstream GitHub API URL (default: auto-derived from GITHUB_API_URL or GITHUB_SERVER_URL, falls back to https://api.github.com)")
 	cmd.Flags().BoolVar(&proxyTLS, "tls", false, "Enable HTTPS with auto-generated self-signed certificates")
 	cmd.Flags().StringVar(&proxyTLSDir, "tls-dir", "", "Directory for TLS certificates (default: <log-dir>/proxy-tls)")
@@ -317,7 +320,15 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	log.Println("Shutting down proxy...")
 	logger.LogInfo("shutdown", "Proxy shutting down")
 
-	return httpServer.Close()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), proxyShutdownTimeout)
+	defer shutdownCancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+		logger.LogError("shutdown", "HTTP server shutdown error: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 func configureTLSTrustEnvironment(caCertPath string) error {

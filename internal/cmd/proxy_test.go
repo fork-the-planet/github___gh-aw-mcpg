@@ -96,6 +96,7 @@ func TestNewProxyCmd_DefaultFlagValues(t *testing.T) {
 	// Clear relevant env vars to get clean defaults
 	envVarsToClear := []string{
 		"MCP_GATEWAY_GUARD_POLICY_JSON",
+		"MCP_GATEWAY_GUARDS_MODE",
 		"MCP_GATEWAY_LOG_DIR",
 		"OTEL_EXPORTER_OTLP_ENDPOINT",
 		"OTEL_SERVICE_NAME",
@@ -127,7 +128,7 @@ func TestNewProxyCmd_DefaultFlagValues(t *testing.T) {
 				t.Helper()
 				val, err := cmd.Flags().GetString("guards-mode")
 				require.NoError(t, err)
-				assert.Equal(t, "filter", val, "--guards-mode default for proxy should be 'filter'")
+				assert.Equal(t, difc.DefaultEnforcementMode(), val, "--guards-mode default for proxy should match difc.DefaultEnforcementMode()")
 			},
 		},
 		{
@@ -202,6 +203,20 @@ func TestNewProxyCmd_DefaultFlagValues(t *testing.T) {
 			tt.validate(t, cmd)
 		})
 	}
+}
+
+// TestNewProxyCmd_GuardsModeDefaultFromEnv verifies that --guards-mode picks up
+// its default from MCP_GATEWAY_GUARDS_MODE through difc.DefaultEnforcementMode().
+func TestNewProxyCmd_GuardsModeDefaultFromEnv(t *testing.T) {
+	t.Setenv("MCP_GATEWAY_GUARDS_MODE", "filter")
+
+	cmd := newProxyCmd()
+	require.NotNil(t, cmd)
+
+	val, err := cmd.Flags().GetString("guards-mode")
+	require.NoError(t, err)
+	assert.Equal(t, "filter", val,
+		"--guards-mode default should reflect MCP_GATEWAY_GUARDS_MODE environment variable")
 }
 
 // TestNewProxyCmd_PolicyDefaultFromEnv verifies that --policy picks up its

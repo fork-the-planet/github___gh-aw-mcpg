@@ -109,8 +109,7 @@ func preRun(cmd *cobra.Command, args []string) error {
 		// Level 3: enable all debug logs
 		switch verbosity {
 		case 1:
-			// Info level - no special DEBUG setting (standard log output)
-			log.Printf("Logging level: info (-v)")
+			// Info level - no special DEBUG setting.
 		case 2:
 			// Debug level - enable debug logs for main packages
 			os.Setenv("DEBUG", debugMainPackages)
