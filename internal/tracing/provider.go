@@ -57,6 +57,7 @@ func (p *Provider) Tracer() trace.Tracer {
 // For noop providers this is a no-op. Must be called on application exit.
 func (p *Provider) Shutdown(ctx context.Context) error {
 	if p.sdk != nil {
+		logTracing.Print("Flushing and shutting down OTLP tracer provider")
 		return p.sdk.Shutdown(ctx)
 	}
 	return nil
@@ -77,6 +78,7 @@ func generateRandomSpanID() (trace.SpanID, error) {
 // This enables incoming traceparent/tracestate headers to be extracted so that
 // agent-initiated traces are continued rather than fragmented.
 func registerPropagator() {
+	logTracing.Print("Registering global W3C TraceContext+Baggage text map propagator")
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
@@ -131,6 +133,7 @@ func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
 	}
+	logTracing.Print("OTLP HTTP trace exporter created")
 
 	// Build resource with service name, version, and SDK metadata
 	res, err := resource.New(ctx,
@@ -155,10 +158,13 @@ func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, er
 	switch {
 	case sampleRate >= 1.0:
 		sampler = sdktrace.AlwaysSample()
+		logTracing.Print("Using AlwaysSample tracer sampler")
 	case sampleRate <= 0.0:
 		sampler = sdktrace.NeverSample()
+		logTracing.Print("Using NeverSample tracer sampler")
 	default:
 		sampler = sdktrace.TraceIDRatioBased(sampleRate)
+		logTracing.Printf("Using TraceIDRatioBased tracer sampler: rate=%.4f", sampleRate)
 	}
 
 	sdkTP := sdktrace.NewTracerProvider(
