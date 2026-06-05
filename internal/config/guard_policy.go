@@ -2,6 +2,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -113,7 +114,7 @@ func (p *GuardPolicy) UnmarshalJSON(data []byte) error {
 	}
 
 	if len(allowOnlyRaw) == 0 && len(writeSinkRaw) == 0 {
-		return fmt.Errorf("policy must include allow-only or write-sink")
+		return errors.New(errMsgPolicyMissingKey)
 	}
 	if len(allowOnlyRaw) > 0 && len(writeSinkRaw) > 0 {
 		return fmt.Errorf("policy must include either allow-only or write-sink, not both")
