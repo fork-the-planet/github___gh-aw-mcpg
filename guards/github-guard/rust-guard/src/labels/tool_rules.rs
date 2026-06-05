@@ -1100,4 +1100,49 @@ mod tests {
             "actions_get non-artifact method must produce writer-level integrity",
         );
     }
+
+    #[test]
+    fn apply_tool_labels_gist_reads_are_user_private() {
+        let ctx = default_ctx();
+        // Gists are user-scoped; no owner/repo args
+        let args = serde_json::json!({});
+        let expected_secrecy = private_user_label();
+        let expected_integrity = reader_integrity(scope_names::USER, &ctx);
+
+        for tool in &["list_gists", "get_gist", "create_gist", "update_gist"] {
+            let (secrecy, integrity, _) = super::apply_tool_labels(
+                tool, &args, "", vec![], vec![], String::new(), &ctx,
+            );
+            assert_eq!(
+                secrecy,
+                expected_secrecy,
+                "{tool}: gist operations must be user-private (secrecy = private:user)",
+            );
+            assert_eq!(
+                integrity,
+                expected_integrity,
+                "{tool}: gist operations must have user-scoped reader integrity",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_delete_gist_is_user_private_with_writer_integrity() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({});
+
+        let (secrecy, integrity, _) = super::apply_tool_labels(
+            "delete_gist", &args, "", vec![], vec![], String::new(), &ctx,
+        );
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "delete_gist: must be user-private (secrecy = private:user)",
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(scope_names::USER, &ctx),
+            "delete_gist: destructive operation must require writer-level user integrity",
+        );
+    }
 }
