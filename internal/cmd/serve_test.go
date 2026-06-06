@@ -38,12 +38,13 @@ func TestServeAndWait_GracefulShutdown(t *testing.T) {
 	}()
 
 	require.Eventually(t, func() bool {
-		conn, dialErr := net.DialTimeout("tcp", listener.Addr().String(), 50*time.Millisecond)
-		if dialErr != nil {
+		client := &http.Client{Timeout: 100 * time.Millisecond}
+		resp, reqErr := client.Get("http://" + listener.Addr().String())
+		if reqErr != nil {
 			return false
 		}
-		_ = conn.Close()
-		return true
+		_ = resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
 	}, time.Second, 20*time.Millisecond)
 
 	cancel()
