@@ -35,8 +35,9 @@ const autoInitClientInfo = `{"name":"mcpg-auto-init","version":"1.0"}`
 //
 // The handler argument must be the SDK's StreamableHTTPHandler BEFORE any
 // authentication or HMAC middleware is applied. The internal initialization requests
-// copy the Authorization header from the original request, so authentication is
-// preserved without going through the outer middleware stack again.
+// copy the Authorization and X-Agent-ID headers from the original request, so
+// authentication/session routing is preserved without going through the outer
+// middleware stack again.
 func WrapWithSessionAutoInit(streamableHandler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Only handle POST requests that have no established session.
@@ -143,5 +144,8 @@ func copyAutoInitHeaders(dst, src http.Header) {
 	dst.Set("Accept", "application/json, text/event-stream")
 	if a := src.Get("Authorization"); a != "" {
 		dst.Set("Authorization", a)
+	}
+	if agentID := src.Get("X-Agent-ID"); agentID != "" {
+		dst.Set("X-Agent-ID", agentID)
 	}
 }

@@ -102,7 +102,10 @@ type GatewayConfig struct {
 	// Port is the HTTP port to listen on
 	Port int `toml:"port" json:"port,omitempty"`
 
-	// APIKey is the authentication key for the gateway
+	// AgentID is the gateway agent/session identifier.
+	AgentID string `toml:"agent_id" json:"agent_id,omitempty"`
+
+	// APIKey is a deprecated alias for AgentID.
 	APIKey string `toml:"api_key" json:"api_key,omitempty"`
 
 	// Domain is the gateway domain for external access
@@ -153,6 +156,10 @@ type GatewayConfig struct {
 	// This key takes precedence over the legacy tracing key when both are present.
 	// MUST use an HTTPS endpoint when configured.
 	Opentelemetry *TracingConfig `toml:"opentelemetry" json:"opentelemetry,omitempty"`
+
+	// agentIDExplicit tracks whether agent_id/agentId was explicitly provided
+	// (as opposed to being derived from deprecated api_key/apiKey aliases).
+	agentIDExplicit bool `toml:"-" json:"-"`
 }
 
 // HTTPKeepaliveInterval returns the keepalive interval as a time.Duration.
@@ -167,12 +174,49 @@ func (g *GatewayConfig) HTTPKeepaliveInterval() time.Duration {
 	return time.Duration(g.KeepaliveInterval) * time.Second
 }
 
-// GetAPIKey returns the gateway API key, handling a nil Gateway safely.
-func (c *Config) GetAPIKey() string {
+// GetAgentID returns the gateway agent identifier, handling a nil Gateway safely.
+func (c *Config) GetAgentID() string {
 	if c.Gateway == nil {
 		return ""
 	}
-	return c.Gateway.APIKey
+	return c.Gateway.effectiveAgentID()
+}
+
+// GetAPIKey is a deprecated alias for GetAgentID.
+func (c *Config) GetAPIKey() string {
+	return c.GetAgentID()
+}
+
+func (g *GatewayConfig) effectiveAgentID() string {
+	if g == nil {
+		return ""
+	}
+	if g.agentIDExplicit {
+		return g.AgentID
+	}
+	if g.AgentID != "" {
+		return g.AgentID
+	}
+	return g.APIKey
+}
+
+func (g *GatewayConfig) normalizeAgentID(agentIDDefined, legacyAPIKeyDefined bool, source string) {
+	if g == nil {
+		return
+	}
+
+	if legacyAPIKeyDefined {
+		logConfig.Printf("DEPRECATION: gateway.api_key is deprecated in %s config; use gateway.agent_id instead", source)
+	}
+	if legacyAPIKeyDefined && agentIDDefined && g.AgentID != g.APIKey {
+		logConfig.Printf("Both gateway.agent_id and deprecated gateway.api_key are set in %s config; using gateway.agent_id", source)
+	}
+
+	g.agentIDExplicit = agentIDDefined
+	if !agentIDDefined && legacyAPIKeyDefined {
+		g.AgentID = g.APIKey
+	}
+	g.APIKey = g.effectiveAgentID()
 }
 
 // HTTPConnectTimeout returns the per-transport connect timeout as a Duration.
@@ -456,6 +500,7 @@ func LoadFromFile(path string) (*Config, error) {
 	if cfg.Gateway == nil {
 		cfg.Gateway = &GatewayConfig{}
 	}
+	cfg.Gateway.normalizeAgentID(md.IsDefined("gateway", "agent_id"), md.IsDefined("gateway", "api_key"), "TOML")
 
 	// Validate trusted_bots per spec §4.1.3.4: must be non-empty array when present
 	if err := validateTrustedBots(cfg.Gateway.TrustedBots); err != nil {

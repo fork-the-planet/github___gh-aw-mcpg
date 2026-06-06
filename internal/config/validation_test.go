@@ -572,7 +572,7 @@ func TestLoadFromStdin_WithVariableExpansion(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -600,7 +600,7 @@ func TestLoadFromStdin_UndefinedVariable(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -630,7 +630,7 @@ func TestLoadFromStdin_VariableExpansionInContainer(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -663,7 +663,7 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -682,7 +682,7 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -700,7 +700,7 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 				"gateway": {
 					"port": 99999,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -724,7 +724,7 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: false,
@@ -742,7 +742,7 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: false,
@@ -759,7 +759,7 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				},
 				"guards": {
 					"github-guard": {
@@ -787,7 +787,7 @@ func TestLoadFromStdin_ValidationErrors(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: false,

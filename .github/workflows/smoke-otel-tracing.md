@@ -36,7 +36,7 @@ runtimes:
 sandbox:
   mcp:
     container: "ghcr.io/github/gh-aw-mcpg"
-    version: "v0.3.15"
+    version: "latest"
 steps:
   - name: Set up Go
     uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6.4.0

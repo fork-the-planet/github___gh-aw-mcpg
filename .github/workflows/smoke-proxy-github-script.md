@@ -46,6 +46,7 @@ tools:
 sandbox:
   mcp:
     container: "ghcr.io/github/gh-aw-mcpg"
+    version: "latest"
 steps:
   # ── Build the gateway container image from source ──────────────────
   - name: Build MCP Gateway image

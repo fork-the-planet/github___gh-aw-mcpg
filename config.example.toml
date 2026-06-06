@@ -13,10 +13,10 @@
 # This field is stored for metadata purposes only. Valid range: 1-65535
 port = 3000
 
-# API key for authentication (optional)
-# When set, clients must provide this key in the Authorization header
-# Format: Authorization: <api_key>
-api_key = ""
+# Agent ID for routing and optional authentication matching (optional)
+# When set, clients must provide this agent ID in the Authorization header
+# Format: Authorization: <agent_id>
+agent_id = ""
 
 # Domain name for the gateway (optional)
 # Used for CORS and other domain-specific features

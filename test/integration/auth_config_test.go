@@ -43,9 +43,9 @@ func TestOutputConfigWithAuthHeaders(t *testing.T) {
 			},
 		},
 		"gateway": map[string]interface{}{
-			"port":   port,
-			"domain": "localhost",
-			"apiKey": apiKey,
+			"port":    port,
+			"domain":  "localhost",
+			"agentId": apiKey,
 		},
 	}
 	configBytes, err := json.Marshal(configJSON)
@@ -257,9 +257,9 @@ func TestOutputConfigUnifiedMode(t *testing.T) {
 			},
 		},
 		"gateway": map[string]interface{}{
-			"port":   port,
-			"domain": "localhost",
-			"apiKey": apiKey,
+			"port":    port,
+			"domain":  "localhost",
+			"agentId": apiKey,
 		},
 	}
 	configBytes, err := json.Marshal(configJSON)

@@ -79,7 +79,7 @@ func TestLoadFromStdin_ValidateStringPatternsError(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -106,7 +106,7 @@ func TestLoadFromStdin_ValidateCustomSchemasError_ReservedStdioKey(t *testing.T)
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		},
 		"customSchemas": {
 			"stdio": "https://example.com/schema.json"
@@ -134,7 +134,7 @@ func TestLoadFromStdin_ValidateCustomSchemasError_ReservedHttpKey(t *testing.T) 
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		},
 		"customSchemas": {
 			"http": "https://example.com/schema.json"
@@ -164,7 +164,7 @@ func TestLoadFromStdin_ValidateGatewayConfigError_AllZeroTraceId(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key",
+			"agentId": "test-key",
 			"opentelemetry": {
 				"endpoint": "https://otel-collector.example.com",
 				"traceId": "00000000000000000000000000000000"
@@ -193,7 +193,7 @@ func TestLoadFromStdin_OpenTelemetryHeaders(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key",
+			"agentId": "test-key",
 			"opentelemetry": {
 				"endpoint": "https://otel-collector.example.com",
 				"headers": "X-Test=value"

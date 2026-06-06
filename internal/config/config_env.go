@@ -55,15 +55,32 @@ func GetGatewayDomainFromEnv() string {
 	return domain
 }
 
-// GetGatewayAPIKeyFromEnv returns the MCP_GATEWAY_API_KEY value
-func GetGatewayAPIKeyFromEnv() string {
-	key := envutil.GetEnvString("MCP_GATEWAY_API_KEY", "")
-	if key != "" {
-		logConfig.Print("MCP_GATEWAY_API_KEY found in environment")
-	} else {
-		logConfig.Print("MCP_GATEWAY_API_KEY not set in environment")
+// GetGatewayAgentIDFromEnv returns the gateway agent identifier from environment.
+// New name MCP_GATEWAY_AGENT_ID takes precedence over deprecated MCP_GATEWAY_API_KEY.
+func GetGatewayAgentIDFromEnv() string {
+	agentID := envutil.GetEnvString("MCP_GATEWAY_AGENT_ID", "")
+	legacy := envutil.GetEnvString("MCP_GATEWAY_API_KEY", "")
+
+	if agentID != "" {
+		if legacy != "" {
+			logConfig.Print("DEPRECATION: MCP_GATEWAY_API_KEY is set but ignored because MCP_GATEWAY_AGENT_ID is present")
+		}
+		logConfig.Print("MCP_GATEWAY_AGENT_ID found in environment")
+		return agentID
 	}
-	return key
+
+	if legacy != "" {
+		logConfig.Print("DEPRECATION: MCP_GATEWAY_API_KEY is deprecated; use MCP_GATEWAY_AGENT_ID")
+		return legacy
+	}
+
+	logConfig.Print("MCP_GATEWAY_AGENT_ID not set in environment")
+	return ""
+}
+
+// GetGatewayAPIKeyFromEnv is a deprecated alias for GetGatewayAgentIDFromEnv.
+func GetGatewayAPIKeyFromEnv() string {
+	return GetGatewayAgentIDFromEnv()
 }
 
 // GetGatewayToolTimeoutFromEnv returns the MCP_GATEWAY_TOOL_TIMEOUT value, parsed as int.

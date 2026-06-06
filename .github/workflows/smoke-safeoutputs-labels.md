@@ -39,6 +39,7 @@ tools:
 sandbox:
   mcp:
     container: "ghcr.io/github/gh-aw-mcpg"
+    version: "latest"
 safe-outputs:
   threat-detection:
     enabled: false

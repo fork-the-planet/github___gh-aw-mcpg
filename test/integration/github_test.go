@@ -43,7 +43,7 @@ func TestGitHubMCPMockBackend(t *testing.T) {
   "gateway": {
     "port": 13110,
     "domain": "localhost",
-    "apiKey": "test-github-key"
+    "agentId": "test-github-key"
   }
 }`
 
@@ -273,7 +273,7 @@ func TestGitHubMCPRealBackend(t *testing.T) {
   "gateway": {
     "port": 13111,
     "domain": "localhost",
-    "apiKey": "test-github-key"
+    "agentId": "test-github-key"
   }
 }`
 
