@@ -286,9 +286,11 @@ gh-aw-mcpg/
     ├── envutil/               # Environment variable utilities
     ├── guard/                 # Security guards (NoopGuard, WasmGuard, WriteSinkGuard)
     ├── httputil/              # Shared HTTP helper utilities (server responses, proxy transport)
+    ├── jsonutil/              # JSON deep-clone utilities
     ├── launcher/              # Backend server management
     ├── logger/                # Debug logging framework
     ├── mcp/                   # MCP protocol types & connection
+    ├── mcpresult/             # MCP result text content helpers
     ├── middleware/            # HTTP middleware (jq schema processing)
     ├── oidc/                  # OIDC authentication for HTTP MCP backends
     ├── proxy/                 # HTTP forward proxy for DIFC filtering
@@ -311,9 +313,11 @@ gh-aw-mcpg/
 - **`internal/envutil/`** - Environment variable utilities
 - **`internal/guard/`** - Guard framework for resource labeling
 - **`internal/httputil/`** - Shared HTTP helper utilities (server responses, proxy transport)
+- **`internal/jsonutil/`** - JSON deep-clone utilities
 - **`internal/launcher/`** - Backend process management (Docker, stdio)
 - **`internal/logger/`** - Micro logger for debug output
 - **`internal/mcp/`** - MCP protocol types and JSON-RPC handling
+- **`internal/mcpresult/`** - MCP result text content helpers
 - **`internal/middleware/`** - HTTP middleware (jq schema processing)
 - **`internal/oidc/`** - OIDC authentication for HTTP MCP backends
 - **`internal/proxy/`** - HTTP forward proxy applying DIFC filtering to `gh` CLI and REST/GraphQL requests
@@ -683,7 +687,7 @@ When the release workflow is triggered, it automatically:
 ### Core Features
 
 - JSON stdin configuration with `${VAR}` variable expansion
-- TOML configuration loaded from file (no `${VAR}` variable expansion)
+- TOML configuration loaded from file (`${VAR}` expansion supported only in `[gateway.opentelemetry]` section fields: `endpoint`, `trace_id`, `span_id`, `headers`)
 - Stdio transport for backend servers (containerized via Docker)
 - Docker container launching
 - Routed mode: Each backend at `/mcp/{serverID}`

@@ -12,6 +12,8 @@ import (
 
 // TestConvertToCallToolResult tests conversion of backend result data to SDK CallToolResult format.
 func TestConvertToCallToolResult(t *testing.T) {
+	t.Parallel()
+
 	t.Run("json array is wrapped as single text content", func(t *testing.T) {
 		input := []interface{}{"item1", "item2", "item3"}
 
@@ -284,6 +286,8 @@ func TestConvertToCallToolResult(t *testing.T) {
 
 // TestParseToolArguments tests extraction and unmarshaling of tool arguments.
 func TestParseToolArguments(t *testing.T) {
+	t.Parallel()
+
 	t.Run("nil params returns empty map", func(t *testing.T) {
 		req := &sdk.CallToolRequest{}
 
@@ -395,6 +399,8 @@ func TestParseToolArguments(t *testing.T) {
 
 // TestNewErrorCallToolResult tests construction of error CallToolResult values.
 func TestNewErrorCallToolResult(t *testing.T) {
+	t.Parallel()
+
 	t.Run("non-nil error produces IsError result with error message as text", func(t *testing.T) {
 		inputErr := errors.New("tool execution failed")
 
@@ -444,6 +450,7 @@ func TestNewErrorCallToolResult(t *testing.T) {
 
 // TestConvertToCallToolResult_MarshalError tests the error path when data cannot be marshaled.
 func TestConvertToCallToolResult_MarshalError(t *testing.T) {
+	t.Parallel()
 	// Channels cannot be marshaled to JSON; json.Marshal returns an error.
 	result, err := ConvertToCallToolResult(make(chan int))
 
@@ -455,6 +462,8 @@ func TestConvertToCallToolResult_MarshalError(t *testing.T) {
 // TestDecodeContentData exercises all three branches of decodeContentData directly
 // by calling convertContentItem with crafted content-item maps.
 func TestDecodeContentData(t *testing.T) {
+	t.Parallel()
+
 	t.Run("pre-decoded []byte data is returned as-is", func(t *testing.T) {
 		// When data is already a []byte (e.g. assembled by in-process helpers rather
 		// than JSON unmarshalling), decodeContentData must return it unchanged.
@@ -550,6 +559,7 @@ func TestDecodeContentData(t *testing.T) {
 // TestConvertContentItem_ResourceMarshalError verifies that an unmarshalable
 // resource value causes convertContentItem to return an error.
 func TestConvertContentItem_ResourceMarshalError(t *testing.T) {
+	t.Parallel()
 	// Channels are not JSON-serializable, so json.Marshal will fail.
 	ci := map[string]interface{}{
 		"type":     "resource",
@@ -564,6 +574,7 @@ func TestConvertContentItem_ResourceMarshalError(t *testing.T) {
 // TestConvertContentItem_ResourceUnmarshalError verifies that resource JSON that
 // cannot be unmarshaled into sdk.ResourceContents returns an appropriate error.
 func TestConvertContentItem_ResourceUnmarshalError(t *testing.T) {
+	t.Parallel()
 	// Provide a resource value where a required string field contains an object,
 	// which will marshal fine but fail to unmarshal into sdk.ResourceContents.
 	ci := map[string]interface{}{
@@ -582,6 +593,7 @@ func TestConvertContentItem_ResourceUnmarshalError(t *testing.T) {
 // malformed []interface{} content entries are rejected instead of being
 // silently skipped, to avoid data loss.
 func TestConvertMapToCallToolResult_ContentItemCastFailure(t *testing.T) {
+	t.Parallel()
 	// Mix a valid text item with a scalar item (int) that cannot be cast to
 	// map[string]interface{}. The malformed scalar should cause the entire
 	// conversion to fail rather than be silently dropped.
@@ -596,7 +608,87 @@ func TestConvertMapToCallToolResult_ContentItemCastFailure(t *testing.T) {
 	require.Nil(t, result)
 }
 
+// TestConvertToCallToolResult_ContentItemErrorPropagation verifies that errors
+// returned by convertContentItem propagate correctly through the full
+// ConvertToCallToolResult → convertMapToCallToolResult call chain.
+//
+// Distinct from TestDecodeContentData and TestConvertContentItem_* which call
+// convertContentItem directly, these tests go through the top-level public API
+// and exercise the "return nil, err" path in convertMapToCallToolResult's
+// item-conversion loop for both supported content slice types.
+func TestConvertToCallToolResult_ContentItemErrorPropagation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		content    interface{}
+		wantErrMsg string
+	}{
+		{
+			name: "invalid image base64 via []interface{} content slice",
+			content: []interface{}{
+				map[string]interface{}{
+					"type":     "image",
+					"mimeType": "image/png",
+					"data":     "!!!invalid-base64!!!",
+				},
+			},
+			wantErrMsg: "failed to decode image data",
+		},
+		{
+			name: "invalid audio base64 via []interface{} content slice",
+			content: []interface{}{
+				map[string]interface{}{
+					"type":     "audio",
+					"mimeType": "audio/wav",
+					"data":     "!!!invalid-base64!!!",
+				},
+			},
+			wantErrMsg: "failed to decode audio data",
+		},
+		{
+			name: "invalid image base64 via []map[string]interface{} content slice",
+			content: []map[string]interface{}{
+				{
+					"type":     "image",
+					"mimeType": "image/png",
+					"data":     "!!!invalid-base64!!!",
+				},
+			},
+			wantErrMsg: "failed to decode image data",
+		},
+		{
+			name: "valid item followed by invalid item stops at first error",
+			content: []interface{}{
+				map[string]interface{}{"type": "text", "text": "ok"},
+				map[string]interface{}{
+					"type":     "image",
+					"mimeType": "image/png",
+					"data":     "!!!invalid-base64!!!",
+				},
+			},
+			wantErrMsg: "failed to decode image data",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			input := map[string]interface{}{
+				"content": tt.content,
+			}
+			result, err := ConvertToCallToolResult(input)
+			require.Error(t, err)
+			require.Nil(t, result)
+			assert.ErrorContains(t, err, tt.wantErrMsg)
+		})
+	}
+}
+
 func TestBuildMCPTextResponse(t *testing.T) {
+	t.Parallel()
+
 	text := `{"permission":"write"}`
 
 	result := BuildMCPTextResponse(text)
