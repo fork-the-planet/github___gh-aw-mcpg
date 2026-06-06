@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/mcp"
+	"github.com/github/gh-aw-mcpg/internal/mcpresult"
 )
 
 // extractRateLimitErrorText extracts the text content from a raw tool result
@@ -17,7 +17,7 @@ func extractRateLimitErrorText(result interface{}) string {
 		logCircuitBreaker.Print("extractRateLimitErrorText: result is not a map, using default message")
 		return "rate limit exceeded"
 	}
-	if text := mcp.ExtractTextContentFromResult(m); text != "" {
+	if text := mcpresult.ExtractTextContent(m); text != "" {
 		return text
 	}
 	logCircuitBreaker.Print("extractRateLimitErrorText: no text content found, using default message")
@@ -43,7 +43,7 @@ func isRateLimitToolResult(result interface{}) (bool, time.Time) {
 		return false, time.Time{}
 	}
 
-	text := mcp.ExtractTextContentFromResult(m)
+	text := mcpresult.ExtractTextContent(m)
 	if isRateLimitText(text) {
 		resetAt := parseRateLimitResetFromText(text)
 		logCircuitBreaker.Printf("Rate limit detected in tool result: hasResetAt=%v", !resetAt.IsZero())

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -17,6 +18,7 @@ import (
 )
 
 var logSDK = logger.New("server:sdk-frontend")
+var logAuth = logger.New("server:auth")
 
 // mcpHandlerConfig holds the non-factory options for buildMCPHandler.
 // Using a struct instead of positional parameters makes call sites
@@ -78,6 +80,51 @@ func applyIfConfigured(key string, handler http.HandlerFunc, middleware func(str
 		return middleware(key, handler)
 	}
 	return handler
+}
+
+// authMiddleware implements API key authentication per spec section 7.1
+// Per spec: Authorization header MUST contain the API key directly.
+//
+// For header parsing logic, see internal/auth package which provides:
+//   - ParseAuthHeader() for extracting API keys and agent IDs
+//   - ValidateAPIKey() for key validation
+func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
+	logAuth.Printf("Initialized auth middleware")
+	return func(w http.ResponseWriter, r *http.Request) {
+		logAuth.Printf("Authenticating request: method=%s, path=%s, remote=%s", r.Method, r.URL.Path, r.RemoteAddr)
+
+		// Extract Authorization header
+		authHeader := r.Header.Get("Authorization")
+
+		if authHeader == "" {
+			// Spec 7.1: Missing token returns 401
+			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "missing Authorization header", "auth", "authentication_failed", "missing_auth_header")
+			return
+		}
+
+		// Spec 7.2 item 3: Malformed Authorization headers (null bytes, non-printable
+		// control characters) must return 400 Bad Request, not 401.
+		if auth.IsMalformedHeader(authHeader) {
+			rejectRequest(w, r, http.StatusBadRequest, "bad_request", "malformed Authorization header", "auth", "authentication_failed", "malformed_auth_header")
+			return
+		}
+
+		// Spec 7.1: Authorization header must contain API key directly.
+		if subtle.ConstantTimeCompare([]byte(authHeader), []byte(apiKey)) != 1 {
+			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "invalid API key", "auth", "authentication_failed", "invalid_api_key")
+			return
+		}
+
+		logger.LogInfo("auth", "Authentication successful, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
+		// Token is valid, proceed to handler
+		next(w, r)
+	}
+}
+
+// applyAuthIfConfigured applies authentication middleware if an API key is provided
+// Returns the handler unchanged if apiKey is empty
+func applyAuthIfConfigured(apiKey string, handler http.HandlerFunc) http.HandlerFunc {
+	return applyIfConfigured(apiKey, handler, authMiddleware)
 }
 
 // wrapWithMiddleware applies the standard middleware stack to an SDK handler.
