@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
@@ -129,9 +130,30 @@ func extractAndValidateSession(r *http.Request) string {
 		logger.LogError("client", "Rejected MCP client connection: missing or invalid X-Agent-ID/Authorization header, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
 		return ""
 	}
+	if !isSinglePathSegmentSessionID(sessionID) {
+		logSession.Printf("Session extraction failed: invalid session identifier format, remote=%s", r.RemoteAddr)
+		logger.LogError("client", "Rejected MCP client connection: invalid session identifier format, remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
+		return ""
+	}
 
 	logSession.Printf("Session extracted successfully: sessionID=%s, remote=%s", strutil.TruncateSessionID(sessionID), r.RemoteAddr)
 	return sessionID
+}
+
+func isSinglePathSegmentSessionID(sessionID string) bool {
+	if sessionID == "" || sessionID == "." || sessionID == ".." {
+		return false
+	}
+	if filepath.IsAbs(sessionID) || filepath.VolumeName(sessionID) != "" {
+		return false
+	}
+	if strings.Contains(sessionID, "/") || strings.Contains(sessionID, "\\") {
+		return false
+	}
+	if filepath.Base(sessionID) != sessionID {
+		return false
+	}
+	return filepath.Clean(sessionID) == sessionID
 }
 
 // injectSessionContext stores the session ID and optional backend ID into the request context.

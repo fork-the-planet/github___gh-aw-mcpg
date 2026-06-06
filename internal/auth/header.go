@@ -187,6 +187,9 @@ func ExtractSessionIDFromHeaders(xAgentID, authHeader string) string {
 		}
 		return xAgentID
 	}
+	if IsMalformedHeader(authHeader) {
+		return ""
+	}
 	return ExtractSessionID(authHeader)
 }
 

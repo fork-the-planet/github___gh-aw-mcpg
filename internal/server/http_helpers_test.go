@@ -311,6 +311,24 @@ func TestExtractAndValidateSession(t *testing.T) {
 			expectedID:    "",
 			shouldBeEmpty: true,
 		},
+		{
+			name:          "Malformed Authorization rejects session",
+			authHeader:    "bad\x00id",
+			expectedID:    "",
+			shouldBeEmpty: true,
+		},
+		{
+			name:          "Path traversal session ID rejects session",
+			authHeader:    "../escape",
+			expectedID:    "",
+			shouldBeEmpty: true,
+		},
+		{
+			name:          "Session ID with separator rejects session",
+			xAgentID:      "nested/session",
+			expectedID:    "",
+			shouldBeEmpty: true,
+		},
 	}
 
 	for _, tt := range tests {

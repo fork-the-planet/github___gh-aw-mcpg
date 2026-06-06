@@ -459,7 +459,7 @@ func TestGetAgentID_ReturnsID(t *testing.T) {
 
 // TestGetAgentID_LegacyAPIKeyFallback verifies that GetAgentID falls back to APIKey alias.
 func TestGetAgentID_LegacyAPIKeyFallback(t *testing.T) {
-	cfg := &Config{Gateway: &GatewayConfig{AgentID: "legacy-id"}}
+	cfg := &Config{Gateway: &GatewayConfig{APIKey: "legacy-id"}}
 	assert.Equal(t, "legacy-id", cfg.GetAgentID())
 }
 

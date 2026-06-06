@@ -129,7 +129,7 @@ func TestLoadFromStdin_WithGateway(t *testing.T) {
 	require.NotNil(t, stdinCfg.Gateway, "Gateway not parsed")
 	require.NotNil(t, stdinCfg.Gateway.Port, "Gateway port is nil")
 	assert.Equal(t, port, *stdinCfg.Gateway.Port, "Gateway port not correct")
-	assert.Equal(t, "test-key", stdinCfg.Gateway.AgentID, "Gateway API key not correct")
+	assert.Equal(t, "test-key", stdinCfg.Gateway.AgentID, "Gateway agent ID not correct")
 }
 
 func TestLoadFromStdin_UnsupportedType(t *testing.T) {
@@ -1542,7 +1542,7 @@ func TestGetAgentID(t *testing.T) {
 	})
 
 	t.Run("Legacy APIKey still maps to agent ID", func(t *testing.T) {
-		cfg := &Config{Gateway: &GatewayConfig{AgentID: "legacy-id"}}
+		cfg := &Config{Gateway: &GatewayConfig{APIKey: "legacy-id"}}
 		assert.Equal(t, "legacy-id", cfg.GetAgentID())
 	})
 }

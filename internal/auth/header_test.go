@@ -464,6 +464,11 @@ func TestExtractSessionIDFromHeaders(t *testing.T) {
 		got := ExtractSessionIDFromHeaders("bad\x00id", "auth-token")
 		assert.Equal(t, "", got)
 	})
+
+	t.Run("malformed Authorization returns empty when X-Agent-ID missing", func(t *testing.T) {
+		got := ExtractSessionIDFromHeaders("", "bad\x00token")
+		assert.Equal(t, "", got)
+	})
 }
 
 func TestStripAuthScheme(t *testing.T) {

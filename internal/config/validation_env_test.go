@@ -301,16 +301,28 @@ func TestValidateExecutionEnvironment(t *testing.T) {
 	// Save original env vars
 	origPort := os.Getenv("MCP_GATEWAY_PORT")
 	origDomain := os.Getenv("MCP_GATEWAY_DOMAIN")
-	origAPIKey := os.Getenv("MCP_GATEWAY_AGENT_ID")
+	origAgentID, hadAgentID := os.LookupEnv("MCP_GATEWAY_AGENT_ID")
+	origLegacyAPIKey, hadLegacyAPIKey := os.LookupEnv("MCP_GATEWAY_API_KEY")
 	defer func() {
 		if origPort != "" {
 			os.Setenv("MCP_GATEWAY_PORT", origPort)
+		} else {
+			os.Unsetenv("MCP_GATEWAY_PORT")
 		}
 		if origDomain != "" {
 			os.Setenv("MCP_GATEWAY_DOMAIN", origDomain)
+		} else {
+			os.Unsetenv("MCP_GATEWAY_DOMAIN")
 		}
-		if origAPIKey != "" {
-			os.Setenv("MCP_GATEWAY_AGENT_ID", origAPIKey)
+		if hadAgentID {
+			os.Setenv("MCP_GATEWAY_AGENT_ID", origAgentID)
+		} else {
+			os.Unsetenv("MCP_GATEWAY_AGENT_ID")
+		}
+		if hadLegacyAPIKey {
+			os.Setenv("MCP_GATEWAY_API_KEY", origLegacyAPIKey)
+		} else {
+			os.Unsetenv("MCP_GATEWAY_API_KEY")
 		}
 	}()
 
@@ -318,6 +330,7 @@ func TestValidateExecutionEnvironment(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
 		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
+		os.Unsetenv("MCP_GATEWAY_API_KEY")
 
 		result := ValidateExecutionEnvironment()
 
@@ -329,6 +342,7 @@ func TestValidateExecutionEnvironment(t *testing.T) {
 		os.Unsetenv("MCP_GATEWAY_PORT")
 		os.Unsetenv("MCP_GATEWAY_DOMAIN")
 		os.Unsetenv("MCP_GATEWAY_AGENT_ID")
+		os.Unsetenv("MCP_GATEWAY_API_KEY")
 
 		result := ValidateExecutionEnvironment()
 
@@ -344,7 +358,8 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 	// Save original env vars
 	origPort := os.Getenv("MCP_GATEWAY_PORT")
 	origDomain := os.Getenv("MCP_GATEWAY_DOMAIN")
-	origAPIKey := os.Getenv("MCP_GATEWAY_AGENT_ID")
+	origAgentID, hadAgentID := os.LookupEnv("MCP_GATEWAY_AGENT_ID")
+	origLegacyAPIKey, hadLegacyAPIKey := os.LookupEnv("MCP_GATEWAY_API_KEY")
 	origLogDir := os.Getenv("MCP_GATEWAY_LOG_DIR")
 	defer func() {
 		if origPort != "" {
@@ -357,10 +372,15 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 		} else {
 			os.Unsetenv("MCP_GATEWAY_DOMAIN")
 		}
-		if origAPIKey != "" {
-			os.Setenv("MCP_GATEWAY_AGENT_ID", origAPIKey)
+		if hadAgentID {
+			os.Setenv("MCP_GATEWAY_AGENT_ID", origAgentID)
 		} else {
 			os.Unsetenv("MCP_GATEWAY_AGENT_ID")
+		}
+		if hadLegacyAPIKey {
+			os.Setenv("MCP_GATEWAY_API_KEY", origLegacyAPIKey)
+		} else {
+			os.Unsetenv("MCP_GATEWAY_API_KEY")
 		}
 		if origLogDir != "" {
 			os.Setenv("MCP_GATEWAY_LOG_DIR", origLogDir)
@@ -373,6 +393,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
 		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
+		os.Unsetenv("MCP_GATEWAY_API_KEY")
 
 		result := ValidateContainerizedEnvironment("")
 
@@ -386,6 +407,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
 		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
+		os.Unsetenv("MCP_GATEWAY_API_KEY")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
 
@@ -399,6 +421,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 		os.Unsetenv("MCP_GATEWAY_PORT")
 		os.Unsetenv("MCP_GATEWAY_DOMAIN")
 		os.Unsetenv("MCP_GATEWAY_AGENT_ID")
+		os.Unsetenv("MCP_GATEWAY_API_KEY")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
 
@@ -412,6 +435,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
 		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
+		os.Unsetenv("MCP_GATEWAY_API_KEY")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
 
@@ -424,6 +448,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
 		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
+		os.Unsetenv("MCP_GATEWAY_API_KEY")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
 
