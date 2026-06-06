@@ -20,11 +20,13 @@ func serveAndWait(
 	onShutdownSignal func(),
 	serveFn func() error,
 ) error {
+	serveErrCh := make(chan error, 1)
 	go func() {
-		if err := serveFn(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Printf("HTTP server error: %v", err)
+		err := serveFn()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			cancel()
 		}
+		serveErrCh <- err
 	}()
 
 	<-ctx.Done()
@@ -34,10 +36,19 @@ func serveAndWait(
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), timeout)
 	defer shutdownCancel()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
-		return err
+
+	shutdownErr := httpServer.Shutdown(shutdownCtx)
+	if shutdownErr != nil {
+		_ = httpServer.Close()
+		select {
+		case <-serveErrCh:
+		case <-time.After(timeout):
+		}
+		return shutdownErr
 	}
 
+	serveErr := <-serveErrCh
+	if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+		return serveErr
+	}
 	return nil
-}
