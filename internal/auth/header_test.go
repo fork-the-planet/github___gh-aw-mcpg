@@ -256,7 +256,7 @@ func TestParseAuthHeader(t *testing.T) {
 	}
 }
 
-func TestValidateAPIKey(t *testing.T) {
+func TestValidateAgentID(t *testing.T) {
 	assert := assert.New(t)
 
 	tests := []struct {
@@ -317,10 +317,15 @@ func TestValidateAPIKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ValidateAPIKey(tt.provided, tt.expected)
+			got := ValidateAgentID(tt.provided, tt.expected)
 			assert.Equal(tt.want, got)
 		})
 	}
+}
+
+func TestValidateAPIKeyAlias(t *testing.T) {
+	assert.True(t, ValidateAPIKey("same", "same"))
+	assert.False(t, ValidateAPIKey("a", "b"))
 }
 
 func TestExtractAgentID(t *testing.T) {
@@ -442,6 +447,23 @@ func TestExtractSessionID(t *testing.T) {
 			assert.Equal(tt.want, got)
 		})
 	}
+}
+
+func TestExtractSessionIDFromHeaders(t *testing.T) {
+	t.Run("X-Agent-ID takes precedence over Authorization", func(t *testing.T) {
+		got := ExtractSessionIDFromHeaders("agent-explicit", "auth-token")
+		assert.Equal(t, "agent-explicit", got)
+	})
+
+	t.Run("falls back to Authorization when X-Agent-ID missing", func(t *testing.T) {
+		got := ExtractSessionIDFromHeaders("", "auth-token")
+		assert.Equal(t, "auth-token", got)
+	})
+
+	t.Run("malformed X-Agent-ID returns empty", func(t *testing.T) {
+		got := ExtractSessionIDFromHeaders("bad\x00id", "auth-token")
+		assert.Equal(t, "", got)
+	})
 }
 
 func TestStripAuthScheme(t *testing.T) {

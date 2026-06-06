@@ -197,7 +197,7 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, 8888, cfg.Gateway.Port)
-	assert.Equal(t, "my-secret", cfg.Gateway.APIKey)
+	assert.Equal(t, "my-secret", cfg.Gateway.AgentID)
 	assert.Equal(t, 30, cfg.Gateway.StartupTimeout)
 	assert.Equal(t, 60, cfg.Gateway.ToolTimeout)
 }
@@ -437,24 +437,30 @@ func TestApplyGatewayDefaults_PartialZero(t *testing.T) {
 	assert.Equal(t, DefaultToolTimeout, cfg.ToolTimeout)
 }
 
-// TestGetAPIKey_NilGateway verifies that GetAPIKey returns an empty string
+// TestGetAgentID_NilGateway verifies that GetAgentID returns an empty string
 // when the Config has a nil Gateway field.
-func TestGetAPIKey_NilGateway(t *testing.T) {
+func TestGetAgentID_NilGateway(t *testing.T) {
 	cfg := &Config{Gateway: nil}
-	assert.Equal(t, "", cfg.GetAPIKey())
+	assert.Equal(t, "", cfg.GetAgentID())
 }
 
-// TestGetAPIKey_EmptyKey verifies that GetAPIKey returns an empty string
-// when the Gateway has an empty APIKey.
-func TestGetAPIKey_EmptyKey(t *testing.T) {
-	cfg := &Config{Gateway: &GatewayConfig{APIKey: ""}}
-	assert.Equal(t, "", cfg.GetAPIKey())
+// TestGetAgentID_EmptyID verifies that GetAgentID returns an empty string
+// when the Gateway has an empty AgentID.
+func TestGetAgentID_EmptyID(t *testing.T) {
+	cfg := &Config{Gateway: &GatewayConfig{AgentID: ""}}
+	assert.Equal(t, "", cfg.GetAgentID())
 }
 
-// TestGetAPIKey_ReturnsKey verifies that GetAPIKey returns the configured API key.
-func TestGetAPIKey_ReturnsKey(t *testing.T) {
-	cfg := &Config{Gateway: &GatewayConfig{APIKey: "super-secret-key"}}
-	assert.Equal(t, "super-secret-key", cfg.GetAPIKey())
+// TestGetAgentID_ReturnsID verifies that GetAgentID returns the configured agent ID.
+func TestGetAgentID_ReturnsID(t *testing.T) {
+	cfg := &Config{Gateway: &GatewayConfig{AgentID: "agent-123"}}
+	assert.Equal(t, "agent-123", cfg.GetAgentID())
+}
+
+// TestGetAgentID_LegacyAPIKeyFallback verifies that GetAgentID falls back to APIKey alias.
+func TestGetAgentID_LegacyAPIKeyFallback(t *testing.T) {
+	cfg := &Config{Gateway: &GatewayConfig{AgentID: "legacy-id"}}
+	assert.Equal(t, "legacy-id", cfg.GetAgentID())
 }
 
 // TestLoadFromFile_OIDCAuthMissingEnvVar verifies that LoadFromFile returns an error
@@ -824,7 +830,7 @@ func TestEnsureGatewayDefaults(t *testing.T) {
 				StartupTimeout:    45,
 				ToolTimeout:       90,
 				KeepaliveInterval: 600,
-				APIKey:            "my-api-key",
+				AgentID:           "my-api-key",
 			},
 		}
 		cfg.EnsureGatewayDefaults()
@@ -833,7 +839,7 @@ func TestEnsureGatewayDefaults(t *testing.T) {
 		assert.Equal(t, 45, cfg.Gateway.StartupTimeout, "Explicit startup timeout should be preserved")
 		assert.Equal(t, 90, cfg.Gateway.ToolTimeout, "Explicit tool timeout should be preserved")
 		assert.Equal(t, 600, cfg.Gateway.KeepaliveInterval, "Explicit keepalive interval should be preserved")
-		assert.Equal(t, "my-api-key", cfg.Gateway.APIKey, "Explicit API key should be preserved")
+		assert.Equal(t, "my-api-key", cfg.Gateway.AgentID, "Explicit agent ID should be preserved")
 	})
 
 	t.Run("calling EnsureGatewayDefaults twice is idempotent", func(t *testing.T) {

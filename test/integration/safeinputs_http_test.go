@@ -151,7 +151,7 @@ func TestSafeinputsHTTPBackend(t *testing.T) {
 		"gateway": {
 			"port": 3001,
 			"domain": "localhost",
-			"apiKey": "test-gateway-key"
+			"agentId": "test-gateway-key"
 		}
 	}`, safeinputsServer.URL)
 

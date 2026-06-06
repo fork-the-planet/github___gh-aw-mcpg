@@ -47,44 +47,53 @@ func TestCheckRequiredEnvVars(t *testing.T) {
 		{
 			name: "all set",
 			envVars: map[string]string{
-				"MCP_GATEWAY_PORT":    "8080",
-				"MCP_GATEWAY_DOMAIN":  "localhost",
-				"MCP_GATEWAY_API_KEY": "test-key",
+				"MCP_GATEWAY_PORT":     "8080",
+				"MCP_GATEWAY_DOMAIN":   "localhost",
+				"MCP_GATEWAY_AGENT_ID": "test-key",
 			},
 			expected: nil,
 		},
 		{
 			name: "partial set - missing port",
 			envVars: map[string]string{
-				"MCP_GATEWAY_DOMAIN":  "localhost",
-				"MCP_GATEWAY_API_KEY": "test-key",
+				"MCP_GATEWAY_DOMAIN":   "localhost",
+				"MCP_GATEWAY_AGENT_ID": "test-key",
 			},
 			expected: []string{"MCP_GATEWAY_PORT"},
 		},
 		{
 			name: "partial set - missing domain",
 			envVars: map[string]string{
-				"MCP_GATEWAY_PORT":    "8080",
-				"MCP_GATEWAY_API_KEY": "test-key",
+				"MCP_GATEWAY_PORT":     "8080",
+				"MCP_GATEWAY_AGENT_ID": "test-key",
 			},
 			expected: []string{"MCP_GATEWAY_DOMAIN"},
 		},
 		{
-			name: "partial set - missing api key",
+			name: "partial set - missing agent id",
 			envVars: map[string]string{
 				"MCP_GATEWAY_PORT":   "8080",
 				"MCP_GATEWAY_DOMAIN": "localhost",
 			},
-			expected: []string{"MCP_GATEWAY_API_KEY"},
+			expected: []string{"MCP_GATEWAY_AGENT_ID"},
 		},
 		{
 			name: "empty string values are missing",
 			envVars: map[string]string{
-				"MCP_GATEWAY_PORT":    "",
+				"MCP_GATEWAY_PORT":     "",
+				"MCP_GATEWAY_DOMAIN":   "localhost",
+				"MCP_GATEWAY_AGENT_ID": "test-key",
+			},
+			expected: []string{"MCP_GATEWAY_PORT"},
+		},
+		{
+			name: "legacy api key env still satisfies agent id requirement",
+			envVars: map[string]string{
+				"MCP_GATEWAY_PORT":    "8080",
 				"MCP_GATEWAY_DOMAIN":  "localhost",
 				"MCP_GATEWAY_API_KEY": "test-key",
 			},
-			expected: []string{"MCP_GATEWAY_PORT"},
+			expected: nil,
 		},
 	}
 
@@ -150,7 +159,7 @@ func TestGetGatewayDomainFromEnv(t *testing.T) {
 	}
 }
 
-func TestGetGatewayAPIKeyFromEnv(t *testing.T) {
+func TestGetGatewayAgentIDFromEnv(t *testing.T) {
 	tests := []struct {
 		name     string
 		envValue string
@@ -174,13 +183,15 @@ func TestGetGatewayAPIKeyFromEnv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			os.Unsetenv("MCP_GATEWAY_AGENT_ID")
 			os.Unsetenv("MCP_GATEWAY_API_KEY")
 			if tt.setEnv {
-				os.Setenv("MCP_GATEWAY_API_KEY", tt.envValue)
+				os.Setenv("MCP_GATEWAY_AGENT_ID", tt.envValue)
 			}
+			defer os.Unsetenv("MCP_GATEWAY_AGENT_ID")
 			defer os.Unsetenv("MCP_GATEWAY_API_KEY")
 
-			key := GetGatewayAPIKeyFromEnv()
+			key := GetGatewayAgentIDFromEnv()
 
 			if tt.setEnv {
 				assert.Equal(t, tt.envValue, key)
@@ -189,6 +200,23 @@ func TestGetGatewayAPIKeyFromEnv(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetGatewayAgentIDFromEnv_LegacyFallback(t *testing.T) {
+	os.Unsetenv("MCP_GATEWAY_AGENT_ID")
+	os.Setenv("MCP_GATEWAY_API_KEY", "legacy-key")
+	defer os.Unsetenv("MCP_GATEWAY_API_KEY")
+
+	assert.Equal(t, "legacy-key", GetGatewayAgentIDFromEnv())
+}
+
+func TestGetGatewayAgentIDFromEnv_NewTakesPrecedence(t *testing.T) {
+	os.Setenv("MCP_GATEWAY_AGENT_ID", "new-id")
+	os.Setenv("MCP_GATEWAY_API_KEY", "legacy-key")
+	defer os.Unsetenv("MCP_GATEWAY_AGENT_ID")
+	defer os.Unsetenv("MCP_GATEWAY_API_KEY")
+
+	assert.Equal(t, "new-id", GetGatewayAgentIDFromEnv())
 }
 
 func TestEnvValidationResultIsValid(t *testing.T) {
@@ -273,7 +301,7 @@ func TestValidateExecutionEnvironment(t *testing.T) {
 	// Save original env vars
 	origPort := os.Getenv("MCP_GATEWAY_PORT")
 	origDomain := os.Getenv("MCP_GATEWAY_DOMAIN")
-	origAPIKey := os.Getenv("MCP_GATEWAY_API_KEY")
+	origAPIKey := os.Getenv("MCP_GATEWAY_AGENT_ID")
 	defer func() {
 		if origPort != "" {
 			os.Setenv("MCP_GATEWAY_PORT", origPort)
@@ -282,14 +310,14 @@ func TestValidateExecutionEnvironment(t *testing.T) {
 			os.Setenv("MCP_GATEWAY_DOMAIN", origDomain)
 		}
 		if origAPIKey != "" {
-			os.Setenv("MCP_GATEWAY_API_KEY", origAPIKey)
+			os.Setenv("MCP_GATEWAY_AGENT_ID", origAPIKey)
 		}
 	}()
 
 	t.Run("with all env vars set", func(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
-		os.Setenv("MCP_GATEWAY_API_KEY", "test-key")
+		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
 
 		result := ValidateExecutionEnvironment()
 
@@ -300,7 +328,7 @@ func TestValidateExecutionEnvironment(t *testing.T) {
 	t.Run("with missing env vars", func(t *testing.T) {
 		os.Unsetenv("MCP_GATEWAY_PORT")
 		os.Unsetenv("MCP_GATEWAY_DOMAIN")
-		os.Unsetenv("MCP_GATEWAY_API_KEY")
+		os.Unsetenv("MCP_GATEWAY_AGENT_ID")
 
 		result := ValidateExecutionEnvironment()
 
@@ -316,7 +344,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 	// Save original env vars
 	origPort := os.Getenv("MCP_GATEWAY_PORT")
 	origDomain := os.Getenv("MCP_GATEWAY_DOMAIN")
-	origAPIKey := os.Getenv("MCP_GATEWAY_API_KEY")
+	origAPIKey := os.Getenv("MCP_GATEWAY_AGENT_ID")
 	origLogDir := os.Getenv("MCP_GATEWAY_LOG_DIR")
 	defer func() {
 		if origPort != "" {
@@ -330,9 +358,9 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 			os.Unsetenv("MCP_GATEWAY_DOMAIN")
 		}
 		if origAPIKey != "" {
-			os.Setenv("MCP_GATEWAY_API_KEY", origAPIKey)
+			os.Setenv("MCP_GATEWAY_AGENT_ID", origAPIKey)
 		} else {
-			os.Unsetenv("MCP_GATEWAY_API_KEY")
+			os.Unsetenv("MCP_GATEWAY_AGENT_ID")
 		}
 		if origLogDir != "" {
 			os.Setenv("MCP_GATEWAY_LOG_DIR", origLogDir)
@@ -344,7 +372,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 	t.Run("empty container ID", func(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
-		os.Setenv("MCP_GATEWAY_API_KEY", "test-key")
+		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
 
 		result := ValidateContainerizedEnvironment("")
 
@@ -357,7 +385,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 	t.Run("valid container ID with all env vars", func(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
-		os.Setenv("MCP_GATEWAY_API_KEY", "test-key")
+		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
 
@@ -370,7 +398,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 	t.Run("missing required env vars", func(t *testing.T) {
 		os.Unsetenv("MCP_GATEWAY_PORT")
 		os.Unsetenv("MCP_GATEWAY_DOMAIN")
-		os.Unsetenv("MCP_GATEWAY_API_KEY")
+		os.Unsetenv("MCP_GATEWAY_AGENT_ID")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
 
@@ -383,7 +411,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 	t.Run("port validation failure", func(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
-		os.Setenv("MCP_GATEWAY_API_KEY", "test-key")
+		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
 
@@ -395,7 +423,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 	t.Run("stdin interactive check", func(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
-		os.Setenv("MCP_GATEWAY_API_KEY", "test-key")
+		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
 
@@ -407,7 +435,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 	t.Run("log directory mount check with default", func(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
-		os.Setenv("MCP_GATEWAY_API_KEY", "test-key")
+		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
 		os.Unsetenv("MCP_GATEWAY_LOG_DIR")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
@@ -422,7 +450,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 	t.Run("log directory mount check with custom dir", func(t *testing.T) {
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
-		os.Setenv("MCP_GATEWAY_API_KEY", "test-key")
+		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
 		os.Setenv("MCP_GATEWAY_LOG_DIR", "/custom/log/path")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
@@ -456,7 +484,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 		os.Setenv("DOCKER_HOST", "unix:///nonexistent/docker.sock")
 		os.Setenv("MCP_GATEWAY_PORT", "8080")
 		os.Setenv("MCP_GATEWAY_DOMAIN", "localhost")
-		os.Setenv("MCP_GATEWAY_API_KEY", "test-key")
+		os.Setenv("MCP_GATEWAY_AGENT_ID", "test-key")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
 
@@ -476,7 +504,7 @@ func TestValidateContainerizedEnvironment(t *testing.T) {
 	t.Run("validation result error message format", func(t *testing.T) {
 		os.Unsetenv("MCP_GATEWAY_PORT")
 		os.Unsetenv("MCP_GATEWAY_DOMAIN")
-		os.Unsetenv("MCP_GATEWAY_API_KEY")
+		os.Unsetenv("MCP_GATEWAY_AGENT_ID")
 
 		result := ValidateContainerizedEnvironment("abcdef123456")
 

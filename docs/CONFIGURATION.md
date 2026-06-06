@@ -22,7 +22,7 @@ TOML configuration requires `command = "docker"` for stdio-based MCP servers to 
 ```toml
 [gateway]
 port = 3000
-api_key = "your-api-key"
+agent_id = "your-agent-id"
 
 [servers.github]
 command = "docker"
@@ -84,7 +84,7 @@ JSON configuration is the primary format for containerized deployments. Pass via
   },
   "gateway": {
     "port": 8080,
-    "apiKey": "${MCP_GATEWAY_API_KEY}",
+    "agentId": "${MCP_GATEWAY_AGENT_ID}",
     "domain": "localhost"
   }
 }
@@ -411,7 +411,7 @@ The `customSchemas` top-level field allows you to define custom server types bey
 - **TOML format**:
   - Uses `command` and `args` fields directly (e.g., `command = "docker"`)
   - Variable expansion with `${VAR_NAME}` is only supported in `[gateway.opentelemetry]` and legacy `[gateway.tracing]` fields
-  - Server `env` values, `url`, `args`, `gateway.api_key`, and other non-tracing fields are not expanded
+  - Server `env` values, `url`, `args`, `gateway.agent_id`, and other non-tracing fields are not expanded
   - For host environment passthrough to container `env`, use an empty string `""` value
 - **Common rules** (both formats):
   - Empty/"local" type automatically normalized to "stdio"
@@ -427,7 +427,8 @@ The `customSchemas` top-level field allows you to define custom server types bey
 | Field | Description | Default |
 |-------|-------------|---------|
 | `port` | Validated and stored for metadata purposes only. The actual listen address is always set by the `--listen` CLI flag (default `127.0.0.1:3000`). | `3000` (informational only) |
-| `apiKey` | API key for authentication | (disabled) |
+| `agentId` | Agent/session identifier used for routing and optional auth matching | (disabled) |
+| `apiKey` | Deprecated alias for `agentId` (accepted for backward compatibility) | (deprecated) |
 | `domain` | Gateway domain (`"localhost"`, `"host.docker.internal"`, or `"${VAR}"`) | (unset) |
 | `startupTimeout` | Seconds to wait for backend startup | `30` |
 | `toolTimeout` | Maximum seconds for a single tool call, enforced as a context deadline on all backend requests (stdio and HTTP) | `60` |

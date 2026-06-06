@@ -102,7 +102,7 @@ func TestTavilyHTTPBackend(t *testing.T) {
   "gateway": {
     "port": 13099,
     "domain": "localhost",
-    "apiKey": "test-api-key"
+    "agentId": "test-api-key"
   }
 }`
 
@@ -252,7 +252,7 @@ func TestTavilyAuthFailure(t *testing.T) {
   "gateway": {
     "port": 13098,
     "domain": "localhost",
-    "apiKey": "test-gateway-key"
+    "agentId": "test-gateway-key"
   }
 }`
 
@@ -320,7 +320,7 @@ func TestTavilyAuthFailure(t *testing.T) {
   "gateway": {
     "port": 13097,
     "domain": "localhost",
-    "apiKey": "test-gateway-key"
+    "agentId": "test-gateway-key"
   }
 }`
 
@@ -485,7 +485,7 @@ func TestRealTavilyConnection(t *testing.T) {
   "gateway": {
     "port": 13099,
     "domain": "localhost",
-    "apiKey": "test-api-key"
+    "agentId": "test-api-key"
   }
 }`
 

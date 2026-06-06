@@ -368,6 +368,7 @@ func TestPerformSessionAutoInit_Success(t *testing.T) {
 // initialize request so that authentication is preserved.
 func TestPerformSessionAutoInit_AuthHeaderCopied(t *testing.T) {
 	var capturedInitAuth string
+	var capturedInitAgentID string
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bodyBytes, _ := peekRequestBody(r)
@@ -379,6 +380,7 @@ func TestPerformSessionAutoInit_AuthHeaderCopied(t *testing.T) {
 		switch rpcReq.Method {
 		case "initialize":
 			capturedInitAuth = r.Header.Get("Authorization")
+			capturedInitAgentID = r.Header.Get("X-Agent-ID")
 			w.Header().Set("Mcp-Session-Id", "auth-test-session")
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -392,11 +394,14 @@ func TestPerformSessionAutoInit_AuthHeaderCopied(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
 	req.Header.Set("Authorization", "my-secret-api-key")
+	req.Header.Set("X-Agent-ID", "agent-session-42")
 	_, err := performSessionAutoInit(req, handler)
 
 	require.NoError(t, err)
 	assert.Equal(t, "my-secret-api-key", capturedInitAuth,
 		"Authorization header must be forwarded to the auto-init initialize request")
+	assert.Equal(t, "agent-session-42", capturedInitAgentID,
+		"X-Agent-ID header must be forwarded to the auto-init initialize request")
 }
 
 func TestCopyAutoInitHeaders(t *testing.T) {
@@ -406,16 +411,19 @@ func TestCopyAutoInitHeaders(t *testing.T) {
 		wantCT     string
 		wantAccept string
 		wantAuth   string
+		wantAgent  string
 	}{
 		{
 			name: "with authorization",
 			src: http.Header{
 				"Authorization": {"Bearer token123"},
+				"X-Agent-Id":    {"agent-a"},
 				"X-Custom":      {"ignored"},
 			},
 			wantCT:     "application/json",
 			wantAccept: "application/json, text/event-stream",
 			wantAuth:   "Bearer token123",
+			wantAgent:  "agent-a",
 		},
 		{
 			name:       "without authorization",
@@ -423,6 +431,7 @@ func TestCopyAutoInitHeaders(t *testing.T) {
 			wantCT:     "application/json",
 			wantAccept: "application/json, text/event-stream",
 			wantAuth:   "",
+			wantAgent:  "",
 		},
 	}
 
@@ -434,6 +443,7 @@ func TestCopyAutoInitHeaders(t *testing.T) {
 			assert.Equal(t, tt.wantCT, dst.Get("Content-Type"))
 			assert.Equal(t, tt.wantAccept, dst.Get("Accept"))
 			assert.Equal(t, tt.wantAuth, dst.Get("Authorization"))
+			assert.Equal(t, tt.wantAgent, dst.Get("X-Agent-ID"))
 			// Custom headers should not be copied.
 			assert.Empty(t, dst.Get("X-Custom"))
 		})

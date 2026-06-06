@@ -270,16 +270,17 @@ func run(cmd *cobra.Command, args []string) error {
 
 	debugLog.Printf("Server mode: %s, guards mode: %s", mode, cfg.DIFCMode)
 
-	// Per spec §7.3: generate a random API key on startup if none is configured.
-	// The generated key is set in the config so it propagates to both the HTTP
+	// Per spec §7.3: generate a random agent identifier on startup if none is configured.
+	// The generated value is set in the config so it propagates to both the HTTP
 	// server authentication and the stdout configuration output (spec §5.4).
-	if cfg.GetAPIKey() == "" {
+	if cfg.GetAgentID() == "" {
 		randomKey, err := auth.GenerateRandomAPIKey()
 		if err != nil {
 			return fmt.Errorf("failed to generate random API key: %w", err)
 		}
+		cfg.Gateway.AgentID = randomKey
 		cfg.Gateway.APIKey = randomKey
-		logger.StartupInfo("No API key configured — generated temporary random API key (spec §7.3)")
+		logger.StartupInfo("No agent ID configured — generated temporary random agent ID (spec §7.3)")
 	}
 
 	// Apply tracing flags: CLI flags and env var overrides take precedence over config values.
@@ -363,18 +364,18 @@ func run(cmd *cobra.Command, args []string) error {
 		logger.StartupInfo("Starting MCPG in ROUTED mode on %s", listenAddr)
 		logger.StartupInfo("Routes: /mcp/<server> where <server> is one of: %v", unifiedServer.GetServerIDs())
 
-		// Extract API key from gateway config (spec 7.1)
-		apiKey := cfg.GetAPIKey()
+		// Extract agent ID from gateway config (spec 7.1)
+		agentID := cfg.GetAgentID()
 
-		httpServer = server.CreateHTTPServerForRoutedMode(listenAddr, unifiedServer, apiKey, hmacSecret)
+		httpServer = server.CreateHTTPServerForRoutedMode(listenAddr, unifiedServer, agentID, hmacSecret)
 	} else {
 		logger.StartupInfo("Starting MCPG in UNIFIED mode on %s", listenAddr)
 		logger.StartupInfo("Endpoint: /mcp")
 
-		// Extract API key from gateway config (spec 7.1)
-		apiKey := cfg.GetAPIKey()
+		// Extract agent ID from gateway config (spec 7.1)
+		agentID := cfg.GetAgentID()
 
-		httpServer = server.CreateHTTPServerForMCP(listenAddr, unifiedServer, apiKey, hmacSecret)
+		httpServer = server.CreateHTTPServerForMCP(listenAddr, unifiedServer, agentID, hmacSecret)
 	}
 	// Set BaseContext so every incoming request inherits the startup context,
 	// which carries the configured W3C parent span context (traceId/spanId).

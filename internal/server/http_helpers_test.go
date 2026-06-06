@@ -257,6 +257,7 @@ func TestExtractAndValidateSession(t *testing.T) {
 	tests := []struct {
 		name          string
 		authHeader    string
+		xAgentID      string
 		expectedID    string
 		shouldBeEmpty bool
 	}{
@@ -264,6 +265,19 @@ func TestExtractAndValidateSession(t *testing.T) {
 			name:          "Valid plain API key",
 			authHeader:    "test-session-123",
 			expectedID:    "test-session-123",
+			shouldBeEmpty: false,
+		},
+		{
+			name:          "X-Agent-ID is used as session ID",
+			xAgentID:      "agent-header-1",
+			expectedID:    "agent-header-1",
+			shouldBeEmpty: false,
+		},
+		{
+			name:          "X-Agent-ID takes precedence over Authorization",
+			authHeader:    "auth-id",
+			xAgentID:      "agent-header-2",
+			expectedID:    "agent-header-2",
 			shouldBeEmpty: false,
 		},
 		{
@@ -290,6 +304,13 @@ func TestExtractAndValidateSession(t *testing.T) {
 			expectedID:    "very-long-session-id-with-many-characters-1234567890",
 			shouldBeEmpty: false,
 		},
+		{
+			name:          "Malformed X-Agent-ID rejects session",
+			authHeader:    "auth-id",
+			xAgentID:      "bad\x00id",
+			expectedID:    "",
+			shouldBeEmpty: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -297,6 +318,9 @@ func TestExtractAndValidateSession(t *testing.T) {
 			req := httptest.NewRequest("POST", "/mcp", nil)
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
+			}
+			if tt.xAgentID != "" {
+				req.Header.Set("X-Agent-ID", tt.xAgentID)
 			}
 
 			sessionID := extractAndValidateSession(req)

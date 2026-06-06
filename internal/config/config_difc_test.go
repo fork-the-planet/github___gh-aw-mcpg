@@ -38,7 +38,7 @@ func TestStdinConfigWithGuards(t *testing.T) {
 		"gateway": {
 			"port": 3001,
 			"domain": "localhost",
-			"apiKey": "test-api-key"
+			"agentId": "test-api-key"
 		}
 	}`
 
@@ -71,7 +71,7 @@ func TestStdinConfigWithGuards(t *testing.T) {
 	// Check gateway
 	assert.Equal(t, 3001, *stdinCfg.Gateway.Port, "Port should be 3001")
 	assert.Equal(t, "localhost", stdinCfg.Gateway.Domain, "Domain should be localhost")
-	assert.Equal(t, "test-api-key", stdinCfg.Gateway.APIKey, "API key mismatch")
+	assert.Equal(t, "test-api-key", stdinCfg.Gateway.AgentID, "Agent ID mismatch")
 }
 
 // TestStdinConfigMultipleGuards tests multiple guard configurations
@@ -221,9 +221,9 @@ func TestConvertStdinConfigWithGuards(t *testing.T) {
 			},
 		},
 		Gateway: &StdinGatewayConfig{
-			Port:   intPtrDIFC(3000),
-			Domain: "localhost",
-			APIKey: "test-key",
+			Port:    intPtrDIFC(3000),
+			Domain:  "localhost",
+			AgentID: "test-key",
 		},
 	}
 
@@ -293,7 +293,7 @@ func TestFullDIFCConfigParsing(t *testing.T) {
 		"gateway": {
 			"port": 3001,
 			"domain": "localhost",
-			"apiKey": "test-api-key"
+			"agentId": "test-api-key"
 		}
 	}`
 
@@ -321,7 +321,7 @@ func TestFullDIFCConfigParsing(t *testing.T) {
 	// Verify gateway configuration
 	assert.Equal(t, 3001, cfg.Gateway.Port)
 	assert.Equal(t, "localhost", cfg.Gateway.Domain)
-	assert.Equal(t, "test-api-key", cfg.Gateway.APIKey)
+	assert.Equal(t, "test-api-key", cfg.Gateway.AgentID)
 }
 
 // TestLoadFromStdin_WithExtensionFields tests that LoadFromStdin accepts
@@ -347,7 +347,7 @@ func TestLoadFromStdin_WithExtensionFields(t *testing.T) {
 		"gateway": {
 			"port": 3001,
 			"domain": "localhost",
-			"apiKey": "test-api-key"
+			"agentId": "test-api-key"
 		}
 	}`
 

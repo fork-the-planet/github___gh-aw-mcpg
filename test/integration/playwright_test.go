@@ -68,9 +68,9 @@ func TestPlaywrightMCPServer(t *testing.T) {
 			},
 		},
 		"gateway": map[string]interface{}{
-			"port":   13100,
-			"domain": "localhost",
-			"apiKey": "test-playwright-key",
+			"port":    13100,
+			"domain":  "localhost",
+			"agentId": "test-playwright-key",
 		},
 	}
 
@@ -420,9 +420,9 @@ CMD ["node", "mock-mcp-server.js"]
 			},
 		},
 		"gateway": map[string]interface{}{
-			"port":   13109,
-			"domain": "localhost",
-			"apiKey": "test-mock-key",
+			"port":    13109,
+			"domain":  "localhost",
+			"agentId": "test-mock-key",
 		},
 	}
 

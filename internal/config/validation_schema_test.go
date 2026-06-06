@@ -26,7 +26,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: false,
@@ -48,7 +48,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key",
+					"agentId": "test-key",
 					"startupTimeout": 30,
 					"toolTimeout": 60
 				}
@@ -68,7 +68,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: false,
@@ -79,7 +79,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -107,7 +107,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				},
 				"gateway": {
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -123,7 +123,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				},
 				"gateway": {
 					"port": 8080,
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -156,7 +156,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -173,7 +173,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -190,7 +190,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 99999,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -207,7 +207,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 0,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -224,7 +224,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key",
+					"agentId": "test-key",
 					"startupTimeout": 0
 				}
 			}`,
@@ -242,7 +242,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				},
 				"unknownField": "value"
 			}`,
@@ -261,7 +261,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -280,7 +280,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			shouldErr: true,
@@ -297,7 +297,7 @@ func TestValidateJSONSchema(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key",
+					"agentId": "test-key",
 					"unknownField": "value"
 				}
 			}`,
@@ -572,7 +572,7 @@ func TestEnhancedErrorMessages(t *testing.T) {
 "gateway": {
 "port": 8080,
 "domain": "localhost",
-"apiKey": "test-key"
+"agentId": "test-key"
 }
 }`,
 			expectInError: []string{
@@ -614,7 +614,7 @@ func TestEnhancedErrorMessages(t *testing.T) {
 "gateway": {
 "port": 99999,
 "domain": "localhost",
-"apiKey": "test-key"
+"agentId": "test-key"
 }
 }`,
 			expectInError: []string{
@@ -664,7 +664,7 @@ func TestSchemaCaching(t *testing.T) {
 "gateway": {
 "port": 8080,
 "domain": "localhost",
-"apiKey": "test-key"
+"agentId": "test-key"
 }
 }`
 
@@ -692,7 +692,7 @@ func TestSchemaConfiguration(t *testing.T) {
 "gateway": {
 "port": 8080,
 "domain": "localhost",
-"apiKey": "test-key"
+"agentId": "test-key"
 }
 }`
 
@@ -716,7 +716,7 @@ func TestFixSchemaBytes_keepaliveInterval(t *testing.T) {
 "gateway": {
 "port": 8080,
 "domain": "localhost",
-"apiKey": "test-key",
+"agentId": "test-key",
 "keepaliveInterval": 300
 }
 }`
@@ -736,7 +736,7 @@ func TestFixSchemaBytes_keepaliveIntervalNegative(t *testing.T) {
 "gateway": {
 "port": 8080,
 "domain": "localhost",
-"apiKey": "test-key",
+"agentId": "test-key",
 "keepaliveInterval": -1
 }
 }`

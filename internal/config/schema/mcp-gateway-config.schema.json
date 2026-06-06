@@ -301,10 +301,16 @@
           ],
           "description": "HTTP server port for the gateway. The gateway exposes endpoints at http://{domain}:{port}/. Can be an integer (1-65535) or a variable expression like '${MCP_GATEWAY_PORT}'."
         },
+        "agentId": {
+          "type": "string",
+          "description": "Agent/session identifier for request routing and optional auth matching. When configured, clients include this value in Authorization and may also send X-Agent-ID for explicit session routing.",
+          "minLength": 1
+        },
         "apiKey": {
           "type": "string",
-          "description": "API key for authentication. When configured, clients must include 'Authorization: <apiKey>' header in all RPC requests (the API key is used directly without Bearer or other scheme prefix). Per MCP Gateway Specification section 7.1, the authorization header format is 'Authorization: <apiKey>' where the API key is the complete header value. API keys must not be logged in plaintext per section 7.2.",
-          "minLength": 1
+          "description": "DEPRECATED alias for agentId. Use agentId instead.",
+          "minLength": 1,
+          "deprecated": true
         },
         "domain": {
           "oneOf": [
@@ -371,10 +377,21 @@
       },
       "required": [
         "port",
-        "domain",
-        "apiKey"
+        "domain"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "agentId"
+          ]
+        },
+        {
+          "required": [
+            "apiKey"
+          ]
+        }
+      ]
     },
     "opentelemetryConfig": {
       "type": "object",
@@ -436,7 +453,7 @@
       "gateway": {
         "port": 8080,
         "domain": "localhost",
-        "apiKey": "gateway-secret-token"
+        "agentId": "gateway-secret-token"
       }
     },
     {
@@ -483,7 +500,7 @@
       "gateway": {
         "port": 8080,
         "domain": "localhost",
-        "apiKey": "gateway-secret-token"
+        "agentId": "gateway-secret-token"
       }
     },
     {
@@ -507,7 +524,7 @@
       "gateway": {
         "port": 8080,
         "domain": "localhost",
-        "apiKey": "gateway-secret-token"
+        "agentId": "gateway-secret-token"
       },
       "customSchemas": {
         "safeinputs": "https://docs.github.com/gh-aw/schemas/mcp-scripts-config.schema.json"

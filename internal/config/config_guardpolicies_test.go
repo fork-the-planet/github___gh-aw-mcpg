@@ -10,7 +10,7 @@ import (
 
 // TestGuardPolicies_ReposAllFormat tests repos field with "all" value
 func TestGuardPolicies_ReposAllFormat(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": "all", "min-integrity": "unapproved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": "all", "min-integrity": "unapproved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "agentId": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -36,7 +36,7 @@ func TestGuardPolicies_ReposAllFormat(t *testing.T) {
 
 // TestGuardPolicies_ReposPublicFormat tests repos field with "public" value
 func TestGuardPolicies_ReposPublicFormat(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": "public", "min-integrity": "none"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": "public", "min-integrity": "none"}}}}, "gateway": {"port": 3000, "domain": "localhost", "agentId": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -62,7 +62,7 @@ func TestGuardPolicies_ReposPublicFormat(t *testing.T) {
 
 // TestGuardPolicies_ReposWithWildcards tests repos field with wildcard patterns
 func TestGuardPolicies_ReposWithWildcards(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": ["myorg/*", "partner/shared-repo", "docs/api-*"], "min-integrity": "approved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": ["myorg/*", "partner/shared-repo", "docs/api-*"], "min-integrity": "approved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "agentId": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -104,7 +104,7 @@ func TestGuardPolicies_AllMinIntegrityLevels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": "all", "min-integrity": "` + tc.minIntegrity + `"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+			jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": "all", "min-integrity": "` + tc.minIntegrity + `"}}}}, "gateway": {"port": 3000, "domain": "localhost", "agentId": "test-key"}}`
 
 			r, w, _ := os.Pipe()
 			oldStdin := os.Stdin
@@ -216,7 +216,7 @@ min-integrity = "`+tc.minIntegrity+`"
 
 // TestGuardPolicies_ExactRepoPatterns tests exact repository pattern matching
 func TestGuardPolicies_ExactRepoPatterns(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": ["github/gh-aw-mcpg", "github/gh-aw", "frontend/ui-components"], "min-integrity": "merged"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": ["github/gh-aw-mcpg", "github/gh-aw", "frontend/ui-components"], "min-integrity": "merged"}}}}, "gateway": {"port": 3000, "domain": "localhost", "agentId": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -244,7 +244,7 @@ func TestGuardPolicies_ExactRepoPatterns(t *testing.T) {
 
 // TestGuardPolicies_MixedPatterns tests combination of exact matches and wildcards
 func TestGuardPolicies_MixedPatterns(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": ["github/gh-aw-mcpg", "myorg/*", "partner/shared-*", "docs/api-reference"], "min-integrity": "approved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {"github": {"repos": ["github/gh-aw-mcpg", "myorg/*", "partner/shared-*", "docs/api-reference"], "min-integrity": "approved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "agentId": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -272,7 +272,7 @@ func TestGuardPolicies_MixedPatterns(t *testing.T) {
 
 // TestGuardPolicies_EmptyGuardPolicies tests that empty guard-policies is allowed
 func TestGuardPolicies_EmptyGuardPolicies(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "guard-policies": {}}}, "gateway": {"port": 3000, "domain": "localhost", "agentId": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -295,7 +295,7 @@ func TestGuardPolicies_EmptyGuardPolicies(t *testing.T) {
 
 // TestGuardPolicies_MissingGuardPolicies tests that missing guard-policies is allowed
 func TestGuardPolicies_MissingGuardPolicies(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest"}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest"}}, "gateway": {"port": 3000, "domain": "localhost", "agentId": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -318,7 +318,7 @@ func TestGuardPolicies_MissingGuardPolicies(t *testing.T) {
 
 // TestGuardPolicies_PreservesOtherServerConfig tests that guard policies don't interfere with other config
 func TestGuardPolicies_PreservesOtherServerConfig(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "", "DEBUG": "true"}, "guard-policies": {"github": {"repos": ["myorg/*"], "min-integrity": "unapproved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"github": {"type": "stdio", "container": "ghcr.io/github/github-mcp-server:latest", "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "", "DEBUG": "true"}, "guard-policies": {"github": {"repos": ["myorg/*"], "min-integrity": "unapproved"}}}}, "gateway": {"port": 3000, "domain": "localhost", "agentId": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin
@@ -364,7 +364,7 @@ func TestGuardPolicies_PreservesOtherServerConfig(t *testing.T) {
 
 // TestGuardPolicies_WriteSink tests write-sink guard policy via JSON stdin
 func TestGuardPolicies_WriteSink(t *testing.T) {
-	jsonConfig := `{"mcpServers": {"safeoutputs": {"type": "stdio", "container": "ghcr.io/github/safe-outputs:latest", "guard-policies": {"write-sink": {"accept": ["private:github/gh-aw*"]}}}}, "gateway": {"port": 3000, "domain": "localhost", "apiKey": "test-key"}}`
+	jsonConfig := `{"mcpServers": {"safeoutputs": {"type": "stdio", "container": "ghcr.io/github/safe-outputs:latest", "guard-policies": {"write-sink": {"accept": ["private:github/gh-aw*"]}}}}, "gateway": {"port": 3000, "domain": "localhost", "agentId": "test-key"}}`
 
 	r, w, _ := os.Pipe()
 	oldStdin := os.Stdin

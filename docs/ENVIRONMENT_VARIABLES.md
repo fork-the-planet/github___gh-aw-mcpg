@@ -10,7 +10,8 @@ When running in a container (`run_containerized.sh`), these variables **must** b
 |----------|-------------|---------|
 | `MCP_GATEWAY_PORT` | Port used by `run.sh`/`run_containerized.sh` to build the `--listen` address; also read by `awmg --validate-env` for port-mapping checks | `8000` |
 | `MCP_GATEWAY_DOMAIN` | The domain name for the gateway | `localhost` |
-| `MCP_GATEWAY_API_KEY` | API key checked by `run_containerized.sh` as a deployment gate; must be referenced in your JSON config via `"${MCP_GATEWAY_API_KEY}"` to enable authentication | `your-secret-key` |
+| `MCP_GATEWAY_AGENT_ID` | Agent/session identifier checked by `run_containerized.sh` as a deployment gate; reference it in JSON config via `"${MCP_GATEWAY_AGENT_ID}"` to enable auth matching | `your-agent-id` |
+| `MCP_GATEWAY_API_KEY` | Deprecated alias for `MCP_GATEWAY_AGENT_ID` (still accepted with warning) | (deprecated) |
 
 ## Optional (Non-Containerized Mode)
 
@@ -20,7 +21,8 @@ When running locally (`run.sh`), these variables are optional (warnings shown if
 |----------|-------------|---------|
 | `MCP_GATEWAY_PORT` | Port used by `run.sh` to build the `--listen` address; also read by `awmg --validate-env` for port-mapping checks | `8000` |
 | `MCP_GATEWAY_DOMAIN` | Gateway domain | `localhost` |
-| `MCP_GATEWAY_API_KEY` | Informational only — not read directly by the binary; must be referenced in your config via `"${MCP_GATEWAY_API_KEY}"` to enable authentication | (disabled) |
+| `MCP_GATEWAY_AGENT_ID` | Informational only — not read directly by the binary; must be referenced in your config via `"${MCP_GATEWAY_AGENT_ID}"` to enable auth matching | (disabled) |
+| `MCP_GATEWAY_API_KEY` | Deprecated alias for `MCP_GATEWAY_AGENT_ID` (still accepted with warning) | (deprecated) |
 | `MCP_GATEWAY_LOG_DIR` | Log file directory (sets default for `--log-dir` flag) | `/tmp/gh-aw/mcp-logs` |
 | `MCP_GATEWAY_WASM_CACHE_DIR` | Disk-backed wazero compilation cache directory (sets default for `--wasm-cache-dir`; defaults to `<parent-of-log-dir>/wazero-cache`, a sibling of the log directory) | `/tmp/gh-aw/wazero-cache` |
 | `MCP_GATEWAY_PAYLOAD_DIR` | Large payload storage directory (sets default for `--payload-dir` flag). Must be an absolute path. | `/tmp/jq-payloads` |

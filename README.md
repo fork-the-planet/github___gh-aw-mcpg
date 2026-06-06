@@ -15,7 +15,7 @@ This gateway is used with [GitHub Agentic Workflows](https://github.com/github/g
    ```json
    {
      "gateway": {
-       "apiKey": "${MCP_GATEWAY_API_KEY}"
+       "agentId": "${MCP_GATEWAY_AGENT_ID}"
      },
      "mcpServers": {
        "github": {
@@ -36,7 +36,7 @@ This gateway is used with [GitHub Agentic Workflows](https://github.com/github/g
    docker run --rm -i \
      -e MCP_GATEWAY_PORT=8000 \
      -e MCP_GATEWAY_DOMAIN=localhost \
-     -e MCP_GATEWAY_API_KEY=your-secret-key \
+     -e MCP_GATEWAY_AGENT_ID=your-agent-id \
      -v /var/run/docker.sock:/var/run/docker.sock \
      -v /path/to/logs:/tmp/gh-aw/mcp-logs \
      -p 8000:8000 \
@@ -181,7 +181,8 @@ Key configuration fields (gateway-level under `[gateway]` in TOML / `"gateway"` 
 
 | Field | Description |
 |-------|-------------|
-| `api_key` / `apiKey` | API key for gateway authentication (MCP spec 7.1) |
+| `agent_id` / `agentId` | Agent/session identifier used for routing and optional auth matching |
+| `api_key` / `apiKey` | Deprecated alias for `agent_id` / `agentId` (accepted with warnings) |
 | `port` | Listen port |
 | `payload_dir` / `payloadDir` | Directory for large payload storage (must be absolute path) |
 | `payload_size_threshold` / `payloadSizeThreshold` | Size threshold in bytes for payload storage (default: `524288`) |
@@ -215,7 +216,7 @@ For the full gateway field list (including rate limiting, tracing, keepalive, an
 
 **Routing**: Routed mode (`/mcp/{serverID}`) exposes each backend at its own endpoint. Unified mode (`/mcp`) routes to all configured servers through a single endpoint.
 
-**Security**: WASM-based DIFC guards enforce secrecy and integrity labels per request. Guards are loaded from `MCP_GATEWAY_WASM_GUARDS_DIR` and assigned per-server. Authentication uses plain API keys per MCP spec 7.1 (`Authorization: <api-key>`).
+**Security**: WASM-based DIFC guards enforce secrecy and integrity labels per request. Guards are loaded from `MCP_GATEWAY_WASM_GUARDS_DIR` and assigned per-server. Authentication uses the configured agent identifier value per MCP spec 7.1 (`Authorization: <agent-id>`), and session routing can also use `X-Agent-ID`.
 
 **Logging**: Per-server log files (`{serverID}.log`) and unified `mcp-gateway.log` use bracketed UTC ISO-8601 timestamps with milliseconds (`[YYYY-MM-DDTHH:mm:ss.SSSZ]`). Machine-readable `rpc-messages.jsonl` records include required `timestamp`, `event` (`snake_case`), and `_schema` fields; RPC events use `_schema: "rpc-message/v2"` with `event` values `rpc_request`/`rpc_response`, and DIFC filter records use `_schema: "difc-filtered/v2"` with `event: "difc_filtered"`. Markdown workflow previews (`gateway.md`) and the wazero cache (`<parent-of-log-dir>/wazero-cache`, a sibling of `--log-dir` by default) are also produced.
 

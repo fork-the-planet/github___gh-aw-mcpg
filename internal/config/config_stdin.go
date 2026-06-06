@@ -33,6 +33,7 @@ type StdinConfig struct {
 // Uses pointers for optional fields to distinguish between unset and zero values.
 type StdinGatewayConfig struct {
 	Port                 *int                      `json:"port,omitempty"`
+	AgentID              string                    `json:"agentId,omitempty"`
 	APIKey               string                    `json:"apiKey,omitempty"`
 	Domain               string                    `json:"domain,omitempty"`
 	StartupTimeout       *int                      `json:"startupTimeout,omitempty"`
@@ -43,6 +44,31 @@ type StdinGatewayConfig struct {
 	PayloadSizeThreshold *int                      `json:"payloadSizeThreshold,omitempty"`
 	TrustedBots          []string                  `json:"trustedBots,omitempty"`
 	OpenTelemetry        *StdinOpenTelemetryConfig `json:"opentelemetry,omitempty"`
+
+	agentIDSet      bool `json:"-"`
+	legacyAPIKeySet bool `json:"-"`
+}
+
+// UnmarshalJSON enables backward-compatible parsing for gateway.apiKey and
+// tracks deprecated field usage for warning emission.
+func (g *StdinGatewayConfig) UnmarshalJSON(data []byte) error {
+	type Alias StdinGatewayConfig
+	aux := &struct {
+		*Alias
+	}{
+		Alias: (*Alias)(g),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawFields); err != nil {
+		return err
+	}
+	_, g.agentIDSet = rawFields["agentId"]
+	_, g.legacyAPIKeySet = rawFields["apiKey"]
+	return nil
 }
 
 // StdinOpenTelemetryConfig represents the OpenTelemetry configuration in stdin JSON format (spec §4.1.3.6).
@@ -370,11 +396,13 @@ func convertStdinConfig(stdinCfg *StdinConfig) (*Config, error) {
 	if stdinCfg.Gateway != nil {
 		cfg.Gateway = &GatewayConfig{
 			Port:              intPtrOrDefault(stdinCfg.Gateway.Port, DefaultPort),
+			AgentID:           stdinCfg.Gateway.AgentID,
 			APIKey:            stdinCfg.Gateway.APIKey,
 			Domain:            stdinCfg.Gateway.Domain,
 			StartupTimeout:    intPtrOrDefault(stdinCfg.Gateway.StartupTimeout, DefaultStartupTimeout),
 			KeepaliveInterval: intPtrOrDefault(stdinCfg.Gateway.KeepaliveInterval, DefaultKeepaliveInterval),
 		}
+		cfg.Gateway.normalizeAgentID(stdinCfg.Gateway.agentIDSet, stdinCfg.Gateway.legacyAPIKeySet, "stdin JSON")
 		if stdinCfg.Gateway.ToolTimeout != nil {
 			cfg.Gateway.ToolTimeout = *stdinCfg.Gateway.ToolTimeout
 		} else {

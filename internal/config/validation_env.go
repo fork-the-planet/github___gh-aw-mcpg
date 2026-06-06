@@ -15,7 +15,7 @@ var logEnv = logger.New("config:validation_env")
 var RequiredEnvVars = []string{
 	"MCP_GATEWAY_PORT",
 	"MCP_GATEWAY_DOMAIN",
-	"MCP_GATEWAY_API_KEY",
+	"MCP_GATEWAY_AGENT_ID",
 }
 
 // EnvValidationResult holds the result of environment validation.
@@ -151,6 +151,14 @@ func ValidateContainerizedEnvironment(containerID string) *EnvValidationResult {
 func checkRequiredEnvVars() []string {
 	var missing []string
 	for _, envVar := range RequiredEnvVars {
+		if envVar == "MCP_GATEWAY_AGENT_ID" {
+			if os.Getenv("MCP_GATEWAY_AGENT_ID") != "" || os.Getenv("MCP_GATEWAY_API_KEY") != "" {
+				if os.Getenv("MCP_GATEWAY_AGENT_ID") == "" && os.Getenv("MCP_GATEWAY_API_KEY") != "" {
+					logEnv.Print("DEPRECATION: MCP_GATEWAY_API_KEY satisfies required agent identifier but should be renamed to MCP_GATEWAY_AGENT_ID")
+				}
+				continue
+			}
+		}
 		if os.Getenv(envVar) == "" {
 			missing = append(missing, envVar)
 		}

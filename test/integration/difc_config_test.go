@@ -139,7 +139,7 @@ func TestDIFCEnvironmentVariables(t *testing.T) {
 				},
 				"gateway": {
 					"port": %d,
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`, port)
 
@@ -224,7 +224,7 @@ func TestDIFCConfigWithGuards(t *testing.T) {
 		"gateway": {
 			"port": %d,
 			"domain": "localhost",
-			"apiKey": "test-api-key"
+			"agentId": "test-api-key"
 		}
 	}`, port)
 
@@ -286,7 +286,7 @@ func TestDIFCModeFilterViaEnv(t *testing.T) {
 		"gateway": {
 			"port": %d,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`, port)
 
@@ -343,7 +343,7 @@ func TestDIFCModePropagateViaEnv(t *testing.T) {
 		"gateway": {
 			"port": %d,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`, port)
 
@@ -415,7 +415,7 @@ func TestFullDIFCConfigFromJSON(t *testing.T) {
 		"gateway": {
 			"port": %d,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`, port)
 

@@ -6,7 +6,7 @@
 // without any scheme prefix (e.g., NOT "Bearer <key>").
 //
 // The package provides both full parsing with error handling (ParseAuthHeader)
-// and convenience methods for specific use cases (ExtractAgentID, ValidateAPIKey).
+// and convenience methods for specific use cases (ExtractAgentID, ValidateAgentID).
 //
 // Usage Guidelines:
 //
@@ -16,7 +16,7 @@
 //   - Use ExtractAgentID() when you only need the agent ID and want automatic
 //     fallback to "default" instead of error handling.
 //
-//   - Use ValidateAPIKey() to check if a provided key matches the expected value.
+//   - Use ValidateAgentID() to check if a provided identifier matches the expected value.
 //     Automatically handles the case where authentication is disabled (no expected key).
 //
 // Example:
@@ -26,8 +26,8 @@
 //	if err != nil {
 //		return err
 //	}
-//	if !auth.ValidateAPIKey(apiKey, expectedKey) {
-//		return errors.New("invalid API key")
+//	if !auth.ValidateAgentID(apiKey, expectedKey) {
+//		return errors.New("invalid agent ID")
 //	}
 //
 //	// Extract agent ID only (for context, not authentication)
@@ -103,20 +103,25 @@ func ParseAuthHeader(authHeader string) (apiKey string, agentID string, error er
 	return authHeader, authHeader, nil
 }
 
-// ValidateAPIKey checks if the provided API key matches the expected key.
+// ValidateAgentID checks if the provided agent identifier matches the expected value.
 // Returns true if they match, false otherwise.
-func ValidateAPIKey(provided, expected string) bool {
-	log.Printf("Validating API key: expected_configured=%t", expected != "")
+func ValidateAgentID(provided, expected string) bool {
+	log.Printf("Validating agent ID: expected_configured=%t", expected != "")
 
 	if expected == "" {
-		// No API key configured, authentication is disabled
-		log.Print("No API key configured, authentication disabled")
+		// No agent ID configured, authentication is disabled
+		log.Print("No agent ID configured, authentication disabled")
 		return true
 	}
 
 	matches := provided == expected
-	log.Printf("API key validation result: matches=%t", matches)
+	log.Printf("Agent ID validation result: matches=%t", matches)
 	return matches
+}
+
+// ValidateAPIKey is a deprecated alias for ValidateAgentID.
+func ValidateAPIKey(provided, expected string) bool {
+	return ValidateAgentID(provided, expected)
 }
 
 // ExtractAgentID extracts the agent ID from an Authorization header.
@@ -171,6 +176,18 @@ func ExtractSessionID(authHeader string) string {
 	// Plain format (per spec 7.1 - API key is session ID)
 	log.Print("Using plain API key as session ID")
 	return authHeader
+}
+
+// ExtractSessionIDFromHeaders extracts session ID from X-Agent-ID and Authorization.
+// X-Agent-ID takes precedence when present, otherwise Authorization is used.
+func ExtractSessionIDFromHeaders(xAgentID, authHeader string) string {
+	if xAgentID != "" {
+		if IsMalformedHeader(xAgentID) {
+			return ""
+		}
+		return xAgentID
+	}
+	return ExtractSessionID(authHeader)
 }
 
 // IsMalformedHeader returns true if the header value contains characters

@@ -47,11 +47,11 @@ func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, tlsEnabled 
 
 	debugLog.Printf("Resolved gateway address: host=%s, port=%s", host, port)
 
-	// Extract API key from gateway config (per spec section 7.1)
-	apiKey := cfg.GetAPIKey()
-	debugLog.Printf("Gateway config: auth_enabled=%v", apiKey != "")
+	// Extract agent ID from gateway config (per spec section 7.1)
+	agentID := cfg.GetAgentID()
+	debugLog.Printf("Gateway config: auth_enabled=%v", agentID != "")
 
-	debugLog.Printf("Gateway auth: apiKeyConfigured=%v", apiKey != "")
+	debugLog.Printf("Gateway auth: agentIDConfigured=%v", agentID != "")
 
 	// Build output configuration
 	outputConfig := map[string]interface{}{
@@ -82,9 +82,9 @@ func writeGatewayConfig(cfg *config.Config, listenAddr, mode string, tlsEnabled 
 
 		// Add auth headers per MCP Gateway Specification Section 5.4
 		// Authorization header contains API key directly (not Bearer scheme per spec 7.1)
-		if apiKey != "" {
+		if agentID != "" {
 			serverConfig["headers"] = map[string]string{
-				"Authorization": apiKey,
+				"Authorization": agentID,
 			}
 		}
 

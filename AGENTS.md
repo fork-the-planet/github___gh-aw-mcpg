@@ -67,7 +67,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 ```toml
 [gateway]
 port = 3000
-api_key = "your-api-key"
+agent_id = "your-agent-id"
 payload_dir = "/tmp/jq-payloads"  # Optional: directory for large payload storage (must be absolute)
 
 [servers.github]
@@ -392,7 +392,7 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `ACTIONS_ID_TOKEN_REQUEST_TOKEN` - GitHub Actions OIDC request token; required for `github-oidc` auth type
 - `MCP_GATEWAY_PORT` - Used by environment validation (`--validate-env`) for container port-mapping checks (validated 1-65535); does not override the gateway listen address
 - `MCP_GATEWAY_DOMAIN` - Used by environment validation (`--validate-env`) and containerized startup checks; to set config values use `gateway.domain` (or `"${MCP_GATEWAY_DOMAIN}"` in JSON stdin config)
-- `MCP_GATEWAY_API_KEY` - Used by environment validation (`--validate-env`) and containerized startup checks; to enable auth set `gateway.apiKey` (commonly `"${MCP_GATEWAY_API_KEY}"` in JSON stdin config)
+- `MCP_GATEWAY_AGENT_ID` - Used by environment validation (`--validate-env`) and containerized startup checks; to enable auth set `gateway.agentId` (commonly `"${MCP_GATEWAY_AGENT_ID}"` in JSON stdin config)
 - `DEBUG` - Enable debug logging (e.g., `DEBUG=*`, `DEBUG=server:*,launcher:*`)
 - `DEBUG_COLORS` - Control colored output (0 to disable, auto-disabled when piping)
 - `MCP_GATEWAY_LOG_DIR` - Log file directory (sets default for `--log-dir` flag, default: `/tmp/gh-aw/mcp-logs`)
@@ -494,8 +494,8 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 
 ## Security Notes
 
-- **Auth**: `Authorization: <apiKey>` header (plain API key per spec 7.1, NOT Bearer scheme)
-- **Sessions**: Session ID extracted from Authorization header value
+- **Auth**: `Authorization: <agentId>` header (plain value per spec 7.1, NOT Bearer scheme)
+- **Sessions**: Session ID extracted from `X-Agent-ID` (preferred) or Authorization header value
 - **Stdio servers**: Containerized execution only (no direct command support)
 - **mTLS**: Mutual TLS can be enabled with `--tls-cert`, `--tls-key`, and `--tls-ca` flags (or corresponding env vars) to require client certificates for all connections
 - **HMAC request signing**: Set `--hmac-secret` (or `MCP_GATEWAY_HMAC_SECRET`) to require HMAC-SHA256 signed requests; protects against replay attacks using `X-MCP-Timestamp`, `X-MCP-Nonce`, and `X-MCP-Signature` headers
