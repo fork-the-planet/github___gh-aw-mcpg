@@ -479,6 +479,18 @@ jobs:
         run: bash "${RUNNER_TEMP}/gh-aw/actions/restore_inline_sub_agents.sh"
       - name: Download container images
         run: bash "${RUNNER_TEMP}/gh-aw/actions/download_docker_images.sh" ghcr.io/github/gh-aw-firewall/agent:0.25.53 ghcr.io/github/gh-aw-firewall/api-proxy:0.25.53 ghcr.io/github/gh-aw-firewall/squid:0.25.53 ghcr.io/github/gh-aw-mcpg:v0.3.18 ghcr.io/github/github-mcp-server:v1.0.4@sha256:e3816a476a977cfb836e7d221510011436c654d11861db66ecfd826601aba6a4 node:lts-alpine@sha256:01743339035a5c3c11a373cd7c83aeab6ed1457b55da6a69e014a95ac4e4700b
+- name: Build MCP Gateway from source (local)
+        env:
+          BUILD_VERSION: ${{ github.sha }}
+        run: |
+          # Install Rust with WASM target for the guard
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -t wasm32-wasip1
+          source "$HOME/.cargo/env"
+          # Build WASM guard
+          make -C guards/github-guard build
+          # Build gateway Docker image, overwriting the pulled :latest
+          docker build -t ghcr.io/github/gh-aw-mcpg:latest             --build-arg VERSION="$BUILD_VERSION" .
+          echo "✓ Built local gateway image from $(git rev-parse --short HEAD)"
       - name: Generate Safe Outputs Config
         run: |
           mkdir -p "${RUNNER_TEMP}/gh-aw/safeoutputs"

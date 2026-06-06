@@ -36,19 +36,7 @@ runtimes:
 sandbox:
   mcp:
     container: "ghcr.io/github/gh-aw-mcpg"
-    version: "local"
-pre-agent-steps:
-  - name: Set up Rust for WASM guard
-    uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6  # v1.16.1
-    with:
-      target: wasm32-wasip1
-  - name: Build MCP Gateway from source
-    env:
-      BUILD_VERSION: ${{ github.sha }}
-    run: |
-      make -C guards/github-guard build
-      docker build -t ghcr.io/github/gh-aw-mcpg:local \
-        --build-arg VERSION="$BUILD_VERSION" .
+    version: "latest"
 steps:
   - name: Set up Go
     uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6.4.0
