@@ -159,10 +159,10 @@ func BenchmarkWrapToolHandler_FastPath(b *testing.B) {
 		fastThreshold := tt.textLen + fastPathOverheadBound + 512*1024
 		fastWrapped := WrapToolHandler(makeHandler(), "bench_tool", baseDir, "", fastThreshold, func(ctx context.Context) string { return "bench-session" })
 
-		// threshold == 0: fast path never fires (threshold <= fastPathOverheadBound);
-		// falls through to full json.Marshal + storage path
-		slowWrapped := WrapToolHandler(makeHandler(), "bench_tool", baseDir, "", 0, func(ctx context.Context) string { return "bench-session" })
-
+		// Threshold tuned so fast path does not fire (textLen > threshold-fastPathOverheadBound),
+		// but the payload remains under the threshold so we benchmark marshal overhead without disk I/O.
+		slowThreshold := tt.textLen + fastPathOverheadBound - 1
+		slowWrapped := WrapToolHandler(makeHandler(), "bench_tool", baseDir, "", slowThreshold, func(ctx context.Context) string { return "bench-session" })
 		b.Run("fast-path/"+tt.name, func(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
