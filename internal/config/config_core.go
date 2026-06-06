@@ -157,6 +157,8 @@ type GatewayConfig struct {
 	// MUST use an HTTPS endpoint when configured.
 	Opentelemetry *TracingConfig `toml:"opentelemetry" json:"opentelemetry,omitempty"`
 
+	// agentIDExplicit tracks whether agent_id/agentId was explicitly provided
+	// (as opposed to being derived from deprecated api_key/apiKey aliases).
 	agentIDExplicit bool `toml:"-" json:"-"`
 }
 
