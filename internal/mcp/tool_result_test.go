@@ -671,18 +671,19 @@ func TestConvertToCallToolResult_ContentItemErrorPropagation(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			input := map[string]interface{}{
-				"content": tt.content,
+for _, tt := range tests {
+				tt := tt
+				t.Run(tt.name, func(t *testing.T) {
+					t.Parallel()
+					input := map[string]interface{}{
+						"content": tt.content,
+					}
+					result, err := ConvertToCallToolResult(input)
+					require.Error(t, err)
+					require.Nil(t, result)
+					assert.ErrorContains(t, err, tt.wantErrMsg)
+				})
 			}
-			result, err := ConvertToCallToolResult(input)
-			require.Error(t, err)
-			require.Nil(t, result)
-			assert.ErrorContains(t, err, tt.wantErrMsg)
-		})
-	}
 }
 
 func TestBuildMCPTextResponse(t *testing.T) {
