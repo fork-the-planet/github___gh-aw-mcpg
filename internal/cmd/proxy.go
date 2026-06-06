@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
@@ -32,8 +31,6 @@ var tlsTrustEnvKeys = []string{
 	"CURL_CA_BUNDLE",
 	"REQUESTS_CA_BUNDLE",
 }
-
-const proxyShutdownTimeout = 5 * time.Second
 
 // Proxy subcommand flag variables
 var (
@@ -268,62 +265,58 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		httpServer.TLSConfig = tlsCfg.Config
 	}
 
-	// Start server in background
-	go func() {
-		listener, err := net.Listen("tcp", proxyListen)
-		if err != nil {
-			log.Printf("Failed to listen on %s: %v", proxyListen, err)
-			cancel()
-			return
-		}
+	err = serveAndWait(
+		ctx,
+		cancel,
+		httpServer,
+		httpServerShutdownTimeout,
+		func() {
+			log.Println("Shutting down proxy...")
+			logger.LogInfo("shutdown", "Proxy shutting down")
+		},
+		func() error {
+			listener, err := net.Listen("tcp", proxyListen)
+			if err != nil {
+				return fmt.Errorf("failed to listen on %s: %w", proxyListen, err)
+			}
 
-		if tlsCfg != nil {
-			listener = tls.NewListener(listener, tlsCfg.Config)
-		}
+			if tlsCfg != nil {
+				listener = tls.NewListener(listener, tlsCfg.Config)
+			}
 
-		actualAddr := listener.Addr().String()
-		scheme := "http"
-		if tlsCfg != nil {
-			scheme = "https"
-		}
+			actualAddr := listener.Addr().String()
+			scheme := "http"
+			if tlsCfg != nil {
+				scheme = "https"
+			}
 
-		log.Printf("MCPG Proxy listening on %s://%s", scheme, actualAddr)
-		logger.LogInfo("startup", "Proxy listening on %s://%s", scheme, actualAddr)
+			log.Printf("MCPG Proxy listening on %s://%s", scheme, actualAddr)
+			logger.LogInfo("startup", "Proxy listening on %s://%s", scheme, actualAddr)
 
-		// Print connection info
-		fmt.Fprintf(os.Stderr, "\nMCPG GitHub API Proxy\n")
-		fmt.Fprintf(os.Stderr, "  Listening: %s://%s\n", scheme, actualAddr)
-		fmt.Fprintf(os.Stderr, "  Upstream:  %s\n", apiURL)
-		fmt.Fprintf(os.Stderr, "  Mode:      %s\n", proxyDIFCMode)
-		fmt.Fprintf(os.Stderr, "  Guard:     %s\n", proxyGuardWasm)
-		if tlsCfg != nil {
-			fmt.Fprintf(os.Stderr, "  CA cert:   %s\n", tlsCfg.CACertPath)
-			fmt.Fprintf(os.Stderr, "\nConnect with:\n")
-			fmt.Fprintf(os.Stderr, "  export GH_HOST=%s\n", clientAddr(actualAddr))
-			fmt.Fprintf(os.Stderr, "  export NODE_EXTRA_CA_CERTS=%s\n", tlsCfg.CACertPath)
-			fmt.Fprintf(os.Stderr, "  export SSL_CERT_FILE=%s\n", tlsCfg.CACertPath)
-			fmt.Fprintf(os.Stderr, "  export GIT_SSL_CAINFO=%s\n", tlsCfg.CACertPath)
-			fmt.Fprintf(os.Stderr, "  gh issue list -R org/repo\n\n")
-		} else {
-			fmt.Fprintf(os.Stderr, "\nConnect with:\n")
-			fmt.Fprintf(os.Stderr, "  curl http://%s/repos/org/repo/issues\n\n", actualAddr)
-		}
+			// Print connection info
+			fmt.Fprintf(os.Stderr, "\nMCPG GitHub API Proxy\n")
+			fmt.Fprintf(os.Stderr, "  Listening: %s://%s\n", scheme, actualAddr)
+			fmt.Fprintf(os.Stderr, "  Upstream:  %s\n", apiURL)
+			fmt.Fprintf(os.Stderr, "  Mode:      %s\n", proxyDIFCMode)
+			fmt.Fprintf(os.Stderr, "  Guard:     %s\n", proxyGuardWasm)
+			if tlsCfg != nil {
+				fmt.Fprintf(os.Stderr, "  CA cert:   %s\n", tlsCfg.CACertPath)
+				fmt.Fprintf(os.Stderr, "\nConnect with:\n")
+				fmt.Fprintf(os.Stderr, "  export GH_HOST=%s\n", clientAddr(actualAddr))
+				fmt.Fprintf(os.Stderr, "  export NODE_EXTRA_CA_CERTS=%s\n", tlsCfg.CACertPath)
+				fmt.Fprintf(os.Stderr, "  export SSL_CERT_FILE=%s\n", tlsCfg.CACertPath)
+				fmt.Fprintf(os.Stderr, "  export GIT_SSL_CAINFO=%s\n", tlsCfg.CACertPath)
+				fmt.Fprintf(os.Stderr, "  gh issue list -R org/repo\n\n")
+			} else {
+				fmt.Fprintf(os.Stderr, "\nConnect with:\n")
+				fmt.Fprintf(os.Stderr, "  curl http://%s/repos/org/repo/issues\n\n", actualAddr)
+			}
 
-		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
-			cancel()
-		}
-	}()
+			return httpServer.Serve(listener)
+		},
+	)
 
-	// Wait for shutdown signal
-	<-ctx.Done()
-	log.Println("Shutting down proxy...")
-	logger.LogInfo("shutdown", "Proxy shutting down")
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), proxyShutdownTimeout)
-	defer shutdownCancel()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
+	if err != nil {
 		logger.LogError("shutdown", "HTTP server shutdown error: %v", err)
 		return err
 	}

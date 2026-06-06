@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/config"
@@ -435,28 +434,24 @@ func run(cmd *cobra.Command, args []string) error {
 		logger.StartupInfo("HMAC request signing enabled (ASI-07)")
 	}
 
-	// Start HTTP server in background
-	go func() {
-		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
-			cancel()
-		}
-	}()
-
 	// Write gateway configuration to stdout per spec section 5.4
 	if err := writeGatewayConfigToStdout(cfg, listenAddr, mode, tlsEnabled); err != nil {
 		log.Printf("Warning: failed to write gateway configuration to stdout: %v", err)
 	}
 
-	// Wait for shutdown signal
-	<-ctx.Done()
-	debugLog.Print("Shutdown signal received, initiating graceful shutdown")
-
-	// Gracefully shutdown HTTP server with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
+	if err := serveAndWait(
+		ctx,
+		cancel,
+		httpServer,
+		httpServerShutdownTimeout,
+		func() {
+			debugLog.Print("Shutdown signal received, initiating graceful shutdown")
+		},
+		func() error {
+			return httpServer.Serve(listener)
+		},
+	); err != nil {
+		debugLog.Printf("Graceful shutdown completed with error: %v", err)
 	}
 
 	return nil
