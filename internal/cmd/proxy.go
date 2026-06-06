@@ -317,8 +317,9 @@ func runProxy(cmd *cobra.Command, args []string) error {
 	)
 
 	if err != nil {
-		logger.LogError("shutdown", "HTTP server shutdown error: %v", err)
+		logger.LogError("shutdown", "Proxy server exited with error: %v", err)
 		return err
+	}
 	}
 
 	return nil
