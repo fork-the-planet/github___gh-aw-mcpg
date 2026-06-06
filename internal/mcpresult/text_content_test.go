@@ -4,16 +4,6 @@ import (
 	"testing"
 )
 
-// item builds a map[string]interface{} for use as a content item in tests.
-func item(typ, text string) map[string]interface{} {
-	m := map[string]interface{}{}
-	if typ != "" {
-		m["type"] = typ
-	}
-	m["text"] = text
-	return m
-}
-
 // itemWithoutTextKey builds an item map without a "text" key.
 func itemWithoutTextKey(typ string) map[string]interface{} {
 	return map[string]interface{}{"type": typ}
