@@ -2,9 +2,11 @@ package middleware
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/itchyny/gojq"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // BenchmarkApplyJqSchema_CompiledCode benchmarks the current implementation
@@ -120,7 +122,69 @@ func BenchmarkCompileVsParse(b *testing.B) {
 	})
 }
 
-// BenchmarkPreviewCreation benchmarks the preview string creation for large payloads.
+// BenchmarkWrapToolHandler_FastPath compares the fast-path (text content small enough
+// to skip json.Marshal) against the normal marshal-and-size-check path.
+//
+// Run with: go test -bench=BenchmarkWrapToolHandler_FastPath -benchmem ./internal/middleware/
+func BenchmarkWrapToolHandler_FastPath(b *testing.B) {
+	baseDir := b.TempDir()
+
+	sizes := []struct {
+		name    string
+		textLen int
+	}{
+		{"1KB", 1 * 1024},
+		{"10KB", 10 * 1024},
+		{"100KB", 100 * 1024},
+	}
+
+	for _, tt := range sizes {
+		innerText := strings.Repeat("x", tt.textLen)
+		innerData := map[string]interface{}{
+			"content": []interface{}{
+				map[string]interface{}{"type": "text", "text": innerText},
+			},
+			"isError": false,
+		}
+
+		makeHandler := func() func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+			return func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+				return &sdk.CallToolResult{
+					Content: []sdk.Content{&sdk.TextContent{Text: innerText}},
+				}, innerData, nil
+			}
+		}
+
+		// threshold >> text size: fast path always fires
+		fastThreshold := tt.textLen + fastPathOverheadBound + 512*1024
+		fastWrapped := WrapToolHandler(makeHandler(), "bench_tool", baseDir, "", fastThreshold, func(ctx context.Context) string { return "bench-session" })
+
+		// Threshold tuned so fast path does not fire (textLen > threshold-fastPathOverheadBound),
+		// but the payload remains under the threshold so we benchmark marshal overhead without disk I/O.
+		slowThreshold := tt.textLen + fastPathOverheadBound - 1
+		slowWrapped := WrapToolHandler(makeHandler(), "bench_tool", baseDir, "", slowThreshold, func(ctx context.Context) string { return "bench-session" })
+		b.Run("fast-path/"+tt.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			ctx := context.Background()
+			req := &sdk.CallToolRequest{}
+			for i := 0; i < b.N; i++ {
+				_, _, _ = fastWrapped(ctx, req, nil)
+			}
+		})
+
+		b.Run("marshal-path/"+tt.name, func(b *testing.B) {
+			b.ReportAllocs()
+			b.ResetTimer()
+			ctx := context.Background()
+			req := &sdk.CallToolRequest{}
+			for i := 0; i < b.N; i++ {
+				_, _, _ = slowWrapped(ctx, req, nil)
+			}
+		})
+	}
+}
+
 // The optimized version slices the byte slice before converting to string, avoiding
 // a full allocation of the entire (potentially multi-MB) payload as a string.
 func BenchmarkPreviewCreation(b *testing.B) {
