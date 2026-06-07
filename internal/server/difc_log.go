@@ -7,6 +7,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logDifcLog = logger.New("server:difc_log")
@@ -48,30 +49,15 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 	// Extract identifying metadata from the raw item data.
 	// Data is interface{} from JSON parsing — typically map[string]interface{}.
 	if m, ok := detail.Item.Data.(map[string]interface{}); ok {
-		entry.AuthorAssociation = getFilteredItemStringField(m, "author_association", "authorAssociation")
+		entry.AuthorAssociation = strutil.GetStringFromMap(m, "author_association", "authorAssociation")
 		entry.AuthorLogin = extractAuthorLogin(m)
-		entry.HTMLURL = getFilteredItemStringField(m, "html_url", "htmlUrl")
+		entry.HTMLURL = strutil.GetStringFromMap(m, "html_url", "htmlUrl")
 		entry.Number = extractNumberField(m)
-		entry.SHA = getFilteredItemStringField(m, "sha")
+		entry.SHA = strutil.GetStringFromMap(m, "sha")
 		logDifcLog.Printf("Filtered item metadata: author=%s, number=%s, url=%s", entry.AuthorLogin, entry.Number, entry.HTMLURL)
 	}
 
 	return entry
-}
-
-// getFilteredItemStringField returns the first non-empty string value from the map
-// matching any of the given field names.
-// NOTE: This helper is intentionally generic; if similar untyped JSON map extraction
-// patterns appear elsewhere, consider moving it to a shared utility package.
-func getFilteredItemStringField(m map[string]interface{}, fields ...string) string {
-	for _, f := range fields {
-		if v, ok := m[f]; ok {
-			if s, ok := v.(string); ok && s != "" {
-				return s
-			}
-		}
-	}
-	return ""
 }
 
 // extractAuthorLogin extracts the author login from nested user/author objects.

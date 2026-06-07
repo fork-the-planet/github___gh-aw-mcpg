@@ -1,5 +1,4 @@
-// Package jsonutil provides utilities for working with JSON-compatible values.
-package jsonutil
+package strutil
 
 // DeepCloneJSON creates a deep copy of a JSON-compatible value.
 func DeepCloneJSON(v interface{}) interface{} {

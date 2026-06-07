@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
-	"github.com/github/gh-aw-mcpg/internal/jsonutil"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -780,7 +780,7 @@ func TestDeepCloneJSON(t *testing.T) {
 		"a": []interface{}{float64(1), float64(2)},
 		"b": map[string]interface{}{"c": "d"},
 	}
-	cloned := jsonutil.DeepCloneJSON(original)
+	cloned := strutil.DeepCloneJSON(original)
 	// Mutate original
 	original["a"].([]interface{})[0] = float64(99)
 	original["b"].(map[string]interface{})["c"] = "mutated"
