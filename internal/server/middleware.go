@@ -191,9 +191,7 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 		startTime := time.Now()
 
 		// Extract session info for logging context
-		agentIDHeader := r.Header.Get("X-Agent-ID")
-		authHeader := r.Header.Get("Authorization")
-		sessionID := auth.ExtractSessionIDFromHeaders(agentIDHeader, authHeader)
+		sessionID := extractSessionIDFromRequest(r)
 		mcpSessionID := r.Header.Get("Mcp-Session-Id")
 
 		// Log incoming request

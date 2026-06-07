@@ -116,14 +116,22 @@ func (us *UnifiedServer) getSessionKeys() []string {
 	return keys
 }
 
+// extractSessionIDFromRequest extracts the session ID from the X-Agent-ID and
+// Authorization headers of an HTTP request. Returns "" if neither header is present
+// or if the provided header value is malformed.
+func extractSessionIDFromRequest(r *http.Request) string {
+	return auth.ExtractSessionIDFromHeaders(
+		r.Header.Get("X-Agent-ID"),
+		r.Header.Get("Authorization"),
+	)
+}
+
 // extractAndValidateSession extracts the session ID from request headers.
 // and logs connection details. Returns empty string if validation fails.
 func extractAndValidateSession(r *http.Request) string {
 	logSession.Printf("Extracting session from request: remote=%s, path=%s", r.RemoteAddr, r.URL.Path)
 
-	agentIDHeader := r.Header.Get("X-Agent-ID")
-	authHeader := r.Header.Get("Authorization")
-	sessionID := auth.ExtractSessionIDFromHeaders(agentIDHeader, authHeader)
+	sessionID := extractSessionIDFromRequest(r)
 
 	if sessionID == "" {
 		logSession.Printf("Session extraction failed: missing or invalid X-Agent-ID/Authorization header, remote=%s", r.RemoteAddr)
