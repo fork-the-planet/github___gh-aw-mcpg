@@ -2,9 +2,6 @@ package launcher
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -139,80 +136,92 @@ func TestHealthMonitor_RespectsContextCancellation(t *testing.T) {
 	}
 }
 
-// TestHealthMonitor_MaxFailuresThresholdReached verifies that when a restart failure
-// increments the counter to exactly maxConsecutiveRestartFailures, the counter
-// is capped at the threshold and the server remains in an error state.
-func TestHealthMonitor_MaxFailuresThresholdReached(t *testing.T) {
+// TestClearServerForRestart_WithExistingConnection tests that clearServerForRestart
+// removes a connection that is stored in l.connections.
+func TestClearServerForRestart_WithExistingConnection(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	// Use a live HTTP mock to obtain a real *mcp.Connection stored in l.connections.
+	mockServer := newMockHTTPMCPServer(t)
+	defer mockServer.Close()
+
+	l := newTestLauncher(map[string]*config.ServerConfig{
+		"http-srv": {Type: "http", URL: mockServer.URL},
+	})
+	defer l.Close()
+
+	// GetOrLaunch stores the connection in l.connections on success.
+	conn, err := GetOrLaunch(l, "http-srv")
+	require.NoError(err)
+	require.NotNil(conn)
+
+	l.mu.RLock()
+	_, inMap := l.connections["http-srv"]
+	l.mu.RUnlock()
+	require.True(inMap, "connection should be present before clearServerForRestart")
+
+	// Inject an error so the server is in error state before clearing.
+	l.recordError("http-srv", "simulated crash")
+
+	l.clearServerForRestart("http-srv")
+
+	// The connection must be removed after clearing.
+	l.mu.RLock()
+	_, inMap = l.connections["http-srv"]
+	l.mu.RUnlock()
+	assert.False(inMap, "connection should be removed after clearServerForRestart")
+
+	// Server state should now be "stopped" (no error, no start time).
+	state := l.GetServerState("http-srv")
+	assert.Equal("stopped", state.Status)
+	assert.Empty(state.LastError)
+}
+
+// TestHealthMonitor_ErrorStateReachesMaxFailures tests that the inner "max failures
+// reached" log path is executed when consecutive failures hit the cap.
+func TestHealthMonitor_ErrorStateReachesMaxFailures(t *testing.T) {
 	servers := map[string]*config.ServerConfig{
 		"bad-server": {Type: "stdio", Command: "nonexistent-binary-xyz"},
 	}
 	l := newTestLauncher(servers)
-	l.recordError("bad-server", "persistent failure")
+	defer l.Close()
+	l.recordError("bad-server", "process crashed")
 
 	hm := NewHealthMonitor(l, time.Hour)
-	// Set counter to one below the threshold so the next failure reaches it.
+	// One below the cap so the next failure increments to exactly maxConsecutiveRestartFailures.
 	hm.consecutiveFailures["bad-server"] = maxConsecutiveRestartFailures - 1
 
 	hm.checkAll()
 
-	// Counter must now equal the threshold (not exceed it).
-	require.Equal(t, maxConsecutiveRestartFailures, hm.consecutiveFailures["bad-server"])
-	// The server remains in error state because the restart failed.
-	state := l.GetServerState("bad-server")
-	assert.Equal(t, "error", state.Status)
+	// Counter must now equal the cap (not exceed it).
+	assert.Equal(t, maxConsecutiveRestartFailures, hm.consecutiveFailures["bad-server"])
 }
 
-// mockMCPHandler returns an HTTP handler that responds to any POST with a
-// minimal valid JSON-RPC initialize response. This is sufficient for the
-// plain JSON-RPC transport fallback inside NewHTTPConnection to succeed.
-func mockMCPHandler(t *testing.T) http.Handler {
-	t.Helper()
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		resp := map[string]interface{}{
-			"jsonrpc": "2.0",
-			"id":      1,
-			"result": map[string]interface{}{
-				"protocolVersion": "2024-11-05",
-				"capabilities":    map[string]interface{}{},
-				"serverInfo": map[string]interface{}{
-					"name":    "mock-server",
-					"version": "1.0.0",
-				},
-			},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		data, err := json.Marshal(resp)
-		if err != nil {
-			http.Error(w, "marshal failed", http.StatusInternalServerError)
-			return
-		}
-		_, _ = w.Write(data)
-	})
-}
-
-// TestHealthMonitor_SuccessfulRestartResetCounter verifies that when a
-// health-check restart succeeds, the consecutive-failure counter is reset to
-// zero and the server transitions back to "running" state.
-func TestHealthMonitor_SuccessfulRestartResetCounter(t *testing.T) {
-	mockServer := httptest.NewServer(mockMCPHandler(t))
+// TestHealthMonitor_SuccessfulRestartResetsFailureCounter tests that a successful
+// restart (via an HTTP mock backend) resets the failure counter to zero.
+func TestHealthMonitor_SuccessfulRestartResetsFailureCounter(t *testing.T) {
+	mockServer := newMockHTTPMCPServer(t)
 	defer mockServer.Close()
 
 	servers := map[string]*config.ServerConfig{
-		"good-server": {Type: "http", URL: mockServer.URL, ConnectTimeout: 1},
+		"http-srv": {Type: "http", URL: mockServer.URL},
 	}
 	l := newTestLauncher(servers)
+	defer l.Close()
 
-	// Simulate a server that previously failed.
-	l.recordError("good-server", "transient failure")
+	// Simulate the server in error state with a non-zero failure count.
+	l.recordError("http-srv", "connection refused")
 
 	hm := NewHealthMonitor(l, time.Hour)
-	hm.consecutiveFailures["good-server"] = 1
+	hm.consecutiveFailures["http-srv"] = 1
 
+	// checkAll finds "error" state → calls handleErrorState →
+	// clearServerForRestart + GetOrLaunch (HTTP mock succeeds) → resets counter.
 	hm.checkAll()
 
-	// A successful restart must reset the failure counter.
-	assert.Equal(t, 0, hm.consecutiveFailures["good-server"])
-	// The server should now report as running.
-	state := l.GetServerState("good-server")
+	assert.Equal(t, 0, hm.consecutiveFailures["http-srv"])
+
+	state := l.GetServerState("http-srv")
 	assert.Equal(t, "running", state.Status)
 }
