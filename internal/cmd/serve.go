@@ -32,7 +32,7 @@ func serveAndWait(
 	}()
 
 	<-ctx.Done()
-	debugLog.Print("Shutdown signal received, beginning graceful HTTP server shutdown")
+	debugLog.Print("Shutdown initiated, beginning graceful HTTP server shutdown")
 	if onShutdownSignal != nil {
 		onShutdownSignal()
 	}
