@@ -19,6 +19,15 @@ import (
 
 var logSession = logger.New("server:session")
 
+// extractSessionIDFromRequest extracts the session ID from X-Agent-ID and
+// Authorization headers. Returns "" if neither header is present or valid.
+func extractSessionIDFromRequest(r *http.Request) string {
+	return auth.ExtractSessionIDFromHeaders(
+		r.Header.Get("X-Agent-ID"),
+		r.Header.Get("Authorization"),
+	)
+}
+
 // NewSession creates a new Session with the given session ID and optional token
 func NewSession(sessionID, token string) *Session {
 	logSession.Printf("Creating new session: sessionID=%s, has_token=%v", strutil.TruncateSessionID(sessionID), token != "")
