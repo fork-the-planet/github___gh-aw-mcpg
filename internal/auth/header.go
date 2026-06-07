@@ -119,11 +119,6 @@ func ValidateAgentID(provided, expected string) bool {
 	return matches
 }
 
-// ValidateAPIKey is a deprecated alias for ValidateAgentID.
-func ValidateAPIKey(provided, expected string) bool {
-	return ValidateAgentID(provided, expected)
-}
-
 // ExtractAgentID extracts the agent ID from an Authorization header.
 // This is a convenience wrapper around ParseAuthHeader that only returns the agent ID.
 // Returns "default" if the header is empty or cannot be parsed.
@@ -206,10 +201,10 @@ func IsMalformedHeader(header string) bool {
 	return false
 }
 
-// GenerateRandomAPIKey generates a cryptographically random API key.
-// Per spec §7.3, the gateway SHOULD generate a random API key on startup
+// GenerateRandomAgentID generates a cryptographically random agent ID.
+// Per spec §7.3, the gateway SHOULD generate a random agent ID on startup
 // if none is provided. Returns a 32-byte hex-encoded string (64 chars).
-func GenerateRandomAPIKey() (string, error) {
+func GenerateRandomAgentID() (string, error) {
 	logAPIKey.Print("Generating random agent ID")
 	key, err := strutil.RandomHex(32)
 	if err != nil {

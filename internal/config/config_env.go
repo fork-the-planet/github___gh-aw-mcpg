@@ -78,11 +78,6 @@ func GetGatewayAgentIDFromEnv() string {
 	return ""
 }
 
-// GetGatewayAPIKeyFromEnv is a deprecated alias for GetGatewayAgentIDFromEnv.
-func GetGatewayAPIKeyFromEnv() string {
-	return GetGatewayAgentIDFromEnv()
-}
-
 // GetGatewayToolTimeoutFromEnv returns the MCP_GATEWAY_TOOL_TIMEOUT value, parsed as int.
 // Returns (0, false) when the environment variable is not set or empty.
 // Returns an error when the variable is set but invalid (non-integer or below minimum of 10).

@@ -182,11 +182,6 @@ func (c *Config) GetAgentID() string {
 	return c.Gateway.effectiveAgentID()
 }
 
-// GetAPIKey is a deprecated alias for GetAgentID.
-func (c *Config) GetAPIKey() string {
-	return c.GetAgentID()
-}
-
 func (g *GatewayConfig) effectiveAgentID() string {
 	if g == nil {
 		return ""

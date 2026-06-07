@@ -274,7 +274,7 @@ func run(cmd *cobra.Command, args []string) error {
 	// The generated value is set in the config so it propagates to both the HTTP
 	// server authentication and the stdout configuration output (spec §5.4).
 	if cfg.GetAgentID() == "" {
-		randomKey, err := auth.GenerateRandomAPIKey()
+		randomKey, err := auth.GenerateRandomAgentID()
 		if err != nil {
 			return fmt.Errorf("failed to generate random agent ID: %w", err)
 		}

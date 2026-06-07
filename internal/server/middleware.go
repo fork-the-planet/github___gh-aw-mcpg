@@ -87,7 +87,7 @@ func applyIfConfigured(key string, handler http.HandlerFunc, middleware func(str
 //
 // For header parsing logic, see internal/auth package which provides:
 //   - ParseAuthHeader() for extracting API keys and agent IDs
-//   - ValidateAPIKey() for key validation
+//   - ValidateAgentID() for key validation
 func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
 	logAuth.Printf("Initialized auth middleware")
 	return func(w http.ResponseWriter, r *http.Request) {

@@ -323,11 +323,6 @@ func TestValidateAgentID(t *testing.T) {
 	}
 }
 
-func TestValidateAPIKeyAlias(t *testing.T) {
-	assert.True(t, ValidateAPIKey("same", "same"))
-	assert.False(t, ValidateAPIKey("a", "b"))
-}
-
 func TestExtractAgentID(t *testing.T) {
 	assert := assert.New(t)
 
