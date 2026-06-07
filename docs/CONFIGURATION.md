@@ -410,7 +410,7 @@ The `customSchemas` top-level field allows you to define custom server types bey
   - Variable expansion with `${VAR_NAME}` is applied globally (all fields are expanded before parsing) and fails fast on undefined variables
 - **TOML format**:
   - Uses `command` and `args` fields directly (e.g., `command = "docker"`)
-  - Variable expansion with `${VAR_NAME}` is only supported in `[gateway.opentelemetry]` and legacy `[gateway.tracing]` fields
+  - Variable expansion with `${VAR_NAME}` is only supported in `[gateway.opentelemetry]` fields (the legacy `[gateway.tracing]` section does **not** support variable expansion)
   - Server `env` values, `url`, `args`, `gateway.agent_id`, and other non-tracing fields are not expanded
   - For host environment passthrough to container `env`, use an empty string `""` value
 - **Common rules** (both formats):

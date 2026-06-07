@@ -183,7 +183,7 @@ Key configuration fields (gateway-level under `[gateway]` in TOML / `"gateway"` 
 |-------|-------------|
 | `agent_id` / `agentId` | Agent/session identifier used for routing and optional auth matching |
 | `api_key` / `apiKey` | Deprecated alias for `agent_id` / `agentId` (accepted with warnings) |
-| `port` | Listen port |
+| `port` | Metadata only; validated (1–65535) but does not control the listen address. Use the `--listen` flag or `MCP_GATEWAY_PORT` env var (containerized) to set the actual listen port. |
 | `payload_dir` / `payloadDir` | Directory for large payload storage (must be absolute path) |
 | `payload_size_threshold` / `payloadSizeThreshold` | Size threshold in bytes for payload storage (default: `524288`) |
 | `trusted_bots` / `trustedBots` | Additional bot usernames to treat as trusted with "approved" integrity. Additive to the built-in trusted bot list. Non-empty array when present. Example: `["my-bot[bot]"]` |
@@ -226,7 +226,7 @@ For the full gateway field list (including rate limiting, tracing, keepalive, an
 - `POST /mcp` — Unified mode: JSON-RPC request routed to configured servers
 - `GET /health` — Health check; returns JSON `{"status":"healthy" | "unhealthy","specVersion":"...","gatewayVersion":"...","servers":{...}}`
 
-Supported MCP methods: `tools/list`, `tools/call`, and any other method (forwarded as-is).
+Supported MCP methods: `tools/list`, `tools/call` (proxied to backend servers), plus standard lifecycle methods (`initialize`, etc.) handled natively by the MCP SDK.
 
 ## Proxy Mode
 
