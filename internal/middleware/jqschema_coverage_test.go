@@ -266,7 +266,9 @@ func TestCompileToolResponseFilter_EnvDisabled(t *testing.T) {
 	// Original input field must be preserved by the merge.
 	assert.Equal(t, 1, m["a"])
 	// $ENV must be an empty object, not the real process environment.
-	assert.Equal(t, map[string]interface{}{}, m["env"])
+	env, ok := m["env"].(map[string]interface{})
+	require.True(t, ok, "env should be an object, got: %T", m["env"])
+	assert.Empty(t, env)
 }
 
 // TestApplyToolResponseFilter_ParseError verifies that ApplyToolResponseFilter
