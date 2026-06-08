@@ -11,8 +11,6 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
-	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -106,7 +104,7 @@ func (c *filteredServerCache) getOrCreate(backendID, sessionID string, creator f
 		}
 	}
 
-	logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, strutil.TruncateSessionID(sessionID))
+	logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, truncateSessionID(sessionID))
 	server := creator()
 	c.servers[key] = &filteredServerEntry{server: server, lastUsed: now}
 	return server
@@ -172,12 +170,7 @@ func createFilteredServer(unifiedServer *UnifiedServer, backendID string) *sdk.S
 	logRouted.Printf("Creating filtered server: backend=%s", backendID)
 
 	// Create a new SDK server for this route with logger
-	server := sdk.NewServer(&sdk.Implementation{
-		Name:    fmt.Sprintf("awmg-%s", backendID),
-		Version: version.Get(),
-	}, &sdk.ServerOptions{
-		Logger: logger.NewSlogLoggerWithHandler(logRouted),
-	})
+	server := newSDKServer(fmt.Sprintf("awmg-%s", backendID), logRouted)
 
 	// Get tools for this backend from the unified server
 	tools := unifiedServer.GetToolsForBackend(backendID)
@@ -220,5 +213,5 @@ func truncateCacheKeyForLog(key string) string {
 		return key
 	}
 
-	return fmt.Sprintf("%s/%s", backendID, strutil.TruncateSessionID(sessionID))
+	return fmt.Sprintf("%s/%s", backendID, truncateSessionID(sessionID))
 }

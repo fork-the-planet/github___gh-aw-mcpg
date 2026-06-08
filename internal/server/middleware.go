@@ -12,7 +12,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -68,7 +67,7 @@ func WithOTELTracing(next http.Handler, tag string) http.Handler {
 		next.ServeHTTP(w, r)
 		sessionID := SessionIDFromContext(r.Context())
 		span := oteltrace.SpanFromContext(r.Context())
-		span.SetAttributes(tracing.GenAIConversationID.String(strutil.TruncateSessionID(sessionID)))
+		span.SetAttributes(tracing.GenAIConversationID.String(truncateSessionID(sessionID)))
 	})
 	return tracing.WrapHTTPHandler(enriched, "gateway.request", tracing.GatewayTag.String(tag))
 }
@@ -199,7 +198,7 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 
 		// Log incoming request
 		logSDK.Printf(">>> SDK Request [%s] session=%s mcp-session=%s method=%s path=%s",
-			mode, strutil.TruncateSessionID(sessionID), strutil.TruncateSessionID(mcpSessionID), r.Method, r.URL.Path)
+			mode, truncateSessionID(sessionID), truncateSessionID(mcpSessionID), r.Method, r.URL.Path)
 
 		// Capture and log request body for POST requests
 		requestBody, err := peekRequestBody(r)
@@ -209,7 +208,7 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 			if err := json.Unmarshal(requestBody, &jsonrpcReq); err == nil {
 				logSDK.Printf("    JSON-RPC Request: method=%s id=%v", jsonrpcReq.Method, jsonrpcReq.ID)
 				logger.LogDebug("sdk-frontend", "JSON-RPC request parsed: mode=%s, method=%s, id=%v, session=%s",
-					mode, jsonrpcReq.Method, jsonrpcReq.ID, strutil.TruncateSessionID(sessionID))
+					mode, jsonrpcReq.Method, jsonrpcReq.ID, truncateSessionID(sessionID))
 			} else {
 				logSDK.Printf("    Failed to parse JSON-RPC request: %v", err)
 				logSDK.Printf("    Raw body: %s", string(requestBody))
@@ -249,7 +248,7 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 						logSDK.Printf("    ⚠️  TOOL NOT FOUND ERROR")
 						logger.LogWarn("client",
 							"Tool not found: mode=%s, method=%s, session=%s, code=%d, message=%q",
-							mode, jsonrpcReq.Method, strutil.TruncateSessionID(sessionID), errorCode, errorMsg)
+							mode, jsonrpcReq.Method, truncateSessionID(sessionID), errorCode, errorMsg)
 					}
 
 					// Log detailed error info for protocol state issues
@@ -257,14 +256,14 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 						strings.Contains(errorMsg, "invalid during") {
 						logSDK.Printf("    ⚠️  PROTOCOL STATE ERROR DETECTED")
 						logSDK.Printf("    Request method was: %s", jsonrpcReq.Method)
-						logSDK.Printf("    Session ID: %s", strutil.TruncateSessionID(sessionID))
-						logSDK.Printf("    MCP-Session-Id header: %s", strutil.TruncateSessionID(mcpSessionID))
+						logSDK.Printf("    Session ID: %s", truncateSessionID(sessionID))
+						logSDK.Printf("    MCP-Session-Id header: %s", truncateSessionID(mcpSessionID))
 						logSDK.Printf("    This error indicates SDK's StreamableHTTPHandler created fresh protocol state")
 
 						logger.LogWarn("sdk-frontend",
 							"Protocol state error: mode=%s, method=%s, session=%s, mcp_session=%s, error=%q",
-							mode, jsonrpcReq.Method, strutil.TruncateSessionID(sessionID),
-							strutil.TruncateSessionID(mcpSessionID), errorMsg)
+							mode, jsonrpcReq.Method, truncateSessionID(sessionID),
+							truncateSessionID(mcpSessionID), errorMsg)
 					} else if (errorCode != -32602 && errorCode != -32601) || jsonrpcReq.Method != "tools/call" {
 						// Only log as general error if not already logged above
 						logger.LogError("sdk-frontend",

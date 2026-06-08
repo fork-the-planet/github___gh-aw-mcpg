@@ -534,20 +534,6 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 	return buildStdioServerConfig(name, server), nil
 }
 
-func expandMapInPlace(m *map[string]string, serverName, fieldDesc string) error {
-	if len(*m) == 0 {
-		return nil
-	}
-
-	logStdin.Printf("Server %q: expanding %d %s", serverName, len(*m), fieldDesc)
-	expanded, err := expandEnvVariables(*m, serverName)
-	if err != nil {
-		return fmt.Errorf("server %q: failed to expand %s: %w", serverName, fieldDesc, err)
-	}
-	*m = expanded
-	return nil
-}
-
 // buildStdioServerConfig builds a ServerConfig for a stdio server.
 func buildStdioServerConfig(name string, server *StdinServerConfig) *ServerConfig {
 	args := []string{

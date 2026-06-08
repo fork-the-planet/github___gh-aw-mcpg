@@ -564,7 +564,7 @@ docker build -t awmg .
 docker run --rm -i \
   -e MCP_GATEWAY_PORT=8000 \
   -e MCP_GATEWAY_DOMAIN=localhost \
-  -e MCP_GATEWAY_API_KEY=your-secret-key \
+  -e MCP_GATEWAY_AGENT_ID=your-agent-id \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -p 8000:8000 \
   awmg < config.json
@@ -572,7 +572,7 @@ docker run --rm -i \
 
 The container uses `run_containerized.sh` as the entrypoint, which:
 - Requires the `-i` flag for JSON configuration via stdin
-- Requires `MCP_GATEWAY_PORT`, `MCP_GATEWAY_DOMAIN`, `MCP_GATEWAY_API_KEY` env vars (the API key is a deployment gate; reference it in your JSON config via `"gateway": {"apiKey": "${MCP_GATEWAY_API_KEY}"}` to enable authentication)
+- Requires `MCP_GATEWAY_PORT`, `MCP_GATEWAY_DOMAIN`, `MCP_GATEWAY_AGENT_ID` env vars (the agent ID is a deployment gate; reference it in your JSON config via `"gateway": {"agentId": "${MCP_GATEWAY_AGENT_ID}"}` to enable authentication)
 - Queries the Docker daemon API version (falls back to 1.44)
 - Validates Docker socket, port mapping, and environment before starting
 
@@ -586,7 +586,7 @@ To use a different config file or adjust settings:
 docker run --rm -i \
   -e MCP_GATEWAY_PORT=8080 \
   -e MCP_GATEWAY_DOMAIN=example.com \
-  -e MCP_GATEWAY_API_KEY=your-secret-key \
+  -e MCP_GATEWAY_AGENT_ID=your-agent-id \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -p 8080:8080 \
   awmg < custom-config.json
@@ -595,7 +595,7 @@ docker run --rm -i \
 Required environment variables:
 - `MCP_GATEWAY_PORT` - Server port (must match port mapping)
 - `MCP_GATEWAY_DOMAIN` - Domain name for the gateway
-- `MCP_GATEWAY_API_KEY` - Checked by `run_containerized.sh` as a deployment gate; must be referenced in your JSON config via `"gateway": {"apiKey": "${MCP_GATEWAY_API_KEY}"}` to enable authentication
+- `MCP_GATEWAY_AGENT_ID` - Checked by `run_containerized.sh` as a deployment gate; must be referenced in your JSON config via `"gateway": {"agentId": "${MCP_GATEWAY_AGENT_ID}"}` to enable authentication (`MCP_GATEWAY_API_KEY` is accepted as a deprecated fallback)
 
 **Note:** The `DOCKER_API_VERSION` is set automatically by `run_containerized.sh` using the Docker daemon's current API version (falls back to `1.44` for all architectures if detection fails).
 

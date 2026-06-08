@@ -342,6 +342,42 @@ func normalizeStringSlice(field string, input []string, caseNorm func(string) st
 	return out, nil
 }
 
+// ValidateStringArrayField validates that raw is an array of non-empty strings.
+// When requireNonEmpty is true, an empty array is rejected.
+func ValidateStringArrayField(field string, raw interface{}, requireNonEmpty bool) error {
+	arr, ok := raw.([]interface{})
+	if !ok {
+		if requireNonEmpty {
+			return fmt.Errorf("invalid %s value: expected non-empty array of strings", field)
+		}
+		return fmt.Errorf("invalid %s value: expected array of strings", field)
+	}
+	if requireNonEmpty && len(arr) == 0 {
+		return fmt.Errorf("invalid %s value: must be a non-empty array when present", field)
+	}
+	for _, entry := range arr {
+		if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
+			return fmt.Errorf("invalid %s value: each entry must be a non-empty string", field)
+		}
+	}
+	return nil
+}
+
+// IsValidAllowOnlyReposValue returns true when repos is either "all"/"public"
+// (case-insensitive) or a valid non-empty allow-only scope array.
+func IsValidAllowOnlyReposValue(repos interface{}) bool {
+	switch value := repos.(type) {
+	case string:
+		trimmed := strings.TrimSpace(strings.ToLower(value))
+		return trimmed == "all" || trimmed == "public"
+	case []interface{}:
+		_, err := normalizeAndValidateScopeArray(value)
+		return err == nil
+	default:
+		return false
+	}
+}
+
 func normalizeToolCallLimits(input map[string]int) (map[string]int, error) {
 	if len(input) == 0 {
 		return nil, nil

@@ -47,12 +47,22 @@ func issueArgs(owner, repo, issueNumber string, method ...string) map[string]int
 	return m
 }
 
+// repoMethodArgs builds owner+repo+method args.
+func repoMethodArgs(owner, repo, method string) map[string]interface{} {
+	return map[string]interface{}{"owner": owner, "repo": repo, "method": method}
+}
+
+// repoMethodResourceArgs builds owner+repo+method+resource_id args.
+func repoMethodResourceArgs(owner, repo, method, resourceID string) map[string]interface{} {
+	return map[string]interface{}{"owner": owner, "repo": repo, "method": method, "resource_id": resourceID}
+}
+
 // emptyExtractArgs is a shared extractArgs for routes that need no parameters.
 func emptyExtractArgs(_ []string) map[string]interface{} {
 	return map[string]interface{}{}
 }
 
-// repoArgsExtractor is a shared extractArgs closure for owner+repo-only routes.
+// repoArgsExtractor is a shared extractArgs for owner+repo-only routes.
 func repoArgsExtractor(m []string) map[string]interface{} {
 	return repoArgs(m[1], m[2])
 }
@@ -210,28 +220,28 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/workflows$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "list_workflows"}
+			return repoMethodArgs(m[1], m[2], "list_workflows")
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/workflows/([^/]+)/runs$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "list_workflow_runs", "resource_id": m[3]}
+			return repoMethodResourceArgs(m[1], m[2], "list_workflow_runs", m[3])
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/workflows/([^/]+)$`),
 		toolName: "actions_get",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "get_workflow", "resource_id": m[3]}
+			return repoMethodResourceArgs(m[1], m[2], "get_workflow", m[3])
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/runs/(\d+)/attempts/(\d+)/jobs$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "list_workflow_jobs", "resource_id": m[3]}
+			return repoMethodResourceArgs(m[1], m[2], "list_workflow_jobs", m[3])
 		},
 	},
 	{
@@ -252,42 +262,42 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/runs/(\d+)/artifacts$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "list_workflow_run_artifacts", "resource_id": m[3]}
+			return repoMethodResourceArgs(m[1], m[2], "list_workflow_run_artifacts", m[3])
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/runs/(\d+)$`),
 		toolName: "actions_get",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "get_workflow_run", "resource_id": m[3]}
+			return repoMethodResourceArgs(m[1], m[2], "get_workflow_run", m[3])
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/runs$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "list_workflow_runs"}
+			return repoMethodArgs(m[1], m[2], "list_workflow_runs")
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/jobs/(\d+)$`),
 		toolName: "actions_get",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "get_workflow_job", "resource_id": m[3]}
+			return repoMethodResourceArgs(m[1], m[2], "get_workflow_job", m[3])
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/artifacts$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "list_workflow_run_artifacts"}
+			return repoMethodArgs(m[1], m[2], "list_workflow_run_artifacts")
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/caches$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "list_caches"}
+			return repoMethodArgs(m[1], m[2], "list_caches")
 		},
 	},
 	// Actions secrets/variables (names only, no values)
@@ -295,21 +305,21 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/secrets$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "list_secrets"}
+			return repoMethodArgs(m[1], m[2], "list_secrets")
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/variables(?:/([^/]+))?$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "list_variables"}
+			return repoMethodArgs(m[1], m[2], "list_variables")
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/environments/([^/]+)/(?:secrets|variables)$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "method": "list_environment_config"}
+			return repoMethodArgs(m[1], m[2], "list_environment_config")
 		},
 	},
 

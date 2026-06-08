@@ -23,10 +23,10 @@ var (
 	logLevelPattern = regexp.MustCompile(`(?i)^\[?(ERROR|WARNING|WARN|INFO|DEBUG)\]?\s*[:-]?\s*`)
 )
 
-// ExtractErrorMessage extracts a clean error message from a log line.
+// extractErrorMessage extracts a clean error message from a log line.
 // It removes timestamps, log level prefixes, and other common noise.
 // If the message is longer than 200 characters, it will be truncated.
-func ExtractErrorMessage(line string) string {
+func extractErrorMessage(line string) string {
 	// Remove common timestamp patterns using pre-compiled regexes
 	cleanedLine := line
 	cleanedLine = timestampPattern1.ReplaceAllString(cleanedLine, "")

@@ -6,11 +6,24 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 var logHTTPServer = logger.New("server:http_server")
 var logTransport = logger.New("server:transport")
+
+// newSDKServer creates a new MCP SDK server with the given implementation name and debug logger.
+// This consolidates the sdk.NewServer construction shared by routed and unified server modes.
+func newSDKServer(name string, log *logger.Logger) *sdk.Server {
+	logHTTPServer.Printf("Creating SDK server: name=%s", name)
+	return sdk.NewServer(&sdk.Implementation{
+		Name:    name,
+		Version: version.Get(),
+	}, &sdk.ServerOptions{
+		Logger: logger.NewSlogLoggerWithHandler(log),
+	})
+}
 
 func newHTTPServer(addr string, handler http.Handler) *http.Server {
 	logHTTPServer.Printf("Creating HTTP server: addr=%s", addr)

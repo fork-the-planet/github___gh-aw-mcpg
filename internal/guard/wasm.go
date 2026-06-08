@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -22,10 +23,52 @@ var logWasm = logger.New("guard:wasm")
 
 var globalCompilationCacheMu sync.Mutex
 
+const wasmGuardsDirEnvVar = "MCP_GATEWAY_WASM_GUARDS_DIR"
+
 // globalCompilationCache is a process-level compilation cache shared across all
 // WasmGuard instances. wazero's cache is goroutine-safe and eliminates redundant
 // JIT compilation when multiple guards load the same WASM binary.
 var globalCompilationCache = wazero.NewCompilationCache()
+
+// GetWASMGuardsRootDir returns the trimmed value of MCP_GATEWAY_WASM_GUARDS_DIR.
+func GetWASMGuardsRootDir() string {
+	return strings.TrimSpace(os.Getenv(wasmGuardsDirEnvVar))
+}
+
+// FindServerWASMGuardFile discovers the first .wasm file for a server under
+// $MCP_GATEWAY_WASM_GUARDS_DIR/<serverID>.
+func FindServerWASMGuardFile(serverID string) (string, bool, error) {
+	guardsRootDir := GetWASMGuardsRootDir()
+	if guardsRootDir == "" {
+		logWasm.Printf("Skipping WASM guard discovery: %s is not set", wasmGuardsDirEnvVar)
+		return "", false, nil
+	}
+
+	serverGuardDir := filepath.Join(guardsRootDir, serverID)
+	logWasm.Printf("Searching for WASM guard file: serverID=%s, dir=%s", serverID, serverGuardDir)
+	entries, err := os.ReadDir(serverGuardDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logWasm.Printf("No WASM guard directory found for serverID=%s", serverID)
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("failed to read server guard directory %q: %w", serverGuardDir, err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.EqualFold(filepath.Ext(entry.Name()), ".wasm") {
+			wasmPath := filepath.Join(serverGuardDir, entry.Name())
+			logWasm.Printf("Found WASM guard file: serverID=%s, path=%s", serverID, wasmPath)
+			return wasmPath, true, nil
+		}
+	}
+
+	logWasm.Printf("No WASM guard file found in directory: serverID=%s, dir=%s", serverID, serverGuardDir)
+	return "", false, nil
+}
 
 func newCompilationCache(dir string) (wazero.CompilationCache, error) {
 	if dir == "" {

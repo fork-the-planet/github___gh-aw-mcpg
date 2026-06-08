@@ -277,6 +277,77 @@ func TestBuildFilteredItemLogEntry_ExtractNumberField_JsonNumber(t *testing.T) {
 	assert.Equal(t, "999", entry.Number)
 }
 
+func TestBuildFilteredItemLogEntry_AuthorLoginEdgeCases(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       map[string]interface{}
+		wantAuthor string
+	}{
+		{
+			name: "user empty login does not fall back to author",
+			data: map[string]interface{}{
+				"user":   map[string]interface{}{"login": ""},
+				"author": map[string]interface{}{"login": "author-login"},
+			},
+			wantAuthor: "",
+		},
+		{
+			name: "user non-string login falls back to author",
+			data: map[string]interface{}{
+				"user":   map[string]interface{}{"login": 42},
+				"author": map[string]interface{}{"login": "author-login"},
+			},
+			wantAuthor: "author-login",
+		},
+		{
+			name: "nil user falls back to author",
+			data: map[string]interface{}{
+				"user":   nil,
+				"author": map[string]interface{}{"login": "author-login"},
+			},
+			wantAuthor: "author-login",
+		},
+		{
+			name: "nested author user login is ignored",
+			data: map[string]interface{}{
+				"author": map[string]interface{}{
+					"user": map[string]interface{}{"login": "nested-login"},
+				},
+			},
+			wantAuthor: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			detail := newTestFilteredItem(tt.data, "item", "reason", nil, nil)
+			entry := buildFilteredItemLogEntry("github", "list_items", detail)
+			assert.Equal(t, tt.wantAuthor, entry.AuthorLogin)
+		})
+	}
+}
+
+func TestBuildFilteredItemLogEntry_NumberEdgeCases(t *testing.T) {
+	tests := []struct {
+		name       string
+		data       map[string]interface{}
+		wantNumber string
+	}{
+		{name: "zero float64", data: map[string]interface{}{"number": float64(0)}, wantNumber: "0"},
+		{name: "decimal float64 truncates", data: map[string]interface{}{"number": float64(123.9)}, wantNumber: "123"},
+		{name: "nil number returns empty", data: map[string]interface{}{"number": nil}, wantNumber: ""},
+		{name: "int number returns empty", data: map[string]interface{}{"number": 42}, wantNumber: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			detail := newTestFilteredItem(tt.data, "item", "reason", nil, nil)
+			entry := buildFilteredItemLogEntry("github", "list_items", detail)
+			assert.Equal(t, tt.wantNumber, entry.Number)
+		})
+	}
+}
+
 // TestBuildFilteredItemLogEntry_NonMapData verifies that buildFilteredItemLogEntry
 // handles non-map item data gracefully (no metadata extraction, no panic).
 func TestBuildFilteredItemLogEntry_NonMapData(t *testing.T) {

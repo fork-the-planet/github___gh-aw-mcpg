@@ -48,28 +48,6 @@ const SessionIDContextKey ContextKey = "awmg-session-id"
 // AgentTagsSnapshotContextKey stores a per-request snapshot of agent DIFC tags for enriched logging.
 const AgentTagsSnapshotContextKey ContextKey = "awmg-agent-tags-snapshot"
 
-// AgentTagsSnapshot contains agent secrecy/integrity tag snapshots for log enrichment.
-type AgentTagsSnapshot struct {
-	Secrecy   []string
-	Integrity []string
-}
-
-// GetAgentTagsSnapshotFromContext extracts the agent DIFC tag snapshot from the request context.
-// Used by guards (e.g., write-sink) that need the agent's current labels to mirror onto resources.
-func GetAgentTagsSnapshotFromContext(ctx context.Context) (*AgentTagsSnapshot, bool) {
-	if ctx == nil {
-		return nil, false
-	}
-
-	raw := ctx.Value(AgentTagsSnapshotContextKey)
-	snapshot, ok := raw.(*AgentTagsSnapshot)
-	if !ok || snapshot == nil {
-		return nil, false
-	}
-
-	return snapshot, true
-}
-
 // Connection represents a connection to an MCP server using the official SDK
 type Connection struct {
 	client   *sdk.Client
@@ -462,10 +440,10 @@ func (c *Connection) SendRequestWithServerID(ctx context.Context, method string,
 	return logInboundRPCResponseFromResult(serverID, result, err, loggingSnapshot)
 }
 
-// requireSession validates that a session is available for SDK operations.
+// requireSDKSession validates that a session is available for SDK operations.
 // This helper centralizes session validation logic across all MCP method wrappers.
 // Returns an error if the session is nil (e.g., for plain JSON-RPC transport).
-func (c *Connection) requireSession() error {
+func (c *Connection) requireSDKSession() error {
 	if c.getSDKSession() == nil {
 		return fmt.Errorf("SDK session not available for plain JSON-RPC transport")
 	}
