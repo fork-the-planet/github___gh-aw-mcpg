@@ -157,6 +157,7 @@ check_required_env_vars() {
         missing_vars+=("MCP_GATEWAY_AGENT_ID")
     elif [ -z "$MCP_GATEWAY_AGENT_ID" ] && [ -n "$MCP_GATEWAY_API_KEY" ]; then
         log_warn "MCP_GATEWAY_API_KEY is deprecated; please rename it to MCP_GATEWAY_AGENT_ID"
+        export MCP_GATEWAY_AGENT_ID="$MCP_GATEWAY_API_KEY"
     fi
 
     if [ ${#missing_vars[@]} -ne 0 ]; then
