@@ -101,7 +101,7 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 	// NewComponents returns any parse error so we can warn without parsing twice.
 	difcComponents, difcParseErr := difc.NewComponents(cfg.DIFCMode, difc.EnforcementFilter)
 	if difcParseErr != nil {
-		logProxy.Printf("WARNING: invalid DIFC mode %q, defaulting to filter", cfg.DIFCMode)
+		logger.LogWarn("startup", "invalid DIFC mode %q, defaulting to filter: %v", cfg.DIFCMode, difcParseErr)
 	}
 	logProxy.Printf("Enforcement mode resolved: %s", difcComponents.Mode)
 

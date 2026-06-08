@@ -19,7 +19,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/proxy"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
-	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -167,12 +166,7 @@ func NewUnified(ctx context.Context, cfg *config.Config) (*UnifiedServer, error)
 	}
 
 	// Create MCP server with logger
-	server := sdk.NewServer(&sdk.Implementation{
-		Name:    "awmg-unified",
-		Version: version.Get(),
-	}, &sdk.ServerOptions{
-		Logger: logger.NewSlogLoggerWithHandler(logUnified),
-	})
+	server := newSDKServer("awmg-unified", logUnified)
 
 	us.server = server
 	us.logWASMGuardsDirConfiguration()

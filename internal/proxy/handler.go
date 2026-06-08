@@ -23,6 +23,19 @@ import (
 
 var logHandler = logger.New("proxy:handler")
 
+// writeToResultOrEmpty calls ToResult on the labeled data. On success it returns
+// (result, true). On error it logs the failure, writes an empty-shaped response,
+// and returns (nil, false) so the caller can return early.
+func (h *proxyHandler) writeToResultOrEmpty(w http.ResponseWriter, resp *http.Response, responseData interface{}, labeled difc.LabeledData) (interface{}, bool) {
+	result, err := labeled.ToResult()
+	if err != nil {
+		logHandler.Printf("[DIFC] Phase 5 ToResult failed: %v", err)
+		h.writeEmptyResponse(w, resp, responseData)
+		return nil, false
+	}
+	return result, true
+}
+
 // writeDIFCForbidden writes a 403 JSON response for DIFC policy violations.
 // Uses the shared WriteErrorResponse helper so that the response shape is consistent
 // with all other error responses in the gateway ({"error": ..., "message": ...}).
@@ -49,13 +62,13 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Health check endpoint
 	if rawPath == "/health" || rawPath == "/healthz" {
-		httputil.WriteJSONResponse(w, http.StatusOK, map[string]string{"status": "ok"})
+		httputil.WriteSimpleHealthResponse(w)
 		return
 	}
 
 	// Reflect endpoint exposes a live DIFC label snapshot.
 	if r.Method == http.MethodGet && rawPath == "/reflect" {
-		httputil.WriteJSONResponse(w, http.StatusOK, difc.BuildReflectResponse(h.server.DIFCComponents))
+		httputil.WriteReflectResponse(w, h.server.DIFCComponents)
 		return
 	}
 
@@ -272,10 +285,9 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 					filtered.GetFilteredCount(), filtered.TotalCount)
 				finalData = rebuildGraphQLResponse(responseData, filtered)
 			} else {
-				finalData, err = filtered.ToResult()
-				if err != nil {
-					logHandler.Printf("[DIFC] Phase 5 ToResult failed: %v", err)
-					h.writeEmptyResponse(w, resp, responseData)
+				var ok bool
+				finalData, ok = h.writeToResultOrEmpty(w, resp, responseData, filtered)
+				if !ok {
 					return
 				}
 				// Re-wrap search responses to preserve the envelope
@@ -288,10 +300,9 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			if graphQLBody != nil {
 				useOriginalBody = true
 			} else {
-				finalData, err = labeledData.ToResult()
-				if err != nil {
-					logHandler.Printf("[DIFC] Phase 5 ToResult failed: %v", err)
-					h.writeEmptyResponse(w, resp, responseData)
+				var ok bool
+				finalData, ok = h.writeToResultOrEmpty(w, resp, responseData, labeledData)
+				if !ok {
 					return
 				}
 			}

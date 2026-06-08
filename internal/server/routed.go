@@ -12,7 +12,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
-	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -172,12 +171,7 @@ func createFilteredServer(unifiedServer *UnifiedServer, backendID string) *sdk.S
 	logRouted.Printf("Creating filtered server: backend=%s", backendID)
 
 	// Create a new SDK server for this route with logger
-	server := sdk.NewServer(&sdk.Implementation{
-		Name:    fmt.Sprintf("awmg-%s", backendID),
-		Version: version.Get(),
-	}, &sdk.ServerOptions{
-		Logger: logger.NewSlogLoggerWithHandler(logRouted),
-	})
+	server := newSDKServer(fmt.Sprintf("awmg-%s", backendID), logRouted)
 
 	// Get tools for this backend from the unified server
 	tools := unifiedServer.GetToolsForBackend(backendID)
