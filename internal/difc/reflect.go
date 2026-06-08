@@ -24,7 +24,7 @@ type ReflectResponse struct {
 
 // BuildReflectResponse returns a snapshot of all known agent labels.
 func BuildReflectResponse(components DIFCComponents) ReflectResponse {
-	logReflect.Printf("Building reflect response: mode=%s", components.Mode)
+	logReflect.Printf("Building reflect response: mode=%s", components.Mode.String())
 	agents := map[string]ReflectedAgentLabels{}
 	if components.AgentRegistry != nil {
 		agentIDs := components.AgentRegistry.GetAllAgentIDs()
