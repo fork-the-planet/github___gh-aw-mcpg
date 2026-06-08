@@ -373,28 +373,27 @@ fn apply_approval_label_promotion(
 // Built-in promotion/demotion label helpers
 // ============================================================================
 
+/// Returns `true` if the item carries the given configured label (case-insensitive).
+/// Returns `false` when `config_label` is empty (feature disabled).
+fn item_has_config_label(item: &Value, config_label: &str) -> bool {
+    if config_label.is_empty() {
+        return false;
+    }
+    extract_github_label_names(item)
+        .iter()
+        .any(|name| config_label.eq_ignore_ascii_case(name))
+}
+
 /// Check whether a content item carries the configured built-in promotion label
 /// (case-insensitive). Returns `false` when `promotion_label` is empty (feature disabled).
 pub fn has_promotion_label(item: &Value, ctx: &PolicyContext) -> bool {
-    if ctx.promotion_label.is_empty() {
-        return false;
-    }
-    let label_names = extract_github_label_names(item);
-    label_names
-        .iter()
-        .any(|name| ctx.promotion_label.eq_ignore_ascii_case(name))
+    item_has_config_label(item, &ctx.promotion_label)
 }
 
 /// Check whether a content item carries the configured built-in demotion label
 /// (case-insensitive). Returns `false` when `demotion_label` is empty (feature disabled).
 pub fn has_demotion_label(item: &Value, ctx: &PolicyContext) -> bool {
-    if ctx.demotion_label.is_empty() {
-        return false;
-    }
-    let label_names = extract_github_label_names(item);
-    label_names
-        .iter()
-        .any(|name| ctx.demotion_label.eq_ignore_ascii_case(name))
+    item_has_config_label(item, &ctx.demotion_label)
 }
 
 /// Apply built-in promotion label: if the item carries the configured promotion label,
@@ -939,11 +938,7 @@ pub fn limit_items_with_log<'a, T>(items: &'a [T], tool_name: &str) -> &'a [T] {
 /// Returns empty string if field doesn't exist or isn't a string
 #[inline]
 pub fn get_string_field(value: &Value, field: &str) -> String {
-    value
-        .get(field)
-        .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string()
+    get_str_or(value, field, "").to_string()
 }
 
 /// Format repository ID as "owner/repo"
