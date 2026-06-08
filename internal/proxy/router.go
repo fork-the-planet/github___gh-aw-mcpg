@@ -48,7 +48,7 @@ func issueArgs(owner, repo, issueNumber string, method ...string) map[string]int
 }
 
 // emptyExtractArgs is a shared extractArgs for routes that need no parameters.
-var emptyExtractArgs = func(_ []string) map[string]interface{} {
+func emptyExtractArgs(_ []string) map[string]interface{} {
 	return map[string]interface{}{}
 }
 
