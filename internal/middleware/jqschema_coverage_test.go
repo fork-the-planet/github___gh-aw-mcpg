@@ -246,6 +246,31 @@ func TestCompileToolResponseFilter_ParseError(t *testing.T) {
 	}
 }
 
+// TestCompileToolResponseFilter_EnvDisabled verifies that $ENV access is
+// blocked in compiled tool response filters (defense-in-depth). The compiled
+// code object itself is used directly (via applyToolResponseFilter) to
+// confirm that the WithEnvironLoader option was applied at compile time.
+func TestCompileToolResponseFilter_EnvDisabled(t *testing.T) {
+	// $ENV should resolve to an empty object (not real env vars) when
+	// WithEnvironLoader returns nil.
+	code, err := CompileToolResponseFilter(". + {env: $ENV}")
+	require.NoError(t, err)
+	require.NotNil(t, code)
+
+	// Use the compiled code object directly so we verify the options
+	// applied during CompileToolResponseFilter, not a re-compile.
+	result, runErr := applyToolResponseFilter(context.Background(), code, map[string]interface{}{"a": 1})
+	require.NoError(t, runErr)
+	m, ok := result.(map[string]interface{})
+	require.True(t, ok)
+	// Original input field must be preserved by the merge.
+	assert.Equal(t, 1, m["a"])
+	// $ENV must be an empty object, not the real process environment.
+	env, ok := m["env"].(map[string]interface{})
+	require.True(t, ok, "env should be an object, got: %T", m["env"])
+	assert.Empty(t, env)
+}
+
 // TestApplyToolResponseFilter_ParseError verifies that ApplyToolResponseFilter
 // propagates compile errors from CompileToolResponseFilter.
 func TestApplyToolResponseFilter_ParseError(t *testing.T) {

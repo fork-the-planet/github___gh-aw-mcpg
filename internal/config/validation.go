@@ -136,7 +136,9 @@ func validateToolResponseFilters(filters map[string]string, jsonPath string) err
 		if err != nil {
 			return fmt.Errorf("%s.%s contains an invalid jq expression: %w", jsonPath, toolName, err)
 		}
-		if _, err := gojq.Compile(query); err != nil {
+		if _, err := gojq.Compile(query,
+			gojq.WithEnvironLoader(func() []string { return nil }), // match runtime compile options (defense-in-depth)
+		); err != nil {
 			return fmt.Errorf("%s.%s contains an invalid jq expression: %w", jsonPath, toolName, err)
 		}
 	}

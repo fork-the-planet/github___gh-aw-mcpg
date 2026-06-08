@@ -253,7 +253,7 @@ func runJqCode(
 
 	if opts.CheckMultipleResults {
 		if extra, ok := iter.Next(); ok {
-			return nil, fmt.Errorf("%s returned multiple results, first=%T extra=%T", errPrefix, v, extra)
+			return nil, fmt.Errorf("%s returned multiple results — use array form ([.a, .b]) to combine outputs into a single value; first=%T extra=%T", errPrefix, v, extra)
 		}
 	}
 
@@ -279,7 +279,9 @@ func CompileToolResponseFilter(filter string) (*gojq.Code, error) {
 		return nil, fmt.Errorf("failed to parse tool response filter: %w", err)
 	}
 
-	code, err := gojq.Compile(query)
+	code, err := gojq.Compile(query,
+		gojq.WithEnvironLoader(func() []string { return nil }), // explicitly disable $ENV access (defense-in-depth)
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile tool response filter: %w", err)
 	}
