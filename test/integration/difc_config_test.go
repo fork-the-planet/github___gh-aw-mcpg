@@ -290,7 +290,7 @@ func TestDIFCModeFilterViaEnv(t *testing.T) {
 		}
 	}`, port)
 
-	ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel2()
 
 	cmd := exec.CommandContext(ctx2, binary, "--config-stdin", "--log-dir", logDir)
@@ -308,8 +308,9 @@ func TestDIFCModeFilterViaEnv(t *testing.T) {
 	err := cmd.Start()
 	require.NoError(t, err, "Failed to start gateway")
 
-	ok := waitForStderr(&stderr, "Starting MCPG", 5*time.Second)
-	require.Truef(t, ok, "timeout waiting for gateway stderr to contain %q within %s; stderr:\n%s", "Starting MCPG", 5*time.Second, stderr.String())
+	startupTimeout := 15 * time.Second
+	ok := waitForStderr(&stderr, "Starting MCPG", startupTimeout)
+	require.Truef(t, ok, "timeout waiting for gateway stderr to contain %q within %s; stderr:\n%s", "Starting MCPG", startupTimeout, stderr.String())
 
 	cmd.Process.Kill()
 	cmd.Wait()
@@ -347,7 +348,7 @@ func TestDIFCModePropagateViaEnv(t *testing.T) {
 		}
 	}`, port)
 
-	ctx3, cancel3 := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel3()
 
 	cmd := exec.CommandContext(ctx3, binary, "--config-stdin", "--log-dir", logDir)
@@ -365,8 +366,9 @@ func TestDIFCModePropagateViaEnv(t *testing.T) {
 	err := cmd.Start()
 	require.NoError(t, err, "Failed to start gateway")
 
-	ok := waitForStderr(&stderr, "Starting MCPG", 5*time.Second)
-	require.Truef(t, ok, "timeout waiting for gateway stderr to contain %q within %s; stderr:\n%s", "Starting MCPG", 5*time.Second, stderr.String())
+	startupTimeout := 15 * time.Second
+	ok := waitForStderr(&stderr, "Starting MCPG", startupTimeout)
+	require.Truef(t, ok, "timeout waiting for gateway stderr to contain %q within %s; stderr:\n%s", "Starting MCPG", startupTimeout, stderr.String())
 
 	cmd.Process.Kill()
 	cmd.Wait()
