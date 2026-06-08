@@ -33,6 +33,8 @@ const (
 
 	// ghHostPathPrefix is the /api/v3/ prefix that gh adds when using GH_HOST.
 	ghHostPathPrefix = "/api/v3"
+
+	proxyAgentID = "proxy"
 )
 
 // Server is a filtering HTTP forward proxy for the GitHub REST/GraphQL API.
@@ -174,7 +176,7 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trusted
 
 	logProxy.Printf("Calling LabelAgent to initialize agent labels from guard")
 	backend := &restBackendCaller{server: s}
-	agentLabels := s.AgentRegistry.GetOrCreate("proxy")
+	agentLabels := s.AgentRegistry.GetOrCreate(proxyAgentID)
 	newMode, result, err := guard.RunLabelAgent(ctx, s.guard, payload, backend, s.Capabilities, agentLabels, s.Mode)
 	if err != nil {
 		return err

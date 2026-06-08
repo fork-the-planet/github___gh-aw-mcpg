@@ -159,7 +159,7 @@ func (h *proxyHandler) handleUnrecognizedPassthrough(w http.ResponseWriter, r *h
 	}
 
 	pre := &guard.PipelinePreResult{
-		AgentLabels: h.server.AgentRegistry.GetOrCreate("proxy"),
+		AgentLabels: h.server.AgentRegistry.GetOrCreate(proxyAgentID),
 		Resource:    difc.NewLabeledResource(fmt.Sprintf("unrecognized endpoint %s", rawPath)),
 		Operation:   difc.OperationRead,
 		EvalResult: &difc.EvaluationResult{
@@ -193,7 +193,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 
 	// **Phases 0–2: Get agent labels, label resource, coarse access check**
 	pipelineIn := guard.PipelineInput{
-		AgentID:         "proxy",
+		AgentID:         proxyAgentID,
 		ToolName:        toolName,
 		Args:            args,
 		Guard:           s.guard,

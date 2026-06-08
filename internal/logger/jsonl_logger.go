@@ -222,7 +222,7 @@ func LogUnrecognizedEndpointPassthrough(method, path string) {
 		Method:    method,
 		Path:      path,
 		Action:    "passthrough_with_empty_labels",
-		Note:      "Endpoint not in route table or metadata allowlist — forwarded with no integrity and no secrecy labels",
+		Note:      "Endpoint not in route table or metadata allowlist -- forwarded with no integrity and no secrecy labels",
 	}
 
 	if b, err := json.Marshal(entry); err == nil {
