@@ -287,7 +287,7 @@ func TestPaginateAllHelper(t *testing.T) {
 // TestCallParamMethod_MarshalParamsError tests that callParamMethod returns an error
 // when rawParams cannot be marshalled (e.g. a channel value).
 func TestCallParamMethod_MarshalParamsError(t *testing.T) {
-	// Set a non-nil session so requireSession() passes, allowing us to reach unmarshalParams.
+	// Set a non-nil session so requireSDKSession() passes, allowing us to reach unmarshalParams.
 	c := &Connection{session: &sdk.ClientSession{}}
 	resp, err := callParamMethod(c, make(chan int), func(_ struct{}) (interface{}, error) {
 		return nil, nil
@@ -298,7 +298,7 @@ func TestCallParamMethod_MarshalParamsError(t *testing.T) {
 
 // TestListMCPItems_PaginateError tests that listMCPItems propagates errors from paginateAll.
 func TestListMCPItems_PaginateError(t *testing.T) {
-	// Set a non-nil session so requireSession() passes.
+	// Set a non-nil session so requireSDKSession() passes.
 	c := &Connection{session: &sdk.ClientSession{}}
 	fetchErr := errors.New("backend fetch failed")
 	resp, err := listMCPItems(

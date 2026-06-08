@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"strings"
@@ -9,6 +10,28 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 )
+
+// AgentTagsSnapshot contains agent secrecy/integrity tag snapshots for log enrichment.
+type AgentTagsSnapshot struct {
+	Secrecy   []string
+	Integrity []string
+}
+
+// GetAgentTagsSnapshotFromContext extracts the agent DIFC tag snapshot from the request context.
+// Used by guards (e.g., write-sink) that need the agent's current labels to mirror onto resources.
+func GetAgentTagsSnapshotFromContext(ctx context.Context) (*AgentTagsSnapshot, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+
+	raw := ctx.Value(AgentTagsSnapshotContextKey)
+	snapshot, ok := raw.(*AgentTagsSnapshot)
+	if !ok || snapshot == nil {
+		return nil, false
+	}
+
+	return snapshot, true
+}
 
 // logReconnectStart emits the structured log warning that is common to all reconnect paths.
 func (c *Connection) logReconnectStart() {

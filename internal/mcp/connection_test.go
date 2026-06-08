@@ -624,7 +624,7 @@ func TestNewHTTPConnection(t *testing.T) {
 	assert.Equal(t, HTTPTransportStreamable, conn.httpTransportType, "Transport type should match")
 }
 
-// TestConnection_RequireSession tests the requireSession helper method
+// TestConnection_RequireSession tests the requireSDKSession helper method
 func TestConnection_RequireSession(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -661,10 +661,10 @@ func TestConnection_RequireSession(t *testing.T) {
 				conn.session = nil // Will be nil for both test cases in practice
 			}
 
-			err := conn.requireSession()
+			err := conn.requireSDKSession()
 
 			if tt.expectError {
-				assert.Error(t, err, "requireSession should return error when session is nil")
+				assert.Error(t, err, "requireSDKSession should return error when session is nil")
 				assert.ErrorContains(t, err, "SDK session not available for plain JSON-RPC transport",
 					"Error message should contain expected text")
 			} else {

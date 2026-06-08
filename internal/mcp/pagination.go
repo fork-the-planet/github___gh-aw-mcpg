@@ -41,10 +41,10 @@ func unmarshalParams(params interface{}, target interface{}) error {
 }
 
 // callParamMethod is a generic helper for SDK operations that require typed parameters.
-// It handles the common pattern of: requireSession → unmarshalParams → fn(params) → marshalToResponse.
+// It handles the common pattern of: requireSDKSession → unmarshalParams → fn(params) → marshalToResponse.
 // P is the type of the parameter struct to unmarshal into.
 func callParamMethod[P any](c *Connection, rawParams interface{}, fn func(P) (interface{}, error)) (*Response, error) {
-	if err := c.requireSession(); err != nil {
+	if err := c.requireSDKSession(); err != nil {
 		return nil, err
 	}
 	var params P
@@ -118,7 +118,7 @@ func listMCPItems[Item any, Result any](
 	fetchPage func(cursor string) (paginatedPage[Item], error),
 	buildResult func([]Item) Result,
 ) (*Response, error) {
-	if err := c.requireSession(); err != nil {
+	if err := c.requireSDKSession(); err != nil {
 		return nil, err
 	}
 	logConn.Printf("list%s: requesting %s list from backend serverID=%s", kind, kind, c.serverID)

@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logAutoInit = logger.New("server:auto-init")
@@ -76,10 +75,10 @@ func WrapWithSessionAutoInit(streamableHandler http.Handler) http.Handler {
 		}
 
 		logAutoInit.Printf("auto-init succeeded, session=%s, retrying tools/call",
-			strutil.TruncateSessionID(sessionID))
+			truncateSessionID(sessionID))
 		logger.LogInfo("client",
 			"Gemini-compat: auto-init succeeded, retrying tools/call with session=%s",
-			strutil.TruncateSessionID(sessionID))
+			truncateSessionID(sessionID))
 
 		// Inject the new session ID and forward the original request.
 		r.Header.Set("Mcp-Session-Id", sessionID)
@@ -116,7 +115,7 @@ func performSessionAutoInit(originalReq *http.Request, handler http.Handler) (st
 	if initRec.Code != http.StatusOK {
 		return "", fmt.Errorf("initialize returned unexpected status %d", initRec.Code)
 	}
-	logAutoInit.Printf("initialize OK, session=%s", strutil.TruncateSessionID(sessionID))
+	logAutoInit.Printf("initialize OK, session=%s", truncateSessionID(sessionID))
 
 	// Step 2: send notifications/initialized (fire-and-forget notification).
 	// The server returns 202 Accepted; we do not need to inspect the response.

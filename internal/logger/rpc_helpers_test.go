@@ -153,8 +153,8 @@ func TestExtractErrorMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ExtractErrorMessage(tt.input)
-			assert.Equal(t, tt.expected, result, "ExtractErrorMessage(%q)", tt.input)
+			result := extractErrorMessage(tt.input)
+			assert.Equal(t, tt.expected, result, "extractErrorMessage(%q)", tt.input)
 		})
 	}
 }
@@ -163,7 +163,7 @@ func BenchmarkExtractErrorMessage(b *testing.B) {
 	testLine := "2024-01-01T12:00:00.123Z ERROR: connection failed to remote server"
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExtractErrorMessage(testLine)
+		extractErrorMessage(testLine)
 	}
 }
 
@@ -171,7 +171,7 @@ func BenchmarkExtractErrorMessageLong(b *testing.B) {
 	testLine := "2024-01-01T12:00:00.123Z ERROR: " + strings.Repeat("very long error message ", 20)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExtractErrorMessage(testLine)
+		extractErrorMessage(testLine)
 	}
 }
 

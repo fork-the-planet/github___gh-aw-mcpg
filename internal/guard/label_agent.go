@@ -49,3 +49,49 @@ func RunLabelAgent(
 	logLabelAgent.Printf("LabelAgent completed: guard=%s, mode=%s", g.Name(), mode)
 	return mode, result, nil
 }
+
+// emptyAgentLabelsResult returns a LabelAgentResult with empty agent labels for the given DIFC mode.
+// Used by guards that do not contribute agent labels (e.g. NoopGuard, WriteSinkGuard).
+func emptyAgentLabelsResult(mode string) *LabelAgentResult {
+	logLabelAgent.Printf("Creating empty agent labels result: mode=%q", mode)
+	return &LabelAgentResult{
+		Agent: AgentLabelsPayload{
+			Secrecy:   []string{},
+			Integrity: []string{},
+		},
+		DIFCMode: mode,
+	}
+}
+
+// ApplyLabelAgentResult applies the agent labels from a LabelAgentResult to the given
+// AgentLabels using batch helpers (minimizing mutex acquisitions), and returns the
+// effective enforcement mode. If result.DIFCMode is empty, defaultMode is returned
+// unchanged. If result.DIFCMode is non-empty but cannot be parsed, an error is returned.
+func ApplyLabelAgentResult(result *LabelAgentResult, agentLabels *difc.AgentLabels, defaultMode difc.EnforcementMode) (difc.EnforcementMode, error) {
+	logLabelAgent.Printf("Applying label agent result: difc_mode=%q, secrecy_tags=%d, integrity_tags=%d, defaultMode=%s",
+		result.DIFCMode, len(result.Agent.Secrecy), len(result.Agent.Integrity), defaultMode)
+
+	// Validate/parse mode first so that tag mutation is skipped when mode is invalid.
+	// This keeps the operation atomic: either both the mode and the tags are applied,
+	// or neither is.
+	mode := defaultMode
+	if result.DIFCMode != "" {
+		parsedMode, err := difc.ParseEnforcementMode(result.DIFCMode)
+		if err != nil {
+			logLabelAgent.Printf("Invalid difc_mode from label_agent: %q, error=%v", result.DIFCMode, err)
+			return defaultMode, fmt.Errorf("invalid difc_mode from label_agent: %w", err)
+		}
+		if parsedMode != defaultMode {
+			logLabelAgent.Printf("Enforcement mode overridden: default=%s, override=%s", defaultMode, parsedMode)
+		} else {
+			logLabelAgent.Printf("Enforcement mode provided matches default: mode=%s", parsedMode)
+		}
+		mode = parsedMode
+	}
+
+	agentLabels.AddSecrecyTags(difc.StringsToTags(result.Agent.Secrecy))
+	agentLabels.AddIntegrityTags(difc.StringsToTags(result.Agent.Integrity))
+
+	logLabelAgent.Printf("Label agent result applied: effective_mode=%s", mode)
+	return mode, nil
+}

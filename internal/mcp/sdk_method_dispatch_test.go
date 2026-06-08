@@ -67,7 +67,7 @@ func TestGetAgentTagsSnapshotFromContext(t *testing.T) {
 }
 
 // newTestConnection creates a minimal Connection for unit testing unexported methods.
-// It has no real session, so any method that calls requireSession() will return an error.
+// It has no real session, so any method that calls requireSDKSession() will return an error.
 func newTestConnection(t *testing.T) *Connection {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -234,7 +234,7 @@ func TestSendRequestWithServerID_StdioPath_UnsupportedMethod(t *testing.T) {
 }
 
 // TestSendRequestWithServerID_StdioPath_NilSession verifies that the stdio
-// branch returns a requireSession error when no SDK session is available.
+// branch returns a requireSDKSession error when no SDK session is available.
 func TestSendRequestWithServerID_StdioPath_NilSession(t *testing.T) {
 	conn := newTestConnection(t)
 	result, err := conn.SendRequestWithServerID(context.Background(), "tools/list", nil, "test-server")

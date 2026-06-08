@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
@@ -47,7 +45,7 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 
 	// Check if a per-server WASM guard exists in MCP_GATEWAY_WASM_GUARDS_DIR.
 	// If found and loadable, it takes precedence over config-defined guards.
-	if wasmPath, found, err := findServerWASMGuardFile(serverID); err != nil {
+	if wasmPath, found, err := guard.FindServerWASMGuardFile(serverID); err != nil {
 		logger.LogWarnToServer(serverID, "difc", "Failed to discover WASM guard from %s: %v", wasmGuardsDirEnvVar, err)
 	} else if found {
 		ctx := context.Background()
@@ -158,48 +156,8 @@ func (us *UnifiedServer) logServerGuardPolicies(serverID string) {
 	logger.LogInfoToServer(serverID, "difc", "Guard policy: %s", string(policyJSON))
 }
 
-// getWASMGuardsRootDir returns the trimmed value of the WASM guards root
-// directory environment variable, or an empty string if it is not set.
-func getWASMGuardsRootDir() string {
-	return strings.TrimSpace(os.Getenv(wasmGuardsDirEnvVar))
-}
-
-func findServerWASMGuardFile(serverID string) (string, bool, error) {
-	guardsRootDir := getWASMGuardsRootDir()
-	if guardsRootDir == "" {
-		logGuardInit.Printf("Skipping WASM guard discovery: %s is not set", wasmGuardsDirEnvVar)
-		return "", false, nil
-	}
-
-	serverGuardDir := filepath.Join(guardsRootDir, serverID)
-	logGuardInit.Printf("Searching for WASM guard file: serverID=%s, dir=%s", serverID, serverGuardDir)
-	entries, err := os.ReadDir(serverGuardDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			logGuardInit.Printf("No WASM guard directory found for serverID=%s", serverID)
-			return "", false, nil
-		}
-		return "", false, fmt.Errorf("failed to read server guard directory %q: %w", serverGuardDir, err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		if strings.EqualFold(filepath.Ext(entry.Name()), ".wasm") {
-			wasmPath := filepath.Join(serverGuardDir, entry.Name())
-			logGuardInit.Printf("Found WASM guard file: serverID=%s, path=%s", serverID, wasmPath)
-			return wasmPath, true, nil
-		}
-	}
-
-	logGuardInit.Printf("No WASM guard file found in directory: serverID=%s, dir=%s", serverID, serverGuardDir)
-	return "", false, nil
-}
-
 func (us *UnifiedServer) logWASMGuardsDirConfiguration() {
-	guardsRootDir := getWASMGuardsRootDir()
+	guardsRootDir := guard.GetWASMGuardsRootDir()
 	if guardsRootDir == "" {
 		logger.LogInfo("difc", "%s is not set", wasmGuardsDirEnvVar)
 		return

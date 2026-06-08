@@ -30,16 +30,6 @@ func TruncateWithSuffix(s string, maxLen int, suffix string) string {
 	return s[:maxLen] + suffix
 }
 
-// TruncateSessionID returns a truncated session ID for safe logging (first 8 bytes).
-// Returns "(none)" for empty session IDs, and appends "..." for truncated values.
-// This is useful for logging session IDs without exposing sensitive information.
-func TruncateSessionID(sessionID string) string {
-	if sessionID == "" {
-		return "(none)"
-	}
-	return Truncate(sessionID, 8)
-}
-
 // TruncateRunes truncates s to at most maxRunes Unicode code points (runes).
 // Unlike Truncate, which counts bytes, TruncateRunes is safe for non-ASCII
 // content (e.g. emoji, CJK characters). If maxRunes is 0 or negative, returns

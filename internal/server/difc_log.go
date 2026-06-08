@@ -50,42 +50,34 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 	// Data is interface{} from JSON parsing — typically map[string]interface{}.
 	if m, ok := detail.Item.Data.(map[string]interface{}); ok {
 		entry.AuthorAssociation = strutil.GetStringFromMap(m, "author_association", "authorAssociation")
-		entry.AuthorLogin = extractAuthorLogin(m)
+		userLoginFound := false
+		if user, ok := m["user"].(map[string]interface{}); ok {
+			if login, ok := user["login"].(string); ok {
+				entry.AuthorLogin = login
+				userLoginFound = true
+			}
+		}
+		if !userLoginFound {
+			if author, ok := m["author"].(map[string]interface{}); ok {
+				if login, ok := author["login"].(string); ok {
+					entry.AuthorLogin = login
+				}
+			}
+		}
 		entry.HTMLURL = strutil.GetStringFromMap(m, "html_url", "htmlUrl")
-		entry.Number = extractNumberField(m)
+		if n, ok := m["number"]; ok {
+			switch v := n.(type) {
+			case float64:
+				entry.Number = fmt.Sprintf("%d", int64(v))
+			case json.Number:
+				entry.Number = v.String()
+			}
+		}
 		entry.SHA = strutil.GetStringFromMap(m, "sha")
 		logDifcLog.Printf("Filtered item metadata: author=%s, number=%s, url=%s", entry.AuthorLogin, entry.Number, entry.HTMLURL)
 	}
 
 	return entry
-}
-
-// extractAuthorLogin extracts the author login from nested user/author objects.
-func extractAuthorLogin(m map[string]interface{}) string {
-	if user, ok := m["user"].(map[string]interface{}); ok {
-		if login, ok := user["login"].(string); ok {
-			return login
-		}
-	}
-	if author, ok := m["author"].(map[string]interface{}); ok {
-		if login, ok := author["login"].(string); ok {
-			return login
-		}
-	}
-	return ""
-}
-
-// extractNumberField extracts the item number as a string.
-func extractNumberField(m map[string]interface{}) string {
-	if n, ok := m["number"]; ok {
-		switch v := n.(type) {
-		case float64:
-			return fmt.Sprintf("%d", int64(v))
-		case json.Number:
-			return v.String()
-		}
-	}
-	return ""
 }
 
 // maxFilteredItemsInNotice is the maximum number of individual item descriptions
