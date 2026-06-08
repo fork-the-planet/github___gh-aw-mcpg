@@ -118,6 +118,30 @@ func TestServeHTTP_MetaPassthrough(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "verifiable_password_authentication")
 }
 
+func TestServeHTTP_RateLimitPassthrough(t *testing.T) {
+	receivedURLCh := make(chan string, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedURLCh <- r.URL.RequestURI()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte(`{"resources":{"core":{"limit":5000}}}`))
+		require.NoError(t, err)
+	}))
+	defer upstream.Close()
+
+	s := newTestServer(t, upstream.URL)
+	h := &proxyHandler{server: s}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v3/rate_limit", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	receivedURL := <-receivedURLCh
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "/rate_limit", receivedURL)
+	assert.Contains(t, w.Body.String(), "core")
+}
+
 // ─── ServeHTTP: write operations (non-GraphQL POST/PUT/DELETE/PATCH) ─────────
 
 func TestServeHTTP_WriteOperationsPassthrough(t *testing.T) {

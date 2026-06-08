@@ -59,9 +59,9 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// gh CLI probes /meta during initialization for feature detection.
-	// Treat it like GraphQL introspection metadata and pass through unfiltered.
-	if r.Method == http.MethodGet && rawPath == "/meta" {
+	// gh CLI probes /meta and /rate_limit during initialization for feature detection
+	// and connectivity checks. These are safe metadata endpoints — pass through unfiltered.
+	if r.Method == http.MethodGet && (rawPath == "/meta" || rawPath == "/rate_limit") {
 		h.passthrough(w, r, fullPath)
 		return
 	}
