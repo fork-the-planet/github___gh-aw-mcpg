@@ -16,6 +16,7 @@ func InitGatewayLoggers(logDir string) {
 // Failures are printed as warnings but do not abort startup.
 func InitProxyLoggers(logDir string) {
 	initWithWarning(InitFileLogger(logDir, "proxy.log"), "file logger")
+	initWithWarning(InitMarkdownLogger(logDir, "gateway.md"), "markdown logger")
 	initWithWarning(InitJSONLLogger(logDir, "rpc-messages.jsonl"), "JSONL logger")
 }
 

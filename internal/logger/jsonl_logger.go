@@ -28,6 +28,7 @@ const (
 	jsonTimestampLayout = "2006-01-02T15:04:05.000Z07:00"
 	rpcMessageSchemaV2  = "rpc-message/v2"
 	difcSchemaV2        = "difc-filtered/v2"
+	difcEventSchemaV1   = "difc-event/v1"
 )
 
 // JSONLRPCMessage represents a single RPC message log entry in JSONL format
@@ -181,6 +182,18 @@ type JSONLFilteredItem struct {
 	FilteredItemLogEntry
 }
 
+// JSONLUnrecognizedEndpointPassthrough records when the proxy forwards an
+// unrecognized endpoint with empty DIFC labels.
+type JSONLUnrecognizedEndpointPassthrough struct {
+	Timestamp string `json:"timestamp"`
+	Event     string `json:"event"`
+	Schema    string `json:"_schema"`
+	Method    string `json:"method"`
+	Path      string `json:"path"`
+	Action    string `json:"action"`
+	Note      string `json:"note"`
+}
+
 // LogDifcFilteredItem writes a DIFC filter event to the JSONL log.
 func LogDifcFilteredItem(entry *JSONLFilteredItem) {
 	if entry == nil {
@@ -191,6 +204,33 @@ func LogDifcFilteredItem(entry *JSONLFilteredItem) {
 	entry.Timestamp = time.Now().UTC().Format(jsonTimestampLayout)
 	entry.Event = "difc_filtered"
 	entry.Schema = difcSchemaV2
+	withGlobalLogger(&globalJSONLMu, &globalJSONLLogger, func(logger *JSONLLogger) {
+		if logger == nil {
+			return
+		}
+		_ = logger.logEntry(entry)
+	})
+}
+
+// LogUnrecognizedEndpointPassthrough writes the proxy's unrecognized-endpoint
+// passthrough event to the standard text log, markdown artifact log, and JSONL log.
+func LogUnrecognizedEndpointPassthrough(method, path string) {
+	entry := &JSONLUnrecognizedEndpointPassthrough{
+		Timestamp: time.Now().UTC().Format(jsonTimestampLayout),
+		Event:     "unrecognized_endpoint_passthrough",
+		Schema:    difcEventSchemaV1,
+		Method:    method,
+		Path:      path,
+		Action:    "passthrough_with_empty_labels",
+		Note:      "Endpoint not in route table or metadata allowlist — forwarded with no integrity and no secrecy labels",
+	}
+
+	if b, err := json.Marshal(entry); err == nil {
+		LogWarnToMarkdown("proxy", "[UNRECOGNIZED-ENDPOINT] %s", string(b))
+	} else {
+		LogWarnToMarkdown("proxy", "failed to marshal unrecognized endpoint event for %s %s: %v", method, path, err)
+	}
+
 	withGlobalLogger(&globalJSONLMu, &globalJSONLLogger, func(logger *JSONLLogger) {
 		if logger == nil {
 			return

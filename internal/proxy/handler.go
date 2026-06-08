@@ -72,9 +72,9 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// gh CLI probes /meta and /rate_limit during initialization for feature detection
-	// and connectivity checks. These are safe metadata endpoints — pass through unfiltered.
-	if r.Method == http.MethodGet && (rawPath == "/meta" || rawPath == "/rate_limit") {
+	// Safe metadata endpoints carry no user/repo-scoped data and can be passed
+	// through without DIFC labeling.
+	if r.Method == http.MethodGet && isMetadataPassthroughPath(rawPath) {
 		h.passthrough(w, r, fullPath)
 		return
 	}
@@ -133,9 +133,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		match := MatchRoute(rawPath)
 		if match == nil {
-			// Unknown REST endpoint — fail closed: deny rather than risk leaking unfiltered data
-			logHandler.Printf("unknown REST endpoint %s, blocking request", rawPath)
-			httputil.WriteErrorResponse(w, http.StatusForbidden, "forbidden", "access denied: unrecognized endpoint")
+			h.handleUnrecognizedPassthrough(w, r, rawPath, fullPath)
 			return
 		}
 		toolName = match.ToolName
@@ -149,6 +147,30 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Run the DIFC pipeline
 	h.handleWithDIFC(w, r, fullPath, toolName, args, graphQLBody)
+}
+
+func (h *proxyHandler) handleUnrecognizedPassthrough(w http.ResponseWriter, r *http.Request, rawPath, fullPath string) {
+	logger.LogUnrecognizedEndpointPassthrough(r.Method, rawPath)
+	logHandler.Printf("unrecognized REST endpoint %s, forwarding with empty labels", rawPath)
+
+	resp, respBody := h.forwardAndReadBody(w, r.Context(), r.Method, fullPath, nil, "", r.Header.Get("Authorization"))
+	if resp == nil {
+		return
+	}
+
+	pre := &guard.PipelinePreResult{
+		AgentLabels: h.server.AgentRegistry.GetOrCreate("proxy"),
+		Resource:    difc.NewLabeledResource(fmt.Sprintf("unrecognized endpoint %s", rawPath)),
+		Operation:   difc.OperationRead,
+		EvalResult: &difc.EvaluationResult{
+			Decision:        difc.AccessAllow,
+			SecrecyToAdd:    []difc.Tag{},
+			IntegrityToDrop: []difc.Tag{},
+		},
+	}
+	guard.RunPipelinePhase6(pre, nil, h.server.Mode)
+
+	h.writeResponse(w, resp, respBody)
 }
 
 // handleWithDIFC runs the 6-phase DIFC pipeline on a request.
