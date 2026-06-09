@@ -213,11 +213,7 @@ pub fn label_response_paths(
                         }
                         .into(),
                     }),
-                    items_path: if items_path.is_empty() {
-                        None
-                    } else {
-                        Some(items_path)
-                    },
+                    items_path: (!items_path.is_empty()).then_some(items_path),
                 });
             }
             } // end else (non-sub-method)
@@ -313,11 +309,7 @@ pub fn label_response_paths(
                         }
                         .into(),
                     }),
-                    items_path: if items_path.is_empty() {
-                        None
-                    } else {
-                        Some(items_path)
-                    },
+                    items_path: (!items_path.is_empty()).then_some(items_path),
                 });
             }
             } // end else (non-sub-method)
@@ -656,11 +648,7 @@ pub fn label_response_paths(
                         secrecy: vec![].into(),
                         integrity: writer_integrity(&arg_owner, ctx).into(),
                     }),
-                    items_path: if items_path.is_empty() {
-                        None
-                    } else {
-                        Some(items_path)
-                    },
+                    items_path: (!items_path.is_empty()).then_some(items_path),
                 });
             }
         }
