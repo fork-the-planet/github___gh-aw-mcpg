@@ -259,6 +259,8 @@ func NewWasmGuardWithOptions(ctx context.Context, name string, wasmBytes []byte,
 			}
 			return name
 		}()).
+		// WithStartFunctions with no args suppresses automatic _start execution
+		// so guard loading cannot block on stdin or perform unexpected I/O.
 		WithStartFunctions().
 		WithStdin(strings.NewReader("")). // Isolate stdin
 		WithStdout(stdoutWriter).         // Keep WASM stdout off gateway stdout (MCP stream)
@@ -469,6 +471,13 @@ func (g *WasmGuard) Name() string {
 	return g.name
 }
 
+// IsHealthy reports whether the guard is still usable after previous WASM calls.
+func (g *WasmGuard) IsHealthy() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return !g.failed
+}
+
 // callWasmGuardFunction serialises WASM access, sets the backend reference, marshals
 // inputData, logs the input, calls the named WASM export, and returns the raw result.
 // All three public dispatch methods (LabelAgent, LabelResource, LabelResponse) share
@@ -641,12 +650,16 @@ func unmarshalWasmResponse(funcName string, data []byte) (map[string]any, error)
 
 // Close releases WASM runtime resources
 func (g *WasmGuard) Close(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cleanupCtx := context.WithoutCancel(ctx)
 	var moduleErr, runtimeErr error
 	if g.module != nil {
-		moduleErr = g.module.Close(ctx)
+		moduleErr = g.module.Close(cleanupCtx)
 	}
 	if g.runtime != nil {
-		runtimeErr = g.runtime.Close(ctx)
+		runtimeErr = g.runtime.Close(cleanupCtx)
 	}
 	return errors.Join(moduleErr, runtimeErr)
 }

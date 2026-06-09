@@ -251,7 +251,7 @@ func TestWasmGuardContextPropagation(t *testing.T) {
 		defer cancel()
 
 		// Create a wazero runtime that will close when the context is done.
-		runtime := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCloseOnContextDone(true))
+		runtime := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigCompiler().WithCloseOnContextDone(true))
 		defer func() {
 			_ = runtime.Close(ctx)
 		}()
@@ -1120,6 +1120,21 @@ func TestWasmGuardClose(t *testing.T) {
 		err := guard.Close(context.Background())
 		assert.NoError(t, err)
 	})
+
+	t.Run("close ignores caller cancellation during cleanup", func(t *testing.T) {
+		ctx := context.Background()
+		rt := wazero.NewRuntime(ctx)
+		mod, err := rt.InstantiateWithConfig(ctx, minimalGuardWasm, wazero.NewModuleConfig().WithName("close-guard"))
+		require.NoError(t, err)
+
+		guard := &WasmGuard{runtime: rt, module: mod}
+
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		err = guard.Close(cancelledCtx)
+		assert.NoError(t, err)
+	})
 }
 
 func TestWasmGuardName(t *testing.T) {
@@ -1131,6 +1146,21 @@ func TestWasmGuardName(t *testing.T) {
 	t.Run("returns empty name if not set", func(t *testing.T) {
 		guard := &WasmGuard{}
 		assert.Equal(t, "", guard.Name())
+	})
+}
+
+func TestWasmGuardIsHealthy(t *testing.T) {
+	t.Run("healthy guard reports true", func(t *testing.T) {
+		guard := &WasmGuard{}
+		assert.True(t, guard.IsHealthy())
+	})
+
+	t.Run("failed guard reports false", func(t *testing.T) {
+		guard := &WasmGuard{
+			failed:    true,
+			failedErr: errors.New("trap"),
+		}
+		assert.False(t, guard.IsHealthy())
 	})
 }
 
