@@ -267,6 +267,7 @@ func assignLegacyIntAlias(rawFields map[string]json.RawMessage, alias string, ta
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return fmt.Errorf("invalid %s value: %w", alias, err)
 	}
+	logStdin.Printf("Applying legacy alias %q: value=%d (prefer camelCase equivalent)", alias, value)
 	*target = &value
 	return nil
 }
@@ -304,7 +305,9 @@ func stripExtensionFieldsForValidation(data []byte) ([]byte, error) {
 	delete(config, "guards")
 
 	// Strip per-server "guard" and "auth" extension fields
+	serverCount := 0
 	if servers, ok := config["mcpServers"].(map[string]interface{}); ok {
+		serverCount = len(servers)
 		for _, server := range servers {
 			if serverMap, ok := server.(map[string]interface{}); ok {
 				delete(serverMap, "guard")
@@ -314,6 +317,7 @@ func stripExtensionFieldsForValidation(data []byte) ([]byte, error) {
 		}
 	}
 
+	logStdin.Printf("Stripped gateway extension fields for schema validation: %d servers processed", serverCount)
 	return json.Marshal(config)
 }
 
@@ -515,6 +519,17 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 		}
 		if server.ToolTimeout != nil {
 			serverCfg.ToolTimeout = *server.ToolTimeout
+		}
+		if server.ConnectTimeout != nil || server.ToolTimeout != nil {
+			var connectTimeout any
+			if server.ConnectTimeout != nil {
+				connectTimeout = *server.ConnectTimeout
+			}
+			var toolTimeout any
+			if server.ToolTimeout != nil {
+				toolTimeout = *server.ToolTimeout
+			}
+			logStdin.Printf("HTTP server %q: custom timeouts configured: connectTimeout=%v, toolTimeout=%v", name, connectTimeout, toolTimeout)
 		}
 		if server.Auth != nil {
 			serverCfg.Auth = &AuthConfig{
