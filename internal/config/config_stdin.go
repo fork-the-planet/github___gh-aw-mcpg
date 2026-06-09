@@ -521,7 +521,15 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 			serverCfg.ToolTimeout = *server.ToolTimeout
 		}
 		if server.ConnectTimeout != nil || server.ToolTimeout != nil {
-			logStdin.Printf("HTTP server %q: custom timeouts configured: connectTimeout=%v, toolTimeout=%v", name, server.ConnectTimeout, server.ToolTimeout)
+			var connectTimeout any
+			if server.ConnectTimeout != nil {
+				connectTimeout = *server.ConnectTimeout
+			}
+			var toolTimeout any
+			if server.ToolTimeout != nil {
+				toolTimeout = *server.ToolTimeout
+			}
+			logStdin.Printf("HTTP server %q: custom timeouts configured: connectTimeout=%v, toolTimeout=%v", name, connectTimeout, toolTimeout)
 		}
 		if server.Auth != nil {
 			serverCfg.Auth = &AuthConfig{
