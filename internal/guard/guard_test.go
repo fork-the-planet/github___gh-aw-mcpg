@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1257,7 +1258,7 @@ func TestIsValidAllowOnlyRepos(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isValidAllowOnlyRepos(tt.input)
+			got := config.IsValidAllowOnlyReposValue(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
 	}

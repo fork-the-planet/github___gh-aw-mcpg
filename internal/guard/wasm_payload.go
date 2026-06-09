@@ -114,7 +114,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		}
 	}
 
-	if !isValidAllowOnlyRepos(reposRaw) {
+	if !config.IsValidAllowOnlyReposValue(reposRaw) {
 		return nil, fmt.Errorf("invalid repos value: expected all, public, or non-empty array of scoped strings")
 	}
 
@@ -124,14 +124,14 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 
 	// Validate blocked-users if present: must be an array of non-empty strings.
 	if blockedUsersRaw, ok := allowOnly["blocked-users"]; ok {
-		if err := validateStringArray("blocked-users", blockedUsersRaw, false); err != nil {
+		if err := config.ValidateStringArrayField("blocked-users", blockedUsersRaw, false); err != nil {
 			return nil, err
 		}
 	}
 
 	// Validate approval-labels if present: must be an array of non-empty strings.
 	if approvalLabelsRaw, ok := allowOnly["approval-labels"]; ok {
-		if err := validateStringArray("approval-labels", approvalLabelsRaw, false); err != nil {
+		if err := config.ValidateStringArrayField("approval-labels", approvalLabelsRaw, false); err != nil {
 			return nil, err
 		}
 	}
@@ -139,7 +139,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 	// Validate trusted-bots if present.
 	// Per spec §4.1.3.4: trustedBots MUST be a non-empty array of strings when present.
 	if trustedBotsRaw, hasTrustedBots := payload["trusted-bots"]; hasTrustedBots {
-		if err := validateStringArray("trusted-bots", trustedBotsRaw, true); err != nil {
+		if err := config.ValidateStringArrayField("trusted-bots", trustedBotsRaw, true); err != nil {
 			return nil, err
 		}
 	}
@@ -147,7 +147,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 	// Validate trusted-users if present inside allow-only.
 	// Must be an array of non-empty strings when present.
 	if trustedUsersRaw, ok := allowOnly["trusted-users"]; ok {
-		if err := validateStringArray("trusted-users", trustedUsersRaw, false); err != nil {
+		if err := config.ValidateStringArrayField("trusted-users", trustedUsersRaw, false); err != nil {
 			return nil, err
 		}
 	}
@@ -155,7 +155,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 	// Validate endorsement-reactions and disapproval-reactions if present.
 	for _, reactionKey := range []string{"endorsement-reactions", "disapproval-reactions"} {
 		if reactionsRaw, ok := allowOnly[reactionKey]; ok {
-			if err := validateStringArray(reactionKey, reactionsRaw, false); err != nil {
+			if err := config.ValidateStringArrayField(reactionKey, reactionsRaw, false); err != nil {
 				return nil, err
 			}
 		}
