@@ -12,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/gh-aw-mcpg/internal/difc"
 )
 
 // errorResponseWriter is a minimal http.ResponseWriter whose Write method
@@ -422,4 +424,59 @@ func TestWriteErrorResponse(t *testing.T) {
 			assert.Equal(t, tt.message, body["message"])
 		})
 	}
+}
+
+// TestWriteSimpleHealthResponse verifies that the helper writes a {"status":"ok"} health response.
+func TestWriteSimpleHealthResponse(t *testing.T) {
+	rec := httptest.NewRecorder()
+	WriteSimpleHealthResponse(rec)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+
+	var body map[string]string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&body))
+	assert.Equal(t, "ok", body["status"])
+	assert.Len(t, body, 1, "response body should contain only the 'status' field")
+}
+
+// TestWriteReflectResponse verifies that the helper serialises a DIFC label snapshot correctly.
+func TestWriteReflectResponse(t *testing.T) {
+	t.Run("empty components returns valid response shape", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		WriteReflectResponse(rec, difc.DIFCComponents{})
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+
+		var body difc.ReflectResponse
+		require.NoError(t, json.NewDecoder(rec.Body).Decode(&body))
+		assert.NotNil(t, body.Agents)
+		assert.NotEmpty(t, body.Timestamp)
+	})
+
+	t.Run("strict mode is reflected in response body", func(t *testing.T) {
+		components, err := difc.NewComponents("strict", difc.EnforcementStrict)
+		require.NoError(t, err)
+
+		rec := httptest.NewRecorder()
+		WriteReflectResponse(rec, components)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var body difc.ReflectResponse
+		require.NoError(t, json.NewDecoder(rec.Body).Decode(&body))
+		assert.Equal(t, "strict", body.Mode)
+		assert.NotNil(t, body.Agents)
+	})
+
+	t.Run("timestamp is an RFC3339 string", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		WriteReflectResponse(rec, difc.DIFCComponents{})
+
+		var body difc.ReflectResponse
+		require.NoError(t, json.NewDecoder(rec.Body).Decode(&body))
+		_, parseErr := time.Parse(time.RFC3339, body.Timestamp)
+		assert.NoError(t, parseErr, "Timestamp should be a valid RFC3339 string")
+	})
 }

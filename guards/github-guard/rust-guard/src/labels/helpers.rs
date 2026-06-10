@@ -2892,4 +2892,73 @@ mod tests {
     fn short_sha_handles_empty_string() {
         assert_eq!(short_sha(""), "");
     }
+
+    #[test]
+    fn test_extract_repo_scope_explicit_args_win_over_query() {
+        let tool_args = serde_json::json!({
+            "owner": "myorg",
+            "repo": "myrepo",
+            "query": "repo:otherorg/otherrepo is:open"
+        });
+
+        let (owner, repo, repo_id) = extract_repo_scope_with_query_fallback(&tool_args);
+
+        assert_eq!(owner, "myorg");
+        assert_eq!(repo, "myrepo");
+        assert_eq!(repo_id, "myorg/myrepo");
+    }
+
+    #[test]
+    fn test_extract_repo_scope_fallback_to_query_when_args_absent() {
+        let tool_args = serde_json::json!({
+            "query": "repo:myorg/myrepo is:open label:bug"
+        });
+
+        let (owner, repo, repo_id) = extract_repo_scope_with_query_fallback(&tool_args);
+
+        assert_eq!(owner, "myorg");
+        assert_eq!(repo, "myrepo");
+        assert_eq!(repo_id, "myorg/myrepo");
+    }
+
+    #[test]
+    fn test_extract_repo_scope_partial_args_fallback_to_query() {
+        let tool_args = serde_json::json!({
+            "owner": "myorg",
+            "query": "repo:otherorg/otherrepo is:open"
+        });
+
+        let (owner, repo, repo_id) = extract_repo_scope_with_query_fallback(&tool_args);
+
+        assert_eq!(owner, "otherorg");
+        assert_eq!(repo, "otherrepo");
+        assert_eq!(repo_id, "otherorg/otherrepo");
+    }
+
+    #[test]
+    fn test_extract_repo_scope_partial_args_repo_only_fallback_to_query() {
+        let tool_args = serde_json::json!({
+            "repo": "myrepo",
+            "query": "repo:otherorg/otherrepo is:open"
+        });
+
+        let (owner, repo, repo_id) = extract_repo_scope_with_query_fallback(&tool_args);
+
+        assert_eq!(owner, "otherorg");
+        assert_eq!(repo, "otherrepo");
+        assert_eq!(repo_id, "otherorg/otherrepo");
+    }
+
+    #[test]
+    fn test_extract_repo_scope_empty_when_neither_args_nor_query_has_repo() {
+        let tool_args = serde_json::json!({
+            "query": "is:open label:bug"
+        });
+
+        let (owner, repo, repo_id) = extract_repo_scope_with_query_fallback(&tool_args);
+
+        assert_eq!(owner, "");
+        assert_eq!(repo, "");
+        assert_eq!(repo_id, "");
+    }
 }

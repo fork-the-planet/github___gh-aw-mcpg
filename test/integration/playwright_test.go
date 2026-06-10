@@ -14,6 +14,25 @@ import (
 	"time"
 )
 
+// isDockerRegistryNetworkError detects Docker registry connectivity failures from
+// docker pull/build output so the test can skip external network outages.
+func isDockerRegistryNetworkError(output string) bool {
+	if strings.Contains(output, "failed to resolve source metadata") {
+		return true
+	}
+
+	hasRegistryContext := strings.Contains(output, "registry-1.docker.io") ||
+		strings.Contains(output, "docker.io/")
+	if !hasRegistryContext {
+		return false
+	}
+
+	return strings.Contains(output, "i/o timeout") ||
+		strings.Contains(output, "connection refused") ||
+		strings.Contains(output, "request canceled while waiting for connection") ||
+		strings.Contains(output, "TLS handshake timeout")
+}
+
 // TestPlaywrightMCPServer tests integration with the containerized playwright MCP server
 // This test verifies that the gateway can work with MCP servers that use different
 // JSON Schema versions (e.g., draft-07) without panicking
@@ -44,7 +63,9 @@ func TestPlaywrightMCPServer(t *testing.T) {
 			if strings.Contains(outputStr, "denied") || strings.Contains(outputStr, "unauthorized") {
 				t.Skipf("Playwright MCP server image not accessible (may be private): %s. Output: %s", playwrightImage, outputStr)
 			}
-			// For other errors (network issues, etc.), fail the test
+			if isDockerRegistryNetworkError(outputStr) {
+				t.Skipf("Skipping test: failed to pull playwright MCP server image due to network issues: %v", pullErr)
+			}
 			t.Fatalf("Failed to pull playwright MCP server image: %s. Error: %v. Output: %s", playwrightImage, pullErr, outputStr)
 		}
 		t.Logf("Successfully pulled image: %s", playwrightImage)
@@ -390,10 +411,7 @@ CMD ["node", "mock-mcp-server.js"]
 	if err != nil {
 		outputStr := string(buildOutput)
 		t.Logf("Build output:\n%s", outputStr)
-		// Skip if the failure is due to network issues (can't pull base image)
-		if strings.Contains(outputStr, "failed to resolve source metadata") ||
-			strings.Contains(outputStr, "i/o timeout") ||
-			strings.Contains(outputStr, "connection refused") {
+		if isDockerRegistryNetworkError(outputStr) {
 			t.Skipf("Skipping test: Docker build failed due to network issues: %v", err)
 		}
 		t.Fatalf("Failed to build test image: %v", err)
