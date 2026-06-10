@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/mcpresult"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -59,17 +58,24 @@ func convertMapToCallToolResult(m map[string]interface{}) (*sdk.CallToolResult, 
 		return marshalValueToTextContentResult(m)
 	}
 
-	items, ok := mcpresult.NormalizeContentItems(contentVal)
-	if !ok {
-		// content field exists but is not a recognizable slice type — wrap the whole map as text.
-		return marshalValueToTextContentResult(m)
-	}
-	if rawItems, ok := contentVal.([]interface{}); ok && len(items) != len(rawItems) {
-		for i, item := range rawItems {
-			if _, ok := item.(map[string]interface{}); !ok {
+	// Collect content items from either []interface{} (produced by json.Unmarshal) or
+	// []map[string]interface{} (produced by helpers like BuildMCPTextResponse).
+	var items []map[string]interface{}
+	switch v := contentVal.(type) {
+	case []interface{}:
+		items = make([]map[string]interface{}, 0, len(v))
+		for i, item := range v {
+			ci, ok := item.(map[string]interface{})
+			if !ok {
 				return nil, fmt.Errorf("content item %d: expected map, got %T", i, item)
 			}
+			items = append(items, ci)
 		}
+	case []map[string]interface{}:
+		items = v
+	default:
+		// content field exists but is not a recognizable slice type — wrap the whole map as text.
+		return marshalValueToTextContentResult(m)
 	}
 
 	// Note: empty content array is valid and should be preserved (0 items).
