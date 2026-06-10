@@ -17,6 +17,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// createMockHTTPBackendConfig returns a local HTTP backend config plus cleanup so
+// large payload tests can start the gateway without pulling container images.
+func createMockHTTPBackendConfig(t *testing.T, serverName string) (map[string]interface{}, func()) {
+	t.Helper()
+
+	mockBackend := createMinimalMockMCPBackend(t)
+	return map[string]interface{}{
+			serverName: map[string]interface{}{
+				"type": "http",
+				"url":  mockBackend.URL + "/mcp",
+			},
+		}, func() {
+			mockBackend.Close()
+		}
+}
+
 // TestLargePayload_StoredInPayloadDir tests that large payloads from backend MCP servers
 // are properly stored in the configured payloadDir
 func TestLargePayload_StoredInPayloadDir(t *testing.T) {
@@ -32,12 +48,9 @@ func TestLargePayload_StoredInPayloadDir(t *testing.T) {
 	t.Logf("Using payload directory: %s", payloadDir)
 
 	// Create a config file with payload_dir configured
-	configFile := createTempConfigWithPayloadDir(t, payloadDir, map[string]interface{}{
-		"echo": map[string]interface{}{
-			"command": "docker",
-			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
-		},
-	})
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
+	defer cleanup()
+	configFile := createTempConfigWithPayloadDir(t, payloadDir, servers)
 	defer os.Remove(configFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -95,12 +108,9 @@ func TestLargePayload_SessionIsolation(t *testing.T) {
 	t.Logf("Using payload directory: %s", payloadDir)
 
 	// Create a config file
-	configFile := createTempConfigWithPayloadDir(t, payloadDir, map[string]interface{}{
-		"echo": map[string]interface{}{
-			"command": "docker",
-			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
-		},
-	})
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
+	defer cleanup()
+	configFile := createTempConfigWithPayloadDir(t, payloadDir, servers)
 	defer os.Remove(configFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -174,12 +184,9 @@ func TestLargePayload_PayloadDirFlag(t *testing.T) {
 	customPayloadDir := t.TempDir()
 	t.Logf("Custom payload directory: %s", customPayloadDir)
 
-	configFile := createTempConfig(t, map[string]interface{}{
-		"testserver": map[string]interface{}{
-			"command": "docker",
-			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
-		},
-	})
+	servers, cleanup := createMockHTTPBackendConfig(t, "testserver")
+	defer cleanup()
+	configFile := createTempConfig(t, servers)
 	defer os.Remove(configFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -238,12 +245,9 @@ func TestLargePayload_ConfigPayloadDir(t *testing.T) {
 	t.Logf("Config payload directory: %s", configPayloadDir)
 
 	// Create a config file with payload_dir in gateway section
-	configFile := createTempConfigWithPayloadDir(t, configPayloadDir, map[string]interface{}{
-		"testserver": map[string]interface{}{
-			"command": "docker",
-			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
-		},
-	})
+	servers, cleanup := createMockHTTPBackendConfig(t, "testserver")
+	defer cleanup()
+	configFile := createTempConfigWithPayloadDir(t, configPayloadDir, servers)
 	defer os.Remove(configFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -299,12 +303,9 @@ func TestLargePayload_MultipleSessionsIsolated(t *testing.T) {
 	payloadDir := t.TempDir()
 	t.Logf("Using payload directory: %s", payloadDir)
 
-	configFile := createTempConfigWithPayloadDir(t, payloadDir, map[string]interface{}{
-		"echo": map[string]interface{}{
-			"command": "docker",
-			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
-		},
-	})
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
+	defer cleanup()
+	configFile := createTempConfigWithPayloadDir(t, payloadDir, servers)
 	defer os.Remove(configFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -387,6 +388,12 @@ func createTempConfigWithPayloadDir(t *testing.T, payloadDir string, servers map
 	for name, config := range servers {
 		fmt.Fprintf(tmpFile, "\n[servers.%s]\n", name)
 		if cfg, ok := config.(map[string]interface{}); ok {
+			if serverType, ok := cfg["type"].(string); ok {
+				fmt.Fprintf(tmpFile, "type = %q\n", serverType)
+			}
+			if url, ok := cfg["url"].(string); ok {
+				fmt.Fprintf(tmpFile, "url = %q\n", url)
+			}
 			if cmd, ok := cfg["command"].(string); ok {
 				fmt.Fprintf(tmpFile, "command = %q\n", cmd)
 			}
@@ -459,12 +466,9 @@ func TestLargePayload_PayloadDirectoryPermissions(t *testing.T) {
 	// Create a temporary payload directory
 	payloadDir := t.TempDir()
 
-	configFile := createTempConfigWithPayloadDir(t, payloadDir, map[string]interface{}{
-		"echo": map[string]interface{}{
-			"command": "docker",
-			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
-		},
-	})
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
+	defer cleanup()
+	configFile := createTempConfigWithPayloadDir(t, payloadDir, servers)
 	defer os.Remove(configFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -523,12 +527,9 @@ func TestLargePayload_SessionIDFromAuthorizationHeader(t *testing.T) {
 
 	payloadDir := t.TempDir()
 
-	configFile := createTempConfigWithPayloadDir(t, payloadDir, map[string]interface{}{
-		"echo": map[string]interface{}{
-			"command": "docker",
-			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
-		},
-	})
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
+	defer cleanup()
+	configFile := createTempConfigWithPayloadDir(t, payloadDir, servers)
 	defer os.Remove(configFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -615,12 +616,9 @@ func TestLargePayload_PayloadDirDoesNotExist(t *testing.T) {
 	_, err := os.Stat(nonExistentDir)
 	require.True(t, os.IsNotExist(err), "Directory should not exist initially")
 
-	configFile := createTempConfig(t, map[string]interface{}{
-		"echo": map[string]interface{}{
-			"command": "docker",
-			"args":    []string{"run", "--rm", "-i", "alpine:latest", "echo"},
-		},
-	})
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
+	defer cleanup()
+	configFile := createTempConfig(t, servers)
 	defer os.Remove(configFile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

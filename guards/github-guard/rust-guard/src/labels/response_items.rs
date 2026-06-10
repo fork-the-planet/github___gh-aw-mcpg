@@ -354,7 +354,7 @@ pub fn label_response_items(
 
             for item in items_limited.iter().copied() {
                 let sha = item.get("sha").and_then(|v| v.as_str()).unwrap_or("");
-                let short_sha = if sha.len() > 8 { &sha[..8] } else { sha };
+                let short_sha = short_sha(sha);
 
                 let integrity =
                     commit_integrity(item, &repo_full_name, repo_private, is_default_branch, ctx);

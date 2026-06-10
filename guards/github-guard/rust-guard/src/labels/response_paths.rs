@@ -213,11 +213,7 @@ pub fn label_response_paths(
                         }
                         .into(),
                     }),
-                    items_path: if items_path.is_empty() {
-                        None
-                    } else {
-                        Some(items_path)
-                    },
+                    items_path: (!items_path.is_empty()).then_some(items_path),
                 });
             }
             } // end else (non-sub-method)
@@ -313,11 +309,7 @@ pub fn label_response_paths(
                         }
                         .into(),
                     }),
-                    items_path: if items_path.is_empty() {
-                        None
-                    } else {
-                        Some(items_path)
-                    },
+                    items_path: (!items_path.is_empty()).then_some(items_path),
                 });
             }
             } // end else (non-sub-method)
@@ -364,7 +356,7 @@ pub fn label_response_paths(
                     };
 
                     let commit_sha = get_str_or(item, "sha", "unknown");
-                    let short_sha = &commit_sha[..std::cmp::min(7, commit_sha.len())];
+                    let short_sha = short_sha(&commit_sha);
 
                     let integrity = commit_integrity(
                         item,
@@ -656,11 +648,7 @@ pub fn label_response_paths(
                         secrecy: vec![].into(),
                         integrity: writer_integrity(&arg_owner, ctx).into(),
                     }),
-                    items_path: if items_path.is_empty() {
-                        None
-                    } else {
-                        Some(items_path)
-                    },
+                    items_path: (!items_path.is_empty()).then_some(items_path),
                 });
             }
         }

@@ -672,6 +672,12 @@ func createTempConfig(t *testing.T, servers map[string]interface{}) string {
 	for name, config := range servers {
 		fmt.Fprintf(tmpFile, "\n[servers.%s]\n", name)
 		if cfg, ok := config.(map[string]interface{}); ok {
+			if serverType, ok := cfg["type"].(string); ok {
+				fmt.Fprintf(tmpFile, "type = %q\n", serverType)
+			}
+			if url, ok := cfg["url"].(string); ok {
+				fmt.Fprintf(tmpFile, "url = %q\n", url)
+			}
 			if cmd, ok := cfg["command"].(string); ok {
 				fmt.Fprintf(tmpFile, "command = %q\n", cmd)
 			}

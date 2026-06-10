@@ -14,7 +14,7 @@ use super::helpers::{
     format_repo_id, get_string_field, is_any_trusted_actor, is_default_branch_commit_context,
     is_default_branch_ref, max_integrity,
     merged_integrity, policy_private_scope_label, private_user_label, project_github_label,
-    reader_integrity, writer_integrity, PolicyContext,
+    reader_integrity, short_sha, writer_integrity, PolicyContext,
 };
 
 fn apply_repo_visibility_secrecy(
@@ -292,7 +292,7 @@ pub fn apply_tool_labels(
             // S(commit) = S(repo)
             if !owner.is_empty() && !repo.is_empty() {
                 if let Some(sha) = tool_args.get(field_names::SHA).and_then(|v| v.as_str()) {
-                    let short_sha = if sha.len() > 8 { &sha[..8] } else { sha };
+                    let short_sha = short_sha(sha);
                     desc = format!("commit:{}/{}@{}", owner, repo, short_sha);
                 }
             }

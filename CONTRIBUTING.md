@@ -286,7 +286,6 @@ gh-aw-mcpg/
     ├── envutil/               # Environment variable utilities
     ├── guard/                 # Security guards (NoopGuard, WasmGuard, WriteSinkGuard)
     ├── httputil/              # Shared HTTP helper utilities (server responses, proxy transport)
-    ├── jsonutil/              # JSON deep-clone utilities
     ├── launcher/              # Backend server management
     ├── logger/                # Debug logging framework
     ├── mcp/                   # MCP protocol types & connection
@@ -295,7 +294,7 @@ gh-aw-mcpg/
     ├── oidc/                  # OIDC authentication for HTTP MCP backends
     ├── proxy/                 # HTTP forward proxy for DIFC filtering
     ├── server/                # HTTP server (routed/unified modes)
-    ├── strutil/               # String and formatting utility helpers
+    ├── strutil/               # String, formatting, and JSON deep-clone utility helpers
     ├── syncutil/              # Concurrency utility helpers
     ├── sys/                   # System utilities
     ├── testutil/              # Test utilities and helpers
@@ -313,7 +312,6 @@ gh-aw-mcpg/
 - **`internal/envutil/`** - Environment variable utilities
 - **`internal/guard/`** - Guard framework for resource labeling
 - **`internal/httputil/`** - Shared HTTP helper utilities (server responses, proxy transport)
-- **`internal/jsonutil/`** - JSON deep-clone utilities
 - **`internal/launcher/`** - Backend process management (Docker, stdio)
 - **`internal/logger/`** - Micro logger for debug output
 - **`internal/mcp/`** - MCP protocol types and JSON-RPC handling
@@ -322,7 +320,7 @@ gh-aw-mcpg/
 - **`internal/oidc/`** - OIDC authentication for HTTP MCP backends
 - **`internal/proxy/`** - HTTP forward proxy applying DIFC filtering to `gh` CLI and REST/GraphQL requests
 - **`internal/server/`** - HTTP server with routed and unified modes
-- **`internal/strutil/`** - String and formatting utility helpers (deduplication, trimming, duration formatting)
+- **`internal/strutil/`** - String, formatting, and JSON deep-clone utility helpers (deduplication, trimming, duration formatting, deep-clone)
 - **`internal/syncutil/`** - Concurrency utility helpers (get-or-create pattern)
 - **`internal/sys/`** - System utilities
 - **`internal/testutil/`** - Test utilities and helpers
@@ -455,7 +453,6 @@ DEBUG=server:* ./awmg --config config.toml   # Enable specific package
 The project uses:
 
 - `github.com/spf13/cobra` - CLI framework
-- `github.com/spf13/pflag` - POSIX/GNU-style flag parsing used by tracing and CLI integrations
 - `github.com/BurntSushi/toml` - TOML parser
 - `github.com/modelcontextprotocol/go-sdk` - MCP protocol implementation
 - `github.com/itchyny/gojq` - JQ schema processing

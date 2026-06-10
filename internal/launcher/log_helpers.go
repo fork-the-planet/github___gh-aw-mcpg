@@ -7,7 +7,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
-	"github.com/github/gh-aw-mcpg/internal/mcp"
 )
 
 // logSecurityWarning logs container security warnings
@@ -52,7 +51,7 @@ func (l *Launcher) logEnvPassthrough(args []string) {
 
 // logLaunchError logs detailed launch failure diagnostics
 func (l *Launcher) logLaunchError(serverID, sessionID string, err error, serverCfg *config.ServerConfig, isDirectCommand bool) {
-	mcp.LogConnectionError(mcp.ConnectionErrorContext{
+	LogConnectionError(ConnectionErrorContext{
 		ServerID:           serverID,
 		SessionID:          sessionID,
 		Command:            serverCfg.Command,

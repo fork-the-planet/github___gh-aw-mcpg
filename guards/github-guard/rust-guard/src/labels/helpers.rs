@@ -1224,6 +1224,17 @@ const GRAPHQL_SINGLE_OBJECT_FIELDS: &[&str] = &[
     "discussion",
 ];
 
+/// Truncate a SHA to the standard 7-character short form used by GitHub's UI
+/// and `git log --abbrev`. Returns the full string unchanged when it is already
+/// shorter than 7 characters.
+#[inline]
+pub(crate) fn short_sha(sha: &str) -> &str {
+    match sha.char_indices().nth(7) {
+        Some((idx, _)) => &sha[..idx],
+        None => sha,
+    }
+}
+
 /// Generate JSON Pointer path for an item index in a collection
 /// Returns a path like "/items/0" or "/0" depending on the items_path
 #[inline]
@@ -1825,7 +1836,7 @@ pub fn commit_integrity(
     let author_login = extract_author_login(item);
     if !author_login.is_empty() && is_blocked_user(author_login, ctx) {
         let sha = item.get("sha").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let short_sha = if sha.len() > 8 { &sha[..8] } else { sha };
+        let short_sha = short_sha(sha);
         crate::log_info(&format!(
             "[integrity] commit:{}@{} → blocked (author '{}' in blocked-users)",
             repo_full_name, short_sha, author_login
@@ -1854,7 +1865,7 @@ pub fn commit_integrity(
     // whose author_association is missing or "NONE").
     if !repo_private {
         let sha = item.get("sha").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let short_sha = if sha.len() > 8 { &sha[..8] } else { sha };
+        let short_sha = short_sha(sha);
         integrity = elevate_via_collaborator_permission(
             author_login, repo_full_name, "commit", &format!("{}@{}", repo_full_name, short_sha),
             integrity, ctx,
@@ -2864,5 +2875,90 @@ mod tests {
             extract_repo_info_from_search_query("repo:first/one repo:second/two");
         assert_eq!(owner, "first");
         assert_eq!(repo, "one");
+    }
+
+    #[test]
+    fn short_sha_truncates_full_sha_to_7() {
+        assert_eq!(short_sha("a590b228c2e258907f503759c31c75bbfcd78a36"), "a590b22");
+    }
+
+    #[test]
+    fn short_sha_leaves_short_shas_intact() {
+        assert_eq!(short_sha("abc1234"), "abc1234"); // exactly 7 — unchanged
+        assert_eq!(short_sha("abc12"), "abc12");     // shorter — unchanged
+    }
+
+    #[test]
+    fn short_sha_handles_empty_string() {
+        assert_eq!(short_sha(""), "");
+    }
+
+    #[test]
+    fn test_extract_repo_scope_explicit_args_win_over_query() {
+        let tool_args = serde_json::json!({
+            "owner": "myorg",
+            "repo": "myrepo",
+            "query": "repo:otherorg/otherrepo is:open"
+        });
+
+        let (owner, repo, repo_id) = extract_repo_scope_with_query_fallback(&tool_args);
+
+        assert_eq!(owner, "myorg");
+        assert_eq!(repo, "myrepo");
+        assert_eq!(repo_id, "myorg/myrepo");
+    }
+
+    #[test]
+    fn test_extract_repo_scope_fallback_to_query_when_args_absent() {
+        let tool_args = serde_json::json!({
+            "query": "repo:myorg/myrepo is:open label:bug"
+        });
+
+        let (owner, repo, repo_id) = extract_repo_scope_with_query_fallback(&tool_args);
+
+        assert_eq!(owner, "myorg");
+        assert_eq!(repo, "myrepo");
+        assert_eq!(repo_id, "myorg/myrepo");
+    }
+
+    #[test]
+    fn test_extract_repo_scope_partial_args_fallback_to_query() {
+        let tool_args = serde_json::json!({
+            "owner": "myorg",
+            "query": "repo:otherorg/otherrepo is:open"
+        });
+
+        let (owner, repo, repo_id) = extract_repo_scope_with_query_fallback(&tool_args);
+
+        assert_eq!(owner, "otherorg");
+        assert_eq!(repo, "otherrepo");
+        assert_eq!(repo_id, "otherorg/otherrepo");
+    }
+
+    #[test]
+    fn test_extract_repo_scope_partial_args_repo_only_fallback_to_query() {
+        let tool_args = serde_json::json!({
+            "repo": "myrepo",
+            "query": "repo:otherorg/otherrepo is:open"
+        });
+
+        let (owner, repo, repo_id) = extract_repo_scope_with_query_fallback(&tool_args);
+
+        assert_eq!(owner, "otherorg");
+        assert_eq!(repo, "otherrepo");
+        assert_eq!(repo_id, "otherorg/otherrepo");
+    }
+
+    #[test]
+    fn test_extract_repo_scope_empty_when_neither_args_nor_query_has_repo() {
+        let tool_args = serde_json::json!({
+            "query": "is:open label:bug"
+        });
+
+        let (owner, repo, repo_id) = extract_repo_scope_with_query_fallback(&tool_args);
+
+        assert_eq!(owner, "");
+        assert_eq!(repo, "");
+        assert_eq!(repo_id, "");
     }
 }
