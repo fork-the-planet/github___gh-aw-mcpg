@@ -172,45 +172,32 @@ func TestNewHTTPConnection_ContextCancellation(t *testing.T) {
 // TestNewHTTPConnection_InvalidURL tests error handling for invalid URLs
 func TestNewHTTPConnection_InvalidURL(t *testing.T) {
 	tests := []struct {
-		name        string
-		url         string
-		headers     map[string]string
-		expectError bool
+		name    string
+		url     string
+		headers map[string]string
 	}{
 		{
-			name:        "malformed URL",
-			url:         "://invalid-url",
-			headers:     map[string]string{"Auth": "token"},
-			expectError: true,
+			name:    "malformed URL",
+			url:     "://invalid-url",
+			headers: map[string]string{"Auth": "token"},
 		},
 		{
-			name:        "unreachable host",
-			url:         "http://this-host-does-not-exist-12345.com",
-			headers:     map[string]string{"Auth": "token"},
-			expectError: true,
+			name:    "unreachable host",
+			url:     "http://this-host-does-not-exist-12345.com",
+			headers: map[string]string{"Auth": "token"},
 		},
 		{
-			name:        "unreachable port",
-			url:         "http://localhost:99999", // Invalid port
-			headers:     map[string]string{"Auth": "token"},
-			expectError: true,
+			name:    "unreachable port",
+			url:     "http://localhost:99999", // Invalid port
+			headers: map[string]string{"Auth": "token"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn, err := NewHTTPConnection(context.Background(), "test-server", tt.url, tt.headers, nil, "", 0, 0)
-
-			if tt.expectError {
-				assert.Error(t, err, "Expected error for invalid URL")
-				assert.Nil(t, conn, "Connection should be nil on error")
-			} else {
-				assert.NoError(t, err, "Should not error")
-				assert.NotNil(t, conn, "Connection should not be nil")
-				if conn != nil {
-					conn.Close()
-				}
-			}
+			assert.Error(t, err, "Expected error for invalid URL")
+			assert.Nil(t, conn, "Connection should be nil on error")
 		})
 	}
 }

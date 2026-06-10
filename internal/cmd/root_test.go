@@ -109,7 +109,7 @@ func TestPreRunValidation(t *testing.T) {
 		configStdin = false
 		verbosity = 1
 		err := preRun(&cobra.Command{}, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Level 1 doesn't set DEBUG env var
 		assert.Empty(t, os.Getenv(logger.EnvDebug))
 	})
@@ -137,7 +137,7 @@ func TestPreRunValidation(t *testing.T) {
 		verbosity = 1
 
 		err := preRun(&cobra.Command{}, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, os.Getenv(logger.EnvDebug))
 		assert.Empty(t, logBuf.String(), "verbosity level 1 should not emit log output")
 	})
@@ -158,7 +158,7 @@ func TestPreRunValidation(t *testing.T) {
 		configStdin = false
 		verbosity = 2
 		err := preRun(&cobra.Command{}, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "cmd:*,server:*,launcher:*", os.Getenv(logger.EnvDebug))
 	})
 
@@ -178,7 +178,7 @@ func TestPreRunValidation(t *testing.T) {
 		configStdin = false
 		verbosity = 3
 		err := preRun(&cobra.Command{}, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "*", os.Getenv(logger.EnvDebug))
 	})
 
@@ -198,7 +198,7 @@ func TestPreRunValidation(t *testing.T) {
 		configStdin = false
 		verbosity = 2
 		err := preRun(&cobra.Command{}, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		// Should not override existing DEBUG
 		assert.Equal(t, "custom:*", os.Getenv(logger.EnvDebug))
 	})
