@@ -294,7 +294,7 @@ gh-aw-mcpg/
     ├── oidc/                  # OIDC authentication for HTTP MCP backends
     ├── proxy/                 # HTTP forward proxy for DIFC filtering
     ├── server/                # HTTP server (routed/unified modes)
-    ├── strutil/               # String, formatting, and JSON deep-clone utility helpers
+    ├── strutil/               # String and formatting utility helpers (deduplication, trimming, duration formatting, JSON deep-clone)
     ├── syncutil/              # Concurrency utility helpers
     ├── sys/                   # System utilities
     ├── testutil/              # Test utilities and helpers
@@ -320,7 +320,7 @@ gh-aw-mcpg/
 - **`internal/oidc/`** - OIDC authentication for HTTP MCP backends
 - **`internal/proxy/`** - HTTP forward proxy applying DIFC filtering to `gh` CLI and REST/GraphQL requests
 - **`internal/server/`** - HTTP server with routed and unified modes
-- **`internal/strutil/`** - String, formatting, and JSON deep-clone utility helpers (deduplication, trimming, duration formatting, deep-clone)
+- **`internal/strutil/`** - String and formatting utility helpers (deduplication, trimming, duration formatting, JSON deep-clone)
 - **`internal/syncutil/`** - Concurrency utility helpers (get-or-create pattern)
 - **`internal/sys/`** - System utilities
 - **`internal/testutil/`** - Test utilities and helpers
