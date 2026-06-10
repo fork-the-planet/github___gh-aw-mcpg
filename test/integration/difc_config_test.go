@@ -392,16 +392,30 @@ func TestFullDIFCConfigFromJSON(t *testing.T) {
 	port := getFreePort(t)
 	logDir := t.TempDir()
 
+	// Start a local HTTP server that rejects connections quickly (returns 500)
+	// so the gateway doesn't hang waiting for non-existent backends.
+	failServer := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(`{"error":"test backend unavailable"}`))
+		}),
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	failServerAddr := ln.Addr().String()
+	go failServer.Serve(ln)
+	defer failServer.Close()
+
 	config := fmt.Sprintf(`{
 		"mcpServers": {
 			"server1": {
-				"type": "stdio",
-				"container": "test/server1:latest",
+				"type": "http",
+				"url": "http://%s",
 				"guard": "guard1"
 			},
 			"server2": {
 				"type": "http",
-				"url": "http://localhost:9999",
+				"url": "http://%s",
 				"guard": "guard2"
 			}
 		},
@@ -419,7 +433,7 @@ func TestFullDIFCConfigFromJSON(t *testing.T) {
 			"domain": "localhost",
 			"agentId": "test-key"
 		}
-	}`, port)
+	}`, failServerAddr, failServerAddr, port)
 
 	ctx5, cancel5 := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel5()
@@ -435,12 +449,12 @@ func TestFullDIFCConfigFromJSON(t *testing.T) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	err := cmd.Start()
+	err = cmd.Start()
 	require.NoError(t, err, "Failed to start gateway")
 
 	// Wait for full startup — "Starting MCPG" prints after guard registration
-	// and backend connection attempts. With non-existent Docker images, backend
-	// failures are fast so this typically completes within a few seconds.
+	// and backend connection attempts. Using a local test server that returns
+	// 500 ensures backend failures are fast (no TCP timeout).
 	ok := waitForStderr(&stderr, "Starting MCPG", 15*time.Second)
 	require.Truef(t, ok, "timeout waiting for gateway startup within %s; stderr:\n%s", 15*time.Second, stderr.String())
 
