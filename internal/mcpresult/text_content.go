@@ -11,20 +11,8 @@ func ExtractTextContent(result map[string]interface{}) string {
 		return ""
 	}
 
-	var items []map[string]interface{}
-	switch v := contentVal.(type) {
-	case []interface{}:
-		items = make([]map[string]interface{}, 0, len(v))
-		for _, item := range v {
-			ci, ok := item.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			items = append(items, ci)
-		}
-	case []map[string]interface{}:
-		items = v
-	default:
+	items, ok := NormalizeContentItems(contentVal)
+	if !ok {
 		return ""
 	}
 

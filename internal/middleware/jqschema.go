@@ -15,6 +15,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	"github.com/github/gh-aw-mcpg/internal/mcpresult"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/itchyny/gojq"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -628,15 +629,16 @@ func wrapToolHandler(
 							}
 						}
 						if onlyKnownKeys {
+							items, ok := mcpresult.NormalizeContentItems(env["content"])
 							var first map[string]interface{}
 							switch c := env["content"].(type) {
 							case []interface{}:
-								if len(c) == 1 {
-									first, _ = c[0].(map[string]interface{})
+								if len(c) == 1 && ok && len(items) == 1 {
+									first = items[0]
 								}
 							case []map[string]interface{}:
-								if len(c) == 1 {
-									first = c[0]
+								if len(c) == 1 && ok && len(items) == 1 {
+									first = items[0]
 								}
 							}
 							if first != nil {
