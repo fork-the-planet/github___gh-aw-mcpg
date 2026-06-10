@@ -17,7 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func createMockBackendConfig(t *testing.T, serverName string) (map[string]interface{}, func()) {
+// createMockHTTPBackendConfig returns a local HTTP backend config plus cleanup so
+// large payload tests can start the gateway without pulling container images.
+func createMockHTTPBackendConfig(t *testing.T, serverName string) (map[string]interface{}, func()) {
 	t.Helper()
 
 	mockBackend := createMinimalMockMCPBackend(t)
@@ -46,7 +48,7 @@ func TestLargePayload_StoredInPayloadDir(t *testing.T) {
 	t.Logf("Using payload directory: %s", payloadDir)
 
 	// Create a config file with payload_dir configured
-	servers, cleanup := createMockBackendConfig(t, "echo")
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
 	defer cleanup()
 	configFile := createTempConfigWithPayloadDir(t, payloadDir, servers)
 	defer os.Remove(configFile)
@@ -106,7 +108,7 @@ func TestLargePayload_SessionIsolation(t *testing.T) {
 	t.Logf("Using payload directory: %s", payloadDir)
 
 	// Create a config file
-	servers, cleanup := createMockBackendConfig(t, "echo")
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
 	defer cleanup()
 	configFile := createTempConfigWithPayloadDir(t, payloadDir, servers)
 	defer os.Remove(configFile)
@@ -182,7 +184,7 @@ func TestLargePayload_PayloadDirFlag(t *testing.T) {
 	customPayloadDir := t.TempDir()
 	t.Logf("Custom payload directory: %s", customPayloadDir)
 
-	servers, cleanup := createMockBackendConfig(t, "testserver")
+	servers, cleanup := createMockHTTPBackendConfig(t, "testserver")
 	defer cleanup()
 	configFile := createTempConfig(t, servers)
 	defer os.Remove(configFile)
@@ -243,7 +245,7 @@ func TestLargePayload_ConfigPayloadDir(t *testing.T) {
 	t.Logf("Config payload directory: %s", configPayloadDir)
 
 	// Create a config file with payload_dir in gateway section
-	servers, cleanup := createMockBackendConfig(t, "testserver")
+	servers, cleanup := createMockHTTPBackendConfig(t, "testserver")
 	defer cleanup()
 	configFile := createTempConfigWithPayloadDir(t, configPayloadDir, servers)
 	defer os.Remove(configFile)
@@ -301,7 +303,7 @@ func TestLargePayload_MultipleSessionsIsolated(t *testing.T) {
 	payloadDir := t.TempDir()
 	t.Logf("Using payload directory: %s", payloadDir)
 
-	servers, cleanup := createMockBackendConfig(t, "echo")
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
 	defer cleanup()
 	configFile := createTempConfigWithPayloadDir(t, payloadDir, servers)
 	defer os.Remove(configFile)
@@ -464,7 +466,7 @@ func TestLargePayload_PayloadDirectoryPermissions(t *testing.T) {
 	// Create a temporary payload directory
 	payloadDir := t.TempDir()
 
-	servers, cleanup := createMockBackendConfig(t, "echo")
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
 	defer cleanup()
 	configFile := createTempConfigWithPayloadDir(t, payloadDir, servers)
 	defer os.Remove(configFile)
@@ -525,7 +527,7 @@ func TestLargePayload_SessionIDFromAuthorizationHeader(t *testing.T) {
 
 	payloadDir := t.TempDir()
 
-	servers, cleanup := createMockBackendConfig(t, "echo")
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
 	defer cleanup()
 	configFile := createTempConfigWithPayloadDir(t, payloadDir, servers)
 	defer os.Remove(configFile)
@@ -614,7 +616,7 @@ func TestLargePayload_PayloadDirDoesNotExist(t *testing.T) {
 	_, err := os.Stat(nonExistentDir)
 	require.True(t, os.IsNotExist(err), "Directory should not exist initially")
 
-	servers, cleanup := createMockBackendConfig(t, "echo")
+	servers, cleanup := createMockHTTPBackendConfig(t, "echo")
 	defer cleanup()
 	configFile := createTempConfig(t, servers)
 	defer os.Remove(configFile)

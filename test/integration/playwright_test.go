@@ -14,9 +14,20 @@ import (
 	"time"
 )
 
+// isDockerRegistryNetworkError detects Docker registry connectivity failures from
+// docker pull/build output so the test can skip external network outages.
 func isDockerRegistryNetworkError(output string) bool {
-	return strings.Contains(output, "failed to resolve source metadata") ||
-		strings.Contains(output, "i/o timeout") ||
+	if strings.Contains(output, "failed to resolve source metadata") {
+		return true
+	}
+
+	hasRegistryContext := strings.Contains(output, "registry-1.docker.io") ||
+		strings.Contains(output, "docker.io/")
+	if !hasRegistryContext {
+		return false
+	}
+
+	return strings.Contains(output, "i/o timeout") ||
 		strings.Contains(output, "connection refused") ||
 		strings.Contains(output, "request canceled while waiting for connection") ||
 		strings.Contains(output, "TLS handshake timeout")
