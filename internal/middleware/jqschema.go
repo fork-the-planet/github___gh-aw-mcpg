@@ -409,43 +409,49 @@ func rewriteEnvelopeTextPayload(data interface{}, filteredText string) (interfac
 			rewrittenMap[key] = value
 		}
 
-		switch content := contentValue.(type) {
-		case []map[string]interface{}:
-			if len(content) == 0 {
-				return nil, false
-			}
-			rewrittenContent := append([]map[string]interface{}(nil), content...)
-			firstItem := make(map[string]interface{}, len(rewrittenContent[0]))
-			for key, value := range rewrittenContent[0] {
-				firstItem[key] = value
-			}
-			firstItem["text"] = filteredText
-			rewrittenContent[0] = firstItem
-			rewrittenMap["content"] = rewrittenContent
-			return rewrittenMap, true
-		case []interface{}:
-			if len(content) == 0 {
-				return nil, false
-			}
-			rewrittenContent := append([]interface{}(nil), content...)
-			firstItem, ok := rewrittenContent[0].(map[string]interface{})
-			if !ok {
-				return nil, false
-			}
-			rewrittenFirstItem := make(map[string]interface{}, len(firstItem))
-			for key, value := range firstItem {
-				rewrittenFirstItem[key] = value
-			}
-			rewrittenFirstItem["text"] = filteredText
-			rewrittenContent[0] = rewrittenFirstItem
-			rewrittenMap["content"] = rewrittenContent
-			return rewrittenMap, true
-		default:
+		rewrittenContent, ok := rewriteFirstContentItem(contentValue, filteredText)
+		if !ok {
 			return nil, false
 		}
+		rewrittenMap["content"] = rewrittenContent
+		return rewrittenMap, true
 	default:
 		return nil, false
 	}
+}
+
+func rewriteFirstContentItem(contentValue interface{}, filteredText string) (interface{}, bool) {
+	switch content := contentValue.(type) {
+	case []map[string]interface{}:
+		if len(content) == 0 {
+			return nil, false
+		}
+		rewrittenContent := append([]map[string]interface{}(nil), content...)
+		rewrittenContent[0] = rewriteContentItemText(rewrittenContent[0], filteredText)
+		return rewrittenContent, true
+	case []interface{}:
+		if len(content) == 0 {
+			return nil, false
+		}
+		rewrittenContent := append([]interface{}(nil), content...)
+		firstItem, ok := rewrittenContent[0].(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+		rewrittenContent[0] = rewriteContentItemText(firstItem, filteredText)
+		return rewrittenContent, true
+	default:
+		return nil, false
+	}
+}
+
+func rewriteContentItemText(contentItem map[string]interface{}, filteredText string) map[string]interface{} {
+	rewrittenItem := make(map[string]interface{}, len(contentItem))
+	for key, value := range contentItem {
+		rewrittenItem[key] = value
+	}
+	rewrittenItem["text"] = filteredText
+	return rewrittenItem
 }
 
 // savePayload saves the payload to disk and returns the file path
