@@ -51,6 +51,8 @@ func newTTLCacheWithClock[K comparable, V any](ttl time.Duration, maxSize int, n
 // On each call, all expired entries are lazily evicted before the lookup. If
 // the cache has reached its capacity after TTL eviction, the LRU entry is
 // removed to make room.
+//
+// create is called while the cache lock is held.
 func (c *TTLCache[K, V]) GetOrCreate(key K, create func() V) V {
 	if c.maxSize <= 0 {
 		return create()
