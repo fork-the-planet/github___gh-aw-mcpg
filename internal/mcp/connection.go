@@ -144,12 +144,12 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 		stderrPipeWriter.Close() // Close pipe to stop the stderr streaming goroutine
 
 		stderrOutput := strings.TrimSpace(stderrBuf.String())
-		LogConnectionError(ConnectionErrorContext{
-			ServerID:     serverID,
-			Command:      command,
-			Args:         expandedArgs,
-			StderrOutput: stderrOutput,
-		}, err)
+		logger.LogErrorToServer(serverID, "backend",
+			"MCP connection failed: server=%s, command=%s, args=%v, error=%v",
+			serverID, command, sanitize.SanitizeArgs(expandedArgs), err)
+		if stderrOutput != "" {
+			logger.LogErrorToMarkdown("backend", "MCP backend stderr output:\n%s", sanitize.SanitizeString(stderrOutput))
+		}
 
 		logConn.Printf("Connection failed: command=%s, error=%v", command, err)
 		return nil, fmt.Errorf("failed to connect: %w", err)

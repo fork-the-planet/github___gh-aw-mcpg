@@ -1,4 +1,4 @@
-package mcp
+package launcher
 
 import (
 	"bytes"
@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// captureLogOutput redirects log output to a buffer for the duration of fn.
-func captureLogOutput(t *testing.T, fn func()) string {
+// captureConnectionErrorLogOutput redirects log output to a buffer for the duration of fn.
+func captureConnectionErrorLogOutput(t *testing.T, fn func()) string {
 	t.Helper()
 	var buf bytes.Buffer
 	oldOutput := log.Writer()
@@ -114,7 +114,7 @@ func TestLogConnectionError_BasicOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := captureLogOutput(t, func() {
+			output := captureConnectionErrorLogOutput(t, func() {
 				LogConnectionError(tt.ctx, tt.err)
 			})
 
@@ -205,7 +205,7 @@ func TestLogConnectionError_ContainerHints(t *testing.T) {
 				IsDirectCommand:    tt.isDirectCommand,
 				RunningInContainer: tt.runningInContainer,
 			}
-			output := captureLogOutput(t, func() {
+			output := captureConnectionErrorLogOutput(t, func() {
 				LogConnectionError(ctx, errors.New("some error"))
 			})
 
@@ -276,7 +276,7 @@ func TestLogConnectionError_ErrorStringHints(t *testing.T) {
 				Args:    []string{"--port", "8080"},
 			}
 
-			output := captureLogOutput(t, func() {
+			output := captureConnectionErrorLogOutput(t, func() {
 				LogConnectionError(ctx, errors.New(tt.errMsg))
 			})
 
@@ -328,7 +328,7 @@ func TestLogConnectionError_StderrOutput(t *testing.T) {
 				Args:         []string{"run", "bad-image"},
 				StderrOutput: tt.stderrOutput,
 			}
-			output := captureLogOutput(t, func() {
+			output := captureConnectionErrorLogOutput(t, func() {
 				LogConnectionError(ctx, errors.New("connection failed"))
 			})
 
@@ -349,7 +349,7 @@ func TestLogConnectionError_StartupTimeout(t *testing.T) {
 			Args:           []string{"run", "img"},
 			StartupTimeout: 30 * time.Second,
 		}
-		output := captureLogOutput(t, func() {
+		output := captureConnectionErrorLogOutput(t, func() {
 			LogConnectionError(ctx, errors.New("timeout"))
 		})
 		assert.Contains(t, output, "Startup timeout: 30s")
@@ -360,7 +360,7 @@ func TestLogConnectionError_StartupTimeout(t *testing.T) {
 			Command: "docker",
 			Args:    []string{"run", "img"},
 		}
-		output := captureLogOutput(t, func() {
+		output := captureConnectionErrorLogOutput(t, func() {
 			LogConnectionError(ctx, errors.New("timeout"))
 		})
 		assert.NotContains(t, output, "Startup timeout:")
@@ -373,7 +373,7 @@ func TestLogConnectionError_ArgsSanitized(t *testing.T) {
 		Command: "docker",
 		Args:    []string{"run", "-e", "TOKEN=super-secret-abc123"},
 	}
-	output := captureLogOutput(t, func() {
+	output := captureConnectionErrorLogOutput(t, func() {
 		LogConnectionError(ctx, errors.New("failed"))
 	})
 	// The secret value should be truncated/masked by SanitizeArgs.
@@ -385,7 +385,7 @@ func TestLogConnectionError_EdgeCases(t *testing.T) {
 	t.Run("empty command and args", func(t *testing.T) {
 		ctx := ConnectionErrorContext{}
 		require.NotPanics(t, func() {
-			captureLogOutput(t, func() {
+			captureConnectionErrorLogOutput(t, func() {
 				LogConnectionError(ctx, errors.New("test error"))
 			})
 		})
@@ -398,7 +398,7 @@ func TestLogConnectionError_EdgeCases(t *testing.T) {
 			Args:    []string{strings.Repeat("y", 5000)},
 		}
 		require.NotPanics(t, func() {
-			captureLogOutput(t, func() {
+			captureConnectionErrorLogOutput(t, func() {
 				LogConnectionError(ctx, errors.New("failed"))
 			})
 		})
@@ -409,7 +409,7 @@ func TestLogConnectionError_EdgeCases(t *testing.T) {
 			Command:      "docker",
 			StderrOutput: "line1\nline2\nline3",
 		}
-		output := captureLogOutput(t, func() {
+		output := captureConnectionErrorLogOutput(t, func() {
 			LogConnectionError(ctx, errors.New("failed"))
 		})
 		assert.Contains(t, output, "line1")
