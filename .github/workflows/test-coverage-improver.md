@@ -19,7 +19,7 @@ network:
 
 steps:
   - name: Checkout full repository
-    uses: actions/checkout@v6.0.2
+    uses: actions/checkout@v6.0.3
     with:
       fetch-depth: 1
       persist-credentials: false
