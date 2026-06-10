@@ -31,18 +31,6 @@ func validateIntegrityField(fieldName string, raw interface{}) error {
 	return invalidIntegrityFieldError(fieldName)
 }
 
-// validateStringArray checks that raw is a []interface{} of non-empty strings.
-// When requireNonEmpty is true, a zero-length array is also rejected.
-func validateStringArray(fieldName string, raw interface{}, requireNonEmpty bool) error {
-	return config.ValidateStringArrayField(fieldName, raw, requireNonEmpty)
-}
-
-// isValidAllowOnlyRepos returns true if repos is either a recognised string
-// shorthand ("all" or "public") or a non-empty array of strings.
-func isValidAllowOnlyRepos(repos interface{}) bool {
-	return config.IsValidAllowOnlyReposValue(repos)
-}
-
 // checkBoolFailure returns a non-nil error if the given raw response map
 // contains field key set to false, extracting the "error" message if present.
 func checkBoolFailure(raw map[string]interface{}, resultJSON []byte, key string) error {
