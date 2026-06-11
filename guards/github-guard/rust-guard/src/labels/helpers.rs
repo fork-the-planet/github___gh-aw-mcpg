@@ -109,6 +109,24 @@ impl MinIntegrity {
             MinIntegrity::Merged => policy_integrity::MERGED,
         }
     }
+
+    /// Parse a policy integrity level string, case-insensitively.
+    /// Returns `None` for unrecognised values.
+    pub(crate) fn from_policy_str(level: &str) -> Option<Self> {
+        use super::constants::policy_integrity as pi;
+        let level = level.trim();
+        if level.eq_ignore_ascii_case(pi::NONE) {
+            Some(Self::None)
+        } else if level.eq_ignore_ascii_case(pi::UNAPPROVED) {
+            Some(Self::Unapproved)
+        } else if level.eq_ignore_ascii_case(pi::APPROVED) {
+            Some(Self::Approved)
+        } else if level.eq_ignore_ascii_case(pi::MERGED) {
+            Some(Self::Merged)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -462,22 +480,18 @@ fn effective_endorser_min_integrity<'a>(ctx: &'a PolicyContext) -> &'a str {
 /// Returns: 1 = none, 2 = unapproved, 3 = approved, 4 = merged.
 /// Unrecognised levels default to rank 3 (approved) with a warning log.
 fn integrity_level_rank(level: &str) -> u8 {
-    use super::constants::policy_integrity as pi;
-    let level = level.trim();
-    if level.eq_ignore_ascii_case(pi::NONE) {
-        1
-    } else if level.eq_ignore_ascii_case(pi::UNAPPROVED) {
-        2
-    } else if level.eq_ignore_ascii_case(pi::APPROVED) {
-        3
-    } else if level.eq_ignore_ascii_case(pi::MERGED) {
-        4
-    } else {
-        crate::log_warn(&format!(
-            "integrity_level_rank: unrecognised level {:?}, defaulting to 'approved'",
-            level
-        ));
-        3 // unrecognised → safe default is "approved" (matches endorser_min_integrity default)
+    match MinIntegrity::from_policy_str(level) {
+        Some(MinIntegrity::None) => 1,
+        Some(MinIntegrity::Unapproved) => 2,
+        Some(MinIntegrity::Approved) => 3,
+        Some(MinIntegrity::Merged) => 4,
+        None => {
+            crate::log_warn(&format!(
+                "integrity_level_rank: unrecognised level {:?}, defaulting to 'approved'",
+                level.trim()
+            ));
+            3 // unrecognised → safe default is "approved" (matches endorser_min_integrity default)
+        }
     }
 }
 
@@ -496,18 +510,12 @@ fn cap_integrity(
 
 /// Build the integrity `Vec<String>` for a given level name over a scope.
 fn integrity_for_level(level: &str, scope: &str, ctx: &PolicyContext) -> Vec<String> {
-    use super::constants::policy_integrity as pi;
-    let level = level.trim();
-    if level.eq_ignore_ascii_case(pi::NONE) {
-        none_integrity(scope, ctx)
-    } else if level.eq_ignore_ascii_case(pi::UNAPPROVED) {
-        reader_integrity(scope, ctx)
-    } else if level.eq_ignore_ascii_case(pi::APPROVED) {
-        writer_integrity(scope, ctx)
-    } else if level.eq_ignore_ascii_case(pi::MERGED) {
-        merged_integrity(scope, ctx)
-    } else {
-        none_integrity(scope, ctx) // safe default
+    match MinIntegrity::from_policy_str(level) {
+        Some(MinIntegrity::None) => none_integrity(scope, ctx),
+        Some(MinIntegrity::Unapproved) => reader_integrity(scope, ctx),
+        Some(MinIntegrity::Approved) => writer_integrity(scope, ctx),
+        Some(MinIntegrity::Merged) => merged_integrity(scope, ctx),
+        None => none_integrity(scope, ctx), // safe default
     }
 }
 
@@ -2124,7 +2132,107 @@ mod tests {
         assert_eq!(MinIntegrity::Merged.as_str(), policy_integrity::MERGED);
     }
 
+    #[test]
+    fn test_min_integrity_from_policy_str_known_values() {
+        assert_eq!(MinIntegrity::from_policy_str("none"), Some(MinIntegrity::None));
+        assert_eq!(MinIntegrity::from_policy_str("unapproved"), Some(MinIntegrity::Unapproved));
+        assert_eq!(MinIntegrity::from_policy_str("approved"), Some(MinIntegrity::Approved));
+        assert_eq!(MinIntegrity::from_policy_str("merged"), Some(MinIntegrity::Merged));
+    }
+
+    #[test]
+    fn test_min_integrity_from_policy_str_case_insensitive() {
+        assert_eq!(MinIntegrity::from_policy_str("NONE"), Some(MinIntegrity::None));
+        assert_eq!(MinIntegrity::from_policy_str("None"), Some(MinIntegrity::None));
+        assert_eq!(MinIntegrity::from_policy_str("APPROVED"), Some(MinIntegrity::Approved));
+        assert_eq!(MinIntegrity::from_policy_str("Merged"), Some(MinIntegrity::Merged));
+    }
+
+    #[test]
+    fn test_min_integrity_from_policy_str_whitespace_trimmed() {
+        assert_eq!(MinIntegrity::from_policy_str("  none  "), Some(MinIntegrity::None));
+        assert_eq!(MinIntegrity::from_policy_str(" MERGED "), Some(MinIntegrity::Merged));
+    }
+
+    #[test]
+    fn test_min_integrity_from_policy_str_unknown_returns_none() {
+        assert_eq!(MinIntegrity::from_policy_str("unknown"), None);
+        assert_eq!(MinIntegrity::from_policy_str(""), None);
+        assert_eq!(MinIntegrity::from_policy_str("  "), None);
+    }
+
+    #[test]
+    fn test_min_integrity_roundtrip() {
+        // from_policy_str(as_str()) should be identity
+        for level in [MinIntegrity::None, MinIntegrity::Unapproved, MinIntegrity::Approved, MinIntegrity::Merged] {
+            let s = level.as_str();
+            assert_eq!(MinIntegrity::from_policy_str(s), Some(level));
+        }
+    }
+
     // =========================================================================
+    // Tests for extract_repo_from_item
+    // =========================================================================
+
+    #[test]
+    fn test_extract_repo_from_item_direct_full_name() {
+        let item = serde_json::json!({ "full_name": "owner/repo" });
+        assert_eq!(extract_repo_from_item(&item), "owner/repo");
+    }
+
+    #[test]
+    fn test_extract_repo_from_item_repository_full_name() {
+        let item = serde_json::json!({ "repository": { "full_name": "owner/repo" } });
+        assert_eq!(extract_repo_from_item(&item), "owner/repo");
+    }
+
+    #[test]
+    fn test_extract_repo_from_item_base_repo_for_prs() {
+        let item = serde_json::json!({ "base": { "repo": { "full_name": "owner/repo" } } });
+        assert_eq!(extract_repo_from_item(&item), "owner/repo");
+    }
+
+    #[test]
+    fn test_extract_repo_from_item_head_repo_for_fork_prs() {
+        let item = serde_json::json!({ "head": { "repo": { "full_name": "fork/repo" } } });
+        assert_eq!(extract_repo_from_item(&item), "fork/repo");
+    }
+
+    #[test]
+    fn test_extract_repo_from_item_repository_url_fallback() {
+        let item = serde_json::json!({ "repository_url": "https://api.github.com/repos/owner/repo" });
+        assert_eq!(extract_repo_from_item(&item), "owner/repo");
+    }
+
+    #[test]
+    fn test_extract_repo_from_item_html_url_fallback() {
+        let item = serde_json::json!({ "html_url": "https://github.com/owner/repo/issues/1" });
+        assert_eq!(extract_repo_from_item(&item), "owner/repo");
+    }
+
+    #[test]
+    fn test_extract_repo_from_item_url_fallback() {
+        let item = serde_json::json!({ "url": "https://api.github.com/repos/owner/repo/issues/1" });
+        assert_eq!(extract_repo_from_item(&item), "owner/repo");
+    }
+
+    #[test]
+    fn test_extract_repo_from_item_returns_empty_when_no_repo_info() {
+        let item = serde_json::json!({ "id": 42, "title": "something" });
+        assert_eq!(extract_repo_from_item(&item), "");
+    }
+
+    #[test]
+    fn test_extract_repo_from_item_full_name_priority_over_nested() {
+        // full_name should win even when repository.full_name is also present
+        let item = serde_json::json!({
+            "full_name": "winner/repo",
+            "repository": { "full_name": "loser/repo" }
+        });
+        assert_eq!(extract_repo_from_item(&item), "winner/repo");
+    }
+
+
     // Tests for reaction-based endorsement / disapproval helpers
     // =========================================================================
 
