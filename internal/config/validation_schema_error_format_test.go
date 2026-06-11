@@ -641,6 +641,23 @@ func TestFormatSchemaError(t *testing.T) {
 		assert.Contains(t, errStr, "mcp-gateway", "Should include config spec URL fragment")
 	})
 
+	t.Run("wrapped jsonschema.ValidationError preserves detailed format", func(t *testing.T) {
+		version.Set("v2.1.0-test")
+
+		wrappedErr := fmt.Errorf("wrapped: %w", &jsonschema.ValidationError{
+			InstanceLocation: "gateway.port",
+			Message:          "must be >= 1 and <= 65535",
+		})
+
+		result := formatSchemaError(wrappedErr)
+		require.Error(t, result)
+		errStr := result.Error()
+		assert.Contains(t, errStr, "Configuration validation error")
+		assert.Contains(t, errStr, "gateway.port")
+		assert.Contains(t, errStr, "must be >= 1 and <= 65535")
+		assert.Contains(t, errStr, "mcp-gateway")
+	})
+
 	t.Run("non-jsonschema error gets simple format", func(t *testing.T) {
 		version.Set("v1.2.3-test")
 

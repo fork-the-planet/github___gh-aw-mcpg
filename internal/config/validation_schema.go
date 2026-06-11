@@ -3,6 +3,7 @@ package config
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -446,7 +447,8 @@ func formatSchemaError(err error) error {
 	}
 
 	// The jsonschema library returns a ValidationError type with detailed info
-	if ve, ok := err.(*jsonschema.ValidationError); ok {
+	var ve *jsonschema.ValidationError
+	if errors.As(err, &ve) {
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("Configuration validation error (MCP Gateway version: %s):\n\n", version.Get()))
 
