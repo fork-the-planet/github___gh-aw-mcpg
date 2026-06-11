@@ -100,20 +100,20 @@ func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
 
 		if authHeader == "" {
 			// Spec 7.1: Missing token returns 401
-			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "missing Authorization header", "auth", "authentication_failed", "missing_auth_header")
+			rejectAuthRequest(w, r, http.StatusUnauthorized, "unauthorized", "missing Authorization header", "missing_auth_header")
 			return
 		}
 
 		// Spec 7.2 item 3: Malformed Authorization headers (null bytes, non-printable
 		// control characters) must return 400 Bad Request, not 401.
 		if auth.IsMalformedHeader(authHeader) {
-			rejectRequest(w, r, http.StatusBadRequest, "bad_request", "malformed Authorization header", "auth", "authentication_failed", "malformed_auth_header")
+			rejectAuthRequest(w, r, http.StatusBadRequest, "bad_request", "malformed Authorization header", "malformed_auth_header")
 			return
 		}
 
 		// Spec 7.1: Authorization header must contain API key directly.
 		if subtle.ConstantTimeCompare([]byte(authHeader), []byte(apiKey)) != 1 {
-			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "invalid API key", "auth", "authentication_failed", "invalid_api_key")
+			rejectAuthRequest(w, r, http.StatusUnauthorized, "unauthorized", "invalid API key", "invalid_api_key")
 			return
 		}
 
@@ -121,6 +121,10 @@ func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
 		// Token is valid, proceed to handler
 		next(w, r)
 	}
+}
+
+func rejectAuthRequest(w http.ResponseWriter, r *http.Request, status int, code, msg, detail string) {
+	rejectRequest(w, r, status, code, msg, "auth", "authentication_failed", detail)
 }
 
 // applyAuthIfConfigured applies authentication middleware if an API key is provided
