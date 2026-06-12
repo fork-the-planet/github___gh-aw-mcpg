@@ -23,6 +23,148 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
+// TestInitProvider_IsEnabled_Noop verifies that IsEnabled returns false for a noop provider.
+func TestInitProvider_IsEnabled_Noop(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+	assert.False(t, provider.IsEnabled(), "noop provider should report IsEnabled=false")
+}
+
+// TestInitProvider_IsEnabled_SDK verifies that IsEnabled returns true when a real exporter is active.
+func TestInitProvider_IsEnabled_SDK(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
+	cfg := &config.TracingConfig{
+		Endpoint:    "http://localhost:14318",
+		ServiceName: "test",
+	}
+	provider, err := tracing.InitProvider(ctx, cfg)
+	require.NoError(t, err)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_ = provider.Shutdown(shutdownCtx)
+	}()
+	assert.True(t, provider.IsEnabled(), "SDK provider should report IsEnabled=true")
+}
+
+// TestInitProvider_FanOut_GHAWOTLPEndpoints verifies that when GH_AW_OTLP_ENDPOINTS
+// is set, spans are delivered to every listed endpoint.
+func TestInitProvider_FanOut_GHAWOTLPEndpoints(t *testing.T) {
+	ctx := context.Background()
+
+	// Start two test OTLP collectors.
+	received1 := make(chan struct{}, 10)
+	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case received1 <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts1.Close()
+
+	received2 := make(chan struct{}, 10)
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case received2 <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts2.Close()
+
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", ts1.URL+","+ts2.URL)
+
+	// Config with no primary endpoint; GH_AW_OTLP_ENDPOINTS provides them all.
+	provider, err := tracing.InitProvider(ctx, &config.TracingConfig{ServiceName: "test-fanout"})
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+	assert.True(t, provider.IsEnabled(), "provider should be enabled when GH_AW_OTLP_ENDPOINTS is set")
+
+	// Emit a span to trigger export.
+	_, span := provider.Tracer().Start(ctx, "fanout-test-span")
+	span.End()
+
+	// Flush by shutting down.
+	shutdownCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	_ = provider.Shutdown(shutdownCtx)
+
+	// Both collectors must have received at least one export request.
+	select {
+	case <-received1:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for export to first endpoint")
+	}
+	select {
+	case <-received2:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for export to second endpoint")
+	}
+}
+
+// TestInitProvider_FanOut_TakesPrecedenceOverSingleEndpoint verifies that when
+// GH_AW_OTLP_ENDPOINTS is set and a primary endpoint is also configured, the
+// fan-out list is used (not the primary endpoint separately).
+func TestInitProvider_FanOut_TakesPrecedenceOverSingleEndpoint(t *testing.T) {
+	ctx := context.Background()
+
+	fanoutReceived := make(chan struct{}, 10)
+	tsFanout := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case fanoutReceived <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer tsFanout.Close()
+
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", tsFanout.URL)
+
+	// Also configure a primary endpoint — this should be ignored in favour of
+	// GH_AW_OTLP_ENDPOINTS.
+	cfg := &config.TracingConfig{
+		Endpoint:    "http://localhost:19999", // unreachable
+		ServiceName: "test-precedence",
+	}
+
+	provider, err := tracing.InitProvider(ctx, cfg)
+	require.NoError(t, err)
+	assert.True(t, provider.IsEnabled())
+
+	_, span := provider.Tracer().Start(ctx, "precedence-test-span")
+	span.End()
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	_ = provider.Shutdown(shutdownCtx)
+
+	select {
+	case <-fanoutReceived:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for export to fan-out endpoint")
+	}
+}
+
+// TestInitProvider_FanOut_EmptyEnvVar falls back to single-endpoint mode.
+func TestInitProvider_FanOut_EmptyEnvVar(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
+
+	cfg := &config.TracingConfig{Endpoint: "http://localhost:14318"}
+	provider, err := tracing.InitProvider(ctx, cfg)
+	require.NoError(t, err)
+	assert.True(t, provider.IsEnabled(), "single-endpoint mode should still be active")
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	_ = provider.Shutdown(shutdownCtx)
+}
+
 func ptrFloat64(v float64) *float64 { return &v }
 
 func TestInitProvider_NoEndpoint_ReturnsNoopProvider(t *testing.T) {

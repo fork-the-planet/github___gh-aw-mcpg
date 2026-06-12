@@ -19,6 +19,7 @@ package tracing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -51,6 +52,11 @@ type Provider struct {
 // Tracer returns the tracer for the MCP gateway instrumentation scope.
 func (p *Provider) Tracer() trace.Tracer {
 	return p.tracer
+}
+
+// IsEnabled reports whether the provider has a real SDK (non-noop) exporter active.
+func (p *Provider) IsEnabled() bool {
+	return p.sdk != nil
 }
 
 // Shutdown flushes and shuts down the tracer provider.
@@ -86,9 +92,11 @@ func registerPropagator() {
 }
 
 // InitProvider initializes the global OpenTelemetry tracer provider.
-// When endpoint is empty, a noop provider is installed (zero overhead).
-// When endpoint is configured, an OTLP/HTTP exporter is created and the SDK
-// tracer provider is registered as the global provider.
+// When no endpoint is configured, a noop provider is installed (zero overhead).
+// When one or more endpoints are configured, an OTLP/HTTP exporter is created
+// for each endpoint and the SDK tracer provider is registered as the global
+// provider. Multiple endpoints (from GH_AW_OTLP_ENDPOINTS) are supported via a
+// fan-out exporter so that every backend receives complete gateway traces.
 //
 // In both cases a W3C TraceContext propagator is registered globally so that
 // incoming traceparent/tracestate headers are honoured by all HTTP middleware.
@@ -96,6 +104,7 @@ func registerPropagator() {
 // The returned Provider must be shut down on application exit to flush buffered spans.
 func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, error) {
 	endpoint := resolveEndpoint(cfg)
+	extraEndpoints := resolveExtraEndpoints(cfg)
 	serviceName := resolveServiceName(cfg)
 	sampleRate := resolveSampleRate(cfg)
 
@@ -104,7 +113,17 @@ func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, er
 	// parented correctly if propagation is later enabled upstream).
 	registerPropagator()
 
-	if endpoint == "" {
+	// Determine the active set of endpoints:
+	//   - GH_AW_OTLP_ENDPOINTS takes precedence (fan-out to all listed endpoints).
+	//   - Falls back to the single endpoint from config/OTEL_EXPORTER_OTLP_ENDPOINT.
+	var activeEndpoints []string
+	if len(extraEndpoints) > 0 {
+		activeEndpoints = extraEndpoints
+	} else if endpoint != "" {
+		activeEndpoints = []string{endpoint}
+	}
+
+	if len(activeEndpoints) == 0 {
 		logTracing.Printf("Tracing disabled: no OTLP endpoint configured")
 		noopTP := noop.NewTracerProvider()
 		otel.SetTracerProvider(noopTP)
@@ -114,26 +133,46 @@ func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, er
 		}, nil
 	}
 
-	logTracing.Printf("Initializing OTLP tracing: endpoint=%s, service=%s, sampleRate=%.2f", endpoint, serviceName, sampleRate)
-
-	// Build OTLP HTTP exporter options
-	exporterOpts := []otlptracehttp.Option{
-		otlptracehttp.WithEndpointURL(endpoint),
-		otlptracehttp.WithTimeout(10 * time.Second),
+	if len(activeEndpoints) > 1 {
+		logTracing.Printf("Initializing OTLP fan-out tracing: %d endpoints, service=%s, sampleRate=%.2f",
+			len(activeEndpoints), serviceName, sampleRate)
+	} else {
+		logTracing.Printf("Initializing OTLP tracing: endpoint=%s, service=%s, sampleRate=%.2f",
+			activeEndpoints[0], serviceName, sampleRate)
 	}
 
-	// Apply configured headers (spec §4.1.3.6: headers sent with every OTLP export request)
-	if headers := resolveHeaders(cfg); headers != nil {
+	// Resolve shared headers applied to all exporters.
+	headers := resolveHeaders(cfg)
+	if headers != nil {
 		logTracing.Printf("Applying %d OTLP export header(s)", len(headers))
-		exporterOpts = append(exporterOpts, otlptracehttp.WithHeaders(headers))
 	}
 
-	// Build OTLP HTTP exporter with 10s timeout
-	exporter, err := otlptracehttp.New(ctx, exporterOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
+	// Build one OTLP HTTP exporter per active endpoint.
+	exporters := make([]sdktrace.SpanExporter, 0, len(activeEndpoints))
+	var constructionErrs []error
+	for _, ep := range activeEndpoints {
+		opts := []otlptracehttp.Option{
+			otlptracehttp.WithEndpointURL(ep),
+			otlptracehttp.WithTimeout(10 * time.Second),
+		}
+		if headers != nil {
+			opts = append(opts, otlptracehttp.WithHeaders(headers))
+		}
+		exp, err := otlptracehttp.New(ctx, opts...)
+		if err != nil {
+			logTracing.Printf("Warning: failed to create OTLP exporter for endpoint %s: %v; skipping", ep, err)
+			constructionErrs = append(constructionErrs, fmt.Errorf("endpoint %s: %w", ep, err))
+			continue
+		}
+		exporters = append(exporters, exp)
 	}
-	logTracing.Print("OTLP HTTP trace exporter created")
+	if len(exporters) == 0 {
+		return nil, fmt.Errorf("failed to create any OTLP trace exporters: %w", errors.Join(constructionErrs...))
+	}
+	logTracing.Printf("OTLP HTTP trace exporter(s) created: %d", len(exporters))
+
+	// Wrap in a fan-out exporter (returns the single exporter directly when only one).
+	exporter := newFanoutExporter(exporters)
 
 	// Build resource with service name, version, and SDK metadata
 	res, err := resource.New(ctx,

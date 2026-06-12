@@ -417,6 +417,7 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `MCP_GATEWAY_HMAC_SECRET` - Shared HMAC-SHA256 secret for request signing and replay protection; when set, requests to MCP handlers must carry valid `X-MCP-Timestamp`, `X-MCP-Nonce`, and `X-MCP-Signature` headers (sets default for `--hmac-secret`)
 - `OTEL_EXPORTER_OTLP_ENDPOINT` - OTLP HTTP endpoint for trace export; sets default for `--otlp-endpoint`
 - `OTEL_EXPORTER_OTLP_HEADERS` - Comma-separated `key=value` OTLP export headers (W3C Baggage format); used as fallback when `gateway.opentelemetry.headers` / `gateway.tracing.headers` is not set in config
+- `GH_AW_OTLP_ENDPOINTS` - Comma-separated list of OTLP HTTP endpoint URLs for multi-backend fan-out; when set, spans are exported to ALL listed endpoints (partial-failure tolerant). Takes precedence over `OTEL_EXPORTER_OTLP_ENDPOINT`. Shared headers from `OTEL_EXPORTER_OTLP_HEADERS` / config apply to every endpoint.
 - `OTEL_SERVICE_NAME` - Service name in traces; sets default for `--otlp-service-name`
 - `TAVILY_API_KEY` - Tavily API key; when unset, integration tests that use it are automatically skipped
 - `AWMG_BINARY_PATH` - Override binary path for integration tests

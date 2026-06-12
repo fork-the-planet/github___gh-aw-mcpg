@@ -140,6 +140,41 @@ func resolveHeaders(cfg *config.TracingConfig) map[string]string {
 	return parseOTLPHeaders(raw)
 }
 
+// resolveExtraEndpoints returns the additional OTLP endpoints from the
+// GH_AW_OTLP_ENDPOINTS environment variable as a slice of fully-qualified URL
+// strings (with the signal path appended). Each URL is normalised using the
+// same signal-path rules as resolveEndpoint. Empty and whitespace-only entries
+// are skipped. Returns nil when the variable is unset or yields no valid URLs.
+func resolveExtraEndpoints(cfg *config.TracingConfig) []string {
+	raw := os.Getenv("GH_AW_OTLP_ENDPOINTS")
+	if raw == "" {
+		return nil
+	}
+	signalPath := ""
+	if cfg != nil {
+		signalPath = cfg.SignalPath
+	}
+	var endpoints []string
+	for _, ep := range strings.Split(raw, ",") {
+		ep = strings.TrimSpace(ep)
+		if ep == "" {
+			continue
+		}
+		normalized := resolveEndpoint(&config.TracingConfig{
+			Endpoint:   ep,
+			SignalPath: signalPath,
+		})
+		if normalized != "" {
+			endpoints = append(endpoints, normalized)
+		}
+	}
+	if len(endpoints) == 0 {
+		return nil
+	}
+	logTracing.Printf("GH_AW_OTLP_ENDPOINTS: resolved %d extra endpoint(s)", len(endpoints))
+	return endpoints
+}
+
 // resolveParentContext builds a context carrying the W3C remote parent span context
 // from the configured traceId and spanId (spec §4.1.3.6).
 // If traceId is absent, or either ID is malformed, the original context is returned unchanged.

@@ -5,6 +5,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestResolveEndpoint_AppendsV1Traces(t *testing.T) {
@@ -127,4 +128,61 @@ func TestResolveEndpoint_CustomSignalPath(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// TestResolveExtraEndpoints_NotSet returns nil when GH_AW_OTLP_ENDPOINTS is unset.
+func TestResolveExtraEndpoints_NotSet(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
+	got := resolveExtraEndpoints(nil)
+	assert.Nil(t, got)
+}
+
+// TestResolveExtraEndpoints_SingleEndpoint parses one URL and appends /v1/traces.
+func TestResolveExtraEndpoints_SingleEndpoint(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "http://collector.example.com:4318")
+	got := resolveExtraEndpoints(nil)
+	require.Len(t, got, 1)
+	assert.Equal(t, "http://collector.example.com:4318/v1/traces", got[0])
+}
+
+// TestResolveExtraEndpoints_MultipleEndpoints parses several comma-separated URLs.
+func TestResolveExtraEndpoints_MultipleEndpoints(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "http://ep1:4318,https://ep2.example.com")
+	got := resolveExtraEndpoints(nil)
+	require.Len(t, got, 2)
+	assert.Equal(t, "http://ep1:4318/v1/traces", got[0])
+	assert.Equal(t, "https://ep2.example.com/v1/traces", got[1])
+}
+
+// TestResolveExtraEndpoints_SkipsEmpty skips empty entries.
+func TestResolveExtraEndpoints_SkipsEmpty(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "http://ep1:4318,,  ,http://ep2:4318")
+	got := resolveExtraEndpoints(nil)
+	require.Len(t, got, 2)
+	assert.Equal(t, "http://ep1:4318/v1/traces", got[0])
+	assert.Equal(t, "http://ep2:4318/v1/traces", got[1])
+}
+
+// TestResolveExtraEndpoints_AllEmpty returns nil when all entries are whitespace/empty.
+func TestResolveExtraEndpoints_AllEmpty(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "  ,  ,")
+	got := resolveExtraEndpoints(nil)
+	assert.Nil(t, got)
+}
+
+// TestResolveExtraEndpoints_RespectsSignalPath uses the custom signal path from cfg.
+func TestResolveExtraEndpoints_RespectsSignalPath(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "http://collector.example.com:4318")
+	cfg := &config.TracingConfig{SignalPath: "/v2/traces"}
+	got := resolveExtraEndpoints(cfg)
+	require.Len(t, got, 1)
+	assert.Equal(t, "http://collector.example.com:4318/v2/traces", got[0])
+}
+
+// TestResolveExtraEndpoints_AlreadyHasSignalPath does not duplicate the path.
+func TestResolveExtraEndpoints_AlreadyHasSignalPath(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "http://collector.example.com:4318/v1/traces")
+	got := resolveExtraEndpoints(nil)
+	require.Len(t, got, 1)
+	assert.Equal(t, "http://collector.example.com:4318/v1/traces", got[0])
 }
