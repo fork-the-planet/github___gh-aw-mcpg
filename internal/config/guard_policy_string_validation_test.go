@@ -8,7 +8,6 @@ import (
 )
 
 // TestValidateStringArrayField covers all branches of ValidateStringArrayField.
-// (guard_policy_validation.go:347)
 func TestValidateStringArrayField(t *testing.T) {
 	tests := []struct {
 		name            string
