@@ -17,12 +17,20 @@ import (
 	"time"
 )
 
-// TestSafeinputsHTTPBackend tests the gateway with a safeinputs-like HTTP backend
-// that strictly enforces the Mcp-Session-Id header requirement.
-// This simulates the real-world scenario described in the issue.
+// TestSafeinputsHTTPBackend tests the gateway with a spec-compliant plain-JSON-RPC backend
+// that issues a Mcp-Session-Id in the initialize response and requires it on all
+// subsequent requests.
+//
+// This validates the fix from the go-sdk module review: the gateway must NOT send a
+// synthetic session ID on initialize (the server assigns it), but must correctly capture
+// and forward the server-issued session ID for all subsequent requests.
 func TestSafeinputsHTTPBackend(t *testing.T) {
-	// Create a mock HTTP server that simulates safeinputs MCP server behavior
-	// It requires Mcp-Session-Id header on all requests
+	const serverIssuedSessionID = "safeinputs-session-42"
+
+	// Create a mock HTTP server that simulates spec-compliant MCP server behavior:
+	// - No session ID required on initialize
+	// - Issues a session ID in the initialize response
+	// - Requires that session ID on all subsequent requests
 	var receivedHeaders []map[string]string
 	var requestCount int
 
@@ -49,28 +57,11 @@ func TestSafeinputsHTTPBackend(t *testing.T) {
 
 		t.Logf("Request #%d: method=%s, Mcp-Session-Id=%s", requestCount, rpcReq.Method, headers["Mcp-Session-Id"])
 
-		// Strictly enforce Mcp-Session-Id header requirement
-		if headers["Mcp-Session-Id"] == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			response := map[string]interface{}{
-				"jsonrpc": "2.0",
-				"error": map[string]interface{}{
-					"code":    -32600,
-					"message": "Invalid Request: Missing Mcp-Session-Id header",
-				},
-				"id": rpcReq.ID,
-			}
-			json.NewEncoder(w).Encode(response)
-			t.Logf("❌ Request #%d rejected: Missing Mcp-Session-Id header", requestCount)
-			return
-		}
-
-		t.Logf("✓ Request #%d accepted with session ID: %s", requestCount, headers["Mcp-Session-Id"])
-
-		// Return appropriate response based on method
 		var response map[string]interface{}
 		switch rpcReq.Method {
 		case "initialize":
+			// Spec-compliant: no session ID required on initialize; issue one in response.
+			w.Header().Set("Mcp-Session-Id", serverIssuedSessionID)
 			response = map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      rpcReq.ID,
@@ -84,6 +75,21 @@ func TestSafeinputsHTTPBackend(t *testing.T) {
 				},
 			}
 		case "tools/list":
+			// Require the server-issued session ID on all subsequent requests.
+			if headers["Mcp-Session-Id"] != serverIssuedSessionID {
+				w.WriteHeader(http.StatusBadRequest)
+				response = map[string]interface{}{
+					"jsonrpc": "2.0",
+					"error": map[string]interface{}{
+						"code":    -32600,
+						"message": fmt.Sprintf("Invalid session ID: got %q, want %q", headers["Mcp-Session-Id"], serverIssuedSessionID),
+					},
+					"id": rpcReq.ID,
+				}
+				t.Logf("❌ Request #%d rejected: wrong session ID", requestCount)
+				json.NewEncoder(w).Encode(response)
+				return
+			}
 			response = map[string]interface{}{
 				"jsonrpc": "2.0",
 				"id":      rpcReq.ID,
@@ -226,31 +232,29 @@ func TestSafeinputsHTTPBackend(t *testing.T) {
 
 	t.Logf("Gateway started at: %s", gatewayURL)
 
-	// Check stderr for any session ID related messages
 	stderrStr := stderr.String()
-	if strings.Contains(stderrStr, "Missing Mcp-Session-Id header") {
-		t.Errorf("Gateway initialization failed with missing session ID error:\n%s", stderrStr)
-	}
 
-	// Verify that the gateway successfully initialized
+	// Verify that the gateway successfully initialized the safeinputs backend
 	if strings.Contains(stderrStr, "Registered 1 tools from safeinputs") {
 		t.Logf("✓ Gateway successfully initialized safeinputs backend")
 	} else if strings.Contains(stderrStr, "Warning: failed to register tools from safeinputs") {
 		t.Errorf("Gateway failed to register tools from safeinputs:\n%s", stderrStr)
 	}
 
-	// Verify request count and session IDs
+	// Verify request count and session ID handling.
 	assert.NotZero(t, requestCount, "Expected at least one request to safeinputs server during initialization")
 	t.Logf("✓ Received %d request(s) to safeinputs server", requestCount)
 
 	// The gateway now tries Streamable HTTP and SSE transports before falling back to
-	// plain JSON-RPC.  The early probe requests (from SDK transports) may not carry a
+	// plain JSON-RPC. The early probe requests (from SDK transports) may not carry a
 	// Mcp-Session-Id header because the session has not been established yet.
 	// What matters is that:
 	//   1. Every request carries the Authorization header (custom-header injection works).
-	//   2. At least one request has a valid gateway-style session ID (the plain JSON-RPC
-	//      initialization succeeded and used the expected session ID pattern).
-	sessionIDFound := false
+	//   2. The initialize request does NOT have a synthetic client-generated session ID
+	//      (spec-compliant: the server, not the client, assigns the session ID).
+	//   3. Requests after initialize use the server-issued session ID.
+	initializeRequestSentSessionID := false
+	serverIssuedIDUsedAfterInit := false
 	for i, headers := range receivedHeaders {
 		// Authorization header must be present on every request.
 		if headers["Authorization"] != "safeinputs-secret-key" {
@@ -259,22 +263,29 @@ func TestSafeinputsHTTPBackend(t *testing.T) {
 		}
 
 		sessionID := headers["Mcp-Session-Id"]
-		if sessionID != "" {
-			t.Logf("Request #%d session ID: %s", i+1, sessionID)
-			if strings.HasPrefix(sessionID, "awmg-init-") ||
-				strings.HasPrefix(sessionID, "gateway-init-") {
-				t.Logf("✓ Request #%d has correct gateway initialization session ID pattern", i+1)
-				sessionIDFound = true
-			}
-		} else {
-			t.Logf("Request #%d: no Mcp-Session-Id (transport probe request)", i+1)
+		t.Logf("Request #%d session ID: %q", i+1, sessionID)
+
+		// Check if this looks like a plain JSON-RPC initialize request
+		// (the very first POST with a session ID is the initialize; earlier SDK probe
+		// requests won't have a session ID at all).
+		if sessionID != "" && sessionID != serverIssuedSessionID {
+			// Any session ID that is NOT the server-issued one and is not empty was
+			// synthesized by the client — that is the behaviour we're removing.
+			initializeRequestSentSessionID = true
+			t.Errorf("Request #%d carries a synthetic client-generated session ID %q; "+
+				"only the server-issued ID %q should be used",
+				i+1, sessionID, serverIssuedSessionID)
+		}
+		if sessionID == serverIssuedSessionID {
+			serverIssuedIDUsedAfterInit = true
+			t.Logf("✓ Request #%d correctly uses server-issued session ID", i+1)
 		}
 	}
 
 	// Final verification
-	if sessionIDFound {
-		t.Logf("✅ SUCCESS: Gateway correctly sends Mcp-Session-Id header to safeinputs HTTP backend")
-	} else {
-		t.Errorf("No request carried a gateway-style Mcp-Session-Id header (awmg-init-*); plain JSON-RPC initialization may have failed")
-	}
+	assert.False(t, initializeRequestSentSessionID,
+		"Gateway must not send a synthetic Mcp-Session-Id on initialize; the server assigns it")
+	assert.True(t, serverIssuedIDUsedAfterInit,
+		"Gateway must use the server-issued session ID for requests after initialize")
+	t.Logf("✅ SUCCESS: Gateway correctly handles Mcp-Session-Id per MCP spec")
 }

@@ -41,6 +41,15 @@ const sessionNotFoundMessage = "session not found"
 // and negotiate protocol versions internally.
 const MCPProtocolVersion = "2025-11-25"
 
+// streamableMaxRetries disables SDK-level automatic reconnect retries on
+// StreamableClientTransport. The SDK interprets 0 as "use the default of 5
+// retries"; a negative value means 0 retries (give up immediately on stream
+// close). The gateway handles reconnection itself, so SDK-level retries would
+// cause double-retry behaviour.
+// Verified: go-sdk v1.6.1 streamable.go:1547-1552.
+// See TestMaxRetriesSentinelCanary for an automated guard against SDK changes.
+const streamableMaxRetries = -1
+
 // requestIDCounter is used to generate unique request IDs for HTTP requests
 var requestIDCounter uint64
 
@@ -457,11 +466,9 @@ func tryStreamableHTTPTransport(ctx context.Context, cancel context.CancelFunc, 
 			return &sdk.StreamableClientTransport{
 				Endpoint:   url,
 				HTTPClient: httpClient,
-				// MaxRetries: -1 disables SDK-level reconnect retries (0 = SDK default 5 retries;
-				// negative = 0 retries). We fall through to SSE or plain JSON-RPC on failure.
-				// Verified against go-sdk v1.6.1 streamable.go:1547-1552.
-				// See TestMaxRetriesSentinelCanary for an automated guard against SDK changes.
-				MaxRetries: -1,
+				// See streamableMaxRetries for rationale. We fall through to SSE or plain
+				// JSON-RPC on failure.
+				MaxRetries: streamableMaxRetries,
 				// DisableStandaloneSSE prevents the SDK from issuing a GET request for a
 				// persistent server-sent events stream immediately after initialization.
 				// Some HTTP MCP servers (e.g. cloud APIs) return 5xx or keep the GET
@@ -541,15 +548,11 @@ func (c *Connection) initializeHTTPSession() (string, error) {
 
 	logConn.Printf("Sending initialize request")
 
-	// Generate a temporary session ID for the initialize request
-	// Some backends may require this header even during initialization
-	tempSessionID := fmt.Sprintf("awmg-init-%d", requestID)
-
-	// Execute HTTP request with custom header modification
-	result, err := c.executeHTTPRequest(context.Background(), "initialize", initParams, requestID, func(httpReq *http.Request) {
-		httpReq.Header.Set("Mcp-Session-Id", tempSessionID)
-		logConn.Printf("Sending initialize with temporary session ID: %s", tempSessionID)
-	})
+	// Execute HTTP request without a Mcp-Session-Id header: the MCP spec does not
+	// define a session ID on the initialize request — the server assigns it in the
+	// response.  Sending a synthetic ID could cause some backends to misinterpret
+	// the request as resuming an existing (and unknown) session.
+	result, err := c.executeHTTPRequest(c.ctx, "initialize", initParams, requestID, nil)
 	if err != nil {
 		return "", err
 	}
@@ -559,10 +562,7 @@ func (c *Connection) initializeHTTPSession() (string, error) {
 	if sessionID != "" {
 		logConn.Printf("Captured Mcp-Session-Id from response: %s", sessionID)
 	} else {
-		// If no session ID in response, use the temporary one
-		// This handles backends that don't return a session ID
-		sessionID = tempSessionID
-		logConn.Printf("No Mcp-Session-Id in response, using temporary session ID: %s", sessionID)
+		logConn.Printf("No Mcp-Session-Id in initialize response; backend does not use session management")
 	}
 
 	logConn.Printf("Initialize response: status=%d, body_len=%d, session=%s", result.StatusCode, len(result.ResponseBody), sessionID)

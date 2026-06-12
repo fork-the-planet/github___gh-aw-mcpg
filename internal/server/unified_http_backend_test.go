@@ -120,65 +120,73 @@ func TestHTTPBackendInitialization(t *testing.T) {
 	t.Logf("Correctly used server-issued session ID for tools/list: %s", toolsListSessionID)
 }
 
-// TestHTTPBackendInitializationWithSessionIDRequirement tests the exact error scenario from the problem statement
-func TestHTTPBackendInitializationWithSessionIDRequirement(t *testing.T) {
-	// Create a strict HTTP MCP server that fails without Mcp-Session-Id header
-	strictServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// TestHTTPBackendInitializationSpecCompliant verifies that the gateway does NOT send a
+// synthetic Mcp-Session-Id header on the MCP initialize request. Per the MCP spec, the
+// session ID is assigned by the server in the initialize response — not the client.
+//
+// This also verifies that the server-issued session ID is then used correctly for all
+// subsequent requests.
+func TestHTTPBackendInitializationSpecCompliant(t *testing.T) {
+	const serverSessionID = "server-issued-session-99"
+	var initializeSessionID string // empty means no header was sent on initialize
+	var toolsListSessionID string
+
+	// Spec-compliant server: no session ID required on initialize; issues one in response.
+	specServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		method, id := decodeJSONRPCMethod(r)
 		if method == "" {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 
-		sessionID := r.Header.Get("Mcp-Session-Id")
-
-		if sessionID == "" {
-			jsonRPCError(w, http.StatusBadRequest, id, -32600, "Invalid Request: Missing Mcp-Session-Id header")
-			return
-		}
-
 		switch method {
 		case "initialize":
+			initializeSessionID = r.Header.Get("Mcp-Session-Id")
+			w.Header().Set("Mcp-Session-Id", serverSessionID)
 			jsonRPCResult(w, id, map[string]interface{}{
 				"protocolVersion": "2024-11-05",
 				"capabilities":    map[string]interface{}{},
-				"serverInfo":      map[string]interface{}{"name": "safeinputs", "version": "1.0.0"},
+				"serverInfo":      map[string]interface{}{"name": "spec-server", "version": "1.0.0"},
 			})
 		case "notifications/initialized":
 			w.WriteHeader(http.StatusAccepted)
-		default:
+		case "tools/list":
+			toolsListSessionID = r.Header.Get("Mcp-Session-Id")
 			jsonRPCResult(w, id, map[string]interface{}{
 				"tools": []map[string]interface{}{
-					{"name": "safe_tool", "description": "A safe tool"},
+					{"name": "spec_tool", "description": "A spec-compliant tool", "inputSchema": map[string]interface{}{"type": "object"}},
 				},
 			})
+		default:
+			jsonRPCError(w, http.StatusOK, id, -32601, "Method not found")
 		}
 	}))
-	defer strictServer.Close()
+	defer specServer.Close()
 
-	// Create config with strict HTTP backend (simulating "safeinputs")
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{
-			"safeinputs": {
+			"spec-backend": {
 				Type: "http",
-				URL:  strictServer.URL,
+				URL:  specServer.URL,
 			},
 		},
 	}
 
-	// Create unified server - should succeed with our fix
 	ctx := context.Background()
 	us, err := NewUnified(ctx, cfg)
-	if err != nil {
-		t.Fatalf("Failed to create unified server with strict HTTP backend: %v. This indicates the Mcp-Session-Id header is not being sent during initialization.", err)
-	}
+	require.NoError(t, err, "Failed to create unified server")
 	defer us.Close()
 
-	// Verify tools were registered
-	tools := us.GetToolsForBackend("safeinputs")
-	assert.False(t, len(tools) == 0, "Expected tools to be registered from safeinputs backend, got none")
+	// The gateway must NOT send a Mcp-Session-Id on initialize (spec-compliant).
+	assert.Empty(t, initializeSessionID,
+		"Mcp-Session-Id must NOT be sent on initialize: the server, not the client, assigns it")
 
-	t.Logf("Successfully initialized strict HTTP backend 'safeinputs' with %d tools", len(tools))
+	// The server-issued session ID must be used for subsequent requests.
+	assert.Equal(t, serverSessionID, toolsListSessionID,
+		"tools/list must use the session ID issued by the server during initialize")
+
+	tools := us.GetToolsForBackend("spec-backend")
+	assert.NotEmpty(t, tools, "Expected tools to be registered")
 }
 
 // TestHTTPBackend_SessionIDPropagation tests that session ID is propagated through tool calls

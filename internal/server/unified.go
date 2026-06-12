@@ -29,9 +29,6 @@ const rateLimitExceededStatus = "rate limit exceeded"
 
 var errRateLimitExceeded = errors.New(rateLimitExceededStatus)
 
-// MCPProtocolVersion is the MCP protocol version supported by this gateway
-const MCPProtocolVersion = mcp.MCPProtocolVersion
-
 // MCPGatewaySpecVersion is the MCP Gateway Specification version this implementation conforms to
 const MCPGatewaySpecVersion = "1.9.0"
 

@@ -346,11 +346,9 @@ func (c *Connection) reconnectSDKTransport() error {
 			transport = &sdk.StreamableClientTransport{
 				Endpoint:   c.httpURL,
 				HTTPClient: headerClient,
-				// MaxRetries: -1 disables SDK-level reconnect retries (0 = SDK default 5 retries;
-				// negative = 0 retries). The gateway handles reconnection itself, so we set -1 to
-				// prevent double-retry behaviour. Verified against go-sdk v1.6.1 streamable.go:1547-1552.
-				// See TestMaxRetriesSentinelCanary for an automated guard against SDK changes.
-				MaxRetries:           -1,
+				// See streamableMaxRetries for rationale. The gateway handles reconnection
+				// itself to prevent double-retry behaviour.
+				MaxRetries:           streamableMaxRetries,
 				DisableStandaloneSSE: true,
 			}
 		case HTTPTransportSSE:

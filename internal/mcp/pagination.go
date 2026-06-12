@@ -13,10 +13,47 @@ type paginatedPage[T any] struct {
 // sequence of pages, which would otherwise consume unbounded memory and time.
 const paginateAllMaxPages = 100
 
+// PaginateAll is the canonical cursor-based pagination algorithm shared across the
+// codebase. It collects all items from a sequence of paginated fetch calls.
+//
+// fetch is called with a cursor string (empty string for the first call) and must
+// return the items for that page, the cursor for the next page (empty when done),
+// and any error. PaginateAll stops as soon as a page returns an empty next-cursor.
+//
+// maxPages caps the total number of fetch calls to prevent runaway loops. It must
+// be a positive integer; a value of 0 or negative disables the cap (no page limit),
+// which should only be used in tests or when the caller enforces its own limit.
+// Returns an error if the cap is reached or if the same cursor is returned twice (cycle).
+func PaginateAll[T any](maxPages int, fetch func(cursor string) ([]T, string, error)) ([]T, error) {
+	var all []T
+	cursor := ""
+	seenCursors := make(map[string]struct{})
+	for pageCount := 0; ; pageCount++ {
+		if maxPages > 0 && pageCount >= maxPages {
+			return nil, fmt.Errorf("pagination exceeded %d-page limit", maxPages)
+		}
+		items, nextCursor, err := fetch(cursor)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, items...)
+		if nextCursor == "" {
+			break
+		}
+		if _, seen := seenCursors[nextCursor]; seen {
+			return nil, fmt.Errorf("pagination detected cyclical cursor %q", nextCursor)
+		}
+		seenCursors[nextCursor] = struct{}{}
+		cursor = nextCursor
+	}
+	return all, nil
+}
+
 // paginateAll collects all items across paginated SDK list calls.
 // It returns an error if the backend returns more than paginateAllMaxPages pages,
 // protecting against runaway backends.
-// Keep loop-protection invariants aligned with internal/testutil/mcptest/validator.go:paginate.
+// The canonical shared algorithm is PaginateAll; paginateAll adds server-specific
+// logging and richer error context on top of it.
 func paginateAll[T any](
 	serverID string,
 	itemKind string,
