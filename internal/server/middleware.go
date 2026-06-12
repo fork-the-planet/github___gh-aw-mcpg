@@ -11,6 +11,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -298,6 +299,18 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 		} else {
 			logSDK.Printf("<<< SDK Response [%s] status=%d duration=%v (empty body)",
 				mode, lw.StatusCode, duration)
+		}
+	})
+}
+
+// withResponseLogging wraps an http.Handler to log response bodies
+func withResponseLogging(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lw := newResponseWriter(w)
+		handler.ServeHTTP(lw, r)
+		if len(lw.Body()) > 0 {
+			sanitizedBody := sanitize.SanitizeString(string(lw.Body()))
+			logHelpers.Printf("[%s] %s %s - Status: %d, Response: %s", r.RemoteAddr, r.Method, r.URL.Path, lw.StatusCode, sanitizedBody)
 		}
 	})
 }

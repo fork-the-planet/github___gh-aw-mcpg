@@ -49,18 +49,6 @@ func rejectRequest(w http.ResponseWriter, r *http.Request, status int, code, msg
 	httputil.WriteErrorResponse(w, status, code, msg)
 }
 
-// withResponseLogging wraps an http.Handler to log response bodies
-func withResponseLogging(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lw := newResponseWriter(w)
-		handler.ServeHTTP(lw, r)
-		if len(lw.Body()) > 0 {
-			sanitizedBody := sanitize.SanitizeString(string(lw.Body()))
-			logHelpers.Printf("[%s] %s %s - Status: %d, Response: %s", r.RemoteAddr, r.Method, r.URL.Path, lw.StatusCode, sanitizedBody)
-		}
-	})
-}
-
 // peekRequestBody reads all bytes from a POST request body and restores it
 // so downstream handlers can read it again.
 // Returns nil, nil for non-POST requests or requests with no body.
