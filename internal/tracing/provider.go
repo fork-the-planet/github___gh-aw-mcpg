@@ -115,11 +115,11 @@ func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, er
 	// Determine the active set of endpoints:
 	//   - GH_AW_OTLP_ENDPOINTS takes precedence (fan-out to all listed endpoints).
 	//   - Falls back to the single endpoint from config/OTEL_EXPORTER_OTLP_ENDPOINT.
-	activeEndpoints := extraEndpoints
-	if len(activeEndpoints) == 0 {
-		if endpoint != "" {
-			activeEndpoints = []string{endpoint}
-		}
+	var activeEndpoints []string
+	if len(extraEndpoints) > 0 {
+		activeEndpoints = extraEndpoints
+	} else if endpoint != "" {
+		activeEndpoints = []string{endpoint}
 	}
 
 	if len(activeEndpoints) == 0 {
