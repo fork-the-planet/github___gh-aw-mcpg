@@ -381,7 +381,7 @@ pub fn apply_tool_labels(
         }
 
         // === Content Access ===
-        "get_file_contents" => {
+        "get_file_contents" | "get_file_blame" => {
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             // File secrecy based on path patterns
             if let Some(path) = tool_args.get("path").and_then(|v| v.as_str()) {
@@ -569,6 +569,8 @@ pub fn apply_tool_labels(
         | "add_reply_to_pull_request_comment"
         // Discussion
         | "discussion_comment_write"
+        | "create_discussion" // gh discussion create — creates a discussion in a repository
+        | "edit_discussion" // gh discussion edit   — edits title/body/labels of a discussion
         // Granular issue mutation
         | "update_issue_assignees"
         | "update_issue_body"
@@ -879,6 +881,35 @@ mod tests {
             "discussion_comment_write integrity must contain a writer-level approved label, got: {:?}",
             integrity
         );
+    }
+
+    #[test]
+    fn apply_tool_labels_create_and_edit_discussion_are_repo_scoped_writes() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({"owner": "octocat", "repo": "hello-world"});
+        let repo_id = "octocat/hello-world";
+        let expected_writer_integrity = writer_integrity(repo_id, &ctx);
+        for op in &["create_discussion", "edit_discussion"] {
+            let (secrecy, integrity, _) = super::apply_tool_labels(
+                op,
+                &args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            let _ = secrecy; // secrecy inherits from repo visibility (backend unavailable in tests)
+            assert!(
+                !integrity.is_empty(),
+                "{op} must produce writer-level integrity"
+            );
+            assert!(
+                integrity.iter().any(|l| expected_writer_integrity.contains(l)),
+                "{op} integrity must contain a writer-level approved label, got: {:?}",
+                integrity
+            );
+        }
     }
 
     #[test]

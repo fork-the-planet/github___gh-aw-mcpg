@@ -16,6 +16,7 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "assign_copilot_to_issue",
     "cancel_workflow_run", // gh run cancel       — cancels an in-progress workflow run
     "create_branch",
+    "create_discussion", // gh discussion create — creates a discussion in a repository
     "create_gist",
     "create_issue",
     "create_or_update_file",
@@ -33,6 +34,7 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "disable_workflow",         // gh workflow disable
     "discussion_comment_write", // creates or edits GitHub Discussion comments
     "dismiss_notification",
+    "edit_discussion", // gh discussion edit   — edits title/body/labels of a discussion
     "edit_release",              // PATCH /repos/.../releases/{id}
     "edit_repository",           // gh repo edit — can change visibility, security settings
     "enable_toolset", // Dynamically enables additional toolsets, expanding the agent's capability set
@@ -513,6 +515,20 @@ mod tests {
             !is_read_write_operation("discussion_comment_write"),
             "discussion_comment_write should not be in READ_WRITE_OPERATIONS"
         );
+    }
+
+    #[test]
+    fn test_create_and_edit_discussion_are_write_operations() {
+        for op in &["create_discussion", "edit_discussion"] {
+            assert!(
+                is_write_operation(op),
+                "{op} must be classified as a write operation"
+            );
+            assert!(
+                !is_read_write_operation(op),
+                "{op} should not be in READ_WRITE_OPERATIONS"
+            );
+        }
     }
 
     #[test]

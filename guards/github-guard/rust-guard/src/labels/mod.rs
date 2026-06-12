@@ -478,6 +478,55 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_get_file_blame() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "path": "README.md"
+        });
+
+        let (secrecy, integrity, desc) = apply_tool_labels(
+            "get_file_blame",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        // get_file_blame has identical secrecy/integrity semantics to get_file_contents
+        assert_eq!(secrecy, vec![] as Vec<String>);
+        assert_eq!(integrity, merged_integrity("github/copilot", &ctx));
+        assert_eq!(desc, "");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_get_file_blame_secret_path() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "path": ".env"
+        });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_file_blame",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        // Sensitive files get private:owner/repo scope regardless of repo visibility
+        assert_eq!(secrecy, vec!["private:github/copilot".to_string()]);
+        assert_eq!(integrity, merged_integrity("github/copilot", &ctx));
+    }
+
+    #[test]
     fn test_apply_tool_labels_get_file_contents_secret() {
         let ctx = default_ctx();
         let tool_args = json!({
