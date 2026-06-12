@@ -130,20 +130,25 @@
       "version": "v4.36.2",
       "sha": "8aad20d150bbac5944a9f9d289da16a4b0d87c1e"
     },
-    "github/gh-aw-actions/setup@v0.79.4": {
+    "github/gh-aw-actions/setup-cli@v0.79.6": {
+      "repo": "github/gh-aw-actions/setup-cli",
+      "version": "v0.79.6",
+      "sha": "5c2fe865bb4dc46e1450f6ee0d0541d759aea73a"
+    },
+    "github/gh-aw-actions/setup@v0.79.6": {
       "repo": "github/gh-aw-actions/setup",
-      "version": "v0.79.4",
-      "sha": "d059700c6a8ec3b5fd798b9ea60f5d048447b918"
+      "version": "v0.79.6",
+      "sha": "5c2fe865bb4dc46e1450f6ee0d0541d759aea73a"
     },
-    "github/gh-aw/actions/setup-cli@v0.79.4": {
+    "github/gh-aw/actions/setup-cli@v0.79.6": {
       "repo": "github/gh-aw/actions/setup-cli",
-      "version": "v0.79.4",
-      "sha": "3faf908f47a3822de6cc1a1c153d3eab00dfa00f"
+      "version": "v0.79.6",
+      "sha": "9c481b8bc46dce8b92fce8ffc51781e5c330d37c"
     },
-    "github/gh-aw/actions/setup@v0.79.4": {
+    "github/gh-aw/actions/setup@v0.79.6": {
       "repo": "github/gh-aw/actions/setup",
-      "version": "v0.79.4",
-      "sha": "3faf908f47a3822de6cc1a1c153d3eab00dfa00f"
+      "version": "v0.79.6",
+      "sha": "9c481b8bc46dce8b92fce8ffc51781e5c330d37c"
     },
     "github/stale-repos@v9.0.14": {
       "repo": "github/stale-repos",
@@ -160,10 +165,10 @@
       "version": "v2.2.0",
       "sha": "0c5077e51419868618aeaa5fe8019c62421857d6"
     },
-    "ruby/setup-ruby@v1.312.0": {
+    "ruby/setup-ruby@v1.313.0": {
       "repo": "ruby/setup-ruby",
-      "version": "v1.312.0",
-      "sha": "12fd324f1d0b43274fdc8130f6980590a667c455"
+      "version": "v1.313.0",
+      "sha": "89f90524b88a01fe6e0b732220432cc6142926af"
     },
     "super-linter/super-linter@v8.6.0": {
       "repo": "super-linter/super-linter",
