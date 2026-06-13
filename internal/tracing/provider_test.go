@@ -170,7 +170,7 @@ func ptrFloat64(v float64) *float64 { return &v }
 
 func TestInitProvider_NoEndpoint_ReturnsNoopProvider(t *testing.T) {
 	ctx := context.Background()
-	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "") // prevent ambient CI env from overriding noop path
 
 	// With nil config (no endpoint), should return a noop provider
 	provider, err := tracing.InitProvider(ctx, nil)
@@ -187,6 +187,7 @@ func TestInitProvider_NoEndpoint_ReturnsNoopProvider(t *testing.T) {
 
 func TestInitProvider_EmptyEndpoint_ReturnsNoopProvider(t *testing.T) {
 	ctx := context.Background()
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "") // prevent ambient CI env from overriding noop path
 
 	cfg := &config.TracingConfig{
 		Endpoint:    "", // explicitly empty
@@ -558,6 +559,8 @@ func TestWrapHTTPHandler_UsesURLPathWhenPatternUnavailable(t *testing.T) {
 // deterministic rather than timing-dependent.
 func TestInitProvider_WithHeaders(t *testing.T) {
 	ctx := context.Background()
+	// Prevent GH_AW_OTLP_ENDPOINTS set in CI from overriding cfg.Endpoint and routing
+	// spans away from the per-subtest httptest.Server to external garbage URLs.
 	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
 
 	tests := []struct {
