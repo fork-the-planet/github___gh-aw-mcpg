@@ -207,6 +207,44 @@ func TestTTLCache_ConcurrentAccess(t *testing.T) {
 	assert.LessOrEqual(t, createCount.Load(), int32(10), "at most 10 unique keys")
 }
 
+// TestTTLCache_GetOrCreate_MaxSizeZeroOrNegativeBypassesCache verifies that
+// when maxSize is zero or negative every GetOrCreate call invokes create()
+// directly without caching the result, and Len() always reports zero entries.
+//
+// A maxSize <= 0 cache is intentionally a passthrough: useful for testing code
+// that accepts a *TTLCache or for runtime-disabling the cache without changing
+// call-sites.
+func TestTTLCache_GetOrCreate_MaxSizeZeroOrNegativeBypassesCache(t *testing.T) {
+	tests := []struct {
+		name    string
+		maxSize int
+	}{
+		{name: "zero disables cache", maxSize: 0},
+		{name: "negative one disables cache", maxSize: -1},
+		{name: "large negative disables cache", maxSize: -100},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := NewTTLCache[string, int](time.Hour, tt.maxSize)
+
+			createCount := 0
+
+			// First call: create must be invoked.
+			first := cache.GetOrCreate("key", func() int { createCount++; return 42 })
+			assert.Equal(t, 42, first)
+			assert.Equal(t, 1, createCount, "create should be called on first access")
+			assert.Equal(t, 0, cache.Len(), "nothing should be stored when maxSize <= 0")
+
+			// Second call with the same key: create must be invoked again (no caching).
+			second := cache.GetOrCreate("key", func() int { createCount++; return 99 })
+			assert.Equal(t, 99, second, "second call should return the new value (not a cached result)")
+			assert.Equal(t, 2, createCount, "create should be called on every access when maxSize <= 0")
+			assert.Equal(t, 0, cache.Len(), "cache must remain empty after second access")
+		})
+	}
+}
+
 // TestTTLCache_MaxSizeOne verifies edge behaviour when maxSize is 1.
 func TestTTLCache_MaxSizeOne(t *testing.T) {
 	clk := newFakeClock()
