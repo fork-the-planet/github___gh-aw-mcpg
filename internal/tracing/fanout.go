@@ -25,11 +25,9 @@ func newFanoutExporter(exporters []sdktrace.SpanExporter) sdktrace.SpanExporter 
 	return &fanoutExporter{exporters: exporters}
 }
 
-// ExportSpans exports spans to each underlying exporter concurrently. All
-// exporters are invoked in parallel so that a slow or hung backend cannot
-// delay delivery to the others. Errors from all exporters are collected and
-// joined before returning.
-func (f *fanoutExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+// forEachExporter calls fn on each underlying exporter concurrently,
+// collecting and joining all errors.
+func (f *fanoutExporter) forEachExporter(fn func(sdktrace.SpanExporter) error) error {
 	var (
 		wg   sync.WaitGroup
 		mu   sync.Mutex
@@ -39,7 +37,7 @@ func (f *fanoutExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadO
 		wg.Add(1)
 		go func(e sdktrace.SpanExporter) {
 			defer wg.Done()
-			if err := e.ExportSpans(ctx, spans); err != nil {
+			if err := fn(e); err != nil {
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
@@ -50,25 +48,20 @@ func (f *fanoutExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadO
 	return errors.Join(errs...)
 }
 
+// ExportSpans exports spans to each underlying exporter concurrently. All
+// exporters are invoked in parallel so that a slow or hung backend cannot
+// delay delivery to the others. Errors from all exporters are collected and
+// joined before returning.
+func (f *fanoutExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+	return f.forEachExporter(func(e sdktrace.SpanExporter) error {
+		return e.ExportSpans(ctx, spans)
+	})
+}
+
 // Shutdown shuts down each underlying exporter concurrently, collecting any
 // errors. All errors are joined and returned.
 func (f *fanoutExporter) Shutdown(ctx context.Context) error {
-	var (
-		wg   sync.WaitGroup
-		mu   sync.Mutex
-		errs []error
-	)
-	for _, exp := range f.exporters {
-		wg.Add(1)
-		go func(e sdktrace.SpanExporter) {
-			defer wg.Done()
-			if err := e.Shutdown(ctx); err != nil {
-				mu.Lock()
-				errs = append(errs, err)
-				mu.Unlock()
-			}
-		}(exp)
-	}
-	wg.Wait()
-	return errors.Join(errs...)
+	return f.forEachExporter(func(e sdktrace.SpanExporter) error {
+		return e.Shutdown(ctx)
+	})
 }

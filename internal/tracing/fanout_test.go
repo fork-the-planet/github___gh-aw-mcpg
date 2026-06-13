@@ -3,6 +3,7 @@ package tracing
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,6 +43,28 @@ func TestNewFanoutExporter_MultipleExporters(t *testing.T) {
 	result := newFanoutExporter([]sdktrace.SpanExporter{a, b})
 	_, ok := result.(*fanoutExporter)
 	assert.True(t, ok, "expected *fanoutExporter when more than one exporter is given")
+}
+
+// TestFanoutExporter_forEachExporter_CallsAllAndJoinsErrors verifies the shared
+// concurrent dispatch helper invokes every exporter and returns all callback errors.
+func TestFanoutExporter_forEachExporter_CallsAllAndJoinsErrors(t *testing.T) {
+	exporters := []sdktrace.SpanExporter{&stubExporter{}, &stubExporter{}, &stubExporter{}}
+	exp := &fanoutExporter{exporters: exporters}
+	wantErr := errors.New("callback failed")
+	var calls atomic.Int32
+
+	err := exp.forEachExporter(func(sdktrace.SpanExporter) error {
+		call := calls.Add(1)
+		if call%2 == 0 {
+			return wantErr
+		}
+		return nil
+	})
+
+	require.Error(t, err)
+	assert.Equal(t, int32(len(exporters)), calls.Load())
+	assert.ErrorIs(t, err, wantErr)
+	assert.Contains(t, err.Error(), wantErr.Error())
 }
 
 // TestFanoutExporter_ExportSpans_AllReceiveSpans verifies that all exporters
