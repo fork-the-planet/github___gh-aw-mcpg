@@ -14,7 +14,7 @@ package logger
 import (
 	"encoding/json"
 
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 

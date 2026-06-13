@@ -12,6 +12,215 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestPaginateAllExported tests the exported PaginateAll cursor-based pagination helper.
+func TestPaginateAllExported(t *testing.T) {
+	t.Run("single page with no next cursor", func(t *testing.T) {
+		fetch := func(cursor string) ([]string, string, error) {
+			assert.Equal(t, "", cursor, "first call should use empty cursor")
+			return []string{"a", "b", "c"}, "", nil
+		}
+		items, err := PaginateAll(10, fetch)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a", "b", "c"}, items)
+	})
+
+	t.Run("empty first page returns nil", func(t *testing.T) {
+		fetch := func(cursor string) ([]string, string, error) {
+			return nil, "", nil
+		}
+		items, err := PaginateAll(10, fetch)
+		require.NoError(t, err)
+		assert.Nil(t, items)
+	})
+
+	t.Run("multiple pages accumulate all items", func(t *testing.T) {
+		callCount := 0
+		cursors := []string{"", "cursor1", "cursor2"}
+		responses := []struct {
+			items      []int
+			nextCursor string
+		}{
+			{[]int{1, 2}, "cursor1"},
+			{[]int{3, 4}, "cursor2"},
+			{[]int{5}, ""},
+		}
+
+		fetch := func(cursor string) ([]int, string, error) {
+			require.Less(t, callCount, len(cursors), "unexpected extra fetch call")
+			assert.Equal(t, cursors[callCount], cursor)
+			r := responses[callCount]
+			callCount++
+			return r.items, r.nextCursor, nil
+		}
+
+		items, err := PaginateAll(10, fetch)
+		require.NoError(t, err)
+		assert.Equal(t, []int{1, 2, 3, 4, 5}, items)
+		assert.Equal(t, 3, callCount)
+	})
+
+	t.Run("fetch error on first call returns error immediately", func(t *testing.T) {
+		fetchErr := errors.New("backend unavailable")
+		fetch := func(cursor string) ([]string, string, error) {
+			return nil, "", fetchErr
+		}
+		items, err := PaginateAll(10, fetch)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, fetchErr)
+		assert.Nil(t, items)
+	})
+
+	t.Run("fetch error on subsequent page returns error", func(t *testing.T) {
+		callCount := 0
+		fetch := func(cursor string) ([]string, string, error) {
+			callCount++
+			if callCount == 1 {
+				return []string{"x"}, "cursor1", nil
+			}
+			return nil, "", errors.New("page 2 failed")
+		}
+		items, err := PaginateAll(10, fetch)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "page 2 failed")
+		assert.Nil(t, items)
+	})
+
+	t.Run("maxPages zero disables cap", func(t *testing.T) {
+		// 5 pages with maxPages=0 should succeed without hitting a cap
+		callCount := 0
+		fetch := func(cursor string) ([]int, string, error) {
+			callCount++
+			if callCount < 5 {
+				return []int{callCount}, fmt.Sprintf("c%d", callCount), nil
+			}
+			return []int{callCount}, "", nil
+		}
+		items, err := PaginateAll(0, fetch)
+		require.NoError(t, err)
+		assert.Len(t, items, 5)
+	})
+
+	t.Run("maxPages negative disables cap", func(t *testing.T) {
+		// 5 pages with maxPages=-1 should succeed without hitting a cap
+		callCount := 0
+		fetch := func(cursor string) ([]int, string, error) {
+			callCount++
+			if callCount < 5 {
+				return []int{callCount}, fmt.Sprintf("c%d", callCount), nil
+			}
+			return []int{callCount}, "", nil
+		}
+		items, err := PaginateAll(-1, fetch)
+		require.NoError(t, err)
+		assert.Len(t, items, 5)
+	})
+
+	t.Run("maxPages exceeded returns error with page limit in message", func(t *testing.T) {
+		const maxPages = 3
+		fetch := func(cursor string) ([]string, string, error) {
+			// Always return a next cursor to force pagination to continue
+			return []string{"item"}, fmt.Sprintf("cursor-%s-next", cursor), nil
+		}
+		items, err := PaginateAll(maxPages, fetch)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "pagination exceeded")
+		assert.ErrorContains(t, err, fmt.Sprintf("%d", maxPages))
+		assert.Nil(t, items)
+	})
+
+	t.Run("cyclical cursor returns error with cursor value in message", func(t *testing.T) {
+		callCount := 0
+		fetch := func(cursor string) ([]string, string, error) {
+			callCount++
+			if callCount == 1 {
+				return []string{"a"}, "loop-cursor", nil
+			}
+			// Return the same cursor to create a cycle
+			return []string{"b"}, "loop-cursor", nil
+		}
+		items, err := PaginateAll(100, fetch)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "loop-cursor")
+		assert.Nil(t, items)
+	})
+
+	t.Run("cyclical cursor error message includes cursor value", func(t *testing.T) {
+		const cycleCursor = "my-repeating-cursor"
+		callCount := 0
+		fetch := func(cursor string) ([]string, string, error) {
+			callCount++
+			if callCount == 1 {
+				return []string{"first"}, cycleCursor, nil
+			}
+			return []string{"second"}, cycleCursor, nil
+		}
+		_, err := PaginateAll(100, fetch)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, cycleCursor)
+		assert.ErrorContains(t, err, "cyclical cursor")
+	})
+
+	t.Run("maxPages=1 succeeds when single page has no next cursor", func(t *testing.T) {
+		fetch := func(cursor string) ([]string, string, error) {
+			return []string{"only"}, "", nil
+		}
+		items, err := PaginateAll(1, fetch)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"only"}, items)
+	})
+
+	t.Run("maxPages=1 fails when first page returns next cursor", func(t *testing.T) {
+		callCount := 0
+		fetch := func(cursor string) ([]string, string, error) {
+			callCount++
+			return []string{"item"}, "next", nil
+		}
+		items, err := PaginateAll(1, fetch)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "pagination exceeded")
+		// Only the first page should be fetched before hitting the cap on the next loop
+		assert.Equal(t, 1, callCount)
+		assert.Nil(t, items)
+	})
+
+	t.Run("exactly maxPages pages with final empty cursor succeeds", func(t *testing.T) {
+		const maxPages = 3
+		callCount := 0
+		fetch := func(cursor string) ([]int, string, error) {
+			callCount++
+			if callCount < maxPages {
+				return []int{callCount}, fmt.Sprintf("c%d", callCount), nil
+			}
+			return []int{callCount}, "", nil
+		}
+		items, err := PaginateAll(maxPages, fetch)
+		require.NoError(t, err)
+		assert.Len(t, items, maxPages)
+		assert.Equal(t, maxPages, callCount)
+	})
+
+	t.Run("cursor passing is correct across pages", func(t *testing.T) {
+		receivedCursors := make([]string, 0, 4)
+		fetch := func(cursor string) ([]string, string, error) {
+			receivedCursors = append(receivedCursors, cursor)
+			switch cursor {
+			case "":
+				return []string{"a"}, "alpha", nil
+			case "alpha":
+				return []string{"b"}, "beta", nil
+			case "beta":
+				return []string{"c"}, "", nil
+			default:
+				return nil, "", fmt.Errorf("unexpected cursor %q", cursor)
+			}
+		}
+		items, err := PaginateAll(10, fetch)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"a", "b", "c"}, items)
+		assert.Equal(t, []string{"", "alpha", "beta"}, receivedCursors)
+	})
+}
+
 // TestPaginateAll tests the paginateAll generic pagination helper.
 func TestPaginateAllHelper(t *testing.T) {
 	t.Run("single page with no next cursor", func(t *testing.T) {

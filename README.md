@@ -263,7 +263,7 @@ awmg proxy \
   --listen localhost:8080
 ```
 
-This maps ~25 REST URL patterns and GraphQL queries to guard tool names, then runs the same 6-phase DIFC pipeline used by the MCP gateway. See [docs/PROXY_MODE.md](docs/PROXY_MODE.md) for full documentation.
+This maps ~50 REST URL patterns and ~15 GraphQL query patterns to guard tool names, then runs the same 6-phase DIFC pipeline used by the MCP gateway. See [docs/PROXY_MODE.md](docs/PROXY_MODE.md) for full documentation.
 
 ## Further Reading
 

@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-
-	"github.com/github/gh-aw-mcpg/internal/config/rules"
 )
 
 // Variable expression pattern: ${VARIABLE_NAME}
@@ -47,7 +45,7 @@ func expandVariables(value, jsonPath string) (string, error) {
 
 	if len(undefinedVars) > 0 {
 		logValidation.Printf("Variable expansion failed: undefined variables=%v", undefinedVars)
-		return "", rules.UndefinedVariable(undefinedVars[0], jsonPath)
+		return "", UndefinedVariable(undefinedVars[0], jsonPath)
 	}
 
 	return string(result), nil
@@ -61,7 +59,7 @@ func ExpandRawJSONVariables(data []byte) ([]byte, error) {
 
 	if len(undefinedVars) > 0 {
 		logValidation.Printf("Variable expansion failed: undefined variables=%v", undefinedVars)
-		return nil, rules.UndefinedVariable(undefinedVars[0], "configuration")
+		return nil, UndefinedVariable(undefinedVars[0], "configuration")
 	}
 
 	return result, nil

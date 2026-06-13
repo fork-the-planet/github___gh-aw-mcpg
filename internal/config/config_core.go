@@ -33,7 +33,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/github/gh-aw-mcpg/internal/config/rules"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
@@ -504,7 +503,7 @@ func LoadFromFile(path string) (*Config, error) {
 
 	// Validate payload_size_threshold per spec §4.1.3.3 when explicitly set in TOML.
 	if md.IsDefined("gateway", "payload_size_threshold") {
-		if err := rules.PositiveInteger(cfg.Gateway.PayloadSizeThreshold, "payload_size_threshold", "gateway.payload_size_threshold"); err != nil {
+		if err := PositiveInteger(cfg.Gateway.PayloadSizeThreshold, "payload_size_threshold", "gateway.payload_size_threshold"); err != nil {
 			return nil, err
 		}
 	}
