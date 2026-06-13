@@ -71,7 +71,7 @@ func (f *fanoutExporter) Shutdown(ctx context.Context) error {
 		go func(e sdktrace.SpanExporter) {
 			defer wg.Done()
 			if err := e.Shutdown(ctx); err != nil {
-				logTracing.Printf("fanoutExporter.Shutdown: backend shutdown error: %v", err)
+				logTracing.Printf("fanoutExporter.Shutdown: backend (%T) shutdown error: %v", e, err)
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
