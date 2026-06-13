@@ -211,3 +211,46 @@ func TestResolveExtraEndpoints_InvalidJSONReturnsNil(t *testing.T) {
 	got := resolveExtraEndpoints(nil)
 	assert.Nil(t, got)
 }
+
+func TestResolveExtraEndpoints_EmptyJSONArrayReturnsNil(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", `[]`)
+	got := resolveExtraEndpoints(nil)
+	assert.Nil(t, got)
+}
+
+func TestNormalizeExtraEndpoint(t *testing.T) {
+	tests := []struct {
+		name       string
+		endpoint   string
+		signalPath string
+		want       string
+	}{
+		{
+			name:     "whitespace only returns empty",
+			endpoint: "   ",
+			want:     "",
+		},
+		{
+			name:     "default signal path appended",
+			endpoint: "http://collector.example.com:4318",
+			want:     "http://collector.example.com:4318/v1/traces",
+		},
+		{
+			name:       "custom signal path appended",
+			endpoint:   "http://collector.example.com:4318",
+			signalPath: "/v2/traces",
+			want:       "http://collector.example.com:4318/v2/traces",
+		},
+		{
+			name:     "invalid URL falls back to string append",
+			endpoint: "http://host\x7f:4318/path",
+			want:     "http://host\x7f:4318/path/v1/traces",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, normalizeExtraEndpoint(tt.endpoint, tt.signalPath))
+		})
+	}
+}
