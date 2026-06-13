@@ -1,4 +1,4 @@
-package rules
+package config
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var log = logger.New("config:rules")
+var logRules = logger.New("config:rules")
 
 // Documentation URL constants
 const (
@@ -41,7 +41,7 @@ func (e *ValidationError) Error() string {
 
 // UnsupportedType creates a ValidationError for unsupported type values
 func UnsupportedType(fieldName, actualType, jsonPath, suggestion string) *ValidationError {
-	log.Printf("Validation error: unsupported type at %s.%s, type=%s", jsonPath, fieldName, actualType)
+	logRules.Printf("Validation error: unsupported type at %s.%s, type=%s", jsonPath, fieldName, actualType)
 	return &ValidationError{
 		Field:      fieldName,
 		Message:    fmt.Sprintf("unsupported server type '%s'", actualType),
@@ -91,9 +91,9 @@ func AppendConfigDocsFooter(sb *strings.Builder) {
 // PortRange validates that a port is in the valid range (1-65535)
 // Returns nil if valid, *ValidationError if invalid
 func PortRange(port int, jsonPath string) *ValidationError {
-	log.Printf("Validating port range: port=%d, jsonPath=%s", port, jsonPath)
+	logRules.Printf("Validating port range: port=%d, jsonPath=%s", port, jsonPath)
 	if port < 1 || port > 65535 {
-		log.Printf("Port validation failed: port=%d out of range", port)
+		logRules.Printf("Port validation failed: port=%d out of range", port)
 		return &ValidationError{
 			Field:      "port",
 			Message:    fmt.Sprintf("port must be between 1 and 65535, got %d", port),
@@ -119,9 +119,9 @@ func TimeoutPositive(timeout int, fieldName, jsonPath string) *ValidationError {
 // PositiveInteger validates that a value is at least 1.
 // Returns nil if valid, *ValidationError if invalid.
 func PositiveInteger(value int, fieldName, jsonPath string) *ValidationError {
-	log.Printf("Validating positive integer: field=%s, value=%d, jsonPath=%s", fieldName, value, jsonPath)
+	logRules.Printf("Validating positive integer: field=%s, value=%d, jsonPath=%s", fieldName, value, jsonPath)
 	if value < 1 {
-		log.Printf("Positive integer validation failed: %s=%d is not positive", fieldName, value)
+		logRules.Printf("Positive integer validation failed: %s=%d is not positive", fieldName, value)
 		return &ValidationError{
 			Field:      fieldName,
 			Message:    fmt.Sprintf("%s must be a positive integer (>= 1), got %d", fieldName, value),
@@ -135,9 +135,9 @@ func PositiveInteger(value int, fieldName, jsonPath string) *ValidationError {
 // TimeoutMinimum validates that a timeout value is at least min.
 // Returns nil if valid, *ValidationError if below the minimum.
 func TimeoutMinimum(timeout, min int, fieldName, jsonPath string) *ValidationError {
-	log.Printf("Validating timeout minimum: field=%s, value=%d, min=%d, jsonPath=%s", fieldName, timeout, min, jsonPath)
+	logRules.Printf("Validating timeout minimum: field=%s, value=%d, min=%d, jsonPath=%s", fieldName, timeout, min, jsonPath)
 	if timeout < min {
-		log.Printf("Timeout minimum validation failed: %s=%d is below minimum %d", fieldName, timeout, min)
+		logRules.Printf("Timeout minimum validation failed: %s=%d is below minimum %d", fieldName, timeout, min)
 		return &ValidationError{
 			Field:      fieldName,
 			Message:    fmt.Sprintf("%s must be at least %d, got %d", fieldName, min, timeout),
@@ -151,9 +151,9 @@ func TimeoutMinimum(timeout, min int, fieldName, jsonPath string) *ValidationErr
 // TimeoutRange validates that a timeout value is within [min, max] (inclusive).
 // Returns nil if valid, *ValidationError if outside the range.
 func TimeoutRange(timeout, min, max int, fieldName, jsonPath string) *ValidationError {
-	log.Printf("Validating timeout range: field=%s, value=%d, min=%d, max=%d, jsonPath=%s", fieldName, timeout, min, max, jsonPath)
+	logRules.Printf("Validating timeout range: field=%s, value=%d, min=%d, max=%d, jsonPath=%s", fieldName, timeout, min, max, jsonPath)
 	if timeout < min || timeout > max {
-		log.Printf("Timeout range validation failed: %s=%d is outside [%d, %d]", fieldName, timeout, min, max)
+		logRules.Printf("Timeout range validation failed: %s=%d is outside [%d, %d]", fieldName, timeout, min, max)
 		suggestedTimeout := min + (max-min)/2
 		return &ValidationError{
 			Field:      fieldName,
@@ -172,10 +172,10 @@ func TimeoutRange(timeout, min, max int, fieldName, jsonPath string) *Validation
 // - Container path MUST be an absolute path
 // - Mode MUST be either "ro" (read-only) or "rw" (read-write)
 func MountFormat(mount, jsonPath string, index int) *ValidationError {
-	log.Printf("Validating mount format: mount=%s, jsonPath=%s, index=%d", mount, jsonPath, index)
+	logRules.Printf("Validating mount format: mount=%s, jsonPath=%s, index=%d", mount, jsonPath, index)
 	parts := strings.Split(mount, ":")
 	if len(parts) != 3 {
-		log.Printf("Mount format validation failed: invalid part count=%d", len(parts))
+		logRules.Printf("Mount format validation failed: invalid part count=%d", len(parts))
 		return &ValidationError{
 			Field:      "mounts",
 			Message:    fmt.Sprintf("invalid mount format '%s' (expected 'source:dest:mode')", mount),
@@ -260,9 +260,9 @@ func NonEmptyString(value, fieldName, jsonPath string) *ValidationError {
 // Pattern: ^(/|[A-Za-z]:\\)
 // Returns nil if valid, *ValidationError if invalid
 func AbsolutePath(value, fieldName, jsonPath string) *ValidationError {
-	log.Printf("Validating absolute path: field=%s, value=%s, jsonPath=%s", fieldName, value, jsonPath)
+	logRules.Printf("Validating absolute path: field=%s, value=%s, jsonPath=%s", fieldName, value, jsonPath)
 	if value == "" {
-		log.Printf("Absolute path validation failed: %s is empty", fieldName)
+		logRules.Printf("Absolute path validation failed: %s is empty", fieldName)
 		return &ValidationError{
 			Field:      fieldName,
 			Message:    fmt.Sprintf("%s cannot be empty", fieldName),
@@ -273,7 +273,7 @@ func AbsolutePath(value, fieldName, jsonPath string) *ValidationError {
 
 	// Check for Unix absolute path (starts with /)
 	if strings.HasPrefix(value, "/") {
-		log.Printf("Valid Unix absolute path: %s", value)
+		logRules.Printf("Valid Unix absolute path: %s", value)
 		return nil
 	}
 
@@ -282,11 +282,11 @@ func AbsolutePath(value, fieldName, jsonPath string) *ValidationError {
 	if len(value) >= 3 &&
 		((value[0] >= 'A' && value[0] <= 'Z') || (value[0] >= 'a' && value[0] <= 'z')) &&
 		value[1] == ':' && value[2] == '\\' {
-		log.Printf("Valid Windows absolute path: %s", value)
+		logRules.Printf("Valid Windows absolute path: %s", value)
 		return nil
 	}
 
-	log.Printf("Absolute path validation failed: %s=%s is not absolute", fieldName, value)
+	logRules.Printf("Absolute path validation failed: %s=%s is not absolute", fieldName, value)
 	return &ValidationError{
 		Field:      fieldName,
 		Message:    fmt.Sprintf("%s must be an absolute path, got '%s'", fieldName, value),

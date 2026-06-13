@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/config/rules"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/version"
@@ -455,7 +454,7 @@ func formatSchemaError(err error) error {
 		// Recursively format all errors
 		formatValidationErrorRecursive(ve, &sb, 0)
 
-		rules.AppendConfigDocsFooter(&sb)
+		AppendConfigDocsFooter(&sb)
 
 		return fmt.Errorf("%s", sb.String())
 	}
@@ -628,7 +627,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 		// Validate container pattern for stdio servers
 		if server.Type == "" || server.Type == "stdio" || server.Type == "local" {
 			if server.Container != "" && !containerPattern.MatchString(server.Container) {
-				return rules.InvalidPattern("container", server.Container,
+				return InvalidPattern("container", server.Container,
 					fmt.Sprintf("%s.container", jsonPath),
 					"Use a valid container image format (e.g., 'ghcr.io/owner/image:tag', 'owner/image:latest', or 'ghcr.io/owner/image:tag@sha256:<digest>')")
 			}
@@ -636,7 +635,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 			// Validate mount patterns
 			for i, mount := range server.Mounts {
 				if !mountPattern.MatchString(mount) {
-					return rules.InvalidPattern("mounts", mount,
+					return InvalidPattern("mounts", mount,
 						fmt.Sprintf("%s.mounts[%d]", jsonPath, i),
 						"Use format 'source:dest:mode' where mode is 'ro' or 'rw'")
 				}
@@ -644,7 +643,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 
 			// Validate entrypoint is not empty if provided
 			if server.Entrypoint != "" && len(strings.TrimSpace(server.Entrypoint)) == 0 {
-				return rules.InvalidValue("entrypoint", "entrypoint cannot be empty or whitespace only",
+				return InvalidValue("entrypoint", "entrypoint cannot be empty or whitespace only",
 					fmt.Sprintf("%s.entrypoint", jsonPath),
 					"Provide a valid entrypoint path or remove the field")
 			}
@@ -653,7 +652,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 		// Validate URL pattern for HTTP servers
 		if server.Type == "http" {
 			if server.URL != "" && !urlPattern.MatchString(server.URL) {
-				return rules.InvalidPattern("url", server.URL,
+				return InvalidPattern("url", server.URL,
 					fmt.Sprintf("%s.url", jsonPath),
 					"Use a valid HTTP or HTTPS URL (e.g., 'https://api.example.com/mcp')")
 			}
@@ -672,7 +671,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 		if stdinCfg.Gateway.Domain != "" {
 			domain := stdinCfg.Gateway.Domain
 			if domain != "localhost" && domain != "host.docker.internal" && !domainVarPattern.MatchString(domain) {
-				return rules.InvalidValue("domain",
+				return InvalidValue("domain",
 					fmt.Sprintf("domain '%s' must be 'localhost', 'host.docker.internal', or a variable expression", domain),
 					"gateway.domain",
 					"Use 'localhost', 'host.docker.internal', or a variable like '${MCP_GATEWAY_DOMAIN}'")

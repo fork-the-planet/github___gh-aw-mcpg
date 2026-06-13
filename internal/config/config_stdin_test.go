@@ -5,7 +5,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/github/gh-aw-mcpg/internal/config/rules"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -302,7 +301,7 @@ func TestConvertStdinServerConfig_ValidationError(t *testing.T) {
 }
 
 // TestConvertStdinServerConfig_StdioWithAuth verifies that a stdio server with an auth block
-// returns a structured rules.ValidationError with the correct JSONPath and suggestion,
+// returns a structured ValidationError with the correct JSONPath and suggestion,
 // guarding against regressions in error type or message.
 func TestConvertStdinServerConfig_StdioWithAuth(t *testing.T) {
 	server := &StdinServerConfig{
@@ -317,8 +316,8 @@ func TestConvertStdinServerConfig_StdioWithAuth(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, result)
 
-	var valErr *rules.ValidationError
-	require.True(t, errors.As(err, &valErr), "expected a *rules.ValidationError, got %T: %v", err, err)
+	var valErr *ValidationError
+	require.True(t, errors.As(err, &valErr), "expected a *ValidationError, got %T: %v", err, err)
 	assert.Equal(t, "auth", valErr.Field)
 	assert.Contains(t, valErr.Message, "server type \"stdio\"")
 	assert.Contains(t, valErr.JSONPath, "mcpServers.my-server")

@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/config/rules"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 )
 
 // ToolTimeoutMin is the minimum allowed value for toolTimeout (seconds).
 const ToolTimeoutMin = 10
 
-func parseAndValidateIntEnv(envKey string, validate func(int) *rules.ValidationError) (int, bool, error) {
+func parseAndValidateIntEnv(envKey string, validate func(int) *ValidationError) (int, bool, error) {
 	value, present, err := envutil.GetEnvIntRaw(envKey)
 	if !present {
 		logConfig.Printf("%s not set in environment", envKey)
@@ -34,8 +33,8 @@ func parseAndValidateIntEnv(envKey string, validate func(int) *rules.ValidationE
 
 // GetGatewayPortFromEnv returns the MCP_GATEWAY_PORT value, parsed as int
 func GetGatewayPortFromEnv() (int, error) {
-	port, ok, err := parseAndValidateIntEnv("MCP_GATEWAY_PORT", func(port int) *rules.ValidationError {
-		return rules.PortRange(port, "MCP_GATEWAY_PORT")
+	port, ok, err := parseAndValidateIntEnv("MCP_GATEWAY_PORT", func(port int) *ValidationError {
+		return PortRange(port, "MCP_GATEWAY_PORT")
 	})
 	if err != nil {
 		return 0, err
@@ -82,8 +81,8 @@ func GetGatewayAgentIDFromEnv() string {
 // Returns (0, false) when the environment variable is not set or empty.
 // Returns an error when the variable is set but invalid (non-integer or below minimum of 10).
 func GetGatewayToolTimeoutFromEnv() (int, bool, error) {
-	return parseAndValidateIntEnv("MCP_GATEWAY_TOOL_TIMEOUT", func(timeout int) *rules.ValidationError {
-		return rules.TimeoutMinimum(timeout, ToolTimeoutMin, "MCP_GATEWAY_TOOL_TIMEOUT", "MCP_GATEWAY_TOOL_TIMEOUT")
+	return parseAndValidateIntEnv("MCP_GATEWAY_TOOL_TIMEOUT", func(timeout int) *ValidationError {
+		return TimeoutMinimum(timeout, ToolTimeoutMin, "MCP_GATEWAY_TOOL_TIMEOUT", "MCP_GATEWAY_TOOL_TIMEOUT")
 	})
 }
 

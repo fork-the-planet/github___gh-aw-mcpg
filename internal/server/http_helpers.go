@@ -9,7 +9,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
 )
 
 var logHelpers = logger.New("server:helpers")

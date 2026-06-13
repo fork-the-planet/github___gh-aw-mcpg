@@ -11,9 +11,9 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/launcher"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/middleware"
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 

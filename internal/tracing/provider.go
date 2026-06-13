@@ -240,6 +240,17 @@ func GetCachedOrGlobal(cached trace.Tracer) trace.Tracer {
 	return Tracer()
 }
 
+// CachedTracer holds an optional pre-initialized tracer and falls back to the
+// global tracer when the cached tracer is nil.
+type CachedTracer struct {
+	Tracer trace.Tracer
+}
+
+// GetTracer returns the cached tracer when set, otherwise the global tracer.
+func (ct CachedTracer) GetTracer() trace.Tracer {
+	return GetCachedOrGlobal(ct.Tracer)
+}
+
 // ParentContext returns a context carrying the W3C remote parent span context
 // from the configured traceId and spanId (spec §4.1.3.6).
 // Exported for use at startup to build the root span's parent context.
