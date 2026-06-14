@@ -103,10 +103,9 @@ func TestValidateToolResponseFilters_DirectCall(t *testing.T) {
 			errSubstr: "custom.path contains an empty tool name",
 		},
 		{
-			// $ENV.KEY is valid jq syntax and compiles successfully, but calling it
-			// forces gojq to invoke the WithEnvironLoader closure during compilation.
-			// This covers the `return nil` inside the env-loader function literal at
-			// validation.go:136 (the only statement not reached by other test cases).
+			// $ENV.KEY is valid jq syntax and compiles successfully, but it triggers the
+			// gojq environ-loader option during compilation. This ensures the
+			// validateToolResponseFilters gojq.WithEnvironLoader closure is executed.
 			name: "filter using $ENV calls the env loader during compilation",
 			filters: map[string]string{
 				"my_tool": "$ENV.SOME_VARIABLE",
