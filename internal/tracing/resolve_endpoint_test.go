@@ -226,6 +226,11 @@ func TestNormalizeExtraEndpoint(t *testing.T) {
 		want       string
 	}{
 		{
+			name:     "empty string returns empty",
+			endpoint: "",
+			want:     "",
+		},
+		{
 			name:     "whitespace only returns empty",
 			endpoint: "   ",
 			want:     "",
@@ -253,4 +258,33 @@ func TestNormalizeExtraEndpoint(t *testing.T) {
 			assert.Equal(t, tt.want, normalizeExtraEndpoint(tt.endpoint, tt.signalPath))
 		})
 	}
+}
+
+// TestResolveExtraEndpoints_JSONArray_EmptyURL verifies that a JSON-format
+// GH_AW_OTLP_ENDPOINTS entry with an empty URL field is silently skipped
+// while valid entries are still returned.
+func TestResolveExtraEndpoints_JSONArray_EmptyURL(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", `[{"url":""},{"url":"http://ep1:4318"}]`)
+	got := resolveExtraEndpoints(nil)
+	require.Len(t, got, 1)
+	assert.Equal(t, "http://ep1:4318/v1/traces", got[0])
+}
+
+// TestResolveExtraEndpoints_JSONArray_WhitespaceURL verifies that a JSON-format
+// GH_AW_OTLP_ENDPOINTS entry with a whitespace-only URL field is silently skipped
+// while valid entries are still returned.
+func TestResolveExtraEndpoints_JSONArray_WhitespaceURL(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", `[{"url":"   "},{"url":"http://ep1:4318"}]`)
+	got := resolveExtraEndpoints(nil)
+	require.Len(t, got, 1)
+	assert.Equal(t, "http://ep1:4318/v1/traces", got[0])
+}
+
+// TestResolveExtraEndpoints_JSONArray_AllEmptyURLsReturnsNil verifies that when
+// all JSON-format GH_AW_OTLP_ENDPOINTS entries have empty or whitespace URLs,
+// resolveExtraEndpoints returns nil (no valid endpoints).
+func TestResolveExtraEndpoints_JSONArray_AllEmptyURLsReturnsNil(t *testing.T) {
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", `[{"url":""},{"url":"  "}]`)
+	got := resolveExtraEndpoints(nil)
+	assert.Nil(t, got)
 }
