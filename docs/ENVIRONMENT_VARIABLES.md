@@ -128,10 +128,11 @@ These environment variables configure guard policies (e.g., AllowOnly policies f
 
 ## OpenTelemetry / Tracing Variables
 
-These standard OpenTelemetry environment variables configure tracing. `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_SERVICE_NAME` set defaults for the corresponding `--otlp-*` CLI flags; `OTEL_EXPORTER_OTLP_HEADERS` is used as a fallback when config headers are unset.
+These OpenTelemetry and gateway-specific environment variables configure tracing. `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_SERVICE_NAME` set defaults for the corresponding `--otlp-*` CLI flags; `OTEL_EXPORTER_OTLP_HEADERS` is used as a fallback when config headers are unset.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP endpoint for trace export (e.g., `http://localhost:4318`). Tracing is disabled when empty. Sets default for `--otlp-endpoint`. | (disabled) |
 | `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated `key=value` HTTP headers for OTLP export requests (W3C Baggage format, e.g., `Authorization=Bearer%20token,X-Custom=value`). Used as fallback when `gateway.opentelemetry.headers` / `gateway.tracing.headers` is not set in config. | (none) |
+| `GH_AW_OTLP_ENDPOINTS` | Comma-separated OTLP endpoint URLs, or a JSON array of `{ "url", "headers?" }` objects, for multi-backend fan-out tracing. When set, spans are exported to all listed endpoints (partial-failure tolerant). Takes precedence over `OTEL_EXPORTER_OTLP_ENDPOINT`. Shared headers from `OTEL_EXPORTER_OTLP_HEADERS` / config apply to all entries; JSON per-endpoint headers override shared headers on key conflicts. | (none) |
 | `OTEL_SERVICE_NAME` | Service name reported in traces. Sets default for `--otlp-service-name`. | `mcp-gateway` |

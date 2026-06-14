@@ -293,6 +293,7 @@ gh-aw-mcpg/
     ├── middleware/            # HTTP middleware (jq schema processing)
     ├── oidc/                  # OIDC authentication for HTTP MCP backends
     ├── proxy/                 # HTTP forward proxy for DIFC filtering
+    ├── sanitize/              # Sensitive data redaction utilities for logging
     ├── server/                # HTTP server (routed/unified modes)
     ├── strutil/               # String and formatting utility helpers (deduplication, trimming, duration formatting, JSON deep-clone)
     ├── syncutil/              # Concurrency utility helpers
@@ -319,6 +320,7 @@ gh-aw-mcpg/
 - **`internal/middleware/`** - HTTP middleware (jq schema processing)
 - **`internal/oidc/`** - OIDC authentication for HTTP MCP backends
 - **`internal/proxy/`** - HTTP forward proxy applying DIFC filtering to `gh` CLI and REST/GraphQL requests
+- **`internal/sanitize/`** - Sensitive data redaction utilities (`SanitizeString`, `SanitizeJSON`, `TruncateSecret`) for safe log output
 - **`internal/server/`** - HTTP server with routed and unified modes
 - **`internal/strutil/`** - String and formatting utility helpers (deduplication, trimming, duration formatting, JSON deep-clone)
 - **`internal/syncutil/`** - Concurrency utility helpers (get-or-create pattern)

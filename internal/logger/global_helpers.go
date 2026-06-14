@@ -184,3 +184,19 @@ func StartupWarn(format string, args ...interface{}) {
 	log.Printf("Warning: "+format, args...)
 	LogWarn("startup", format, args...)
 }
+
+// initWithWarning calls the Init* function result and prints a warning when it returns an error.
+// It is used by InitGatewayLoggers and InitProxyLoggers to report non-fatal initialization
+// failures without aborting startup.
+func initWithWarning(err error, name string) {
+	if err != nil {
+		log.Printf("Warning: Failed to initialize %s: %v", name, err)
+	}
+}
+
+// logFallbackWarnings prints two WARNING lines for logger initialization failure with fallback:
+// the first includes the underlying error, the second describes the fallback behavior.
+func logFallbackWarnings(err error, errMsg, fallbackMsg string) {
+	log.Printf("WARNING: %s: %v", errMsg, err)
+	log.Printf("WARNING: %s", fallbackMsg)
+}
