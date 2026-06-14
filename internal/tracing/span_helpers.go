@@ -5,6 +5,7 @@ package tracing
 import (
 	"context"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -31,18 +32,24 @@ func RecordSpanErrorOnAll(err error, msg string, spans ...oteltrace.Span) {
 	}
 }
 
+// startSpan is the shared inner implementation used by all public Start*Span helpers.
+// It starts a span with the given name, kind, and attributes.
+func startSpan(ctx context.Context, tracer oteltrace.Tracer, spanName string, kind oteltrace.SpanKind, attrs ...attribute.KeyValue) (context.Context, oteltrace.Span) {
+	return tracer.Start(ctx, spanName,
+		oteltrace.WithAttributes(attrs...),
+		oteltrace.WithSpanKind(kind),
+	)
+}
+
 // StartToolCallSpan starts the outer tool-call OTEL span with standard gen_ai attributes.
 // It covers the full tool call lifecycle (all DIFC pipeline phases) in unified server mode.
 func StartToolCallSpan(ctx context.Context, tracer oteltrace.Tracer, serverID, toolName string) (context.Context, oteltrace.Span) {
 	logTracing.Printf("Starting tool call span: serverID=%s, toolName=%s", serverID, toolName)
-	return tracer.Start(ctx, "mcp.tool_call",
-		oteltrace.WithAttributes(
-			GenAISystem.String("mcp"),
-			GenAIAgentID.String(serverID),
-			MCPMethod.String("tools/call"),
-			GenAIToolName.String(toolName),
-		),
-		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
+	return startSpan(ctx, tracer, "mcp.tool_call", oteltrace.SpanKindInternal,
+		GenAISystem.String("mcp"),
+		GenAIAgentID.String(serverID),
+		MCPMethod.String("tools/call"),
+		GenAIToolName.String(toolName),
 	)
 }
 
@@ -50,12 +57,9 @@ func StartToolCallSpan(ctx context.Context, tracer oteltrace.Tracer, serverID, t
 // It is a client-kind span that covers the actual RPC to the backend MCP server.
 func StartBackendExecuteSpan(ctx context.Context, tracer oteltrace.Tracer, serverID, toolName string) (context.Context, oteltrace.Span) {
 	logTracing.Printf("Starting backend execute span: serverID=%s, toolName=%s", serverID, toolName)
-	return tracer.Start(ctx, "gateway.backend.execute",
-		oteltrace.WithAttributes(
-			GenAIToolName.String(toolName),
-			GenAIAgentID.String(serverID),
-		),
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	return startSpan(ctx, tracer, "gateway.backend.execute", oteltrace.SpanKindClient,
+		GenAIToolName.String(toolName),
+		GenAIAgentID.String(serverID),
 	)
 }
 
@@ -63,12 +67,9 @@ func StartBackendExecuteSpan(ctx context.Context, tracer oteltrace.Tracer, serve
 // It covers all phases of the DIFC pipeline for a single proxied request.
 func StartDIFCPipelineSpan(ctx context.Context, tracer oteltrace.Tracer, toolName, urlPath string) (context.Context, oteltrace.Span) {
 	logTracing.Printf("Starting DIFC pipeline span: toolName=%s, urlPath=%s", toolName, urlPath)
-	return tracer.Start(ctx, "proxy.difc_pipeline",
-		oteltrace.WithAttributes(
-			GenAIToolName.String(toolName),
-			semconv.URLPathKey.String(urlPath),
-		),
-		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
+	return startSpan(ctx, tracer, "proxy.difc_pipeline", oteltrace.SpanKindInternal,
+		GenAIToolName.String(toolName),
+		semconv.URLPathKey.String(urlPath),
 	)
 }
 
@@ -76,11 +77,8 @@ func StartDIFCPipelineSpan(ctx context.Context, tracer oteltrace.Tracer, toolNam
 // It is a client-kind span that covers the HTTP request forwarded to the upstream API.
 func StartProxyForwardSpan(ctx context.Context, tracer oteltrace.Tracer, toolName, urlPath string) (context.Context, oteltrace.Span) {
 	logTracing.Printf("Starting proxy forward span: toolName=%s, urlPath=%s", toolName, urlPath)
-	return tracer.Start(ctx, "proxy.backend.forward",
-		oteltrace.WithAttributes(
-			semconv.URLPathKey.String(urlPath),
-			GenAIToolName.String(toolName),
-		),
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	return startSpan(ctx, tracer, "proxy.backend.forward", oteltrace.SpanKindClient,
+		semconv.URLPathKey.String(urlPath),
+		GenAIToolName.String(toolName),
 	)
 }
