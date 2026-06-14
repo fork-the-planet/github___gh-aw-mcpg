@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
@@ -221,14 +220,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	var resp *http.Response
 	var respBody []byte
 
-	fwdCtx, fwdSpan := h.GetTracer().Start(ctx, "proxy.backend.forward",
-		oteltrace.WithAttributes(
-			semconv.URLPathKey.String(r.URL.Path),
-			semconv.ServerAddressKey.String(h.server.upstreamHost()),
-			tracing.GenAIToolName.String(toolName),
-		),
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
+	fwdCtx, fwdSpan := tracing.StartProxyForwardSpan(ctx, h.GetTracer(), toolName, r.URL.Path, h.server.upstreamHost())
 	defer fwdSpan.End()
 	if graphQLBody != nil {
 		resp, respBody = h.forwardAndReadBody(w, fwdCtx, http.MethodPost, path, bytes.NewReader(graphQLBody), "application/json", clientAuth)

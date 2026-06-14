@@ -178,7 +178,7 @@ func TestStartDIFCPipelineSpan(t *testing.T) {
 func TestStartProxyForwardSpan(t *testing.T) {
 	tracer, getSpans := newRecordingTracer(t)
 
-	_, span := StartProxyForwardSpan(context.Background(), tracer, "my_tool", "/api/v3/repos")
+	_, span := StartProxyForwardSpan(context.Background(), tracer, "my_tool", "/api/v3/repos", "api.github.com")
 	span.End()
 
 	spans := getSpans()
@@ -187,5 +187,6 @@ func TestStartProxyForwardSpan(t *testing.T) {
 	assert.Equal(t, "proxy.backend.forward", s.Name)
 	assert.Equal(t, oteltrace.SpanKindClient, s.SpanKind)
 	assert.True(t, hasAttr(s.Attributes, semconv.URLPathKey, "/api/v3/repos"))
+	assert.True(t, hasAttr(s.Attributes, semconv.ServerAddressKey, "api.github.com"))
 	assert.True(t, hasAttr(s.Attributes, GenAIToolName, "my_tool"))
 }
