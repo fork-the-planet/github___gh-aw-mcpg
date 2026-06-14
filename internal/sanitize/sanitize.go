@@ -29,6 +29,7 @@
 package sanitize
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/url"
 	"regexp"
@@ -52,6 +53,10 @@ var SecretPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)"(token|password|passwd|pwd|apikey|api_key|api-key|secret|client_secret|api_secret|authorization|auth|key|private_key|public_key|credentials|credential|access_token|refresh_token|bearer_token)"\s*:\s*"[^"]{1,}"`),
 }
 
+// separatorRe matches the key/value separator (= or :) with optional trailing spaces.
+// Pre-compiled at package level to avoid re-compilation on every SanitizeString call.
+var separatorRe = regexp.MustCompile(`[=:]\s*`)
+
 // MarshalAndSanitize marshals value to JSON and sanitizes the result to redact secrets.
 // If marshaling fails, it returns a sanitized empty string rather than surfacing a
 // logging-only error — callers should use this only in best-effort logging contexts.
@@ -67,7 +72,7 @@ func SanitizeString(message string) string {
 		result = pattern.ReplaceAllStringFunc(result, func(match string) string {
 			// Keep the prefix (key name) but redact the value
 			if strings.Contains(match, "=") || strings.Contains(match, ":") {
-				parts := regexp.MustCompile(`[=:]\s*`).Split(match, 2)
+				parts := separatorRe.Split(match, 2)
 				if len(parts) == 2 {
 					return parts[0] + "=[REDACTED]"
 				}
@@ -113,10 +118,9 @@ func SanitizeJSON(payloadBytes []byte) json.RawMessage {
 	// Apply regex sanitization to the entire string in one pass
 	sanitized := SanitizeString(string(payloadBytes))
 
-	// Validate that the result is valid JSON for RawMessage
-	// If not valid, wrap it in a JSON object
-	if !json.Valid([]byte(sanitized)) {
-		// Create a valid JSON object with the invalid content as a string
+	// Use json.Compact to validate and compact in one pass (avoids a full unmarshal+marshal cycle)
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, []byte(sanitized)); err != nil {
 		wrapped := map[string]string{
 			"_error": "invalid JSON",
 			"_raw":   sanitized,
@@ -124,20 +128,7 @@ func SanitizeJSON(payloadBytes []byte) json.RawMessage {
 		wrappedBytes, _ := json.Marshal(wrapped)
 		return json.RawMessage(wrappedBytes)
 	}
-
-	// Marshal and unmarshal to ensure single-line JSON (removes newlines/whitespace)
-	var tmp interface{}
-	if err := json.Unmarshal([]byte(sanitized), &tmp); err != nil {
-		// Should not happen since we validated above, but handle gracefully
-		wrapped := map[string]string{
-			"_error": "failed to parse JSON",
-			"_raw":   sanitized,
-		}
-		wrappedBytes, _ := json.Marshal(wrapped)
-		return json.RawMessage(wrappedBytes)
-	}
-	compactBytes, _ := json.Marshal(tmp)
-	return json.RawMessage(compactBytes)
+	return json.RawMessage(buf.Bytes())
 }
 
 // RedactURL returns a safe-to-log version of a URL by retaining only the scheme,

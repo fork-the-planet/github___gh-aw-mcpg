@@ -288,25 +288,15 @@ func TestSanitizeJSONWithInvalidJSON(t *testing.T) {
 }
 
 func TestSanitizeJSONWithValidJSONButUnmarshalError(t *testing.T) {
-	// json.Valid returns true for numbers like 1e309, but json.Unmarshal fails
-	// when trying to decode them into interface{} because they overflow float64.
-	// This covers the defensive error path in SanitizeJSON (lines 118-126).
+	// json.Valid and json.Compact both accept numbers like 1e309 (valid JSON
+	// syntax), even though json.Unmarshal would fail with float64 overflow.
+	// SanitizeJSON uses json.Compact, so this input should pass through as-is.
 	overflowJSON := `{"key": 1e309}`
 
 	result := SanitizeJSON([]byte(overflowJSON))
 
-	// Should still return valid JSON (wrapped with error marker)
-	var payloadObj map[string]interface{}
-	err := json.Unmarshal(result, &payloadObj)
-	require.NoError(t, err, "Result should be valid JSON even when Unmarshal fails internally")
-
-	// Should have the "failed to parse JSON" error marker
-	assert.Equal(t, "failed to parse JSON", payloadObj["_error"], "Expected _error field with 'failed to parse JSON'")
-
-	// Should preserve the sanitized content in _raw field
-	rawValue, ok := payloadObj["_raw"].(string)
-	require.True(t, ok, "_raw field should be a string")
-	assert.Contains(t, rawValue, "1e309", "Expected _raw field to contain original content")
+	// json.Compact preserves the number without error — result is compacted JSON
+	assert.Equal(t, `{"key":1e309}`, string(result), "Should return compacted JSON for syntactically valid input")
 }
 
 func TestSanitizeStringMultipleSecretsInSameString(t *testing.T) {
@@ -786,5 +776,40 @@ func TestRedactURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, RedactURL(tc.input))
 		})
+	}
+}
+
+// Benchmark tests for the sanitize hot path.
+// Run with: go test -bench=. ./internal/sanitize/
+
+func BenchmarkSanitizeString_NoSecrets(b *testing.B) {
+	input := `{"method":"tools/call","tool":"github___search_code","args":{"query":"MCP","repo":"org/repo"}}`
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = SanitizeString(input)
+	}
+}
+
+func BenchmarkSanitizeString_WithSecret(b *testing.B) {
+	input := `token=ghp_1234567890123456789012345678901234567890`
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = SanitizeString(input)
+	}
+}
+
+func BenchmarkSanitizeJSON_Compact(b *testing.B) {
+	input := []byte(`{"session":"abc123","tool":"github___get_file_contents","result":{"content":"hello world","path":"README.md"}}`)
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = SanitizeJSON(input)
+	}
+}
+
+func BenchmarkSanitizeJSON_WithPrettyPrint(b *testing.B) {
+	input := []byte("{\n  \"session\": \"abc123\",\n  \"tool\": \"github___get_file_contents\",\n  \"result\": {\n    \"content\": \"hello world\",\n    \"path\": \"README.md\"\n  }\n}")
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		_ = SanitizeJSON(input)
 	}
 }

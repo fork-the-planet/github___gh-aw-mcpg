@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"time"
 
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 
@@ -460,34 +459,13 @@ func injectRetryAfterIfRateLimited(w http.ResponseWriter, resp *http.Response) {
 	}
 
 	resetAt := httputil.ParseRateLimitResetHeader(resetHeader)
-	retryAfter := computeRetryAfter(resetAt)
+	retryAfter := httputil.ComputeRetryAfter(resetAt)
 
 	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 
 	logger.LogError("client",
 		"upstream rate limit hit: status=%d X-Ratelimit-Remaining=%s X-Ratelimit-Reset=%s retry-after=%ds",
 		resp.StatusCode, remaining, resetHeader, retryAfter)
-}
-
-// computeRetryAfter returns the number of seconds to wait before retrying.
-// When resetAt is in the future the delay is clamped to [1, 3600] seconds.
-// When resetAt is zero or in the past a default of 60 seconds is returned.
-func computeRetryAfter(resetAt time.Time) int {
-	const (
-		defaultDelay = 60
-		maxDelay     = 3600
-	)
-	if resetAt.IsZero() {
-		return defaultDelay
-	}
-	secs := int(time.Until(resetAt).Seconds()) + 1 // add 1s buffer
-	if secs < 1 {
-		return defaultDelay
-	}
-	if secs > maxDelay {
-		return maxDelay
-	}
-	return secs
 }
 
 var metadataPassthrough = map[string]bool{
