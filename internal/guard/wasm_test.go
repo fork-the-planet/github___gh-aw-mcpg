@@ -1176,7 +1176,7 @@ func TestParsePathLabeledResponse(t *testing.T) {
 	t.Run("valid path labels with nil original data returns collection labeled data", func(t *testing.T) {
 		responseJSON := []byte(`{"labeled_paths":[]}`)
 		result, err := parsePathLabeledResponse(responseJSON, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		require.IsType(t, &difc.CollectionLabeledData{}, result)
 	})

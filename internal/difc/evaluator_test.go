@@ -769,7 +769,7 @@ func TestParseEnforcementMode(t *testing.T) {
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected, mode)
 			}
 		})
