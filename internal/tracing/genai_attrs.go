@@ -5,15 +5,16 @@ package tracing
 
 import (
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 )
 
 // GenAI semantic convention attribute keys.
 // These are aliases for the official OpenTelemetry gen_ai semconv constants
-// (semconv/v1.34.0), re-exported here for convenience.
+// (semconv/v1.41.0), re-exported here for convenience.
 const (
 	// GenAISystem identifies the GenAI system family for MCP spans.
-	GenAISystem = semconv.GenAISystemKey
+	// gen_ai.system was removed from semconv/v1.41.0; the key string is preserved for compatibility.
+	GenAISystem = attribute.Key("gen_ai.system")
 
 	// GenAIToolName is the name of the tool utilized by the agent.
 	GenAIToolName = semconv.GenAIToolNameKey
