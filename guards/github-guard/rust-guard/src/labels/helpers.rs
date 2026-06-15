@@ -40,6 +40,15 @@ pub(crate) fn extract_resource_number(item: &Value, resource_type: &str, repo: &
     "unknown".to_string()
 }
 
+/// Extract the `number` field from an item for logging (issue/PR number).
+/// Returns 0 when the field is absent or not a non-negative integer.
+#[inline]
+fn item_number(item: &Value) -> u64 {
+    item.get(field_names::NUMBER)
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0)
+}
+
 /// Extract a resource number from URL fields (html_url, url).
 /// Parses trailing number from paths like `.../issues/123` or `.../pull/456`.
 fn extract_number_from_url(item: &Value) -> Option<String> {
@@ -376,7 +385,7 @@ fn apply_approval_label_promotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if let Some(label) = first_matching_approval_label(item, ctx) {
-        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item_number(item);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} promoted to approved (label '{}' in approval-labels)",
             resource_type, repo_full_name, number, label
@@ -424,7 +433,7 @@ fn apply_promotion_label_promotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if has_promotion_label(item, ctx) {
-        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item_number(item);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} promoted to approved (built-in promotion-label '{}')",
             resource_type, repo_full_name, number, ctx.promotion_label
@@ -446,7 +455,7 @@ fn apply_demotion_label_demotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if has_demotion_label(item, ctx) {
-        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item_number(item);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} demoted to none (built-in demotion-label '{}')",
             resource_type, repo_full_name, number, ctx.demotion_label
@@ -707,7 +716,7 @@ fn apply_endorsement_promotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if has_maintainer_endorsement(item, repo_full_name, ctx) {
-        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item_number(item);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} promoted to approved (maintainer endorsement reaction)",
             resource_type, repo_full_name, number
@@ -729,7 +738,7 @@ fn apply_disapproval_demotion(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     if has_maintainer_disapproval(item, repo_full_name, ctx) {
-        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item_number(item);
         let demote_level = effective_disapproval_integrity(ctx);
         crate::log_info(&format!(
             "[integrity] {}:{}#{} demoted to {} (maintainer disapproval reaction)",
@@ -1607,7 +1616,7 @@ pub fn pr_integrity(
     // Step 1: Check if author is in blocked_users — takes precedence over all other rules.
     let author_login = extract_author_login(item);
     if !author_login.is_empty() && is_blocked_user(author_login, ctx) {
-        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item_number(item);
         crate::log_info(&format!(
             "[integrity] pr:{}#{} → blocked (author '{}' in blocked-users)",
             repo_full_name, number, author_login
@@ -1689,7 +1698,7 @@ pub fn pr_integrity(
     // Collaborator permission fallback for org repos (handles org owners/admins
     // whose author_association is "NONE" due to inherited org access).
     if !repo_private {
-        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item_number(item);
         integrity = elevate_via_collaborator_permission(
             author_login, repo_full_name, "pr", &format!("{}#{}", repo_full_name, number),
             integrity, ctx,
@@ -1754,7 +1763,7 @@ pub fn issue_integrity(
     // Step 1: Check if author is in blocked_users — takes precedence over all other rules.
     let author_login = extract_author_login(item);
     if !author_login.is_empty() && is_blocked_user(author_login, ctx) {
-        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item_number(item);
         crate::log_info(&format!(
             "[integrity] issue:{}#{} → blocked (author '{}' in blocked-users)",
             repo_full_name, number, author_login
@@ -1802,7 +1811,7 @@ pub fn issue_integrity(
     // Collaborator permission fallback for org repos (handles org owners/admins
     // whose author_association is "NONE" due to inherited org access).
     if !repo_private {
-        let number = item.get(field_names::NUMBER).and_then(|v| v.as_u64()).unwrap_or(0);
+        let number = item_number(item);
         integrity = elevate_via_collaborator_permission(
             author_login, repo_full_name, "issue", &format!("{}#{}", repo_full_name, number),
             integrity, ctx,
@@ -2168,6 +2177,79 @@ mod tests {
             let s = level.as_str();
             assert_eq!(MinIntegrity::from_policy_str(s), Some(level));
         }
+    }
+
+    // =========================================================================
+    // Tests for commit_integrity
+    // =========================================================================
+
+    #[test]
+    fn test_commit_integrity_blocked_author_returns_blocked_integrity() {
+        let ctx = PolicyContext {
+            blocked_users: vec!["bad-actor".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "sha": "abc1234def",
+            "author": { "login": "bad-actor" }
+        });
+
+        let result = commit_integrity(&item, "owner/repo", false, false, &ctx);
+
+        assert_eq!(result, blocked_integrity("owner/repo", &ctx));
+    }
+
+    #[test]
+    fn test_commit_integrity_default_branch_gets_merged_floor() {
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({ "sha": "abc1234def" });
+
+        let result = commit_integrity(&item, "owner/repo", false, true, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 4);
+    }
+
+    #[test]
+    fn test_commit_integrity_non_default_public_repo_gets_none_floor() {
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({ "sha": "abc1234def" });
+
+        let result = commit_integrity(&item, "owner/repo", false, false, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 1);
+    }
+
+    #[test]
+    fn test_commit_integrity_private_repo_gets_writer_floor() {
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({ "sha": "abc1234def" });
+
+        let result = commit_integrity(&item, "owner/repo", true, false, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 3);
+    }
+
+    #[test]
+    fn test_commit_integrity_private_repo_default_branch_gets_merged_floor() {
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({ "sha": "abc1234def" });
+
+        let result = commit_integrity(&item, "owner/repo", true, true, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 4);
+    }
+
+    #[test]
+    fn test_commit_integrity_owner_authored_public_commit_gets_writer_floor() {
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({
+            "sha": "abc1234def",
+            "author": { "login": "owner" }
+        });
+
+        let result = commit_integrity(&item, "owner/repo", false, false, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 3);
     }
 
     // =========================================================================
