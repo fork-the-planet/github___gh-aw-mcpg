@@ -11,6 +11,51 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLoggerRegistries(t *testing.T) {
+	t.Run("gateway logger registry includes expected entries", func(t *testing.T) {
+		names := make([]string, 0, len(gatewayLoggerInitializers))
+		for _, entry := range gatewayLoggerInitializers {
+			names = append(names, entry.name)
+		}
+
+		assert.Equal(t, []string{
+			"file logger",
+			"server file logger",
+			"markdown logger",
+			"JSONL logger",
+			"tools logger",
+		}, names)
+	})
+
+	t.Run("proxy logger registry includes expected entries", func(t *testing.T) {
+		names := make([]string, 0, len(proxyLoggerInitializers))
+		for _, entry := range proxyLoggerInitializers {
+			names = append(names, entry.name)
+		}
+
+		assert.Equal(t, []string{
+			"file logger",
+			"markdown logger",
+			"JSONL logger",
+		}, names)
+	})
+
+	t.Run("global logger closer registry includes expected entries", func(t *testing.T) {
+		names := make([]string, 0, len(globalLoggerClosers))
+		for _, entry := range globalLoggerClosers {
+			names = append(names, entry.name)
+		}
+
+		assert.Equal(t, []string{
+			"file logger",
+			"JSONL logger",
+			"markdown logger",
+			"tools logger",
+			"server file logger",
+		}, names)
+	})
+}
+
 // TestInitWithWarning tests the initWithWarning helper.
 func TestInitWithWarning(t *testing.T) {
 	t.Run("nil error does not log anything", func(t *testing.T) {

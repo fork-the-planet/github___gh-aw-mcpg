@@ -152,20 +152,7 @@ func closeGlobalLogger[T closableLogger](mu *sync.RWMutex, logger *T) error {
 // CloseAllLoggers closes all global loggers in a single call.
 // Returns the first error encountered, but attempts to close every logger.
 func CloseAllLoggers() error {
-	closers := []func() error{
-		CloseGlobalLogger,
-		CloseJSONLLogger,
-		CloseMarkdownLogger,
-		CloseToolsLogger,
-		CloseServerFileLogger,
-	}
-	var firstErr error
-	for _, fn := range closers {
-		if err := fn(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
+	return closeLoggerSet(globalLoggerClosers)
 }
 
 // StartupInfo logs a startup informational message to stderr (via log.Printf)

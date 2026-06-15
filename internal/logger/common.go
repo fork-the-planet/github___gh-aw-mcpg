@@ -167,6 +167,10 @@ import (
 // These helpers ensure thread-safe initialization with proper cleanup of any
 // existing logger instance.
 //
+// Gateway/proxy startup and CloseAllLoggers use shared registries in registry.go
+// so that new logger types only need one centralized startup/cleanup entry per
+// command path, while the per-logger Init*/Close* public APIs remain explicit.
+//
 // When to Use Each Logger Type:
 //
 // - FileLogger: Required operational logs (startup, errors, warnings)
