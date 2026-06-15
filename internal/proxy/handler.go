@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -185,6 +186,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		errMsg := "returning 503: proxy enforcement not configured (no --policy flag provided)"
 		logHandler.Print(errMsg)
 		logger.LogError("proxy", "%s", errMsg)
+		tracing.RecordSpanError(difcSpan, errors.New("proxy enforcement not configured"), "proxy enforcement not configured")
 		httputil.WriteErrorResponse(w, http.StatusServiceUnavailable, "service_unavailable", "proxy enforcement not configured")
 		return
 	}
@@ -211,6 +213,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			return
 		}
 		logHandler.Printf("[DIFC] Phase 1 failed: %v", err)
+		tracing.RecordSpanError(difcSpan, err, "resource labeling failed")
 		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "resource labeling failed")
 		return
 	}
@@ -231,6 +234,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		fwdSpan.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(resp.StatusCode))
 	}
 	if resp == nil {
+		tracing.RecordSpanErrorOnAll(errors.New("upstream request failed"), "upstream request failed", fwdSpan, difcSpan)
 		return
 	}
 
