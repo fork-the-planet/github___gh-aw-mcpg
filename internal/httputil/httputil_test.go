@@ -398,6 +398,43 @@ func TestDoGitHubGET(t *testing.T) {
 	})
 }
 
+// TestComputeRetryAfter verifies all branches of the retry-delay calculation.
+// The function returns a default 60s for zero or past reset times, applies a
+// 1s safety buffer for future times, and clamps the result to [1, 3600] seconds.
+func TestComputeRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("zero time returns default 60s", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, 60, ComputeRetryAfter(time.Time{}))
+	})
+
+	t.Run("time in the past returns default 60s", func(t *testing.T) {
+		t.Parallel()
+		past := time.Now().Add(-5 * time.Minute)
+		assert.Equal(t, 60, ComputeRetryAfter(past))
+	})
+
+	t.Run("future time returns delay with 1s safety buffer", func(t *testing.T) {
+		t.Parallel()
+		// 60s ahead: int(60.0)+1 = 61; allow ±2s for scheduling jitter.
+		future := time.Now().Add(60 * time.Second)
+		got := ComputeRetryAfter(future)
+		assert.InDelta(t, 61, got, 2.0, "expected ~61s for 60s reset with 1s buffer")
+	})
+
+	t.Run("far future is clamped to 3600s maximum", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, 3600, ComputeRetryAfter(time.Now().Add(2*time.Hour)))
+	})
+
+	t.Run("time slightly above max delay is still clamped to 3600s", func(t *testing.T) {
+		t.Parallel()
+		// 3601s ahead: int(3601)+1 = 3602 > 3600 → clamped to 3600.
+		assert.Equal(t, 3600, ComputeRetryAfter(time.Now().Add(3601*time.Second)))
+	})
+}
+
 func TestWriteErrorResponse(t *testing.T) {
 	tests := []struct {
 		name       string
