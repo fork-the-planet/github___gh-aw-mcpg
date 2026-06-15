@@ -45,39 +45,15 @@ func validateOpenTelemetryConfig(cfg *TracingConfig, enforceHTTPS bool) error {
 	}
 
 	// Validate traceId: must be a 32-char lowercase hex string, not all-zero
-	if cfg.TraceID != "" {
-		if !traceIDPattern.MatchString(cfg.TraceID) {
-			logValidation.Printf("Invalid traceId format: %s", cfg.TraceID)
-			return InvalidValue("traceId",
-				fmt.Sprintf("traceId must be a 32-character lowercase hexadecimal string, got '%s'", cfg.TraceID),
-				"gateway.opentelemetry.traceId",
-				"Provide a valid W3C trace ID (32 lowercase hex chars, e.g., \"4bf92f3577b34da6a3ce929d0e0e4736\")")
-		}
-		if allZeroTraceID.MatchString(cfg.TraceID) {
-			logValidation.Printf("All-zero traceId rejected per W3C Trace Context: %s", cfg.TraceID)
-			return InvalidValue("traceId",
-				"traceId must not be all zeros (W3C Trace Context forbids an all-zero trace-id)",
-				"gateway.opentelemetry.traceId",
-				"Provide a non-zero W3C trace ID (e.g., \"4bf92f3577b34da6a3ce929d0e0e4736\")")
-		}
+	if err := validateW3CHexID(cfg.TraceID, "traceId", "gateway.opentelemetry.traceId",
+		traceIDPattern, allZeroTraceID, 32, "4bf92f3577b34da6a3ce929d0e0e4736"); err != nil {
+		return err
 	}
 
 	// Validate spanId: must be a 16-char lowercase hex string, not all-zero
-	if cfg.SpanID != "" {
-		if !spanIDPattern.MatchString(cfg.SpanID) {
-			logValidation.Printf("Invalid spanId format: %s", cfg.SpanID)
-			return InvalidValue("spanId",
-				fmt.Sprintf("spanId must be a 16-character lowercase hexadecimal string, got '%s'", cfg.SpanID),
-				"gateway.opentelemetry.spanId",
-				"Provide a valid W3C span ID (16 lowercase hex chars, e.g., \"00f067aa0ba902b7\")")
-		}
-		if allZeroSpanID.MatchString(cfg.SpanID) {
-			logValidation.Printf("All-zero spanId rejected per W3C Trace Context: %s", cfg.SpanID)
-			return InvalidValue("spanId",
-				"spanId must not be all zeros (W3C Trace Context forbids an all-zero span-id)",
-				"gateway.opentelemetry.spanId",
-				"Provide a non-zero W3C span ID (e.g., \"00f067aa0ba902b7\")")
-		}
+	if err := validateW3CHexID(cfg.SpanID, "spanId", "gateway.opentelemetry.spanId",
+		spanIDPattern, allZeroSpanID, 16, "00f067aa0ba902b7"); err != nil {
+		return err
 	}
 
 	// spanId without traceId is meaningless — log a warning but do not fail
@@ -86,5 +62,38 @@ func validateOpenTelemetryConfig(cfg *TracingConfig, enforceHTTPS bool) error {
 	}
 
 	logValidation.Print("OpenTelemetry config validation passed")
+	return nil
+}
+
+// validateW3CHexID validates a W3C Trace Context hex ID field.
+// fieldName is the JSON field (e.g. "traceId"), jsonPath is the dotted config path,
+// hexLen is the expected character count (32 for trace-id, 16 for span-id),
+// and example is a sample valid value used in suggestion text.
+func validateW3CHexID(
+	value, fieldName, jsonPath string,
+	formatPattern, allZeroPattern *regexp.Regexp,
+	hexLen int,
+	example string,
+) error {
+	if value == "" {
+		return nil
+	}
+	w3cName := strings.Replace(fieldName, "Id", " ID", 1)
+	w3cHyphenName := strings.Replace(fieldName, "Id", "-id", 1)
+
+	if !formatPattern.MatchString(value) {
+		logValidation.Printf("Invalid %s format: %s", fieldName, value)
+		return InvalidValue(fieldName,
+			fmt.Sprintf("%s must be a %d-character lowercase hexadecimal string, got '%s'", fieldName, hexLen, value),
+			jsonPath,
+			fmt.Sprintf("Provide a valid W3C %s (%d lowercase hex chars, e.g., %q)", w3cName, hexLen, example))
+	}
+	if allZeroPattern.MatchString(value) {
+		logValidation.Printf("All-zero %s rejected per W3C Trace Context: %s", fieldName, value)
+		return InvalidValue(fieldName,
+			fmt.Sprintf("%s must not be all zeros (W3C Trace Context forbids an all-zero %s)", fieldName, w3cHyphenName),
+			jsonPath,
+			fmt.Sprintf("Provide a non-zero W3C %s (e.g., %q)", w3cName, example))
+	}
 	return nil
 }
