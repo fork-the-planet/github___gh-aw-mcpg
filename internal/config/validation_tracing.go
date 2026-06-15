@@ -78,19 +78,22 @@ func validateW3CHexID(
 	if value == "" {
 		return nil
 	}
+	w3cName := strings.Replace(fieldName, "Id", " ID", 1)
+	w3cHyphenName := strings.Replace(fieldName, "Id", "-id", 1)
+
 	if !formatPattern.MatchString(value) {
 		logValidation.Printf("Invalid %s format: %s", fieldName, value)
 		return InvalidValue(fieldName,
 			fmt.Sprintf("%s must be a %d-character lowercase hexadecimal string, got '%s'", fieldName, hexLen, value),
 			jsonPath,
-			fmt.Sprintf("Provide a valid W3C %s (%d lowercase hex chars, e.g., %q)", fieldName, hexLen, example))
+			fmt.Sprintf("Provide a valid W3C %s (%d lowercase hex chars, e.g., %q)", w3cName, hexLen, example))
 	}
 	if allZeroPattern.MatchString(value) {
 		logValidation.Printf("All-zero %s rejected per W3C Trace Context: %s", fieldName, value)
 		return InvalidValue(fieldName,
-			fmt.Sprintf("%s must not be all zeros (W3C Trace Context forbids an all-zero %s)", fieldName, fieldName),
+			fmt.Sprintf("%s must not be all zeros (W3C Trace Context forbids an all-zero %s)", fieldName, w3cHyphenName),
 			jsonPath,
-			fmt.Sprintf("Provide a non-zero W3C %s (e.g., %q)", fieldName, example))
+			fmt.Sprintf("Provide a non-zero W3C %s (e.g., %q)", w3cName, example))
 	}
 	return nil
 }
