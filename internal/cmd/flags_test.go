@@ -143,14 +143,16 @@ func TestRegisterFlagCompletions(t *testing.T) {
 			"wasm-cache-dir flag should have directory completion directive")
 	})
 
-	t.Run("env flag completion returns .env extension filter", func(t *testing.T) {
+	t.Run("env flag completion shows all files (no extension filter)", func(t *testing.T) {
 		cmd := setupCmd(t)
 
 		flag := cmd.Flags().Lookup("env")
 		require.NotNil(t, flag, "env flag should be registered")
+		// MarkFlagFilename with no extensions shows all files — cobra sets BashCompFilenameExt
+		// to an empty slice, indicating no extension filter.
 		require.NotNil(t, flag.Annotations, "env flag should have completion annotations")
-		assert.Equal(t, []string{"env"}, flag.Annotations[cobra.BashCompFilenameExt],
-			"env flag should complete with .env extension")
+		assert.Empty(t, flag.Annotations[cobra.BashCompFilenameExt],
+			"env flag should complete with all files (no extension filter)")
 	})
 
 	t.Run("guards-mode flag completion returns valid enum values", func(t *testing.T) {

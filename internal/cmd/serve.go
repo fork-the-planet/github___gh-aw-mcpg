@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-const httpServerShutdownTimeout = 5 * time.Second
-
 // serveAndWait starts a server function in the background, waits for ctx cancellation,
 // and then performs a graceful HTTP server shutdown with the provided timeout.
 // If serveFn returns an unexpected error, cancel is invoked to trigger shutdown.

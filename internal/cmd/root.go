@@ -53,10 +53,13 @@ It provides routing, aggregation, and management of multiple MCP backend servers
 
   # Run with debug logging
   DEBUG=* awmg --config config.toml`,
-	Version:           cliVersion,
-	Args:              cobra.NoArgs,
-	SilenceUsage:      true, // Don't show help on runtime errors
-	SilenceErrors:     true, // Prevent cobra from printing errors — Execute() caller handles display
+	Version: cliVersion,
+	Args:    cobra.NoArgs,
+	// SilenceUsage: cobra checks this on the specific subcommand to suppress usage on runtime errors.
+	SilenceUsage: true,
+	// SilenceErrors: cobra checks this on the root command for ALL subcommands; the Execute() caller
+	// in main handles display so we suppress cobra's own error printing here.
+	SilenceErrors:     true,
 	PersistentPreRunE: preRun,
 	RunE:              run,
 	PersistentPostRun: postRun,
@@ -67,12 +70,20 @@ func init() {
 	// Without this, a child's PersistentPreRunE replaces the parent's entirely.
 	cobra.EnableTraverseRunHooks = true
 
+	// Preserve the intentional command registration order within each group
+	// (cobra sorts alphabetically by default, overriding AddGroup ordering).
+	cobra.EnableCommandSorting = false
+
 	// Set custom error prefix for better branding
 	rootCmd.SetErrPrefix("MCPG Error:")
 
 	// Set custom version template with enhanced formatting
 	rootCmd.SetVersionTemplate(`MCPG Gateway {{.Version}}
 `)
+
+	// Disable cobra's auto-generated "completion" command since we provide a
+	// custom one via newCompletionCmd().
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
 	// Register all flags from feature modules (flags_*.go files)
 	registerAllFlags(rootCmd)
@@ -403,8 +414,10 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Build net.Listener — optionally wrapping with TLS (ASI-07 Phase 1).
 	// Plain HTTP is still used when no TLS certificate is configured (backward compatible).
-	// Validate that TLS flags are consistent: cert+key must both be provided together,
-	// and CA cert requires cert+key to be set.
+	// CLI-flag co-requirement is enforced by MarkFlagsRequiredTogether("tls-cert","tls-key")
+	// in flags_tls.go; the checks below catch env-var defaults that bypass cobra's flag
+	// parsing (MarkFlagsRequiredTogether only fires when flags are explicitly changed on
+	// the command line).
 	hasCert := tlsCertPath != ""
 	hasKey := tlsKeyPath != ""
 	hasCA := tlsCAPath != ""
@@ -451,7 +464,7 @@ func run(cmd *cobra.Command, args []string) error {
 		ctx,
 		cancel,
 		httpServer,
-		httpServerShutdownTimeout,
+		shutdownTimeout,
 		func() {
 			debugLog.Print("Shutdown signal received, initiating graceful shutdown")
 		},

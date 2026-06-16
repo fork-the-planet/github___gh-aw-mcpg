@@ -85,7 +85,8 @@ func registerFlagCompletions(cmd *cobra.Command) {
 	cmd.RegisterFlagCompletionFunc("wasm-cache-dir", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveFilterDirs
 	})
-	if err := cmd.MarkFlagFilename("env", "env"); err != nil {
+	// Show all files for --env — the canonical .env file has no extension.
+	if err := cmd.MarkFlagFilename("env"); err != nil {
 		debugLog.Printf("Failed to register --env filename completion: %v", err)
 	}
 
