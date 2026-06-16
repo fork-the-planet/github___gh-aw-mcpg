@@ -10,6 +10,24 @@ import (
 
 var logLabelAgent = logger.New("guard:label_agent")
 
+// RunLabelAgentForAgent is a convenience wrapper around RunLabelAgent that resolves
+// agent labels from the registry instead of requiring the caller to do so. It calls
+// registry.GetOrCreate(agentID) and then delegates to RunLabelAgent. Both callers
+// (proxy initGuardPolicy and server ensureGuardInitialized) share this sequence.
+func RunLabelAgentForAgent(
+	ctx context.Context,
+	g Guard,
+	payload interface{},
+	backend BackendCaller,
+	caps *difc.Capabilities,
+	registry *difc.AgentRegistry,
+	agentID string,
+	defaultMode difc.EnforcementMode,
+) (difc.EnforcementMode, *LabelAgentResult, error) {
+	agentLabels := registry.GetOrCreate(agentID)
+	return RunLabelAgent(ctx, g, payload, backend, caps, agentLabels, defaultMode)
+}
+
 // RunLabelAgent executes the standard LabelAgent initialization pipeline:
 //  1. Calls the guard's LabelAgent method with the provided pre-built payload.
 //  2. Validates the result is non-nil.

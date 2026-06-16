@@ -176,8 +176,7 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trusted
 
 	logProxy.Printf("Calling LabelAgent to initialize agent labels from guard")
 	backend := &restBackendCaller{server: s}
-	agentLabels := s.AgentRegistry.GetOrCreate(proxyAgentID)
-	newMode, result, err := guard.RunLabelAgent(ctx, s.guard, payload, backend, s.Capabilities, agentLabels, s.Mode)
+	newMode, result, err := guard.RunLabelAgentForAgent(ctx, s.guard, payload, backend, s.Capabilities, s.AgentRegistry, proxyAgentID, s.Mode)
 	if err != nil {
 		return err
 	}

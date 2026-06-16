@@ -131,3 +131,45 @@ func TestRunLabelAgent_EmptyDIFCModePreservesDefault(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, defaultMode, mode, "empty DIFCMode should preserve defaultMode")
 }
+
+func TestRunLabelAgentForAgent_Success(t *testing.T) {
+	g := &runLabelAgentStubGuard{
+		name: "test-guard",
+		labelAgentResult: &LabelAgentResult{
+			Agent:    AgentLabelsPayload{Secrecy: []string{"private:org/repo"}, Integrity: []string{"approved"}},
+			DIFCMode: difc.ModeFilter,
+		},
+	}
+	caps := difc.NewCapabilities()
+	registry := difc.NewAgentRegistry()
+	defaultMode := difc.EnforcementStrict
+
+	mode, result, err := RunLabelAgentForAgent(context.Background(), g, map[string]interface{}{"policy": "test"}, &noopRunBackendCaller{}, caps, registry, "agent-1", defaultMode)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, difc.EnforcementFilter, mode)
+	// agent should have been created in the registry and have the returned labels applied
+	labels, ok := registry.Get("agent-1")
+	require.True(t, ok, "agent should be registered")
+	require.NotNil(t, labels)
+	assert.Contains(t, labels.GetSecrecyTags(), difc.Tag("private:org/repo"))
+	assert.Contains(t, labels.GetIntegrityTags(), difc.Tag("approved"))
+}
+
+func TestRunLabelAgentForAgent_PropagatesError(t *testing.T) {
+	g := &runLabelAgentStubGuard{
+		name:          "error-guard",
+		labelAgentErr: errors.New("wasm error"),
+	}
+	caps := difc.NewCapabilities()
+	registry := difc.NewAgentRegistry()
+	defaultMode := difc.EnforcementStrict
+
+	mode, result, err := RunLabelAgentForAgent(context.Background(), g, nil, &noopRunBackendCaller{}, caps, registry, "agent-2", defaultMode)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "LabelAgent failed")
+	assert.Nil(t, result)
+	assert.Equal(t, defaultMode, mode)
+}
