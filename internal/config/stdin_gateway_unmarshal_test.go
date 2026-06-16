@@ -225,11 +225,11 @@ func TestValidateAgainstCustomSchema_CompileFailure(t *testing.T) {
 			"$schema": "http://json-schema.org/draft-07/schema#",
 			"$id":     fetchURL,
 			"type":    "object",
-			// $ref points to a completely external URI that was never registered
-			// with the compiler.  Compile() must fail when it tries to resolve it.
+			// $ref points to a missing local definition so Compile() fails deterministically
+			// without attempting any external network fetch.
 			"properties": map[string]interface{}{
 				"value": map[string]interface{}{
-					"$ref": "https://definitely-does-not-exist.invalid/missing-schema.json",
+					"$ref": "#/definitions/doesNotExist",
 				},
 			},
 		}
