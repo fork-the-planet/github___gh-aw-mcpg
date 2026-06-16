@@ -510,14 +510,13 @@ func (g *WasmGuard) LabelAgent(ctx context.Context, policy any, backend BackendC
 		logWasm.Printf("LabelAgent normalizePolicyPayload failed: guard=%s, error=%v", g.name, err)
 		return nil, err
 	}
-	logger.LogMarshaledForDebug(
+	logger.LogMarshaledForDebugf(
 		normalizedPolicy,
-		func(policyJSON string) {
-			logWasm.Printf("LabelAgent normalized policy: guard=%s, policy=%s", g.name, policyJSON)
-		},
-		func(marshalErr error) {
-			logWasm.Printf("LabelAgent normalized policy (marshal failed): guard=%s, error=%v", g.name, marshalErr)
-		},
+		logWasm.Printf,
+		"LabelAgent normalized policy: guard=%s, policy=%s",
+		logWasm.Printf,
+		"LabelAgent normalized policy (marshal failed): guard=%s, error=%v",
+		g.name,
 	)
 	_ = caps
 
@@ -545,14 +544,13 @@ func (g *WasmGuard) LabelAgent(ctx context.Context, policy any, backend BackendC
 		return nil, err
 	}
 
-	logger.LogMarshaledForDebug(
+	logger.LogMarshaledForDebugf(
 		result,
-		func(responseJSON string) {
-			logWasm.Printf("LabelAgent parsed response: guard=%s, response=%s", g.name, responseJSON)
-		},
-		func(marshalErr error) {
-			logWasm.Printf("LabelAgent parsed response (marshal failed): guard=%s, error=%v", g.name, marshalErr)
-		},
+		logWasm.Printf,
+		"LabelAgent parsed response: guard=%s, response=%s",
+		logWasm.Printf,
+		"LabelAgent parsed response (marshal failed): guard=%s, error=%v",
+		g.name,
 	)
 
 	return result, nil

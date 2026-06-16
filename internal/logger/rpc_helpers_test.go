@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -344,4 +345,57 @@ func TestLogMarshaledForDebug_MarshalFailure(t *testing.T) {
 
 	require.Error(gotMarshalErr)
 	assert.Empty(gotJSON)
+}
+
+func TestLogMarshaledForDebugf_Success(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	var (
+		gotSuccess string
+		gotFailure string
+	)
+
+	LogMarshaledForDebugf(
+		map[string]string{"status": "ok"},
+		func(format string, args ...interface{}) {
+			gotSuccess = fmt.Sprintf(format, args...)
+		},
+		"guard=%s payload=%s",
+		func(format string, args ...interface{}) {
+			gotFailure = fmt.Sprintf(format, args...)
+		},
+		"guard=%s err=%v",
+		"test-guard",
+	)
+
+	require.Empty(gotFailure)
+	assert.Equal(`guard=test-guard payload={"status":"ok"}`, gotSuccess)
+}
+
+func TestLogMarshaledForDebugf_MarshalFailure(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	var (
+		gotSuccess string
+		gotFailure string
+	)
+
+	LogMarshaledForDebugf(
+		make(chan int),
+		func(format string, args ...interface{}) {
+			gotSuccess = fmt.Sprintf(format, args...)
+		},
+		"guard=%s payload=%s",
+		func(format string, args ...interface{}) {
+			gotFailure = fmt.Sprintf(format, args...)
+		},
+		"guard=%s err=%v",
+		"test-guard",
+	)
+
+	require.Empty(gotSuccess)
+	assert.Contains(gotFailure, "guard=test-guard err=")
+	assert.Contains(gotFailure, "unsupported type")
 }
