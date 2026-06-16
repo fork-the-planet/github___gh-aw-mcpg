@@ -39,7 +39,8 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 					mode, jsonrpcReq.Method, jsonrpcReq.ID, truncateSessionID(sessionID))
 			} else {
 				logSDK.Printf("    Failed to parse JSON-RPC request: %v", err)
-				logSDK.Printf("    Raw body: %s", string(requestBody))
+				sanitizedBody := sanitize.SanitizeString(string(requestBody))
+				logSDK.Printf("    Raw body (sanitized): %.500s", sanitizedBody)
 			}
 		}
 
