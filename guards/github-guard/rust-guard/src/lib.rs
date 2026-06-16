@@ -196,6 +196,16 @@ fn log_error(msg: &str) {
     log(LogLevel::Error, msg);
 }
 
+/// Copy `bytes` into the WASM linear-memory output buffer.
+///
+/// # Safety
+/// `output_ptr` must point to at least `bytes.len()` writable bytes in WASM
+/// linear memory. The caller must have already verified `bytes.len() <= output_size`.
+unsafe fn write_bytes_to_output(output_ptr: u32, bytes: &[u8]) {
+    let dest = slice::from_raw_parts_mut(output_ptr as *mut u8, bytes.len());
+    dest.copy_from_slice(bytes);
+}
+
 // ============================================================================
 // Input/Output Types
 // ============================================================================
@@ -724,11 +734,7 @@ pub extern "C" fn label_agent(
         return -1;
     }
 
-    let output_bytes = output_json.as_bytes();
-    unsafe {
-        let dest = slice::from_raw_parts_mut(output_ptr as *mut u8, output_bytes.len());
-        dest.copy_from_slice(output_bytes);
-    }
+    unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
 
     log_info(&format!(
         "<<< label_agent returning {} bytes",
@@ -872,11 +878,7 @@ pub extern "C" fn label_resource(
     }
 
     // Write output
-    let output_bytes = output_json.as_bytes();
-    unsafe {
-        let dest = slice::from_raw_parts_mut(output_ptr as *mut u8, output_bytes.len());
-        dest.copy_from_slice(output_bytes);
-    }
+    unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
 
     log_info(&format!(
         "<<< label_resource returning {} bytes",
@@ -987,11 +989,7 @@ pub extern "C" fn label_response(
         }
 
         // Write output
-        let output_bytes = output_json.as_bytes();
-        unsafe {
-            let dest = slice::from_raw_parts_mut(output_ptr as *mut u8, output_bytes.len());
-            dest.copy_from_slice(output_bytes);
-        }
+        unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
 
         log_info(&format!(
             "<<< label_response returning {} bytes (path-based)",
@@ -1053,11 +1051,7 @@ pub extern "C" fn label_response(
     }
 
     // Write output
-    let output_bytes = output_json.as_bytes();
-    unsafe {
-        let dest = slice::from_raw_parts_mut(output_ptr as *mut u8, output_bytes.len());
-        dest.copy_from_slice(output_bytes);
-    }
+    unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
 
     log_info(&format!(
         "<<< label_response returning {} bytes",
