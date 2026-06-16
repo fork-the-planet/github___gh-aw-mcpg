@@ -192,6 +192,16 @@ func TestAllowOnlyPolicyUnmarshalJSON_FieldErrorPaths(t *testing.T) {
 			json:    `{"repos": "all", "min-integrity": "none", "endorser-min-integrity": {}}`,
 			wantErr: "invalid allow-only.endorser-min-integrity",
 		},
+		{
+			name:    "promotion-label field invalid JSON type",
+			json:    `{"repos": "all", "min-integrity": "none", "promotion-label": 123}`,
+			wantErr: "invalid allow-only.promotion-label",
+		},
+		{
+			name:    "demotion-label field invalid JSON type",
+			json:    `{"repos": "all", "min-integrity": "none", "demotion-label": [1,2,3]}`,
+			wantErr: "invalid allow-only.demotion-label",
+		},
 	}
 
 	for _, tt := range tests {
