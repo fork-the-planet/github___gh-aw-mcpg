@@ -395,34 +395,13 @@ pub fn apply_tool_labels(
             };
         }
 
-        // === Code Search ===
-        "search_code" => {
-            // Code search can expose private code
-            // S(code) = inherits from repo secrecy
-            // I(code) = approved - code from repository
+        // === Code / Commit Search ===
+        "search_code" | "search_commits" => {
+            // Repo-scoped search reads. Resolve scope from query repo qualifier first,
+            // then fall back to tool_args owner/repo.
             let (s_owner, s_repo, s_repo_id) = resolve_search_scope(tool_args, &owner, &repo);
             if !s_repo_id.is_empty() {
-                desc = format!("search_code:{}", s_repo_id);
-                secrecy =
-                    apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
-                integrity = writer_integrity(&s_repo_id, ctx);
-                baseline_scope = Cow::Owned(s_repo_id);
-            } else {
-                secrecy =
-                    apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-                integrity = writer_integrity(repo_id, ctx);
-            }
-        }
-
-        // === Commit Search ===
-        "search_commits" => {
-            // Commit search can expose private commit history
-            // S(commits) = inherits from repo secrecy
-            // I(commits) = writer-level integrity for the resolved repository scope,
-            // mirroring other repo-scoped search reads (for example, search_code)
-            let (s_owner, s_repo, s_repo_id) = resolve_search_scope(tool_args, &owner, &repo);
-            if !s_repo_id.is_empty() {
-                desc = format!("search_commits:{}", s_repo_id);
+                desc = format!("{}:{}", tool_name, s_repo_id);
                 secrecy =
                     apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
                 integrity = writer_integrity(&s_repo_id, ctx);
@@ -430,9 +409,6 @@ pub fn apply_tool_labels(
             } else {
                 secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
                 integrity = writer_integrity(repo_id, ctx);
-                if !repo_id.is_empty() {
-                    baseline_scope = Cow::Borrowed(repo_id);
-                }
             }
         }
 
