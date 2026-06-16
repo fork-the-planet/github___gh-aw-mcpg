@@ -37,3 +37,31 @@ func LogMarshaledForDebug(value interface{}, onMarshalSuccess func(string), onMa
 	}
 	onMarshalSuccess(string(resultJSON))
 }
+
+// LogMarshaledForDebugf marshals value for debug logging and dispatches to
+// formatted logging functions for success or marshal failure paths.
+func LogMarshaledForDebugf(
+	value interface{},
+	onMarshalSuccessf func(string, ...interface{}),
+	successFormat string,
+	onMarshalFailuref func(string, ...interface{}),
+	failureFormat string,
+	args ...interface{},
+) {
+	formatArgs := func(extra interface{}) []interface{} {
+		formattedArgs := make([]interface{}, len(args)+1)
+		copy(formattedArgs, args)
+		formattedArgs[len(args)] = extra
+		return formattedArgs
+	}
+
+	LogMarshaledForDebug(
+		value,
+		func(resultJSON string) {
+			onMarshalSuccessf(successFormat, formatArgs(resultJSON)...)
+		},
+		func(marshalErr error) {
+			onMarshalFailuref(failureFormat, formatArgs(marshalErr)...)
+		},
+	)
+}

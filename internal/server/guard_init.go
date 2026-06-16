@@ -317,14 +317,17 @@ func (us *UnifiedServer) ensureGuardInitialized(
 		logger.LogErrorToServer(serverID, "difc", "label_agent failed: session=%s, guard=%s, error=%v", sessionID, g.Name(), err)
 		return defaultMode, err
 	}
-	logger.LogMarshaledForDebug(
+	logger.LogMarshaledForDebugf(
 		labelAgentResult,
-		func(resultJSON string) {
-			logger.LogInfoToServer(serverID, "difc", "label_agent response: session=%s, guard=%s, response=%s", sessionID, g.Name(), resultJSON)
+		func(format string, args ...interface{}) {
+			logger.LogInfoToServer(serverID, "difc", format, args...)
 		},
-		func(marshalErr error) {
-			logger.LogWarnToServer(serverID, "difc", "label_agent response (failed to serialize for logging): session=%s, guard=%s, error=%v", sessionID, g.Name(), marshalErr)
+		"label_agent response: session=%s, guard=%s, response=%s",
+		func(format string, args ...interface{}) {
+			logger.LogWarnToServer(serverID, "difc", format, args...)
 		},
+		"label_agent response (failed to serialize for logging): session=%s, guard=%s, error=%v",
+		sessionID, g.Name(),
 	)
 
 	us.sessionMu.Lock()
