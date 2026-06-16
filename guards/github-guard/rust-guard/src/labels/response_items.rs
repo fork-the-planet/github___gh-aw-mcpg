@@ -102,7 +102,7 @@ pub fn label_response_items(
         // === Pull Requests - label by merged state ===
         "list_pull_requests" | "search_pull_requests" | "pull_request_read" | "get_pull_request" => {
             // For pull_request_read sub-methods that return non-PR objects (e.g.
-            // get_check_runs, get_files, get_review_comments, get_reviews,
+            // get_check_runs, get_commits, get_files, get_review_comments, get_reviews,
             // get_comments, get_diff, get_status), skip per-item response labeling.
             // The resource-level labels from tool_rules (which call
             // get_pull_request_facts) provide correct PR-scoped integrity.

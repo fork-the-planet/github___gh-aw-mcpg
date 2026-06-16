@@ -121,6 +121,13 @@ var routes = []route{
 		},
 	},
 	{
+		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/pulls/(\d+)/commits$`),
+		toolName: "pull_request_read",
+		extractArgs: func(m []string) map[string]interface{} {
+			return prArgs(m[1], m[2], m[3], "get_commits")
+		},
+	},
+	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/pulls/(\d+)$`),
 		toolName: "pull_request_read",
 		extractArgs: func(m []string) map[string]interface{} {
