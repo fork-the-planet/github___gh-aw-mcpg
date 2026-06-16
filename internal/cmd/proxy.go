@@ -269,7 +269,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		ctx,
 		cancel,
 		httpServer,
-		httpServerShutdownTimeout,
+		shutdownTimeout,
 		func() {
 			log.Println("Shutting down proxy...")
 			logger.LogInfo("shutdown", "Proxy shutting down")

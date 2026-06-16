@@ -21,5 +21,10 @@ func init() {
 		cmd.Flags().StringVar(&tlsKeyPath, "tls-key", envutil.GetEnvString("MCP_GATEWAY_TLS_KEY", ""), "Path to TLS server private key PEM file (enables HTTPS)")
 		cmd.Flags().StringVar(&tlsCAPath, "tls-ca", envutil.GetEnvString("MCP_GATEWAY_CA_CERT", ""), "Path to CA certificate PEM file for client certificate verification (enables mTLS)")
 		cmd.Flags().StringVar(&hmacSecret, "hmac-secret", envutil.GetEnvString("MCP_GATEWAY_HMAC_SECRET", ""), "Shared HMAC-SHA256 secret for request signing and replay protection")
+		// Cert and key must always be provided together when set via CLI flags.
+		// Note: env-var defaults (MCP_GATEWAY_TLS_CERT/MCP_GATEWAY_TLS_KEY) are
+		// validated at runtime in run() since MarkFlagsRequiredTogether only fires
+		// when flags are explicitly changed on the command line.
+		cmd.MarkFlagsRequiredTogether("tls-cert", "tls-key")
 	})
 }
