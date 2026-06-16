@@ -337,15 +337,6 @@ func formatLogLine(level LogLevel, category, format string, args ...interface{})
 	return fmt.Sprintf("[%s] [%s] [%s] %s", timestamp, level, category, message)
 }
 
-// SessionSuffix returns a formatted session suffix for log messages.
-// Returns " for session '<sessionID>'" when sessionID is non-empty, or "" otherwise.
-func SessionSuffix(sessionID string) string {
-	if sessionID == "" {
-		return ""
-	}
-	return fmt.Sprintf(" for session '%s'", sessionID)
-}
-
 // It syncs buffered data before closing and handles errors appropriately.
 // The mutex should already be held by the caller.
 //
