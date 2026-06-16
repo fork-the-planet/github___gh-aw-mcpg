@@ -3,11 +3,11 @@ package mcptest_test
 import (
 	"context"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/github/gh-aw-mcpg/internal/testutil/mcptest"
 )
@@ -82,9 +82,7 @@ func TestCompleteWorkflow(t *testing.T) {
 	driver := mcptest.NewTestDriver()
 	defer driver.Stop()
 
-	if err := driver.AddTestServer("weather", serverConfig); err != nil {
-		t.Fatalf("Failed to add test server: %v", err)
-	}
+	require.NoError(t, driver.AddTestServer("weather", serverConfig), "Failed to add test server")
 
 	// Step 4: Create transport and validator client
 	transport, err := driver.CreateStdioTransport("weather")
@@ -97,49 +95,20 @@ func TestCompleteWorkflow(t *testing.T) {
 	// Step 5: Validate server information
 	serverInfo := validator.GetServerInfo()
 	require.NotNil(t, serverInfo, "Server info should not be nil")
-
-	if serverInfo.Name != "weather-service" {
-		t.Errorf("Expected server name 'weather-service', got '%s'", serverInfo.Name)
-	}
-	t.Logf("✓ Connected to server: %s v%s", serverInfo.Name, serverInfo.Version)
+	assert.Equal(t, "weather-service", serverInfo.Name)
 
 	// Step 6: List and validate tools
 	tools, err := validator.ListTools()
 	require.NoError(t, err, "Failed to list tools")
-
-	if len(tools) != 1 {
-		t.Errorf("Expected 1 tool, got %d", len(tools))
-	}
-
-	weatherToolFound := false
-	for _, tool := range tools {
-		if tool.Name == "get_weather" {
-			weatherToolFound = true
-			if tool.Description != "Get weather information for a city" {
-				t.Errorf("Tool description mismatch")
-			}
-			t.Logf("✓ Tool available: %s - %s", tool.Name, tool.Description)
-		}
-	}
-
-	if !weatherToolFound {
-		t.Error("get_weather tool not found")
-	}
+	require.Len(t, tools, 1, "Expected exactly 1 tool")
+	assert.Equal(t, "get_weather", tools[0].Name)
+	assert.Equal(t, "Get weather information for a city", tools[0].Description)
 
 	// Step 7: List and validate resources
 	resources, err := validator.ListResources()
 	require.NoError(t, err, "Failed to list resources")
-
-	if len(resources) != 1 {
-		t.Errorf("Expected 1 resource, got %d", len(resources))
-	}
-
-	if len(resources) > 0 {
-		if resources[0].URI != "weather://cities" {
-			t.Errorf("Expected resource URI 'weather://cities', got '%s'", resources[0].URI)
-		}
-		t.Logf("✓ Resource available: %s", resources[0].Name)
-	}
+	require.Len(t, resources, 1, "Expected exactly 1 resource")
+	assert.Equal(t, "weather://cities", resources[0].URI)
 
 	// Step 8: Call the weather tool with different parameters
 	testCases := []struct {
@@ -163,50 +132,17 @@ func TestCompleteWorkflow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := validator.CallTool("get_weather", tc.args)
 			require.NoError(t, err, "Failed to call tool")
-
-			if result.IsError {
-				t.Error("Tool returned an error")
-			}
-
-			if len(result.Content) != 1 {
-				t.Errorf("Expected 1 content item, got %d", len(result.Content))
-			}
-
-			if len(result.Content) > 0 {
-				textContent, ok := result.Content[0].(*sdk.TextContent)
-				if !ok {
-					t.Error("Expected TextContent")
-				} else if textContent.Text != tc.expectedMatch {
-					t.Errorf("Expected '%s', got '%s'", tc.expectedMatch, textContent.Text)
-				} else {
-					t.Logf("✓ Tool result: %s", textContent.Text)
-				}
-			}
+			assert.False(t, result.IsError, "Tool should not return an error")
+			require.Len(t, result.Content, 1, "Expected exactly 1 content item")
+			textContent, ok := result.Content[0].(*sdk.TextContent)
+			require.True(t, ok, "Expected *sdk.TextContent")
+			assert.Equal(t, tc.expectedMatch, textContent.Text)
 		})
 	}
 
 	// Step 9: Read resource content
 	resourceResult, err := validator.ReadResource("weather://cities")
 	require.NoError(t, err, "Failed to read resource")
-
-	if len(resourceResult.Contents) != 1 {
-		t.Errorf("Expected 1 content item, got %d", len(resourceResult.Contents))
-	}
-
-	if len(resourceResult.Contents) > 0 {
-		content := resourceResult.Contents[0]
-		expectedContent := "New York, London, Tokyo, Paris, Sydney"
-		if content.Text != expectedContent {
-			t.Errorf("Expected '%s', got '%s'", expectedContent, content.Text)
-		}
-		t.Logf("✓ Resource content validated: %s", content.Text)
-	}
-
-	// Step 10: Summary
-	t.Log("✓ Complete workflow test passed successfully")
-	t.Log("  - Server connection established")
-	t.Log("  - Tools listed and validated")
-	t.Log("  - Resources listed and validated")
-	t.Log("  - Tool calls executed correctly")
-	t.Log("  - Resource content read successfully")
+	require.Len(t, resourceResult.Contents, 1, "Expected exactly 1 content item")
+	assert.Equal(t, "New York, London, Tokyo, Paris, Sydney", resourceResult.Contents[0].Text)
 }
