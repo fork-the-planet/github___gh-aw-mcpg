@@ -114,10 +114,11 @@ func WithSDKLogging(handler http.Handler, mode string) http.Handler {
 				// Could be SSE stream or other format
 				logSDK.Printf("<<< SDK Response [%s] status=%d duration=%v (non-JSON or stream)",
 					mode, lw.StatusCode, duration)
-				if len(responseBody) < 500 {
-					logSDK.Printf("    Raw response: %s", string(responseBody))
+				sanitizedResp := sanitize.SanitizeString(string(responseBody))
+				if len(sanitizedResp) < 500 {
+					logSDK.Printf("    Raw response (sanitized): %s", sanitizedResp)
 				} else {
-					logSDK.Printf("    Raw response (truncated): %s...", string(responseBody[:500]))
+					logSDK.Printf("    Raw response (sanitized, truncated): %.500s...", sanitizedResp)
 				}
 			}
 		} else {
