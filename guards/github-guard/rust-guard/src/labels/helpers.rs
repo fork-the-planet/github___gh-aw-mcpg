@@ -64,6 +64,15 @@ fn extract_number_from_url(item: &Value) -> Option<String> {
     None
 }
 
+/// Extract a resource number as a string for backend enrichment lookups.
+/// Returns `None` when neither the `number` field nor a URL-embedded number is present.
+fn extract_item_number_opt(item: &Value) -> Option<String> {
+    item.get(field_names::NUMBER)
+        .and_then(|v| v.as_u64())
+        .map(|n| n.to_string())
+        .or_else(|| extract_number_from_url(item))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScopeKind {
     All,
@@ -134,6 +143,16 @@ impl MinIntegrity {
             Some(Self::Merged)
         } else {
             None
+        }
+    }
+
+    /// Build the integrity label `Vec<String>` for this level over `scope`.
+    pub(crate) fn build_labels(self, scope: &str, ctx: &PolicyContext) -> Vec<String> {
+        match self {
+            MinIntegrity::None => none_integrity(scope, ctx),
+            MinIntegrity::Unapproved => reader_integrity(scope, ctx),
+            MinIntegrity::Approved => writer_integrity(scope, ctx),
+            MinIntegrity::Merged => merged_integrity(scope, ctx),
         }
     }
 }
@@ -519,13 +538,8 @@ fn cap_integrity(
 
 /// Build the integrity `Vec<String>` for a given level name over a scope.
 fn integrity_for_level(level: &str, scope: &str, ctx: &PolicyContext) -> Vec<String> {
-    match MinIntegrity::from_policy_str(level) {
-        Some(MinIntegrity::None) => none_integrity(scope, ctx),
-        Some(MinIntegrity::Unapproved) => reader_integrity(scope, ctx),
-        Some(MinIntegrity::Approved) => writer_integrity(scope, ctx),
-        Some(MinIntegrity::Merged) => merged_integrity(scope, ctx),
-        None => none_integrity(scope, ctx), // safe default
-    }
+    MinIntegrity::from_policy_str(level)
+        .map_or_else(|| none_integrity(scope, ctx), |m| m.build_labels(scope, ctx))
 }
 
 /// Core reaction evaluation helper.
@@ -1641,11 +1655,7 @@ pub fn pr_integrity(
     // individual PR via REST to obtain the correct association, fork status,
     // and merge status.
     if integrity.is_empty() && !has_author_association(item) && !repo_private {
-        let number_opt = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .map(|n| n.to_string())
-            .or_else(|| extract_number_from_url(item));
+        let number_opt = extract_item_number_opt(item);
         if let Some(number_str) = number_opt {
             let (owner, repo) = repo_full_name.split_once('/').unwrap_or(("", ""));
             if !owner.is_empty() && !repo.is_empty() {
@@ -1778,11 +1788,7 @@ pub fn issue_integrity(
     // individual issue via REST to obtain the correct value. This avoids
     // incorrectly assigning "none" integrity to members/collaborators.
     if integrity.is_empty() && !has_author_association(item) && !repo_private {
-        let number_opt = item
-            .get(field_names::NUMBER)
-            .and_then(|v| v.as_u64())
-            .map(|n| n.to_string())
-            .or_else(|| extract_number_from_url(item));
+        let number_opt = extract_item_number_opt(item);
         if let Some(number_str) = number_opt {
             let (owner, repo) = repo_full_name.split_once('/').unwrap_or(("", ""));
             if !owner.is_empty() && !repo.is_empty() {

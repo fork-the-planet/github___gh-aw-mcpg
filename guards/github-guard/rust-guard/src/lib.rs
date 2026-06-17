@@ -695,12 +695,7 @@ pub extern "C" fn label_agent(
 
     // Compute integrity before moving ctx into the global — borrows ctx, no clone needed.
     let token = labels::helpers::policy_scope_token(&ctx.scopes);
-    let integrity = match integrity_floor {
-        MinIntegrity::None => labels::none_integrity(&token, &ctx),
-        MinIntegrity::Unapproved => labels::reader_integrity(&token, &ctx),
-        MinIntegrity::Approved => labels::writer_integrity(&token, &ctx),
-        MinIntegrity::Merged => labels::merged_integrity(&token, &ctx),
-    };
+    let integrity = integrity_floor.build_labels(&token, &ctx);
     set_runtime_policy_context(ctx);
 
     let normalized_policy = NormalizedPolicy {
