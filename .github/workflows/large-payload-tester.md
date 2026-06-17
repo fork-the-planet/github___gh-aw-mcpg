@@ -81,6 +81,7 @@ steps:
       {
         "test_run_id": "PLACEHOLDER_RUN_ID",
         "test_timestamp": "PLACEHOLDER_TIMESTAMP",
+        "secret_reference": "",
         "purpose": "Testing large MCP payload storage and retrieval",
         "data": {
           "large_array": [],
@@ -96,17 +97,18 @@ steps:
       
       # Use jq to properly populate the JSON with dynamic values and generate large array
       # Generating 2000 items + 400KB padding to create ~500KB file
-      # Secret is only included once in the middle item (index 1000)
+      # secret_reference is at the top level for easy extraction after large payload retrieval
       jq --arg secret "$TEST_SECRET" \
          --arg run_id "$EXPR_GITHUB_RUN_ID" \
          --arg timestamp "$(date -Iseconds)" \
          --arg repo "$EXPR_GITHUB_REPOSITORY" \
          --arg url "$EXPR_GITHUB_SERVER_URL/$EXPR_GITHUB_REPOSITORY/actions/runs/$EXPR_GITHUB_RUN_ID" \
-         '.test_run_id = $run_id | 
+         '.secret_reference = $secret |
+          .test_run_id = $run_id | 
           .test_timestamp = $timestamp | 
           .data.metadata.repository = $repo | 
           .data.metadata.workflow_run_url = $url | 
-          .data.large_array = [range(2000) | . as $i | if $i == 1000 then {id: $i, value: ("item-" + tostring), secret_reference: $secret, extra_data: ("data-" + tostring + "-" * 50)} else {id: $i, value: ("item-" + tostring), random_data: ("rand-" + ($i * 17 % 9973 | tostring) + "-" + ($i * 31 % 8191 | tostring)), extra_data: ("data-" + tostring + "-" * 50)} end] |
+          .data.large_array = [range(2000) | . as $i | {id: $i, value: ("item-" + tostring), random_data: ("rand-" + ($i * 17 % 9973 | tostring) + "-" + ($i * 31 % 8191 | tostring)), extra_data: ("data-" + tostring + "-" * 50)}] |
           .padding = ("X" * 400000)' \
          $TEST_FS/$LARGE_PAYLOAD_FILE > $TEST_FS/$LARGE_PAYLOAD_FILE.tmp
       
