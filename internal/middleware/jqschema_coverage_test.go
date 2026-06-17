@@ -5,6 +5,9 @@ package middleware
 //   - savePayload error paths (unwritable directories)
 //   - WrapToolHandler with custom struct data (triggers default branch in type switch)
 //   - WrapToolHandler when savePayload fails (continues and returns metadata on save failure)
+//   - runJqCode type error handling (ValueError and runtime type errors)
+//   - CompileToolResponseFilterWithVars (variable injection)
+//   - filter compilation cache (CompileToolResponseFilter cache hit)
 
 import (
 	"context"
@@ -367,4 +370,144 @@ func TestWrapToolHandler_SavePayloadFailure(t *testing.T) {
 	entries, readErr := os.ReadDir(baseDir)
 	require.NoError(t, readErr)
 	assert.Len(t, entries, 0, "savePayload failure path should not leave any saved payload files or directories behind")
+}
+
+// ---------------------------------------------------------------------------
+// runJqCode type error and ValueError handling
+// ---------------------------------------------------------------------------
+
+// TestApplyToolResponseFilter_TypeError verifies that runtime type errors from
+// jq (e.g., applying a function to an incompatible value type) produce an error
+// containing both the gojq error message and the null-safety hint.
+func TestApplyToolResponseFilter_TypeError(t *testing.T) {
+	tests := []struct {
+		name    string
+		filter  string
+		input   any
+		wantMsg string
+	}{
+		{
+			// sort on null triggers a func0TypeError at runtime.
+			name:    "sort on null",
+			filter:  ". | sort",
+			input:   nil,
+			wantMsg: "check filter handles null/missing fields",
+		},
+		{
+			// Adding string and number triggers a binopTypeError.
+			name:    "add string and number",
+			filter:  ". + 1",
+			input:   "hello",
+			wantMsg: "check filter handles null/missing fields",
+		},
+		{
+			// ascii_upcase on a number triggers a func0TypeError.
+			name:    "ascii_upcase on number",
+			filter:  ". | ascii_upcase",
+			input:   42.0,
+			wantMsg: "check filter handles null/missing fields",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ApplyToolResponseFilter(context.Background(), tt.filter, tt.input)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tt.wantMsg)
+			// The gojq error message should be preserved in the wrapping.
+			assert.ErrorContains(t, err, "type error")
+		})
+	}
+}
+
+// TestApplyToolResponseFilter_ValueError verifies that errors produced by jq's
+// error/1 builtin (catchable try-catch errors) are returned without the
+// null-safety hint (they are intentional, not type errors).
+func TestApplyToolResponseFilter_ValueError(t *testing.T) {
+	// jq's error/1 produces a catchable ValueError, not a type error.
+	// The wrapper should NOT add the null-safety hint.
+	_, err := ApplyToolResponseFilter(context.Background(), `error("deliberate")`, map[string]any{"a": 1})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "tool response filter error")
+	assert.NotContains(t, err.Error(), "check filter handles null/missing fields")
+}
+
+// ---------------------------------------------------------------------------
+// CompileToolResponseFilterWithVars
+// ---------------------------------------------------------------------------
+
+// TestCompileToolResponseFilterWithVars_Basic verifies that a filter compiled
+// with variable declarations runs correctly when the variable is supplied to
+// RunWithContext.
+func TestCompileToolResponseFilterWithVars_Basic(t *testing.T) {
+	code, err := CompileToolResponseFilterWithVars(". + {id: $toolID}", []string{"$toolID"})
+	require.NoError(t, err)
+	require.NotNil(t, code)
+
+	ctx := context.Background()
+	iter := code.RunWithContext(ctx, map[string]any{"name": "test"}, "my-tool")
+	v, ok := iter.Next()
+	require.True(t, ok)
+	require.NotNil(t, v)
+	result, ok := v.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "test", result["name"])
+	assert.Equal(t, "my-tool", result["id"])
+}
+
+// TestCompileToolResponseFilterWithVars_EnvDisabled verifies that $ENV access
+// is blocked even when variable names are provided (defense-in-depth).
+func TestCompileToolResponseFilterWithVars_EnvDisabled(t *testing.T) {
+	code, err := CompileToolResponseFilterWithVars(". + {env: $ENV, id: $toolID}", []string{"$toolID"})
+	require.NoError(t, err)
+	require.NotNil(t, code)
+
+	ctx := context.Background()
+	iter := code.RunWithContext(ctx, map[string]any{}, "my-tool")
+	v, ok := iter.Next()
+	require.True(t, ok)
+	result, ok := v.(map[string]any)
+	require.True(t, ok)
+	env, ok := result["env"].(map[string]any)
+	require.True(t, ok, "env should be an empty object")
+	assert.Empty(t, env)
+}
+
+// TestCompileToolResponseFilterWithVars_ParseError verifies that a syntactically
+// invalid filter returns a parse error.
+func TestCompileToolResponseFilterWithVars_ParseError(t *testing.T) {
+	code, err := CompileToolResponseFilterWithVars("(.invalid", []string{"$x"})
+	require.Error(t, err)
+	assert.Nil(t, code)
+	assert.ErrorContains(t, err, "failed to parse tool response filter")
+}
+
+// TestCompileToolResponseFilterWithVars_UndeclaredVar verifies that a filter
+// referencing an undeclared variable fails to compile.
+func TestCompileToolResponseFilterWithVars_UndeclaredVar(t *testing.T) {
+	code, err := CompileToolResponseFilterWithVars(". + {id: $undeclared}", []string{})
+	require.Error(t, err)
+	assert.Nil(t, code)
+	assert.ErrorContains(t, err, "failed to compile tool response filter")
+}
+
+// ---------------------------------------------------------------------------
+// Filter compilation cache
+// ---------------------------------------------------------------------------
+
+// TestCompileToolResponseFilter_CacheHit verifies that calling
+// CompileToolResponseFilter twice with the same expression returns
+// the same *gojq.Code pointer (cache hit).
+func TestCompileToolResponseFilter_CacheHit(t *testing.T) {
+	// Use a unique filter to avoid interference with other tests.
+	filter := ". | {cached: true}"
+	code1, err := CompileToolResponseFilter(filter)
+	require.NoError(t, err)
+	require.NotNil(t, code1)
+
+	code2, err := CompileToolResponseFilter(filter)
+	require.NoError(t, err)
+	require.NotNil(t, code2)
+
+	// Pointer equality proves the same compiled object was returned from the cache.
+	assert.Same(t, code1, code2, "CompileToolResponseFilter should return cached code for identical filters")
 }

@@ -142,6 +142,42 @@ func validateToolResponseFilters(filters map[string]string, jsonPath string) err
 	return nil
 }
 
+// validateToolResponseFiltersWithVars validates tool response filter expressions that
+// reference named variables. varNames must match exactly the variable names that will
+// be passed to CompileToolResponseFilterWithVars at runtime (e.g. []string{"$serverID"}).
+//
+// This must be called instead of validateToolResponseFilters whenever the runtime uses
+// CompileToolResponseFilterWithVars, so that startup validation does not falsely reject
+// filters that reference variables which are only bound at run time.
+func validateToolResponseFiltersWithVars(filters map[string]string, jsonPath string, varNames []string) error {
+	if len(filters) == 0 {
+		return nil
+	}
+
+	for toolName, rawFilter := range filters {
+		if strings.TrimSpace(toolName) == "" {
+			return fmt.Errorf("%s contains an empty tool name", jsonPath)
+		}
+		filter := strings.TrimSpace(rawFilter)
+		if filter == "" {
+			return fmt.Errorf("%s.%s must not be empty", jsonPath, toolName)
+		}
+
+		query, err := gojq.Parse(filter)
+		if err != nil {
+			return fmt.Errorf("%s.%s contains an invalid jq expression: %w", jsonPath, toolName, err)
+		}
+		if _, err := gojq.Compile(query,
+			gojq.WithEnvironLoader(func() []string { return nil }), // match runtime compile options (defense-in-depth)
+			gojq.WithVariables(varNames),
+		); err != nil {
+			return fmt.Errorf("%s.%s contains an invalid jq expression: %w", jsonPath, toolName, err)
+		}
+	}
+
+	return nil
+}
+
 // validateServerAuth validates the auth configuration on any server type,
 // rejecting auth on non-HTTP servers and delegating to validateAuthConfig
 // for HTTP servers. This is shared by both the TOML (LoadFromFile) and
