@@ -584,6 +584,7 @@ func TestStripAuthScheme(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			scheme, value, matched := stripAuthScheme(tt.authHeader)
