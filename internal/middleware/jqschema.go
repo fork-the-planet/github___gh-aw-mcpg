@@ -8,8 +8,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -46,12 +46,12 @@ const fastPathOverheadBound = 4 * 1024
 // PayloadMetadata represents the metadata response returned when a payload is too large
 // and has been saved to the filesystem
 type PayloadMetadata struct {
-	AgentInstructions string      `json:"agentInstructions"`
-	PayloadPath       string      `json:"payloadPath"`
-	PayloadPreview    string      `json:"payloadPreview"`
-	PayloadSchema     interface{} `json:"payloadSchema"`
-	OriginalSize      int         `json:"originalSize"`
-	QueryID           string      `json:"-"` // Internal use only, not serialized to clients
+	AgentInstructions string `json:"agentInstructions"`
+	PayloadPath       string `json:"payloadPath"`
+	PayloadPreview    string `json:"payloadPreview"`
+	PayloadSchema     any    `json:"payloadSchema"`
+	OriginalSize      int    `json:"originalSize"`
+	QueryID           string `json:"-"` // Internal use only, not serialized to clients
 }
 
 // jqSchemaFilter is the jq entry point that invokes the native Go walk_schema function.
@@ -74,57 +74,15 @@ var (
 	jqSchemaCompileErr error
 )
 
-// inferSchema recursively walks a JSON-compatible Go value and replaces every leaf
-// with its jq type name ("null", "boolean", "number", "string"). Objects are
-// traversed key-by-key; arrays are collapsed to a single representative element (or
-// [] when empty). The output mirrors what the previous pure-jq walk_schema filter
-// produced, but runs entirely in Go, bypassing jq interpreter overhead for recursion.
+// filterCodeCache caches compiled tool-response filter code by expression string.
+// Filters compiled by CompileToolResponseFilter are stored on first call and reused
+// on subsequent calls with the same expression, avoiding redundant parse+compile work
+// when multiple tools share identical filter expressions.
 //
-// Type mapping (matches jq's built-in type function):
-//   - nil                                          → "null"
-//   - bool                                         → "boolean"
-//   - any integer or floating-point numeric type   → "number"
-//     (float32/64, int/8/16/32/64, uint/8/16/32/64, json.Number)
-//   - string                                       → "string"
-//   - map[string]interface{}                       → recursed object
-//   - []interface{}                                → recursed array (first element only)
-func inferSchema(v interface{}) interface{} {
-	switch val := v.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{}, len(val))
-		for k, child := range val {
-			result[k] = inferSchema(child)
-		}
-		return result
-	case []interface{}:
-		if len(val) == 0 {
-			return []interface{}{}
-		}
-		return []interface{}{inferSchema(val[0])}
-	case nil:
-		return "null"
-	case bool:
-		return "boolean"
-	case float64, float32,
-		int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64,
-		json.Number:
-		return "number"
-	case string:
-		return "string"
-	default:
-		// Defensive fallback: classify any remaining numeric reflect.Kind as "number"
-		// and everything else as "string" to keep the schema output valid.
-		switch reflect.TypeOf(v).Kind() {
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-			reflect.Float32, reflect.Float64:
-			return "number"
-		default:
-			return "string"
-		}
-	}
-}
+// The cache is unbounded and grows with the number of unique filter expressions.
+// In practice this is bounded by the number of distinct filter strings in the
+// gateway configuration, which is typically small (one per tool).
+var filterCodeCache sync.Map
 
 // init compiles the jq schema filter at startup for better performance and validation.
 // Following gojq best practices: compile once, run many times.
@@ -144,7 +102,7 @@ func init() {
 	}
 
 	jqSchemaCode, jqSchemaCompileErr = gojq.Compile(query,
-		gojq.WithFunction("walk_schema", 0, 0, func(v interface{}, _ []interface{}) interface{} {
+		gojq.WithFunction("walk_schema", 0, 0, func(v any, _ []any) any {
 			return inferSchema(v)
 		}),
 		gojq.WithEnvironLoader(func() []string { return nil }), // explicitly disable $ENV access (defense-in-depth)
@@ -170,14 +128,14 @@ const queryIDBytes = 16
 // - Extremely large or deeply nested payloads
 // - Infinite loops in query logic
 //
-// Returns the schema as an interface{} object (not a JSON string)
+// Returns the schema as an any object (not a JSON string)
 //
 // Error handling:
 // - Returns compilation errors if init() failed
 // - Returns context.DeadlineExceeded if query times out
 // - Returns enhanced gojq type error messages when available
 // - Properly handles gojq.HaltError for clean halt conditions
-func applyJqSchema(ctx context.Context, jsonData interface{}) (interface{}, error) {
+func applyJqSchema(ctx context.Context, jsonData any) (any, error) {
 	// Check if compilation succeeded at init time
 	if jqSchemaCompileErr != nil {
 		return nil, fmt.Errorf("jq schema filter not compiled (check startup logs): %w", jqSchemaCompileErr)
@@ -214,10 +172,10 @@ type runJqCodeOptions struct {
 func runJqCode(
 	ctx context.Context,
 	code *gojq.Code,
-	jsonData interface{},
+	jsonData any,
 	errPrefix string,
 	opts runJqCodeOptions,
-) (interface{}, error) {
+) (any, error) {
 	executionPrefix := opts.ExecutionPrefix
 	if executionPrefix == "" {
 		executionPrefix = errPrefix
@@ -249,7 +207,15 @@ func runJqCode(
 			}
 			return nil, fmt.Errorf("%s halted with error (exit code %d): %w", errPrefix, haltErr.ExitCode(), err)
 		}
-		return nil, fmt.Errorf("%s error: %w", errPrefix, err)
+		// gojq.ValueError is implemented by errors that carry a value (e.g., thrown by jq's
+		// error/1 builtin). These are intentional and their message is already descriptive.
+		var valErr gojq.ValueError
+		if errors.As(err, &valErr) {
+			return nil, fmt.Errorf("%s error: %w", errPrefix, err)
+		}
+		// All remaining errors are runtime type errors (e.g., "length cannot be applied to:
+		// null"). Include a hint to help authors write null-safe filters.
+		return nil, fmt.Errorf("%s type error: %w (check filter handles null/missing fields)", errPrefix, err)
 	}
 
 	if opts.CheckMultipleResults {
@@ -262,18 +228,22 @@ func runJqCode(
 }
 
 // CompileToolResponseFilter parses and compiles a jq expression used to transform
-// tool response payloads.
+// tool response payloads. Compiled code is cached by filter expression string so that
+// identical filters configured on multiple tools are only compiled once.
 //
-// For future parameterized filters that need to incorporate per-call values such as
-// server IDs, session metadata, or user-controlled data, prefer gojq.WithVariables
-// at compile time and pass bindings as variadic arguments to code.RunWithContext:
-//
-//	code, _ := gojq.Compile(query, gojq.WithVariables([]string{"$serverID", "$sessionID"}))
-//	iter := code.RunWithContext(ctx, data, serverID, sessionID)
-//
-// This is injection-safe: variable values are bound at the Go level and never
-// interpolated into the jq expression string.
+// For parameterized filters that need to incorporate per-call values such as server IDs,
+// session metadata, or user-controlled data, use CompileToolResponseFilterWithVars instead.
 func CompileToolResponseFilter(filter string) (*gojq.Code, error) {
+	if cached, ok := filterCodeCache.Load(filter); ok {
+		code, ok := cached.(*gojq.Code)
+		if !ok {
+			// Should never happen; the cache only stores *gojq.Code values.
+			return nil, fmt.Errorf("internal error: unexpected cached value type for filter (len=%d)", len(filter))
+		}
+		logMiddleware.Printf("CompileToolResponseFilter: cache hit, len=%d", len(filter))
+		return code, nil
+	}
+
 	logMiddleware.Printf("CompileToolResponseFilter: parsing jq filter expression, len=%d", len(filter))
 	query, err := gojq.Parse(filter)
 	if err != nil {
@@ -287,18 +257,51 @@ func CompileToolResponseFilter(filter string) (*gojq.Code, error) {
 		return nil, fmt.Errorf("failed to compile tool response filter: %w", err)
 	}
 
-	logMiddleware.Printf("CompileToolResponseFilter: filter compiled successfully")
+	filterCodeCache.Store(filter, code)
+	logMiddleware.Printf("CompileToolResponseFilter: filter compiled and cached successfully")
 	return code, nil
 }
 
-func applyToolResponseFilter(ctx context.Context, code *gojq.Code, jsonData interface{}) (interface{}, error) {
+// CompileToolResponseFilterWithVars parses and compiles a jq expression that references
+// the named variables. Variable names must be prefixed with "$" (e.g. "$serverID").
+//
+// Values are bound at run time by passing them in the same order to code.RunWithContext:
+//
+//	code, _ := CompileToolResponseFilterWithVars(expr, []string{"$serverID", "$sessionID"})
+//	iter := code.RunWithContext(ctx, data, serverID, sessionID)
+//
+// Binding values at the Go level is injection-safe: they are never interpolated into
+// the jq expression string.
+//
+// Note: compiled code from this function is not cached because the variable names form
+// part of the compile options and are not included in the filter string key.
+func CompileToolResponseFilterWithVars(filter string, varNames []string) (*gojq.Code, error) {
+	logMiddleware.Printf("CompileToolResponseFilterWithVars: parsing jq filter expression, len=%d, vars=%v", len(filter), varNames)
+	query, err := gojq.Parse(filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse tool response filter: %w", err)
+	}
+
+	code, err := gojq.Compile(query,
+		gojq.WithEnvironLoader(func() []string { return nil }), // explicitly disable $ENV access (defense-in-depth)
+		gojq.WithVariables(varNames),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile tool response filter: %w", err)
+	}
+
+	logMiddleware.Printf("CompileToolResponseFilterWithVars: filter compiled successfully")
+	return code, nil
+}
+
+func applyToolResponseFilter(ctx context.Context, code *gojq.Code, jsonData any) (any, error) {
 	return runJqCode(ctx, code, jsonData, "tool response filter", runJqCodeOptions{
 		CheckMultipleResults: true,
 	})
 }
 
 // ApplyToolResponseFilter compiles and applies a jq expression to tool response data.
-func ApplyToolResponseFilter(ctx context.Context, filter string, jsonData interface{}) (interface{}, error) {
+func ApplyToolResponseFilter(ctx context.Context, filter string, jsonData any) (any, error) {
 	code, err := CompileToolResponseFilter(filter)
 	if err != nil {
 		return nil, err
@@ -310,10 +313,10 @@ func tryApplyToolResponseFilter(
 	ctx context.Context,
 	filterCode *gojq.Code,
 	result *sdk.CallToolResult,
-	data interface{},
+	data any,
 	toolName string,
 	queryID string,
-) (*sdk.CallToolResult, interface{}) {
+) (*sdk.CallToolResult, any) {
 	logMiddleware.Printf("tryApplyToolResponseFilter: tool=%s, queryID=%s, hasFilter=%v", toolName, queryID, filterCode != nil)
 	if filterCode == nil {
 		return result, data
@@ -321,7 +324,7 @@ func tryApplyToolResponseFilter(
 
 	if result != nil && len(result.Content) > 0 {
 		if textContent, ok := result.Content[0].(*sdk.TextContent); ok {
-			var textPayload interface{}
+			var textPayload any
 			if err := json.Unmarshal([]byte(textContent.Text), &textPayload); err == nil {
 				filteredPayload, filterErr := applyToolResponseFilter(ctx, filterCode, textPayload)
 				if filterErr != nil {
@@ -371,7 +374,7 @@ func tryApplyToolResponseFilter(
 	return filteredResult, filteredData
 }
 
-func rewriteFilteredTextPayload(result *sdk.CallToolResult, data interface{}, filteredText string) (*sdk.CallToolResult, interface{}) {
+func rewriteFilteredTextPayload(result *sdk.CallToolResult, data any, filteredText string) (*sdk.CallToolResult, any) {
 	logMiddleware.Printf("rewriteFilteredTextPayload: rewriting first text content item, filteredLen=%d", len(filteredText))
 	rewrittenContent := make([]sdk.Content, 0, len(result.Content))
 	rewrittenContent = append(rewrittenContent, &sdk.TextContent{Text: filteredText})
@@ -389,7 +392,7 @@ func rewriteFilteredTextPayload(result *sdk.CallToolResult, data interface{}, fi
 		return rewrittenResult, rewrittenData
 	}
 
-	var filteredPayload interface{}
+	var filteredPayload any
 	if err := json.Unmarshal([]byte(filteredText), &filteredPayload); err == nil {
 		return rewrittenResult, filteredPayload
 	}
@@ -398,14 +401,14 @@ func rewriteFilteredTextPayload(result *sdk.CallToolResult, data interface{}, fi
 	return rewrittenResult, data
 }
 
-func rewriteEnvelopeTextPayload(data interface{}, filteredText string) (interface{}, bool) {
+func rewriteEnvelopeTextPayload(data any, filteredText string) (any, bool) {
 	switch v := data.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		contentValue, ok := v["content"]
 		if !ok {
 			return nil, false
 		}
-		rewrittenMap := make(map[string]interface{}, len(v))
+		rewrittenMap := make(map[string]any, len(v))
 		for key, value := range v {
 			rewrittenMap[key] = value
 		}
@@ -421,21 +424,21 @@ func rewriteEnvelopeTextPayload(data interface{}, filteredText string) (interfac
 	}
 }
 
-func rewriteFirstContentItem(contentValue interface{}, filteredText string) (interface{}, bool) {
+func rewriteFirstContentItem(contentValue any, filteredText string) (any, bool) {
 	switch content := contentValue.(type) {
-	case []map[string]interface{}:
+	case []map[string]any:
 		if len(content) == 0 {
 			return nil, false
 		}
-		rewrittenContent := append([]map[string]interface{}(nil), content...)
+		rewrittenContent := append([]map[string]any(nil), content...)
 		rewrittenContent[0] = rewriteContentItemText(rewrittenContent[0], filteredText)
 		return rewrittenContent, true
-	case []interface{}:
+	case []any:
 		if len(content) == 0 {
 			return nil, false
 		}
-		rewrittenContent := append([]interface{}(nil), content...)
-		firstItem, ok := rewrittenContent[0].(map[string]interface{})
+		rewrittenContent := append([]any(nil), content...)
+		firstItem, ok := rewrittenContent[0].(map[string]any)
 		if !ok {
 			return nil, false
 		}
@@ -446,8 +449,8 @@ func rewriteFirstContentItem(contentValue interface{}, filteredText string) (int
 	}
 }
 
-func rewriteContentItemText(contentItem map[string]interface{}, filteredText string) map[string]interface{} {
-	rewrittenItem := make(map[string]interface{}, len(contentItem))
+func rewriteContentItemText(contentItem map[string]any, filteredText string) map[string]any {
+	rewrittenItem := make(map[string]any, len(contentItem))
 	for key, value := range contentItem {
 		rewrittenItem[key] = value
 	}
@@ -521,39 +524,39 @@ func savePayload(baseDir, pathPrefix, sessionID, queryID string, payload []byte)
 // 5. For large payloads: returns first PayloadPreviewSize chars of payload + jq inferred schema
 // 6. Uses pathPrefix to remap returned payloadPath for clients (if configured)
 func WrapToolHandler(
-	handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error),
+	handler func(context.Context, *sdk.CallToolRequest, any) (*sdk.CallToolResult, any, error),
 	toolName string,
 	baseDir string,
 	pathPrefix string,
 	sizeThreshold int,
 	getSessionID func(context.Context) string,
-) func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error) {
+) func(context.Context, *sdk.CallToolRequest, any) (*sdk.CallToolResult, any, error) {
 	return wrapToolHandler(handler, toolName, baseDir, pathPrefix, sizeThreshold, getSessionID, "")
 }
 
 // WrapToolHandlerWithFilter wraps a tool handler with jq response filtering followed
 // by the standard large-payload jqschema middleware behavior.
 func WrapToolHandlerWithFilter(
-	handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error),
+	handler func(context.Context, *sdk.CallToolRequest, any) (*sdk.CallToolResult, any, error),
 	toolName string,
 	baseDir string,
 	pathPrefix string,
 	sizeThreshold int,
 	getSessionID func(context.Context) string,
 	filter string,
-) func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error) {
+) func(context.Context, *sdk.CallToolRequest, any) (*sdk.CallToolResult, any, error) {
 	return wrapToolHandler(handler, toolName, baseDir, pathPrefix, sizeThreshold, getSessionID, filter)
 }
 
 func wrapToolHandler(
-	handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error),
+	handler func(context.Context, *sdk.CallToolRequest, any) (*sdk.CallToolResult, any, error),
 	toolName string,
 	baseDir string,
 	pathPrefix string,
 	sizeThreshold int,
 	getSessionID func(context.Context) string,
 	filter string,
-) func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error) {
+) func(context.Context, *sdk.CallToolRequest, any) (*sdk.CallToolResult, any, error) {
 	logMiddleware.Printf("WrapToolHandler: wrapping tool=%s, sizeThreshold=%d bytes, baseDir=%s, pathPrefixSet=%v",
 		toolName, sizeThreshold, baseDir, pathPrefix != "")
 
@@ -567,7 +570,7 @@ func wrapToolHandler(
 		}
 	}
 
-	return func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+	return func(ctx context.Context, req *sdk.CallToolRequest, args any) (*sdk.CallToolResult, any, error) {
 		// Generate random query ID
 		queryID := strutil.RandomHexWithFallback(queryIDBytes)
 
@@ -618,7 +621,7 @@ func wrapToolHandler(
 		// does not affect exact-byte-count test scenarios with small thresholds.
 		if sizeThreshold > fastPathOverheadBound && len(result.Content) > 0 {
 			if tc, ok := result.Content[0].(*sdk.TextContent); ok {
-				if env, ok := data.(map[string]interface{}); ok {
+				if env, ok := data.(map[string]any); ok {
 					// Only apply fast path when the backing payload is the simple one-text-item MCP envelope.
 					if len(env) <= 2 {
 						onlyKnownKeys := true
@@ -630,13 +633,13 @@ func wrapToolHandler(
 						}
 						if onlyKnownKeys {
 							items, ok := mcpresult.NormalizeContentItems(env["content"])
-							var first map[string]interface{}
+							var first map[string]any
 							switch c := env["content"].(type) {
-							case []interface{}:
+							case []any:
 								if len(c) == 1 && ok && len(items) == 1 {
 									first = items[0]
 								}
-							case []map[string]interface{}:
+							case []map[string]any:
 								if len(c) == 1 && ok && len(items) == 1 {
 									first = items[0]
 								}
@@ -692,13 +695,13 @@ func wrapToolHandler(
 
 		// Apply jq schema transformation
 		logger.LogDebug("payload", "Applying jq schema transformation: tool=%s, queryID=%s", toolName, queryID)
-		var schemaObj interface{}
+		var schemaObj any
 		if schemaErr := func() error {
 			// Prepare data for jq processing. If data is already a native JSON-compatible
 			// Go type, use it directly to avoid a redundant JSON round-trip.
-			var jsonData interface{}
+			var jsonData any
 			switch v := data.(type) {
-			case map[string]interface{}, []interface{}, string, float64, bool:
+			case map[string]any, []any, string, float64, bool:
 				jsonData = data
 			case nil:
 				// nil data produces a nil schema; nothing meaningful to infer.

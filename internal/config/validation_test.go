@@ -1236,3 +1236,65 @@ func TestValidateToolResponseFilters(t *testing.T) {
 		})
 	}
 }
+
+// TestValidateToolResponseFiltersWithVars verifies that the WithVars variant accepts
+// filters that reference declared variables and rejects undeclared ones.
+func TestValidateToolResponseFiltersWithVars(t *testing.T) {
+	tests := []struct {
+		name      string
+		filters   map[string]string
+		varNames  []string
+		shouldErr bool
+		errMsg    string
+	}{
+		{
+			name: "valid filter with declared variable",
+			filters: map[string]string{
+				"list_items": ". | select(.type == $serverID)",
+			},
+			varNames: []string{"$serverID"},
+		},
+		{
+			name: "valid filter without variables",
+			filters: map[string]string{
+				"list_items": "map(del(.secret))",
+			},
+			varNames: []string{"$serverID"},
+		},
+		{
+			name: "filter references undeclared variable",
+			filters: map[string]string{
+				"list_items": ". | select(.type == $undeclared)",
+			},
+			varNames:  []string{},
+			shouldErr: true,
+			errMsg:    "invalid jq expression",
+		},
+		{
+			name: "invalid filter syntax",
+			filters: map[string]string{
+				"list_items": "map(",
+			},
+			varNames:  []string{"$serverID"},
+			shouldErr: true,
+			errMsg:    "invalid jq expression",
+		},
+		{
+			name:     "nil filters returns no error",
+			filters:  nil,
+			varNames: []string{"$serverID"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateToolResponseFiltersWithVars(tt.filters, "mcpServers.test.tool_response_filters", tt.varNames)
+			if tt.shouldErr {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
