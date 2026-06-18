@@ -722,6 +722,23 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 		assert.Contains(t, allowOnly, "refusal-labels")
 	})
 
+	t.Run("refusal-labels array entries are trimmed", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":          "public",
+				"min-integrity":  "none",
+				"refusal-labels": []interface{}{" unsafe ", "needs-triage\t"},
+			},
+		}
+
+		result, err := buildStrictLabelAgentPayload(policy)
+		require.NoError(t, err)
+		allowOnly := result["allow-only"].(map[string]interface{})
+		refusalLabels, ok := allowOnly["refusal-labels"].([]interface{})
+		require.True(t, ok)
+		assert.Equal(t, []interface{}{"unsafe", "needs-triage"}, refusalLabels)
+	})
+
 	t.Run("refusal-labels expression string is normalized", func(t *testing.T) {
 		policy := map[string]interface{}{
 			"allow-only": map[string]interface{}{

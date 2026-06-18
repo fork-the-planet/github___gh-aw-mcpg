@@ -1863,7 +1863,7 @@ pub fn pr_integrity(
 
     let integrity = ensure_integrity_baseline(repo_full_name, integrity, ctx);
 
-    // Post-adjustments: refusal demotion → approval/promotion/endorsement → demotions.
+    // Post-adjustments: approval/promotion/endorsement → refusal demotion → demotions.
     apply_post_integrity_adjustments(item, "pr", repo_full_name, integrity, ctx)
 }
 
@@ -1949,7 +1949,7 @@ pub fn issue_integrity(
     }
     let integrity = ensure_integrity_baseline(repo_full_name, integrity, ctx);
 
-    // Post-adjustments: refusal demotion → approval/promotion/endorsement → demotions.
+    // Post-adjustments: approval/promotion/endorsement → refusal demotion → demotions.
     apply_post_integrity_adjustments(item, "issue", repo_full_name, integrity, ctx)
 }
 

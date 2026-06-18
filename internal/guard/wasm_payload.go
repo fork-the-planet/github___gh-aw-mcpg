@@ -193,7 +193,11 @@ func normalizeLabelListField(field string, raw interface{}) ([]interface{}, erro
 		if err := config.ValidateStringArrayField(field, arr, false); err != nil {
 			return nil, err
 		}
-		return arr, nil
+		out := make([]interface{}, 0, len(arr))
+		for _, entry := range arr {
+			out = append(out, strings.TrimSpace(entry.(string)))
+		}
+		return out, nil
 	}
 
 	s, ok := raw.(string)
