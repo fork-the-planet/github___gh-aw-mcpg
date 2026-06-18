@@ -374,3 +374,17 @@ func TestExtractTextContent_NilMap(t *testing.T) {
 	got := ExtractTextContent(nil)
 	assert.Empty(t, got)
 }
+
+func TestExtractTextContent_WithDebugLoggingEnabled(t *testing.T) {
+	t.Setenv("DEBUG", "mcpresult:*")
+
+	got := ExtractTextContent(map[string]interface{}{
+		"content": []interface{}{
+			map[string]interface{}{"type": "text", "text": "hello"},
+			map[string]interface{}{"type": "image", "text": "skip"},
+			map[string]interface{}{"type": "text", "text": " world"},
+		},
+	})
+
+	assert.Equal(t, "hello world", got)
+}
