@@ -151,7 +151,7 @@ func (us *UnifiedServer) sysInitHandler(ctx context.Context, req *sdk.CallToolRe
 		return mcp.NewErrorCallToolResult(fmt.Errorf("no session ID provided"))
 	}
 
-	logger.LogInfo("client", "MCP session initialization started, session=%s, has_token=%v", sessionID, token != "")
+	logger.LogInfo("client", "MCP session initialization started, session=%s, has_token=%v", truncateSessionID(sessionID), token != "")
 
 	us.sessionMu.Lock()
 	us.sessions[sessionID] = NewSession(sessionID, token)
