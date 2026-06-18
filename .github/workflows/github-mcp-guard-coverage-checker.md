@@ -9,7 +9,9 @@ permissions:
   contents: read
   issues: read
 
-engine: copilot
+engine:
+  id: copilot
+  model: gpt-5.4
 
 network:
   allowed:
