@@ -217,5 +217,7 @@ func TestRunLabelAgentInit_BuildsPayloadAndRuns(t *testing.T) {
 
 	allowOnly, ok := payload["allow-only"].(map[string]interface{})
 	require.True(t, ok)
+	assert.Equal(t, "public", allowOnly["repos"])
+	assert.Equal(t, "none", allowOnly["min-integrity"])
 	assert.Equal(t, []interface{}{"alice"}, allowOnly["trusted-users"])
 }
