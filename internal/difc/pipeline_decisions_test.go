@@ -263,7 +263,7 @@ func TestFilterAndConvertLabeledData(t *testing.T) {
 		assert.Equal(t, 1, finalItems[0].(map[string]interface{})["id"])
 	})
 
-	t.Run("propagate mode returns partial collection without blocking", func(t *testing.T) {
+	t.Run("propagate mode allows collection without blocking or filtering", func(t *testing.T) {
 		t.Parallel()
 		collection := &CollectionLabeledData{
 			Items: []LabeledItem{
@@ -271,13 +271,16 @@ func TestFilterAndConvertLabeledData(t *testing.T) {
 				makePrivateItem(2),
 			},
 		}
-		result, err := FilterAndConvertLabeledData(evaluator, agentSecrecy, agentIntegrity, OperationRead, collection, EnforcementPropagate)
+		eval := NewEvaluatorWithMode(EnforcementPropagate)
+		result, err := FilterAndConvertLabeledData(eval, agentSecrecy, agentIntegrity, OperationRead, collection, EnforcementPropagate)
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.False(t, result.Blocked)
 		require.NotNil(t, result.Filtered)
-		assert.Equal(t, 1, result.Filtered.GetFilteredCount())
+		assert.Equal(t, 0, result.Filtered.GetFilteredCount())
 		require.IsType(t, []interface{}{}, result.FinalResult)
+		finalItems := result.FinalResult.([]interface{})
+		require.Len(t, finalItems, 2)
 	})
 
 	t.Run("to result conversion errors are returned", func(t *testing.T) {
