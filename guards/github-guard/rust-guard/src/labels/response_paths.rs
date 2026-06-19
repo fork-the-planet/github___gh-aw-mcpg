@@ -152,10 +152,7 @@ pub fn label_response_paths(
                     } else {
                         String::new()
                     };
-                    let default_secrecy = if tool_name == "list_pull_requests"
-                        || tool_name == "pull_request_read"
-                        || tool_name == "get_pull_request"
-                    {
+                    let default_secrecy = if tool_name != "search_pull_requests" {
                         repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx)
                     } else {
                         vec![]
@@ -267,10 +264,7 @@ pub fn label_response_paths(
                     } else {
                         String::new()
                     };
-                    let default_secrecy = if tool_name == "list_issues"
-                        || tool_name == "issue_read"
-                        || tool_name == "get_issue"
-                    {
+                    let default_secrecy = if tool_name != "search_issues" {
                         repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx)
                     } else {
                         vec![]

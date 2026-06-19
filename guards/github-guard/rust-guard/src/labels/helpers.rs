@@ -560,22 +560,38 @@ fn apply_demotion_label_demotion(
 const MAX_REACTIONS_TO_CHECK: usize = 20;
 
 /// Return the effective `disapproval_integrity` level from context, defaulting to "none".
-fn effective_disapproval_integrity<'a>(ctx: &'a PolicyContext) -> &'a str {
+fn effective_disapproval_integrity(ctx: &PolicyContext) -> &'static str {
     let v = ctx.disapproval_integrity.trim();
     if v.is_empty() {
         policy_integrity::NONE
     } else {
-        v
+        MinIntegrity::from_policy_str(v)
+            .unwrap_or_else(|| {
+                crate::log_warn(&format!(
+                    "effective_disapproval_integrity: unrecognised level {:?}, defaulting to 'none'",
+                    v
+                ));
+                MinIntegrity::None
+            })
+            .as_str()
     }
 }
 
 /// Return the effective `endorser_min_integrity` level from context, defaulting to "approved".
-fn effective_endorser_min_integrity<'a>(ctx: &'a PolicyContext) -> &'a str {
+fn effective_endorser_min_integrity(ctx: &PolicyContext) -> &'static str {
     let v = ctx.endorser_min_integrity.trim();
     if v.is_empty() {
         policy_integrity::APPROVED
     } else {
-        v
+        MinIntegrity::from_policy_str(v)
+            .unwrap_or_else(|| {
+                crate::log_warn(&format!(
+                    "effective_endorser_min_integrity: unrecognised level {:?}, defaulting to 'approved'",
+                    v
+                ));
+                MinIntegrity::Approved
+            })
+            .as_str()
     }
 }
 
