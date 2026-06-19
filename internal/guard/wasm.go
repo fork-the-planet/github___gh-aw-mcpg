@@ -117,14 +117,16 @@ func ConfigureGlobalCompilationCache(ctx context.Context, dir string) error {
 }
 
 // CloseGlobalCompilationCache releases JIT resources held by the shared
-// compilation cache. It must be called once during graceful shutdown, after
-// all WasmGuard runtimes have been closed (i.e., after Registry.Close()).
-// Calling it while guards are still active or calling it more than once leads
-// to undefined behavior. It is not safe to call concurrently.
+// compilation cache. It should be called during graceful shutdown, after all
+// WasmGuard runtimes have been closed (i.e., after Registry.Close()).
+// Calling it while guards are still active leads to undefined behavior.
+// Repeated calls are no-ops once the global cache has been cleared.
+// It is not safe to call concurrently.
 func CloseGlobalCompilationCache(ctx context.Context) error {
 	logWasm.Print("Closing global compilation cache")
 	globalCompilationCacheMu.Lock()
 	cache := globalCompilationCache
+	globalCompilationCache = nil
 	globalCompilationCacheMu.Unlock()
 	if cache == nil {
 		logWasm.Print("Global compilation cache is nil, nothing to close")

@@ -81,7 +81,7 @@ func parsePathLabeledResponse(responseJSON []byte, originalData any) (difc.Label
 // init) are NOT considered traps. A non-zero exit code is treated as a trap.
 // As a fallback for wazero execution faults (e.g. Rust panic → unreachable),
 // the function also matches on wazero's "wasm error:" message prefix
-// (verified against wazero v1.11.0; re-verify on upgrades).
+// (verified against wazero v1.12.0; re-verify on upgrades).
 func isWasmTrap(err error) bool {
 	if err == nil {
 		return false
