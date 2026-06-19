@@ -428,11 +428,9 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	}
 	ctx, pre, err := guard.RunPipelinePrePhases(ctx, pipelineIn)
 	if err != nil {
-		if denied, ok := err.(*guard.PipelineAccessDenied); ok {
+		if denied, detailedErr := guard.HandlePrePhaseError(err); denied != nil {
 			logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s",
 				agentID, denied.Resource.Description, denied.EvalResult.Reason)
-			detailedErr := difc.FormatViolationError(denied.EvalResult,
-				denied.AgentLabels.Secrecy, denied.AgentLabels.Integrity, denied.Resource)
 			tracing.RecordSpanError(toolSpan, detailedErr, "access denied: "+denied.EvalResult.Reason)
 			httpStatusCode = 403
 			return mcp.NewErrorCallToolResult(detailedErr)
