@@ -1,6 +1,6 @@
 // Package logger provides structured logging for the MCP Gateway.
 //
-// This file contains formatting functions for RPC messages in text and markdown formats.
+// This file contains formatting and payload helper functions for RPC message logs.
 //
 // Text Format: Compact, single-line format optimized for grep and command-line tools
 //
@@ -18,7 +18,54 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
+
+// truncateAndSanitize truncates the payload to max length and sanitizes secrets.
+func truncateAndSanitize(payload string, maxLength int) string {
+	return strutil.Truncate(sanitize.SanitizeString(payload), maxLength)
+}
+
+// LogMarshaledForDebug marshals value for debug logging and dispatches to the
+// provided callbacks for success or marshal failure paths.
+func LogMarshaledForDebug(value interface{}, onMarshalSuccess func(string), onMarshalFailure func(error)) {
+	resultJSON, err := json.Marshal(value)
+	if err != nil {
+		onMarshalFailure(err)
+		return
+	}
+	onMarshalSuccess(string(resultJSON))
+}
+
+// LogMarshaledForDebugf marshals value for debug logging and dispatches to
+// formatted logging functions for success or marshal failure paths.
+func LogMarshaledForDebugf(
+	value interface{},
+	onMarshalSuccessf func(string, ...interface{}),
+	successFormat string,
+	onMarshalFailuref func(string, ...interface{}),
+	failureFormat string,
+	args ...interface{},
+) {
+	formatArgs := func(extra interface{}) []interface{} {
+		formattedArgs := make([]interface{}, len(args)+1)
+		copy(formattedArgs, args)
+		formattedArgs[len(args)] = extra
+		return formattedArgs
+	}
+
+	LogMarshaledForDebug(
+		value,
+		func(resultJSON string) {
+			onMarshalSuccessf(successFormat, formatArgs(resultJSON)...)
+		},
+		func(marshalErr error) {
+			onMarshalFailuref(failureFormat, formatArgs(marshalErr)...)
+		},
+	)
+}
 
 // formatRPCMessage formats an RPC message for logging
 func formatRPCMessage(info *RPCMessageInfo) string {

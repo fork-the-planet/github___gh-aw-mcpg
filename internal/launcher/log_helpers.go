@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -9,8 +10,14 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/sanitize"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
+
+func sessionSuffix(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	return fmt.Sprintf(" for session '%s'", sessionID)
+}
 
 // ConnectionErrorContext holds all context needed to produce a detailed connection
 // failure diagnostic. Fields left at their zero values are omitted from the output.
@@ -30,7 +37,7 @@ type ConnectionErrorContext struct {
 // command context, captured stderr, and actionable hints based on the error type
 // and execution environment.
 func LogConnectionError(errCtx ConnectionErrorContext, err error) {
-	suffix := strutil.SessionSuffix(errCtx.SessionID)
+	suffix := sessionSuffix(errCtx.SessionID)
 
 	// Structured log via file logger.
 	if errCtx.ServerID != "" {
@@ -111,7 +118,7 @@ func (l *Launcher) logSecurityWarning(serverID string, serverCfg *config.ServerC
 
 // logLaunchStart logs server launch initiation
 func (l *Launcher) logLaunchStart(serverID, sessionID string, serverCfg *config.ServerConfig, isDirectCommand bool) {
-	suffix := strutil.SessionSuffix(sessionID)
+	suffix := sessionSuffix(sessionID)
 	logger.LogInfoToServer(serverID, "backend", "Launching MCP backend server%s: server=%s%s, command=%s, args=%v",
 		suffix, serverID, suffix, serverCfg.Command, sanitize.SanitizeArgs(serverCfg.Args))
 	if sessionID != "" {
@@ -158,7 +165,7 @@ func (l *Launcher) logLaunchError(serverID, sessionID string, err error, serverC
 
 // logTimeoutError logs startup timeout diagnostics
 func (l *Launcher) logTimeoutError(serverID, sessionID string) {
-	suffix := strutil.SessionSuffix(sessionID)
+	suffix := sessionSuffix(sessionID)
 	logger.LogErrorToServer(serverID, "backend", "MCP backend server startup timeout%s: server=%s%s, timeout=%v",
 		suffix, serverID, suffix, l.startupTimeout)
 	log.Printf("[LAUNCHER] ⚠️  The server may be hanging or taking too long to initialize")
@@ -168,7 +175,7 @@ func (l *Launcher) logTimeoutError(serverID, sessionID string) {
 
 // logLaunchSuccess logs successful server launch
 func (l *Launcher) logLaunchSuccess(serverID, sessionID string) {
-	suffix := strutil.SessionSuffix(sessionID)
+	suffix := sessionSuffix(sessionID)
 	logger.LogInfoToServer(serverID, "backend", "Successfully launched MCP backend server%s: server=%s%s", suffix, serverID, suffix)
 	logLauncher.Printf("Connection established: serverID=%s%s", serverID, suffix)
 }

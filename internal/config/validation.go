@@ -115,31 +115,7 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 }
 
 func validateToolResponseFilters(filters map[string]string, jsonPath string) error {
-	if len(filters) == 0 {
-		return nil
-	}
-
-	for toolName, rawFilter := range filters {
-		if strings.TrimSpace(toolName) == "" {
-			return fmt.Errorf("%s contains an empty tool name", jsonPath)
-		}
-		filter := strings.TrimSpace(rawFilter)
-		if filter == "" {
-			return fmt.Errorf("%s.%s must not be empty", jsonPath, toolName)
-		}
-
-		query, err := gojq.Parse(filter)
-		if err != nil {
-			return fmt.Errorf("%s.%s contains an invalid jq expression: %w", jsonPath, toolName, err)
-		}
-		if _, err := gojq.Compile(query,
-			gojq.WithEnvironLoader(func() []string { return nil }), // match runtime compile options (defense-in-depth)
-		); err != nil {
-			return fmt.Errorf("%s.%s contains an invalid jq expression: %w", jsonPath, toolName, err)
-		}
-	}
-
-	return nil
+	return validateToolResponseFiltersWithVars(filters, jsonPath, nil)
 }
 
 // validateToolResponseFiltersWithVars validates tool response filter expressions that
@@ -148,7 +124,8 @@ func validateToolResponseFilters(filters map[string]string, jsonPath string) err
 //
 // This must be called instead of validateToolResponseFilters whenever the runtime uses
 // CompileToolResponseFilterWithVars, so that startup validation does not falsely reject
-// filters that reference variables which are only bound at run time.
+// filters that reference variables which are only bound at run time. A nil varNames
+// slice preserves validateToolResponseFilters behavior by disallowing jq variables.
 func validateToolResponseFiltersWithVars(filters map[string]string, jsonPath string, varNames []string) error {
 	if len(filters) == 0 {
 		return nil

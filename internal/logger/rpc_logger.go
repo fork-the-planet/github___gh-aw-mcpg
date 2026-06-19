@@ -6,8 +6,7 @@
 // File Organization:
 //
 // - rpc_logger.go (this file): Coordination of RPC logging across formats
-// - rpc_formatter.go: Text and markdown formatting functions
-// - rpc_helpers.go: Utility functions for payload processing
+// - rpc_format.go: Formatting and payload helper functions
 //
 // The package supports logging RPC messages in three formats:
 //
