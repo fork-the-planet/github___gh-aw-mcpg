@@ -2,6 +2,7 @@ package guard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
@@ -62,6 +63,24 @@ type PipelineAccessDenied struct {
 
 func (e *PipelineAccessDenied) Error() string {
 	return fmt.Sprintf("DIFC access denied: %s", e.EvalResult.Reason)
+}
+
+// HandlePrePhaseError classifies a RunPipelinePrePhases error.
+//
+// When err represents a coarse-grained access denial, it returns the canonical
+// *PipelineAccessDenied value together with the fully formatted violation error.
+// For non-denial errors, it returns (nil, nil).
+func HandlePrePhaseError(err error) (*PipelineAccessDenied, error) {
+	var denied *PipelineAccessDenied
+	if !errors.As(err, &denied) {
+		return nil, nil
+	}
+	return denied, difc.FormatViolationError(
+		denied.EvalResult,
+		denied.AgentLabels.Secrecy,
+		denied.AgentLabels.Integrity,
+		denied.Resource,
+	)
 }
 
 // RunPipelinePrePhases executes phases 0–2 of the DIFC enforcement pipeline:

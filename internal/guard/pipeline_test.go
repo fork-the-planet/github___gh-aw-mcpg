@@ -3,6 +3,7 @@ package guard
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -298,4 +299,32 @@ func TestPipelineAccessDenied_ErrorMessage(t *testing.T) {
 	}
 	assert.Contains(t, denied.Error(), "DIFC access denied")
 	assert.Contains(t, denied.Error(), "integrity tag missing")
+}
+
+func TestHandlePrePhaseError_ReturnsDetailedViolationForDeniedError(t *testing.T) {
+	agentLabels := difc.NewAgentLabels("test-agent")
+	agentLabels.AddSecrecyTags([]difc.Tag{"secret"})
+
+	resource := difc.NewLabeledResource("resource")
+	deniedErr := &PipelineAccessDenied{
+		EvalResult: &difc.EvaluationResult{
+			Decision:     difc.AccessDeny,
+			SecrecyToAdd: []difc.Tag{"private"},
+			Reason:       "secrecy violation",
+		},
+		Resource:    resource,
+		AgentLabels: agentLabels,
+	}
+
+	denied, detailedErr := HandlePrePhaseError(fmt.Errorf("wrapped: %w", deniedErr))
+	require.Same(t, deniedErr, denied)
+	require.Error(t, detailedErr)
+	assert.Contains(t, detailedErr.Error(), "DIFC Violation:")
+	assert.Contains(t, detailedErr.Error(), "secrecy violation")
+}
+
+func TestHandlePrePhaseError_IgnoresNonDeniedError(t *testing.T) {
+	denied, detailedErr := HandlePrePhaseError(errors.New("resource labeling failed"))
+	assert.Nil(t, denied)
+	assert.Nil(t, detailedErr)
 }

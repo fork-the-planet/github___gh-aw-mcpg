@@ -205,10 +205,10 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	}
 	ctx, pre, err := guard.RunPipelinePrePhases(ctx, pipelineIn)
 	if err != nil {
-		if denied, ok := err.(*guard.PipelineAccessDenied); ok {
+		if denied, detailedErr := guard.HandlePrePhaseError(err); denied != nil {
 			logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, denied.EvalResult.Reason)
 			deniedErr := fmt.Errorf("DIFC policy violation: %s", denied.EvalResult.Reason)
-			tracing.RecordSpanError(difcSpan, deniedErr, "access denied: "+denied.EvalResult.Reason)
+			tracing.RecordSpanError(difcSpan, detailedErr, "access denied: "+denied.EvalResult.Reason)
 			writeDIFCForbidden(w, deniedErr.Error())
 			return
 		}
