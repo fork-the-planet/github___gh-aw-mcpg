@@ -22,19 +22,6 @@ import (
 
 var logHandler = logger.New("proxy:handler")
 
-// toResultOrWriteEmpty calls ToResult on the labeled data. On success it returns
-// (result, true). On error it logs the failure, writes an empty-shaped response,
-// and returns (nil, false) so the caller can return early.
-func (h *proxyHandler) toResultOrWriteEmpty(w http.ResponseWriter, resp *http.Response, responseData interface{}, labeled difc.LabeledData) (interface{}, bool) {
-	result, err := labeled.ToResult()
-	if err != nil {
-		logHandler.Printf("[DIFC] Phase 5 ToResult failed: %v", err)
-		h.writeEmptyResponse(w, resp, responseData)
-		return nil, false
-	}
-	return result, true
-}
-
 // writeDIFCForbidden writes a 403 JSON response for DIFC policy violations.
 // Uses the shared WriteErrorResponse helper so that the response shape is consistent
 // with all other error responses in the gateway ({"error": ..., "message": ...}).
@@ -269,10 +256,22 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	// **Phase 5: Fine-grained filtering**
 	var finalData interface{}
 	var useOriginalBody bool // GraphQL responses need original format preserved
+	filterResult, err := difc.FilterAndConvertLabeledData(
+		s.Evaluator,
+		pre.AgentLabels.Secrecy,
+		pre.AgentLabels.Integrity,
+		pre.Operation,
+		labeledData,
+		s.Mode,
+	)
+	if err != nil {
+		logHandler.Printf("[DIFC] Phase 5 ToResult failed: %v", err)
+		h.writeEmptyResponse(w, resp, responseData)
+		return
+	}
+
 	if labeledData != nil {
-		if collection, ok := labeledData.(*difc.CollectionLabeledData); ok {
-			filtered := s.Evaluator.FilterCollection(
-				pre.AgentLabels.Secrecy, pre.AgentLabels.Integrity, collection, pre.Operation)
+		if filtered := filterResult.Filtered; filtered != nil {
 
 			logHandler.Printf("[DIFC] Phase 5: %d/%d items accessible",
 				filtered.GetAccessibleCount(), filtered.TotalCount)
@@ -285,7 +284,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			}
 
 			// Strict mode: block entire response if any item filtered
-			if difc.ShouldBlockFilteredResponse(s.Mode, filtered.GetFilteredCount()) {
+			if filterResult.Blocked {
 				logHandler.Printf("[DIFC] STRICT: blocking response — %d filtered items", filtered.GetFilteredCount())
 				writeDIFCForbidden(w, fmt.Sprintf("DIFC policy violation: %d of %d items not accessible",
 					filtered.GetFilteredCount(), filtered.TotalCount))
@@ -302,11 +301,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 					filtered.GetFilteredCount(), filtered.TotalCount)
 				finalData = rebuildGraphQLResponse(responseData, filtered)
 			} else {
-				var ok bool
-				finalData, ok = h.toResultOrWriteEmpty(w, resp, responseData, filtered)
-				if !ok {
-					return
-				}
+				finalData = filterResult.FinalResult
 				// Re-wrap search responses to preserve the envelope
 				finalData = rewrapSearchResponse(responseData, finalData)
 				// Unwrap single-object responses (e.g., get_file_contents)
@@ -317,11 +312,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			if graphQLBody != nil {
 				useOriginalBody = true
 			} else {
-				var ok bool
-				finalData, ok = h.toResultOrWriteEmpty(w, resp, responseData, labeledData)
-				if !ok {
-					return
-				}
+				finalData = filterResult.FinalResult
 			}
 		}
 	} else {

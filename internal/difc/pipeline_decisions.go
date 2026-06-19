@@ -68,6 +68,58 @@ func ShouldBlockFilteredResponse(enforcementMode EnforcementMode, filteredCount 
 	return result
 }
 
+// FilterResult describes the outcome of Phase 5 fine-grained filtering.
+type FilterResult struct {
+	// FinalResult is the converted result from the filtered/labeled data.
+	// It is nil when labeledData is nil or when Blocked is true.
+	FinalResult interface{}
+
+	// Filtered is populated only when labeledData is a collection and collection
+	// filtering was performed.
+	Filtered *FilteredCollectionLabeledData
+
+	// Blocked indicates strict mode blocking due to filtered items.
+	Blocked bool
+}
+
+// FilterAndConvertLabeledData runs Phase 5 fine-grained filtering and converts
+// labeled data to a result while centralizing strict-mode blocking decisions.
+func FilterAndConvertLabeledData(
+	evaluator *Evaluator,
+	agentSecrecy *SecrecyLabel,
+	agentIntegrity *IntegrityLabel,
+	operation OperationType,
+	labeledData LabeledData,
+	enforcementMode EnforcementMode,
+) (*FilterResult, error) {
+	result := &FilterResult{}
+	if labeledData == nil {
+		return result, nil
+	}
+
+	if collection, ok := labeledData.(*CollectionLabeledData); ok {
+		filtered := evaluator.FilterCollection(agentSecrecy, agentIntegrity, collection, operation)
+		result.Filtered = filtered
+		if ShouldBlockFilteredResponse(enforcementMode, filtered.GetFilteredCount()) {
+			result.Blocked = true
+			return result, nil
+		}
+		finalResult, err := filtered.ToResult()
+		if err != nil {
+			return nil, err
+		}
+		result.FinalResult = finalResult
+		return result, nil
+	}
+
+	finalResult, err := labeledData.ToResult()
+	if err != nil {
+		return nil, err
+	}
+	result.FinalResult = finalResult
+	return result, nil
+}
+
 // ShouldAccumulateReadLabels returns true when read labels should be
 // accumulated back into the agent label set.
 func ShouldAccumulateReadLabels(operation OperationType, enforcementMode EnforcementMode) bool {

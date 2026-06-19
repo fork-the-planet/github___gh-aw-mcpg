@@ -1,11 +1,19 @@
 package difc
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type errorLabeledData struct{}
+
+func (e *errorLabeledData) Overall() *LabeledResource { return NewLabeledResource("error") }
+func (e *errorLabeledData) ToResult() (interface{}, error) {
+	return nil, errors.New("to result failed")
+}
 
 func TestEvaluateCoarseAccess(t *testing.T) {
 	t.Parallel()
@@ -178,6 +186,106 @@ func TestShouldBlockFilteredResponse(t *testing.T) {
 			assert.Equal(t, tt.want, ShouldBlockFilteredResponse(tt.enforcementMode, tt.filteredCount))
 		})
 	}
+}
+
+func TestFilterAndConvertLabeledData(t *testing.T) {
+	t.Parallel()
+
+	makePrivateItem := func(id int) LabeledItem {
+		labels := NewLabeledResource("private")
+		labels.Secrecy.Label.Add("private:restricted/repo")
+		return LabeledItem{Data: map[string]interface{}{"id": id}, Labels: labels}
+	}
+	makePublicItem := func(id int) LabeledItem {
+		return LabeledItem{Data: map[string]interface{}{"id": id}, Labels: NewLabeledResource("public")}
+	}
+
+	evaluator := NewEvaluator()
+	agentSecrecy := NewSecrecyLabel()
+	agentIntegrity := NewIntegrityLabel()
+
+	t.Run("nil labeled data returns empty result", func(t *testing.T) {
+		t.Parallel()
+		result, err := FilterAndConvertLabeledData(evaluator, agentSecrecy, agentIntegrity, OperationRead, nil, EnforcementFilter)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Nil(t, result.FinalResult)
+		assert.Nil(t, result.Filtered)
+		assert.False(t, result.Blocked)
+	})
+
+	t.Run("simple labeled data converts directly", func(t *testing.T) {
+		t.Parallel()
+		labeled := &SimpleLabeledData{Data: map[string]interface{}{"ok": true}, Labels: NewLabeledResource("simple")}
+		result, err := FilterAndConvertLabeledData(evaluator, agentSecrecy, agentIntegrity, OperationRead, labeled, EnforcementFilter)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, map[string]interface{}{"ok": true}, result.FinalResult)
+		assert.Nil(t, result.Filtered)
+		assert.False(t, result.Blocked)
+	})
+
+	t.Run("strict mode blocks filtered collection", func(t *testing.T) {
+		t.Parallel()
+		collection := &CollectionLabeledData{
+			Items: []LabeledItem{
+				makePublicItem(1),
+				makePrivateItem(2),
+			},
+		}
+		result, err := FilterAndConvertLabeledData(evaluator, agentSecrecy, agentIntegrity, OperationRead, collection, EnforcementStrict)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.True(t, result.Blocked)
+		require.NotNil(t, result.Filtered)
+		assert.Equal(t, 1, result.Filtered.GetFilteredCount())
+		assert.Nil(t, result.FinalResult)
+	})
+
+	t.Run("filter mode returns partial collection result", func(t *testing.T) {
+		t.Parallel()
+		collection := &CollectionLabeledData{
+			Items: []LabeledItem{
+				makePublicItem(1),
+				makePrivateItem(2),
+			},
+		}
+		result, err := FilterAndConvertLabeledData(evaluator, agentSecrecy, agentIntegrity, OperationRead, collection, EnforcementFilter)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.False(t, result.Blocked)
+		require.NotNil(t, result.Filtered)
+		assert.Equal(t, 1, result.Filtered.GetAccessibleCount())
+		assert.Equal(t, 1, result.Filtered.GetFilteredCount())
+		require.IsType(t, []interface{}{}, result.FinalResult)
+		finalItems := result.FinalResult.([]interface{})
+		require.Len(t, finalItems, 1)
+		assert.Equal(t, 1, finalItems[0].(map[string]interface{})["id"])
+	})
+
+	t.Run("propagate mode returns partial collection without blocking", func(t *testing.T) {
+		t.Parallel()
+		collection := &CollectionLabeledData{
+			Items: []LabeledItem{
+				makePublicItem(1),
+				makePrivateItem(2),
+			},
+		}
+		result, err := FilterAndConvertLabeledData(evaluator, agentSecrecy, agentIntegrity, OperationRead, collection, EnforcementPropagate)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.False(t, result.Blocked)
+		require.NotNil(t, result.Filtered)
+		assert.Equal(t, 1, result.Filtered.GetFilteredCount())
+		require.IsType(t, []interface{}{}, result.FinalResult)
+	})
+
+	t.Run("to result conversion errors are returned", func(t *testing.T) {
+		t.Parallel()
+		result, err := FilterAndConvertLabeledData(evaluator, agentSecrecy, agentIntegrity, OperationRead, &errorLabeledData{}, EnforcementFilter)
+		require.Error(t, err)
+		assert.Nil(t, result)
+	})
 }
 
 func TestShouldAccumulateReadLabels(t *testing.T) {

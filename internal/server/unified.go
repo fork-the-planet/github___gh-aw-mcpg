@@ -501,59 +501,54 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 	// **Phase 5: Reference Monitor performs fine-grained filtering (if applicable)**
 	var finalResult interface{}
 	var difcFiltered *difc.FilteredCollectionLabeledData // tracks items removed in filter/propagate mode
-	if labeledData != nil {
-		// Guard provided fine-grained labels - check if it's a collection
-		if collection, ok := labeledData.(*difc.CollectionLabeledData); ok {
-			// Filter collection based on agent labels
-			filtered := requestEvaluator.FilterCollection(pre.AgentLabels.Secrecy, pre.AgentLabels.Integrity, collection, pre.Operation)
+	filterResult, err := difc.FilterAndConvertLabeledData(
+		requestEvaluator,
+		pre.AgentLabels.Secrecy,
+		pre.AgentLabels.Integrity,
+		pre.Operation,
+		labeledData,
+		enforcementMode,
+	)
+	if err != nil {
+		httpStatusCode = 500
+		return mcp.NewErrorCallToolResult(fmt.Errorf("failed to convert labeled data: %w", err))
+	}
+	if filterResult.Filtered != nil {
+		difcFiltered = filterResult.Filtered
+		logUnified.Printf("[DIFC] Filtered collection: %d/%d items accessible",
+			difcFiltered.GetAccessibleCount(), difcFiltered.TotalCount)
 
-			logUnified.Printf("[DIFC] Filtered collection: %d/%d items accessible",
-				filtered.GetAccessibleCount(), filtered.TotalCount)
+		// **Strict mode: block entire response if ANY item is filtered**
+		if filterResult.Blocked {
+			logger.LogWarn("difc", "STRICT MODE: Blocking entire response - %d/%d items violate DIFC policy",
+				difcFiltered.GetFilteredCount(), difcFiltered.TotalCount)
+			blockErr := fmt.Errorf("DIFC policy violation: %d of %d items in response are not accessible to agent %s",
+				difcFiltered.GetFilteredCount(), difcFiltered.TotalCount, agentID)
+			httpStatusCode = 403
+			return mcp.NewErrorCallToolResult(blockErr)
+		}
 
-			// **Strict mode: block entire response if ANY item is filtered**
-			if difc.ShouldBlockFilteredResponse(enforcementMode, filtered.GetFilteredCount()) {
-				logger.LogWarn("difc", "STRICT MODE: Blocking entire response - %d/%d items violate DIFC policy",
-					filtered.GetFilteredCount(), filtered.TotalCount)
-				blockErr := fmt.Errorf("DIFC policy violation: %d of %d items in response are not accessible to agent %s",
-					filtered.GetFilteredCount(), filtered.TotalCount, agentID)
+		if difcFiltered.GetFilteredCount() > 0 {
+			logUnified.Printf("[DIFC] Filtered out %d items due to DIFC policy", difcFiltered.GetFilteredCount())
+			logFilteredItems(serverID, toolName, difcFiltered)
+
+			// **Single-item entirely filtered**: return a structured MCP error so the agent
+			// cannot misinterpret "filtered" as "resource not found" (e.g. issue_read).
+			// Only apply this to singular-read tools (get_*, *_read).  Collection tools
+			// (list_*, search_*) may legitimately return exactly one item that gets filtered
+			// and should still receive the notice-only behavior so agents see an empty list
+			// rather than an unexpected error.
+			if isSingularReadTool(toolName) && difcFiltered.GetAccessibleCount() == 0 && difcFiltered.GetFilteredCount() == 1 {
+				filteredErr := buildDIFCSingleItemFilteredError(difcFiltered.Filtered[0])
+				logger.LogWarn("difc", "Single item filtered — returning MCP error: %v", filteredErr)
 				httpStatusCode = 403
-				return mcp.NewErrorCallToolResult(blockErr)
-			}
-
-			if filtered.GetFilteredCount() > 0 {
-				logUnified.Printf("[DIFC] Filtered out %d items due to DIFC policy", filtered.GetFilteredCount())
-				logFilteredItems(serverID, toolName, filtered)
-
-				// **Single-item entirely filtered**: return a structured MCP error so the agent
-				// cannot misinterpret "filtered" as "resource not found" (e.g. issue_read).
-				// Only apply this to singular-read tools (get_*, *_read).  Collection tools
-				// (list_*, search_*) may legitimately return exactly one item that gets filtered
-				// and should still receive the notice-only behavior so agents see an empty list
-				// rather than an unexpected error.
-				if isSingularReadTool(toolName) && filtered.GetAccessibleCount() == 0 && filtered.GetFilteredCount() == 1 {
-					filteredErr := buildDIFCSingleItemFilteredError(filtered.Filtered[0])
-					logger.LogWarn("difc", "Single item filtered — returning MCP error: %v", filteredErr)
-					httpStatusCode = 403
-					return mcp.NewErrorCallToolResult(filteredErr)
-				}
-
-				difcFiltered = filtered
-			}
-
-			// Convert filtered data to result
-			finalResult, err = filtered.ToResult()
-			if err != nil {
-				httpStatusCode = 500
-				return mcp.NewErrorCallToolResult(fmt.Errorf("failed to convert filtered data: %w", err))
-			}
-		} else {
-			// Simple labeled data - already passed coarse-grained check
-			finalResult, err = labeledData.ToResult()
-			if err != nil {
-				httpStatusCode = 500
-				return mcp.NewErrorCallToolResult(fmt.Errorf("failed to convert labeled data: %w", err))
+				return mcp.NewErrorCallToolResult(filteredErr)
 			}
 		}
+	}
+
+	if labeledData != nil {
+		finalResult = filterResult.FinalResult
 	} else {
 		// No fine-grained labeling - use original backend result
 		finalResult = backendResult
