@@ -98,7 +98,7 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 		return nil, fmt.Errorf("policy must include allow-only")
 	}
 
-	integrity, err := validateAndNormalizeIntegrityField("allow-only.min-integrity", policy.AllowOnly.MinIntegrity, false)
+	integrity, err := ValidateAndNormalizeIntegrityField("allow-only.min-integrity", policy.AllowOnly.MinIntegrity, false)
 	if err != nil {
 		return nil, err
 	}
@@ -144,14 +144,14 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 
 	// Validate and normalize disapproval-integrity (optional; empty means feature
 	// uses Rust-side default of "none" when endorsement/disapproval is evaluated).
-	normalized.DisapprovalIntegrity, err = validateAndNormalizeIntegrityField("allow-only.disapproval-integrity", policy.AllowOnly.DisapprovalIntegrity, true)
+	normalized.DisapprovalIntegrity, err = ValidateAndNormalizeIntegrityField("allow-only.disapproval-integrity", policy.AllowOnly.DisapprovalIntegrity, true)
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate and normalize endorser-min-integrity (optional; empty means feature
 	// uses Rust-side default of "approved" when evaluating reactor eligibility).
-	normalized.EndorserMinIntegrity, err = validateAndNormalizeIntegrityField("allow-only.endorser-min-integrity", policy.AllowOnly.EndorserMinIntegrity, true)
+	normalized.EndorserMinIntegrity, err = ValidateAndNormalizeIntegrityField("allow-only.endorser-min-integrity", policy.AllowOnly.EndorserMinIntegrity, true)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,9 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	}
 }
 
-func validateAndNormalizeIntegrityField(fieldPath, raw string, optional bool) (string, error) {
+// ValidateAndNormalizeIntegrityField validates and normalizes a named integrity-level field.
+// It wraps NormalizeIntegrityLevel and prefixes the field path in any error message.
+func ValidateAndNormalizeIntegrityField(fieldPath, raw string, optional bool) (string, error) {
 	v, err := NormalizeIntegrityLevel(raw, optional)
 	if err != nil {
 		return "", fmt.Errorf("%s %w", fieldPath, err)

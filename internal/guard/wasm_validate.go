@@ -7,28 +7,16 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 )
 
-// AllowedIntegrityLevels is derived from the canonical integrity levels in config.
-var AllowedIntegrityLevels = config.AllIntegrityLevels()
-
-func invalidIntegrityFieldError(fieldName string) error {
-	return fmt.Errorf(
-		"invalid %s value: expected one of %s",
-		fieldName,
-		strings.Join(AllowedIntegrityLevels, "|"),
-	)
-}
-
 // validateIntegrityField returns an error if raw is not a valid integrity-level
 // string. fieldName is used in the error message (e.g. "disapproval-integrity").
+// It delegates to config.ValidateAndNormalizeIntegrityField for validation.
 func validateIntegrityField(fieldName string, raw interface{}) error {
 	s, ok := raw.(string)
 	if !ok {
-		return invalidIntegrityFieldError(fieldName)
+		s = ""
 	}
-	if _, err := config.NormalizeIntegrityLevel(s, false); err == nil {
-		return nil
-	}
-	return invalidIntegrityFieldError(fieldName)
+	_, err := config.ValidateAndNormalizeIntegrityField(fieldName, s, false)
+	return err
 }
 
 // checkBoolFailure returns a non-nil error if the given raw response map

@@ -1421,7 +1421,7 @@ func TestValidateAndNormalizeIntegrityField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := validateAndNormalizeIntegrityField(tt.fieldPath, tt.raw, tt.optional)
+			got, err := ValidateAndNormalizeIntegrityField(tt.fieldPath, tt.raw, tt.optional)
 			if tt.wantErrContains != "" {
 				require.Error(t, err)
 				assert.ErrorContains(t, err, tt.wantErrContains)

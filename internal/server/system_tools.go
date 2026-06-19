@@ -1,10 +1,12 @@
 package server
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 var logSys = logger.New("server:system_tools")
@@ -39,4 +41,18 @@ func (s *SysServer) ListServers() (interface{}, error) {
 	}
 
 	return mcp.BuildMCPTextResponse(fmt.Sprintf("Configured MCP Servers:\n%s", serverList)), nil
+}
+
+// sysListServersHandler handles sys___list_servers tool calls.
+// It validates that a session exists and delegates to callAndLogSysTool.
+func (us *UnifiedServer) sysListServersHandler(ctx context.Context, _ *sdk.CallToolRequest, _ interface{}) (*sdk.CallToolResult, interface{}, error) {
+	sessionID := us.getSessionID(ctx)
+	logger.LogInfo("client", "MCP sys_list_servers request, session=%s", truncateSessionID(sessionID))
+
+	if err := us.requireSession(ctx); err != nil {
+		logger.LogError("client", "MCP sys_list_servers failed: session not initialized, session=%s", sessionID)
+		return mcp.NewErrorCallToolResult(err)
+	}
+
+	return us.callAndLogSysTool(truncateSessionID(sessionID), "sys_list_servers", "sys_list_servers")
 }

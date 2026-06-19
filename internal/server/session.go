@@ -165,18 +165,6 @@ func (us *UnifiedServer) sysInitHandler(ctx context.Context, req *sdk.CallToolRe
 	return us.callAndLogSysTool(sessionID, "session initialization", "sys_init")
 }
 
-func (us *UnifiedServer) sysListServersHandler(ctx context.Context, _ *sdk.CallToolRequest, _ interface{}) (*sdk.CallToolResult, interface{}, error) {
-	sessionID := us.getSessionID(ctx)
-	logger.LogInfo("client", "MCP sys_list_servers request, session=%s", truncateSessionID(sessionID))
-
-	if err := us.requireSession(ctx); err != nil {
-		logger.LogError("client", "MCP sys_list_servers failed: session not initialized, session=%s", sessionID)
-		return mcp.NewErrorCallToolResult(err)
-	}
-
-	return us.callAndLogSysTool(truncateSessionID(sessionID), "sys_list_servers", "sys_list_servers")
-}
-
 // getSessionKeys returns a list of active session IDs for debugging
 func (us *UnifiedServer) getSessionKeys() []string {
 	us.sessionMu.RLock()

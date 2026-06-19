@@ -1,6 +1,7 @@
 package strutil
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -64,4 +65,33 @@ func CopyTrimmedStringIntMap(input map[string]int) map[string]int {
 		out[strings.TrimSpace(key)] = value
 	}
 	return out
+}
+
+// SessionSuffix returns a formatted session suffix for log messages.
+// Returns " for session '<sessionID>'" when sessionID is non-empty, or "" otherwise.
+func SessionSuffix(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	return fmt.Sprintf(" for session '%s'", sessionID)
+}
+
+// DeepCloneJSON creates a deep copy of a JSON-compatible value.
+func DeepCloneJSON(v interface{}) interface{} {
+	switch val := v.(type) {
+	case map[string]interface{}:
+		clone := make(map[string]interface{}, len(val))
+		for k, v := range val {
+			clone[k] = DeepCloneJSON(v)
+		}
+		return clone
+	case []interface{}:
+		clone := make([]interface{}, len(val))
+		for i, v := range val {
+			clone[i] = DeepCloneJSON(v)
+		}
+		return clone
+	default:
+		return v
+	}
 }
