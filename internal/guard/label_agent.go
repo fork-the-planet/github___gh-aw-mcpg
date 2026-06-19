@@ -28,6 +28,24 @@ func RunLabelAgentForAgent(
 	return RunLabelAgent(ctx, g, payload, backend, caps, agentLabels, defaultMode)
 }
 
+// RunLabelAgentInit constructs the label_agent payload from policy/trusted lists
+// and executes label_agent for the given agent.
+func RunLabelAgentInit(
+	ctx context.Context,
+	g Guard,
+	policy interface{},
+	trustedBots []string,
+	trustedUsers []string,
+	backend BackendCaller,
+	caps *difc.Capabilities,
+	registry *difc.AgentRegistry,
+	agentID string,
+	defaultMode difc.EnforcementMode,
+) (difc.EnforcementMode, *LabelAgentResult, error) {
+	payload := BuildLabelAgentPayload(policy, trustedBots, trustedUsers)
+	return RunLabelAgentForAgent(ctx, g, payload, backend, caps, registry, agentID, defaultMode)
+}
+
 // RunLabelAgent executes the standard LabelAgent initialization pipeline:
 //  1. Calls the guard's LabelAgent method with the provided pre-built payload.
 //  2. Validates the result is non-nil.

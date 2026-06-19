@@ -171,12 +171,20 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trusted
 		}
 	}
 
-	// Build payload with optional trusted bots and trusted users
-	payload := guard.BuildLabelAgentPayload(policy, trustedBots, trustedUsers)
-
 	logProxy.Printf("Calling LabelAgent to initialize agent labels from guard")
 	backend := &restBackendCaller{server: s}
-	newMode, result, err := guard.RunLabelAgentForAgent(ctx, s.guard, payload, backend, s.Capabilities, s.AgentRegistry, proxyAgentID, s.Mode)
+	newMode, result, err := guard.RunLabelAgentInit(
+		ctx,
+		s.guard,
+		policy,
+		trustedBots,
+		trustedUsers,
+		backend,
+		s.Capabilities,
+		s.AgentRegistry,
+		proxyAgentID,
+		s.Mode,
+	)
 	if err != nil {
 		return err
 	}

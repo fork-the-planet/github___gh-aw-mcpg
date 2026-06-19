@@ -15,11 +15,13 @@ type runLabelAgentStubGuard struct {
 	name             string
 	labelAgentResult *LabelAgentResult
 	labelAgentErr    error
+	lastPayload      interface{}
 }
 
 func (g *runLabelAgentStubGuard) Name() string { return g.name }
 
-func (g *runLabelAgentStubGuard) LabelAgent(_ context.Context, _ interface{}, _ BackendCaller, _ *difc.Capabilities) (*LabelAgentResult, error) {
+func (g *runLabelAgentStubGuard) LabelAgent(_ context.Context, payload interface{}, _ BackendCaller, _ *difc.Capabilities) (*LabelAgentResult, error) {
+	g.lastPayload = payload
 	return g.labelAgentResult, g.labelAgentErr
 }
 
@@ -172,4 +174,50 @@ func TestRunLabelAgentForAgent_PropagatesError(t *testing.T) {
 	assert.ErrorContains(t, err, "LabelAgent failed")
 	assert.Nil(t, result)
 	assert.Equal(t, defaultMode, mode)
+}
+
+func TestRunLabelAgentInit_BuildsPayloadAndRuns(t *testing.T) {
+	g := &runLabelAgentStubGuard{
+		name: "test-guard",
+		labelAgentResult: &LabelAgentResult{
+			Agent:    AgentLabelsPayload{Secrecy: []string{}, Integrity: []string{}},
+			DIFCMode: difc.ModeFilter,
+		},
+	}
+	caps := difc.NewCapabilities()
+	registry := difc.NewAgentRegistry()
+	defaultMode := difc.EnforcementStrict
+	policy := map[string]interface{}{
+		"allow-only": map[string]interface{}{
+			"repos":         "public",
+			"min-integrity": "none",
+		},
+	}
+
+	mode, result, err := RunLabelAgentInit(
+		context.Background(),
+		g,
+		policy,
+		[]string{"dependabot[bot]"},
+		[]string{"alice"},
+		&noopRunBackendCaller{},
+		caps,
+		registry,
+		"agent-3",
+		defaultMode,
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, difc.EnforcementFilter, mode)
+
+	payload, ok := g.lastPayload.(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, []interface{}{"dependabot[bot]"}, payload["trusted-bots"])
+
+	allowOnly, ok := payload["allow-only"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "public", allowOnly["repos"])
+	assert.Equal(t, "none", allowOnly["min-integrity"])
+	assert.Equal(t, []interface{}{"alice"}, allowOnly["trusted-users"])
 }

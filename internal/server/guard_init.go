@@ -311,7 +311,16 @@ func (us *UnifiedServer) ensureGuardInitialized(
 	// Multiple guards may contribute labels for the same agent; each guard's
 	// label_agent output is additive so that later guards do not overwrite
 	// labels set by earlier ones.
-	mode, labelAgentResult, err := guard.RunLabelAgentForAgent(ctx, g, labelAgentPayload, backendCaller, us.Capabilities, us.AgentRegistry, agentID, defaultMode)
+	mode, labelAgentResult, err := guard.RunLabelAgentForAgent(
+		ctx,
+		g,
+		labelAgentPayload,
+		backendCaller,
+		us.Capabilities,
+		us.AgentRegistry,
+		agentID,
+		defaultMode,
+	)
 	if err != nil {
 		logger.LogErrorToServer(serverID, "difc", "label_agent failed: session=%s, guard=%s, error=%v", sessionID, g.Name(), err)
 		return defaultMode, err
