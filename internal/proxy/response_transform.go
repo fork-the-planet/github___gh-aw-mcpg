@@ -59,9 +59,11 @@ func unwrapSingleObject(originalData interface{}, filteredData interface{}) inte
 			if wrapped, ok := arr[0].([]interface{}); ok &&
 				len(wrapped) == len(originalArray) {
 				if len(wrapped) == 0 {
+					logTransform.Print("unwrapSingleObject: restoring wrapped empty array to original top-level shape")
 					return wrapped
 				}
 				if reflect.DeepEqual(wrapped, originalArray) {
+					logTransform.Printf("unwrapSingleObject: restoring wrapped array to original top-level shape, len=%d", len(wrapped))
 					return wrapped
 				}
 			}
@@ -75,14 +77,17 @@ func unwrapSingleObject(originalData interface{}, filteredData interface{}) inte
 	}
 	// Don't unwrap search envelopes (handled by rewrapSearchResponse)
 	if _, hasTotalCount := original["total_count"]; hasTotalCount {
+		logTransform.Print("unwrapSingleObject: skipping search envelope (has total_count field)")
 		return filteredData
 	}
 	// Don't unwrap GraphQL responses (handled separately)
 	if _, hasData := original["data"]; hasData {
+		logTransform.Print("unwrapSingleObject: skipping GraphQL response envelope (has data field)")
 		return filteredData
 	}
 	// If filtered result is a single-element array, unwrap to match original shape
 	if arr, ok := filteredData.([]interface{}); ok && len(arr) == 1 {
+		logTransform.Print("unwrapSingleObject: unwrapping single-element filtered array to match original object shape")
 		return arr[0]
 	}
 	return filteredData
@@ -143,6 +148,7 @@ func replaceNodesArray(v interface{}, items []interface{}) bool {
 	}
 	for _, key := range []string{"nodes", "edges"} {
 		if _, ok := obj[key]; ok {
+			logTransform.Printf("replaceNodesArray: replacing %q array with %d accessible item(s)", key, len(items))
 			obj[key] = items
 			if _, ok := obj["totalCount"]; ok {
 				obj["totalCount"] = float64(len(items))
