@@ -102,10 +102,23 @@ func (us *UnifiedServer) registerAllTools() error {
 	}
 }
 
-func logRegistrationIncomplete(failedServers []string, totalServers int) {
-	if len(failedServers) > 0 {
+// registrationErrors tracks backend servers that failed tool registration and
+// logs a summary when finish is called. Both the sequential and parallel
+// registration strategies use this type so failure-tracking semantics are
+// defined in one place.
+type registrationErrors struct {
+	failed []string
+	total  int
+}
+
+func (e *registrationErrors) record(serverID string) {
+	e.failed = append(e.failed, serverID)
+}
+
+func (e *registrationErrors) finish() {
+	if len(e.failed) > 0 {
 		logger.LogError("backend", "Tool registration incomplete: %d of %d backends failed: %v — agents will not see tools from these servers",
-			len(failedServers), totalServers, failedServers)
+			len(e.failed), e.total, e.failed)
 	}
 }
 
@@ -113,16 +126,16 @@ func logRegistrationIncomplete(failedServers []string, totalServers int) {
 func (us *UnifiedServer) registerAllToolsSequential(serverIDs []string) error {
 	logUnified.Printf("Registering tools sequentially from %d backends", len(serverIDs))
 
-	var failedServers []string
+	errs := &registrationErrors{total: len(serverIDs)}
 	for _, serverID := range serverIDs {
 		logUnified.Printf("Registering tools from backend: %s", serverID)
 		if err := us.registerToolsFromBackend(serverID); err != nil {
 			logger.LogError("backend", "Failed to register tools from %s: %v", serverID, err)
-			failedServers = append(failedServers, serverID)
+			errs.record(serverID)
 		}
 	}
 
-	logRegistrationIncomplete(failedServers, len(serverIDs))
+	errs.finish()
 	logUnified.Printf("Tool registration complete: total tools=%d", len(us.tools))
 	return nil
 }
@@ -158,13 +171,11 @@ func (us *UnifiedServer) registerAllToolsParallel(serverIDs []string) error {
 
 	// Collect and log results
 	successCount := 0
-	failureCount := 0
-	var failedServers []string
+	errs := &registrationErrors{total: len(serverIDs)}
 	for result := range results {
 		if result.err != nil {
 			logger.LogErrorToServer(result.serverID, "backend", "Failed to register tools from %s (took %v): %v", result.serverID, result.duration, result.err)
-			failureCount++
-			failedServers = append(failedServers, result.serverID)
+			errs.record(result.serverID)
 		} else {
 			logUnified.Printf("Successfully registered tools from %s (took %v)", result.serverID, result.duration)
 			logger.LogInfoToServer(result.serverID, "backend", "Successfully registered tools from %s (took %v)", result.serverID, result.duration)
@@ -172,9 +183,9 @@ func (us *UnifiedServer) registerAllToolsParallel(serverIDs []string) error {
 		}
 	}
 
-	logRegistrationIncomplete(failedServers, len(serverIDs))
+	errs.finish()
 
-	logger.LogInfo("backend", "Tool registration complete: %d succeeded, %d failed, total tools=%d", successCount, failureCount, len(us.tools))
+	logger.LogInfo("backend", "Tool registration complete: %d succeeded, %d failed, total tools=%d", successCount, len(errs.failed), len(us.tools))
 	return nil
 }
 
