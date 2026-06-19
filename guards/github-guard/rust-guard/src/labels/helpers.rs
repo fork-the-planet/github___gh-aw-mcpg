@@ -3007,8 +3007,26 @@ mod tests {
     }
 
     #[test]
+    fn test_effective_disapproval_integrity_invalid_value_defaults_to_none() {
+        let ctx = PolicyContext {
+            disapproval_integrity: "strict".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(effective_disapproval_integrity(&ctx), "none");
+    }
+
+    #[test]
     fn test_effective_endorser_min_integrity_defaults_to_approved() {
         let ctx = PolicyContext::default();
+        assert_eq!(effective_endorser_min_integrity(&ctx), "approved");
+    }
+
+    #[test]
+    fn test_effective_endorser_min_integrity_invalid_value_defaults_to_approved() {
+        let ctx = PolicyContext {
+            endorser_min_integrity: "strict".to_string(),
+            ..Default::default()
+        };
         assert_eq!(effective_endorser_min_integrity(&ctx), "approved");
     }
 
