@@ -9,9 +9,11 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "actions_run_trigger",
     "add_comment_to_pending_review",
     "add_deploy_key",
+    "add_gpg_key", // gh gpg-key add — adds a user GPG signing key
     "add_issue_comment",
     "add_project_item", // deprecated alias for projects_write (addProjectV2ItemById)
     "add_reply_to_pull_request_comment",
+    "add_ssh_key",  // gh ssh-key add — adds a user SSH auth/signing key
     "archive_repository", // gh repo archive — blocked: repo settings change unsupported
     "assign_copilot_to_issue",
     "cancel_workflow_run", // gh run cancel       — cancels an in-progress workflow run
@@ -296,6 +298,8 @@ mod tests {
             "revert_pull_request",
             "add_deploy_key",
             "delete_deploy_key",
+            "add_gpg_key",
+            "add_ssh_key",
         ] {
             assert!(
                 is_write_operation(op),

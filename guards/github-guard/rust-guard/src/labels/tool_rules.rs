@@ -341,6 +341,14 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
+        // === Code quality findings (repo-scoped) ===
+        // S = S(repo) — inherits from repository visibility
+        // I = writer (requires repo write access to post/view code quality findings)
+        "get_code_quality_finding" => {
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
         // === Actions: Workflow/Artifact Metadata and Artifact Downloads ===
         "actions_get" => {
             let method = tool_args.get("method").and_then(|v| v.as_str()).unwrap_or("");
@@ -353,6 +361,33 @@ pub fn apply_tool_labels(
                 secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             }
             integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === UI metadata dispatch (repo/org-scoped, method-dependent) ===
+        // Mirrors existing rules for list_label, list_branches, list_issue_types,
+        // list_issue_fields, and list_repository_collaborators.
+        "ui_get" => {
+            let method = tool_args.get("method").and_then(|v| v.as_str()).unwrap_or("");
+            match method {
+                // Repo-scoped metadata: labels, milestones, branches
+                // S = S(repo); I = writer
+                "labels" | "milestones" | "branches" => {
+                    secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+                    integrity = writer_integrity(repo_id, ctx);
+                }
+                // Org-level type/field definitions (GitHub-controlled metadata)
+                // S = inherits from org; I = approved:github
+                "issue_types" | "issue_fields" => {
+                    integrity = project_github_label(ctx);
+                }
+                // Access-sensitive membership/reviewer data
+                // S = private policy scope; I = reader
+                "assignees" | "reviewers" => {
+                    secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
+                    integrity = reader_integrity(repo_id, ctx);
+                }
+                _ => {}
+            }
         }
 
         // === Repo-scoped resources: visibility-inherited secrecy, approved integrity ===
@@ -647,6 +682,19 @@ pub fn apply_tool_labels(
             // I = writer (requires admin access)
             secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
             integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === User SSH/GPG key management (account-scoped writes) ===
+        // Pre-emptive synthetic guard entries for CLI-only operations:
+        //   `gh ssh-key add`  → POST /user/keys and /user/ssh_signing_keys
+        //   `gh gpg-key add`  → POST /user/gpg_keys
+        // Adding auth/signing keys is a high-risk account-level write operation.
+        // S = private:user (user-account-scoped sensitive data)
+        // I = writer(user) (requires authenticated account write access)
+        "add_gpg_key" | "add_ssh_key" => {
+            secrecy = private_user_label();
+            baseline_scope = Cow::Borrowed(scope_names::USER);
+            integrity = writer_integrity(scope_names::USER, ctx);
         }
 
         // === Dynamic toolset enablement (capability expansion) ===
@@ -1296,5 +1344,150 @@ mod tests {
             writer_integrity(scope_names::USER, &ctx),
             "delete_gist: destructive operation must require writer-level user integrity",
         );
+    }
+
+    #[test]
+    fn apply_tool_labels_get_code_quality_finding_inherits_repo_visibility() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({"owner": "octocat", "repo": "hello-world"});
+        let repo_id = "octocat/hello-world";
+
+        let (_, integrity, _) = super::apply_tool_labels(
+            "get_code_quality_finding",
+            &args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "get_code_quality_finding: expected writer-level integrity",
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_ui_get_labels_milestones_branches_are_repo_scoped() {
+        let ctx = default_ctx();
+        let repo_id = "octocat/hello-world";
+        let expected_integrity = writer_integrity(repo_id, &ctx);
+
+        for method in &["labels", "milestones", "branches"] {
+            let args = serde_json::json!({
+                "owner": "octocat",
+                "repo": "hello-world",
+                "method": method,
+            });
+            let (_, integrity, _) = super::apply_tool_labels(
+                "ui_get",
+                &args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            assert_eq!(
+                integrity, expected_integrity,
+                "ui_get method={method}: expected writer-level integrity",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_ui_get_issue_types_and_fields_are_github_approved() {
+        let ctx = default_ctx();
+        let repo_id = "octocat/hello-world";
+
+        for (method, standalone) in &[("issue_types", "list_issue_types"), ("issue_fields", "list_issue_fields")] {
+            let args = serde_json::json!({
+                "owner": "octocat",
+                "repo": "hello-world",
+                "method": method,
+            });
+            let (_, integrity, _) = super::apply_tool_labels(
+                "ui_get",
+                &args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            // Mirror the corresponding standalone tool: ui_get issue_types/issue_fields
+            // should produce the same integrity as list_issue_types/list_issue_fields.
+            let (_, expected_integrity, _) = super::apply_tool_labels(
+                standalone,
+                &args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            assert_eq!(
+                integrity, expected_integrity,
+                "ui_get method={method}: expected same integrity as {standalone}",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_ui_get_assignees_and_reviewers_are_access_sensitive() {
+        let ctx = default_ctx();
+        let repo_id = "octocat/hello-world";
+        let expected_integrity = reader_integrity(repo_id, &ctx);
+
+        for method in &["assignees", "reviewers"] {
+            let args = serde_json::json!({
+                "owner": "octocat",
+                "repo": "hello-world",
+                "method": method,
+            });
+            let (secrecy, integrity, _) = super::apply_tool_labels(
+                "ui_get",
+                &args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            let _ = secrecy; // secrecy is policy_private_scope_label (backend unavailable in tests)
+            assert_eq!(
+                integrity, expected_integrity,
+                "ui_get method={method}: expected reader-level integrity",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_add_gpg_key_and_add_ssh_key_are_user_private_writes() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({});
+        let expected_secrecy = private_user_label();
+        let expected_integrity = writer_integrity(scope_names::USER, &ctx);
+
+        for tool in &["add_gpg_key", "add_ssh_key"] {
+            let (secrecy, integrity, _) = super::apply_tool_labels(
+                tool,
+                &args,
+                "",
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            assert_eq!(
+                secrecy, expected_secrecy,
+                "{tool}: must be user-private (secrecy = private:user)",
+            );
+            assert_eq!(
+                integrity, expected_integrity,
+                "{tool}: must require writer-level user integrity",
+            );
+        }
     }
 }
