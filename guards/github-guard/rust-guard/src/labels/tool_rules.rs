@@ -752,39 +752,22 @@ fn check_file_secrecy(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     let path_lower = path.to_lowercase();
-
-    // Check for sensitive file extensions/names
-    if SENSITIVE_FILE_PATTERNS
-        .iter()
-        .any(|pattern| path_lower.ends_with(pattern))
-    {
-        return policy_private_scope_label(owner, repo, repo_id, ctx);
-    }
-
-    if path_lower.split('/').any(|seg| {
-        SENSITIVE_FILE_PATTERNS
-            .iter()
-            .any(|pattern| seg.starts_with(*pattern))
-    }) {
-        return policy_private_scope_label(owner, repo, repo_id, ctx);
-    }
-
-    // Get filename
     let filename = path_lower.rsplit('/').next().unwrap_or(&path_lower);
 
-    // Check for sensitive keywords in filename
-    for keyword in SENSITIVE_FILE_KEYWORDS {
-        if filename.contains(keyword) {
-            return policy_private_scope_label(owner, repo, repo_id, ctx);
-        }
-    }
+    let is_sensitive = SENSITIVE_FILE_PATTERNS
+        .iter()
+        .any(|p| path_lower.ends_with(p))
+        || path_lower
+            .split('/')
+            .any(|seg| SENSITIVE_FILE_PATTERNS.iter().any(|p| seg.starts_with(*p)))
+        || SENSITIVE_FILE_KEYWORDS.iter().any(|k| filename.contains(k))
+        || path_lower.starts_with(".github/workflows/");
 
-    // Workflow files may contain secrets
-    if path_lower.starts_with(".github/workflows/") {
-        return policy_private_scope_label(owner, repo, repo_id, ctx);
+    if is_sensitive {
+        policy_private_scope_label(owner, repo, repo_id, ctx)
+    } else {
+        default_secrecy
     }
-
-    default_secrecy
 }
 
 #[cfg(test)]
@@ -1342,6 +1325,50 @@ mod tests {
             integrity,
             writer_integrity(scope_names::USER, &ctx),
             "delete_gist: destructive operation must require writer-level user integrity",
+        );
+    }
+
+    // === check_file_secrecy: segment-starts-with branch coverage ===
+
+    #[test]
+    fn check_file_secrecy_segment_starting_with_env_pattern_triggers_private() {
+        let ctx = default_ctx();
+        // "configs/.env.local" — ".env.local" segment starts with ".env" pattern
+        // but does NOT end with ".env", so the ends_with check alone misses it.
+        // This exercises the segment-starts-with branch exclusively.
+        let result = check_file_secrecy(
+            "configs/.env.local",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx),
+            "segment starting with sensitive pattern must trigger private secrecy",
+        );
+    }
+
+    #[test]
+    fn check_file_secrecy_id_rsa_with_suffix_triggers_private() {
+        let ctx = default_ctx();
+        // "keys/id_rsa.pub" — "id_rsa.pub" segment starts with "id_rsa" pattern
+        // but does NOT end with "id_rsa", so the ends_with check alone misses it.
+        // This exercises the segment-starts-with branch exclusively.
+        let result = check_file_secrecy(
+            "keys/id_rsa.pub",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx),
+            "segment starting with sensitive key pattern must trigger private secrecy",
         );
     }
 
