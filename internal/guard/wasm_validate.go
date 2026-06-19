@@ -7,8 +7,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 )
 
-// AllowedIntegrityLevels is derived from the canonical integrity levels in config.
-var AllowedIntegrityLevels = config.AllIntegrityLevels()
 
 // validateIntegrityField returns an error if raw is not a valid integrity-level
 // string. fieldName is used in the error message (e.g. "disapproval-integrity").
