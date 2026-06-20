@@ -121,4 +121,5 @@ func TestServeAndWait_ServeFnError(t *testing.T) {
 
 	require.Error(t, result)
 	assert.ErrorIs(t, result, serveErrExpected, "unexpected serve error should be propagated")
+	assert.ErrorIs(t, ctx.Err(), context.Canceled, "serveAndWait should cancel the context on unexpected serve error")
 }
