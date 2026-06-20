@@ -15,7 +15,9 @@ var logHandlers = logger.New("server:handlers")
 
 // HandleReflect returns an http.HandlerFunc that handles the /reflect endpoint.
 func HandleReflect(unifiedServer *UnifiedServer) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+	logHandlers.Print("Creating reflect handler")
+	return func(w http.ResponseWriter, r *http.Request) {
+		logHandlers.Printf("Reflect endpoint request: remote=%s, method=%s, path=%s", r.RemoteAddr, r.Method, r.URL.Path)
 		httputil.WriteReflectResponse(w, unifiedServer.DIFCComponents)
 	}
 }
@@ -109,6 +111,8 @@ func handleClose(unifiedServer *UnifiedServer) http.Handler {
 // registerCommonEndpoints registers shared HTTP endpoints that are common to both routed and unified modes
 // This includes OAuth discovery, health check, and close endpoints
 func registerCommonEndpoints(mux *http.ServeMux, unifiedServer *UnifiedServer, apiKey string) {
+	logHandlers.Printf("Registering common endpoints: auth_enabled=%t", apiKey != "")
+
 	// OAuth discovery endpoints - return 404 since we don't use OAuth
 	// Standard path for OAuth discovery (per RFC 8414)
 	mux.Handle("/.well-known/oauth-authorization-server", withResponseLogging(handleOAuthDiscovery()))
@@ -125,6 +129,10 @@ func registerCommonEndpoints(mux *http.ServeMux, unifiedServer *UnifiedServer, a
 
 	// Close endpoint for graceful shutdown (spec 5.1.3)
 	closeHandler := handleClose(unifiedServer)
+	if apiKey != "" {
+		logHandlers.Print("Wrapping /close endpoint with API key auth")
+	}
 	finalCloseHandler := applyAuthIfConfigured(apiKey, closeHandler.ServeHTTP)
 	mux.Handle("/close", withResponseLogging(finalCloseHandler))
+	logHandlers.Print("Registered common endpoints: oauth discovery, health, reflect, close")
 }
