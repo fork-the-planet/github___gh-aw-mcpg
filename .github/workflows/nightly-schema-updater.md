@@ -14,6 +14,7 @@ network:
   allowed:
     - defaults
     - go
+    - rust
 
 steps:
   - name: Set up Go
