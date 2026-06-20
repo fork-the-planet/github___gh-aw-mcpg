@@ -177,19 +177,15 @@ func runProxy(cmd *cobra.Command, args []string) error {
 			SampleRate:  &proxyOTLPSampleRate,
 		}
 	}
-	tracingProvider := initTracingProviderWithFallback(
+	// Provider enablement logging remains tied to explicit proxy flag configuration.
+	_, cleanupTracing := setupCommandTracing(
 		ctx,
 		tracingCfg,
 		"failed to initialize tracing provider: %v",
-		func(format string, args ...any) {
-			log.Printf("Warning: "+format, args...)
-		},
+		logTracingWarnf,
+		logTracingWarnf,
 	)
-	defer func() {
-		shutdownTracingProviderWithTimeout(tracingProvider, func(format string, args ...any) {
-			log.Printf("Warning: "+format, args...)
-		})
-	}()
+	defer cleanupTracing()
 	if tracingCfg != nil {
 		log.Printf("OpenTelemetry tracing enabled for proxy: endpoint=%s, service=%s", proxyOTLPEndpoint, proxyOTLPService)
 		logger.LogInfo("startup", "OpenTelemetry tracing enabled for proxy: endpoint=%s, service=%s", proxyOTLPEndpoint, proxyOTLPService)
