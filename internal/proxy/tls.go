@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
@@ -160,10 +161,7 @@ func GenerateSelfSignedTLS(dir string) (*TLSConfig, error) {
 	}
 	logTLS.Print("TLS key pair loaded successfully")
 
-	tlsCfg := &tls.Config{
-		Certificates: []tls.Certificate{serverCertPair},
-		MinVersion:   tls.VersionTLS12,
-	}
+	tlsCfg := httputil.NewServerTLSConfig(serverCertPair)
 
 	logTLS.Printf("TLS certificates generated in %s (valid 24h)", dir)
 

@@ -6,7 +6,6 @@ package proxy
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -123,7 +122,7 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+				TLSClientConfig: httputil.NewClientTLSConfig(),
 			},
 		},
 	}
