@@ -130,3 +130,29 @@ func TestShutdownTracingProviderWithTimeout(t *testing.T) {
 		assert.False(t, warnCalled, "Shutdown of noop provider should not produce a warning")
 	})
 }
+
+func TestSetupCommandTracing(t *testing.T) {
+	t.Run("returns provider and cleanup for noop tracing config", func(t *testing.T) {
+		var initWarnCalled bool
+		var shutdownWarnCalled bool
+
+		provider, cleanup := setupCommandTracing(
+			context.Background(),
+			nil,
+			"warn: %v",
+			func(format string, args ...any) {
+				initWarnCalled = true
+			},
+			func(format string, args ...any) {
+				shutdownWarnCalled = true
+			},
+		)
+
+		require.NotNil(t, provider)
+		require.NotNil(t, cleanup)
+		assert.False(t, initWarnCalled)
+
+		assert.NotPanics(t, cleanup)
+		assert.False(t, shutdownWarnCalled)
+	})
+}

@@ -316,19 +316,14 @@ func run(cmd *cobra.Command, args []string) error {
 	if cfg.Gateway != nil {
 		tracingCfg = cfg.Gateway.Tracing
 	}
-	tracingProvider := initTracingProviderWithFallback(
+	tracingProvider, cleanupTracing := setupCommandTracing(
 		ctx,
 		tracingCfg,
 		"Failed to initialize tracing provider: %v",
-		func(format string, args ...any) {
-			logger.StartupWarn(format, args...)
-		},
+		logger.StartupWarn,
+		logTracingWarning,
 	)
-	defer func() {
-		shutdownTracingProviderWithTimeout(tracingProvider, func(format string, args ...any) {
-			log.Printf("Warning: "+format, args...)
-		})
-	}()
+	defer cleanupTracing()
 
 	// Apply W3C parent context from configured traceId/spanId (spec §4.1.3.6).
 	// This links the gateway process lifetime span into a pre-existing trace when provided.
