@@ -552,6 +552,23 @@ func TestUnwrapMCPResponse(t *testing.T) {
 		assert.False(t, isMCPWrapped, "Should not unwrap non-JSON text")
 		assert.Equal(t, mcpData, unwrapped)
 	})
+
+	t.Run("unwraps BuildMCPTextResponse output", func(t *testing.T) {
+		mcpData := map[string]interface{}{
+			"content": []map[string]interface{}{
+				{"type": "text", "text": `{"items":[{"id":1}]}`},
+			},
+		}
+
+		unwrapped, isMCPWrapped := unwrapMCPResponse(mcpData)
+
+		assert.True(t, isMCPWrapped, "Should unwrap []map-based MCP responses")
+		unwrappedMap, ok := unwrapped.(map[string]interface{})
+		require.True(t, ok, "Unwrapped should be a map")
+		items, ok := unwrappedMap["items"].([]interface{})
+		require.True(t, ok, "Should have items array")
+		assert.Len(t, items, 1, "Should have 1 item")
+	})
 }
 
 func TestPathLabeledData_MCPWrappedResponse(t *testing.T) {

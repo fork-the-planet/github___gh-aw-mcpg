@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -110,7 +111,7 @@ func TestDeepCloneJSON_Slice(t *testing.T) {
 		float64(42),
 	}
 
-	cloned := deepCloneJSON(original)
+	cloned := strutil.DeepCloneJSON(original)
 
 	clonedSlice, ok := cloned.([]interface{})
 	assert.True(t, ok, "cloned value should be a []interface{}")
@@ -127,12 +128,12 @@ func TestDeepCloneJSON_Slice(t *testing.T) {
 // TestDeepCloneJSON_Primitive verifies that deepCloneJSON returns primitive values
 // (string, number, bool, nil) unchanged — they are immutable so no copy is needed.
 func TestDeepCloneJSON_Primitive(t *testing.T) {
-	assert.Equal(t, "hello", deepCloneJSON("hello"))
-	assert.Equal(t, float64(3.14), deepCloneJSON(float64(3.14)))
-	clonedBool, ok := deepCloneJSON(true).(bool)
+	assert.Equal(t, "hello", strutil.DeepCloneJSON("hello"))
+	assert.Equal(t, float64(3.14), strutil.DeepCloneJSON(float64(3.14)))
+	clonedBool, ok := strutil.DeepCloneJSON(true).(bool)
 	assert.True(t, ok, "cloned bool should remain a bool")
 	assert.True(t, clonedBool)
-	assert.Nil(t, deepCloneJSON(nil))
+	assert.Nil(t, strutil.DeepCloneJSON(nil))
 }
 
 // TestUnwrapSingleObject_NilFilteredData verifies that unwrapSingleObject handles

@@ -43,16 +43,8 @@ func TestResolveWasmCacheDir(t *testing.T) {
 		assert.Equal(t, "/tmp/custom-cache", resolveWasmCacheDir(true, "   ", "/tmp/logs"))
 	})
 
-	t.Run("whitespace-only flag and unset env uses log-dir default", func(t *testing.T) {
-		orig, existed := os.LookupEnv(wasmCacheDirEnvVar)
-		t.Cleanup(func() {
-			if existed {
-				os.Setenv(wasmCacheDirEnvVar, orig)
-			} else {
-				os.Unsetenv(wasmCacheDirEnvVar)
-			}
-		})
-		os.Unsetenv(wasmCacheDirEnvVar)
+	t.Run("whitespace-only flag and empty env var uses log-dir default", func(t *testing.T) {
+		t.Setenv(wasmCacheDirEnvVar, "")
 		assert.Equal(t, defaultWasmCacheDir("/my/logdir"), resolveWasmCacheDir(true, "  ", "/my/logdir"))
 	})
 
@@ -61,16 +53,14 @@ func TestResolveWasmCacheDir(t *testing.T) {
 		assert.Equal(t, "/explicit/cache", resolveWasmCacheDir(true, "/explicit/cache", "/log/dir"))
 	})
 
+	t.Run("whitespace-only env var falls back to log-dir default", func(t *testing.T) {
+		t.Setenv(wasmCacheDirEnvVar, "   ")
+		result := resolveWasmCacheDir(false, "", "/log/dir")
+		assert.Equal(t, defaultWasmCacheDir("/log/dir"), result)
+	})
+
 	t.Run("flag unchanged and empty env var uses log-dir default", func(t *testing.T) {
-		orig, existed := os.LookupEnv(wasmCacheDirEnvVar)
-		t.Cleanup(func() {
-			if existed {
-				os.Setenv(wasmCacheDirEnvVar, orig)
-			} else {
-				os.Unsetenv(wasmCacheDirEnvVar)
-			}
-		})
-		os.Unsetenv(wasmCacheDirEnvVar)
+		t.Setenv(wasmCacheDirEnvVar, "")
 		result := resolveWasmCacheDir(false, "", "/log/dir")
 		assert.Equal(t, defaultWasmCacheDir("/log/dir"), result)
 	})

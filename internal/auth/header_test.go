@@ -1,16 +1,18 @@
 package auth
 
 import (
+	"crypto/rand"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
 )
 
 func TestIsMalformedHeader(t *testing.T) {
-	assert := assert.New(t)
+	t.Parallel()
 
 	tests := []struct {
 		name   string
@@ -80,15 +82,17 @@ func TestIsMalformedHeader(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := IsMalformedHeader(tt.header)
-			assert.Equal(tt.want, got)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestTruncateSecret(t *testing.T) {
-	assert := assert.New(t)
+	t.Parallel()
 
 	tests := []struct {
 		name  string
@@ -143,16 +147,17 @@ func TestTruncateSecret(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := sanitize.TruncateSecret(tt.input)
-			assert.Equal(tt.want, got)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestParseAuthHeader(t *testing.T) {
-	assert := assert.New(t)
-	require := require.New(t)
+	t.Parallel()
 
 	tests := []struct {
 		name        string
@@ -238,26 +243,42 @@ func TestParseAuthHeader(t *testing.T) {
 			wantAgentID: "my-token ",
 			wantErr:     nil,
 		},
+		{
+			name:        "Bearer with empty token",
+			authHeader:  "Bearer ",
+			wantAPIKey:  "",
+			wantAgentID: "",
+			wantErr:     nil,
+		},
+		{
+			name:        "Agent with empty value",
+			authHeader:  "Agent ",
+			wantAPIKey:  "",
+			wantAgentID: "",
+			wantErr:     nil,
+		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			gotAPIKey, gotAgentID, gotErr := ParseAuthHeader(tt.authHeader)
 
 			if tt.wantErr != nil {
-				require.ErrorIs(gotErr, tt.wantErr)
+				require.ErrorIs(t, gotErr, tt.wantErr)
 			} else {
-				require.NoError(gotErr)
+				require.NoError(t, gotErr)
 			}
 
-			assert.Equal(tt.wantAPIKey, gotAPIKey)
-			assert.Equal(tt.wantAgentID, gotAgentID)
+			assert.Equal(t, tt.wantAPIKey, gotAPIKey)
+			assert.Equal(t, tt.wantAgentID, gotAgentID)
 		})
 	}
 }
 
-func TestValidateAPIKey(t *testing.T) {
-	assert := assert.New(t)
+func TestValidateAgentID(t *testing.T) {
+	t.Parallel()
 
 	tests := []struct {
 		name     string
@@ -316,15 +337,17 @@ func TestValidateAPIKey(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got := ValidateAPIKey(tt.provided, tt.expected)
-			assert.Equal(tt.want, got)
+			t.Parallel()
+			got := ValidateAgentID(tt.provided, tt.expected)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestExtractAgentID(t *testing.T) {
-	assert := assert.New(t)
+	t.Parallel()
 
 	tests := []struct {
 		name       string
@@ -364,15 +387,17 @@ func TestExtractAgentID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := ExtractAgentID(tt.authHeader)
-			assert.Equal(tt.want, got)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
 func TestExtractSessionID(t *testing.T) {
-	assert := assert.New(t)
+	t.Parallel()
 
 	tests := []struct {
 		name       string
@@ -437,15 +462,63 @@ func TestExtractSessionID(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got := ExtractSessionID(tt.authHeader)
-			assert.Equal(tt.want, got)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
+func TestExtractSessionIDFromHeaders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("X-Agent-ID takes precedence over Authorization", func(t *testing.T) {
+		t.Parallel()
+		got := ExtractSessionIDFromHeaders("agent-explicit", "auth-token")
+		assert.Equal(t, "agent-explicit", got)
+	})
+
+	t.Run("falls back to Authorization when X-Agent-ID missing", func(t *testing.T) {
+		t.Parallel()
+		got := ExtractSessionIDFromHeaders("", "auth-token")
+		assert.Equal(t, "auth-token", got)
+	})
+
+	t.Run("malformed X-Agent-ID returns empty", func(t *testing.T) {
+		t.Parallel()
+		got := ExtractSessionIDFromHeaders("bad\x00id", "auth-token")
+		assert.Equal(t, "", got)
+	})
+
+	t.Run("malformed Authorization returns empty when X-Agent-ID missing", func(t *testing.T) {
+		t.Parallel()
+		got := ExtractSessionIDFromHeaders("", "bad\x00token")
+		assert.Equal(t, "", got)
+	})
+
+	t.Run("both headers empty returns empty string", func(t *testing.T) {
+		t.Parallel()
+		got := ExtractSessionIDFromHeaders("", "")
+		assert.Equal(t, "", got)
+	})
+
+	t.Run("valid X-Agent-ID takes precedence over malformed Authorization", func(t *testing.T) {
+		t.Parallel()
+		got := ExtractSessionIDFromHeaders("valid-agent", "bad\x00token")
+		assert.Equal(t, "valid-agent", got)
+	})
+
+	t.Run("X-Agent-ID takes precedence over Bearer Authorization", func(t *testing.T) {
+		t.Parallel()
+		got := ExtractSessionIDFromHeaders("agent-id", "Bearer auth-token")
+		assert.Equal(t, "agent-id", got)
+	})
+}
+
 func TestStripAuthScheme(t *testing.T) {
-	assert := assert.New(t)
+	t.Parallel()
 
 	tests := []struct {
 		name        string
@@ -496,92 +569,77 @@ func TestStripAuthScheme(t *testing.T) {
 			wantValue:   "",
 			wantMatched: false,
 		},
+		{
+			name:        "Bearer with empty token",
+			authHeader:  "Bearer ",
+			wantScheme:  "Bearer",
+			wantValue:   "",
+			wantMatched: true,
+		},
+		{
+			name:        "Agent with empty value",
+			authHeader:  "Agent ",
+			wantScheme:  "Agent",
+			wantValue:   "",
+			wantMatched: true,
+		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			scheme, value, matched := stripAuthScheme(tt.authHeader)
-			assert.Equal(tt.wantScheme, scheme)
-			assert.Equal(tt.wantValue, value)
-			assert.Equal(tt.wantMatched, matched)
+			assert.Equal(t, tt.wantScheme, scheme)
+			assert.Equal(t, tt.wantValue, value)
+			assert.Equal(t, tt.wantMatched, matched)
 		})
 	}
 }
 
-func TestTruncateSessionID(t *testing.T) {
-	assert := assert.New(t)
+// errorReader is a test helper io.Reader that always returns the configured error.
+type errorReader struct {
+	err error
+}
 
-	tests := []struct {
-		name      string
-		sessionID string
-		want      string
-	}{
-		{
-			name:      "Empty session ID returns (none)",
-			sessionID: "",
-			want:      "(none)",
-		},
-		{
-			name:      "Single character",
-			sessionID: "a",
-			want:      "a",
-		},
-		{
-			name:      "Short session ID (5 chars)",
-			sessionID: "abc12",
-			want:      "abc12",
-		},
-		{
-			name:      "Exactly 8 characters - not truncated",
-			sessionID: "abcd1234",
-			want:      "abcd1234",
-		},
-		{
-			name:      "Exactly 9 characters - truncated",
-			sessionID: "abcd12345",
-			want:      "abcd1234...",
-		},
-		{
-			name:      "Long session ID (>8 chars)",
-			sessionID: "my-session-id-12345",
-			want:      "my-sessi...",
-		},
-		{
-			name:      "Very long session ID",
-			sessionID: "my-super-long-session-id-with-many-characters-12345678901234567890",
-			want:      "my-super...",
-		},
-		{
-			name:      "Session ID with special characters",
-			sessionID: "key!@#$%^&*()",
-			want:      "key!@#$%...",
-		},
-		{
-			name:      "Session ID with unicode",
-			sessionID: "session-émojis-🔑",
-			want:      "session-...",
-		},
-		{
-			name:      "UUID format",
-			sessionID: "550e8400-e29b-41d4-a716-446655440000",
-			want:      "550e8400...",
-		},
-		{
-			name:      "Whitespace only (under 8 chars)",
-			sessionID: "   ",
-			want:      "   ",
-		},
-		{
-			name:      "Whitespace only (over 8 chars)",
-			sessionID: "         ",
-			want:      "        ...",
-		},
-	}
+func (r *errorReader) Read(_ []byte) (int, error) {
+	return 0, r.err
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := TruncateSessionID(tt.sessionID)
-			assert.Equal(tt.want, got)
-		})
-	}
+// TestGenerateRandomAgentID_RandomFailure verifies that GenerateRandomAgentID
+// correctly wraps and propagates errors from the underlying random source.
+// This test must NOT run in parallel because it temporarily replaces the
+// global crypto/rand.Reader.
+func TestGenerateRandomAgentID_RandomFailure(t *testing.T) {
+	syntheticErr := errors.New("synthetic entropy failure")
+
+	origReader := rand.Reader
+	rand.Reader = &errorReader{err: syntheticErr}
+	defer func() { rand.Reader = origReader }()
+
+	key, err := GenerateRandomAgentID()
+
+	assert.Empty(t, key, "key should be empty when random generation fails")
+	require.Error(t, err, "should return an error when the random source fails")
+	assert.ErrorIs(t, err, syntheticErr, "error should wrap the underlying source error")
+	assert.Contains(t, err.Error(), "failed to generate random agent ID",
+		"error message should describe the failure context")
+}
+
+// TestGenerateRandomAgentID_RecoveryAfterFailure verifies that
+// GenerateRandomAgentID works correctly after the random source is restored,
+// confirming that no state is leaked between calls.
+// This test must NOT run in parallel because it temporarily replaces the
+// global crypto/rand.Reader.
+func TestGenerateRandomAgentID_RecoveryAfterFailure(t *testing.T) {
+	origReader := rand.Reader
+	rand.Reader = &errorReader{err: errors.New("transient failure")}
+	_, err := GenerateRandomAgentID()
+	require.Error(t, err, "should fail with broken reader")
+
+	// Restore and verify subsequent call succeeds.
+	rand.Reader = origReader
+	key, err := GenerateRandomAgentID()
+	require.NoError(t, err, "should succeed after reader is restored")
+	assert.Len(t, key, 64, "restored call should return 64-char hex key")
 }

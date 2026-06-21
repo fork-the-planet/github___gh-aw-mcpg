@@ -17,8 +17,8 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/oidc"
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -166,12 +166,12 @@ func NewConnection(ctx context.Context, serverID, command string, args []string,
 		stderrPipeWriter.Close() // Close pipe to stop the stderr streaming goroutine
 
 		stderrOutput := strings.TrimSpace(stderrBuf.String())
-		LogConnectionError(ConnectionErrorContext{
-			ServerID:     serverID,
-			Command:      command,
-			Args:         expandedArgs,
-			StderrOutput: stderrOutput,
-		}, err)
+		logger.LogErrorToServer(serverID, "backend",
+			"MCP connection failed: server=%s, command=%s, args=%v, error=%v",
+			serverID, command, sanitize.SanitizeArgs(expandedArgs), err)
+		if stderrOutput != "" {
+			logger.LogErrorToMarkdown("backend", "MCP backend stderr output:\n%s", sanitize.SanitizeString(stderrOutput))
+		}
 
 		logConn.Printf("Connection failed: command=%s, error=%v", command, err)
 		return nil, fmt.Errorf("failed to connect: %w", err)
@@ -315,84 +315,88 @@ func (c *Connection) ServerInfo() (name, version string) {
 	return initResult.ServerInfo.Name, initResult.ServerInfo.Version
 }
 
-// reconnectPlainJSON re-initialises the plain JSON-RPC session with the HTTP backend.
-// It is safe for concurrent callers: only one reconnect runs at a time, and the updated
-// session ID is available to all callers once the lock is released.
-func (c *Connection) reconnectPlainJSON() error {
+// withReconnectLock acquires the session write lock, logs the reconnect attempt, runs
+// reconnect, logs the result, and wraps any error with a consistent message.
+// transportName is included in the debug log to identify which transport is reconnecting
+// (e.g. "plain JSON-RPC" or "SDK transport (type=streamable)").
+func (c *Connection) withReconnectLock(transportName string, reconnect func() error) error {
 	c.sessionMu.Lock()
 	defer c.sessionMu.Unlock()
-
-	logConn.Printf("Session expired, reconnecting plain JSON-RPC for serverID=%s", c.serverID)
+	logConn.Printf("Session expired, reconnecting %s for serverID=%s", transportName, c.serverID)
 	c.logReconnectStart()
-
-	sessionID, err := c.initializeHTTPSession()
+	err := reconnect()
 	c.logReconnectResult(err)
 	if err != nil {
 		return fmt.Errorf("session reconnect failed: %w", err)
 	}
-
-	c.httpSessionID = sessionID
-	logConn.Printf("Reconnected plain JSON-RPC session for serverID=%s, new sessionID=%s", c.serverID, sessionID)
 	return nil
+}
+
+// reconnectPlainJSON re-initialises the plain JSON-RPC session with the HTTP backend.
+// It is safe for concurrent callers: only one reconnect runs at a time, and the updated
+// session ID is available to all callers once the lock is released.
+func (c *Connection) reconnectPlainJSON() error {
+	return c.withReconnectLock("plain JSON-RPC", func() error {
+		sessionID, err := c.initializeHTTPSession()
+		if err != nil {
+			return err
+		}
+		c.httpSessionID = sessionID
+		logConn.Printf("Reconnected plain JSON-RPC session for serverID=%s, new sessionID=%s", c.serverID, sessionID)
+		return nil
+	})
 }
 
 // reconnectSDKTransport re-establishes the SDK session for streamable or SSE transports.
 // It is safe for concurrent callers: only one reconnect runs at a time.
 func (c *Connection) reconnectSDKTransport() error {
-	c.sessionMu.Lock()
-	defer c.sessionMu.Unlock()
-
-	logConn.Printf("Session expired, reconnecting SDK transport for serverID=%s, type=%s", c.serverID, c.httpTransportType)
-	c.logReconnectStart()
-
-	// Close the existing session gracefully (ignore error – it's already dead).
-	if c.session != nil {
-		_ = c.session.Close()
-	}
-
-	// Rebuild the header-injecting client so custom auth headers are preserved on reconnect.
-	headerClient := buildHTTPClientWithHeaders(c.httpClient, c.headers)
-
-	// Build the appropriate transport.
-	// Re-use the same keepAliveInterval so the reconnected session also sends periodic pings.
-	client := newMCPClient(logConn, c.keepAliveInterval)
-	var transport sdk.Transport
-	switch c.httpTransportType {
-	case HTTPTransportStreamable:
-		transport = &sdk.StreamableClientTransport{
-			Endpoint:   c.httpURL,
-			HTTPClient: headerClient,
-			// MaxRetries: -1 disables SDK-level reconnect retries (0 = SDK default 5 retries;
-			// negative = 0 retries). The gateway handles reconnection itself, so we set -1 to
-			// prevent double-retry behaviour. Verified against go-sdk v1.6.0 streamable.go:1547-1552.
-			// See TestMaxRetriesSentinelCanary for an automated guard against SDK changes.
-			MaxRetries:           -1,
-			DisableStandaloneSSE: true,
+	return c.withReconnectLock(fmt.Sprintf("SDK transport (type=%s)", c.httpTransportType), func() error {
+		// Close the existing session gracefully (ignore error – it's already dead).
+		if c.session != nil {
+			_ = c.session.Close()
 		}
-	case HTTPTransportSSE:
-		transport = &sdk.SSEClientTransport{
-			Endpoint:   c.httpURL,
-			HTTPClient: headerClient,
+
+		// Rebuild the header-injecting client so custom auth headers are preserved on reconnect.
+		headerClient := buildHTTPClientWithHeaders(c.httpClient, c.headers)
+
+		// Build the appropriate transport.
+		// Re-use the same keepAliveInterval so the reconnected session also sends periodic pings.
+		client := newMCPClient(logConn, c.keepAliveInterval)
+		var transport sdk.Transport
+		switch c.httpTransportType {
+		case HTTPTransportStreamable:
+			transport = &sdk.StreamableClientTransport{
+				Endpoint:   c.httpURL,
+				HTTPClient: headerClient,
+				// See streamableMaxRetries for rationale. The gateway handles reconnection
+				// itself to prevent double-retry behaviour.
+				MaxRetries:           streamableMaxRetries,
+				DisableStandaloneSSE: true,
+			}
+		case HTTPTransportSSE:
+			transport = &sdk.SSEClientTransport{
+				Endpoint:   c.httpURL,
+				HTTPClient: headerClient,
+			}
+		default:
+			return fmt.Errorf("cannot reconnect: unsupported transport type %s", c.httpTransportType)
 		}
-	default:
-		return fmt.Errorf("cannot reconnect: unsupported transport type %s", c.httpTransportType)
-	}
 
-	timeout := normalizeConnectTimeout(c.connectTimeout)
-	connectCtx, cancel := context.WithTimeout(c.ctx, timeout)
-	defer cancel()
+		timeout := normalizeConnectTimeout(c.connectTimeout)
+		connectCtx, cancel := context.WithTimeout(c.ctx, timeout)
+		defer cancel()
 
-	session, err := client.Connect(connectCtx, transport, nil)
-	c.logReconnectResult(err)
-	if err != nil {
-		return fmt.Errorf("session reconnect failed: %w", err)
-	}
+		session, err := client.Connect(connectCtx, transport, nil)
+		if err != nil {
+			return err
+		}
 
-	c.client = client
-	c.session = session
+		c.client = client
+		c.session = session
 
-	logConn.Printf("Reconnected SDK session for serverID=%s", c.serverID)
-	return nil
+		logConn.Printf("Reconnected SDK session for serverID=%s", c.serverID)
+		return nil
+	})
 }
 
 // callSDKMethodWithReconnect calls the SDK method and, if the session has expired,
@@ -423,6 +427,10 @@ func (c *Connection) SendRequest(method string, params interface{}) (*Response, 
 func (c *Connection) SendRequestWithServerID(ctx context.Context, method string, params interface{}, serverID string) (*Response, error) {
 	snapshot, hasSnapshot := GetAgentTagsSnapshotFromContext(ctx)
 	shouldAttachAgentTags := hasSnapshot && difc.IsSinkServerID(serverID)
+	var loggingSnapshot *AgentTagsSnapshot
+	if shouldAttachAgentTags {
+		loggingSnapshot = snapshot
+	}
 
 	// Log the outbound request to backend server
 	requestPayload, _ := json.Marshal(map[string]interface{}{
@@ -430,7 +438,7 @@ func (c *Connection) SendRequestWithServerID(ctx context.Context, method string,
 		"method":  method,
 		"params":  params,
 	})
-	logOutboundRPCRequest(serverID, method, requestPayload, shouldAttachAgentTags, snapshot)
+	logOutboundRPCRequest(serverID, method, requestPayload, loggingSnapshot)
 
 	var result *Response
 	var err error
@@ -449,13 +457,13 @@ func (c *Connection) SendRequestWithServerID(ctx context.Context, method string,
 		result, err = c.callSDKMethod(method, params)
 	}
 
-	return logInboundRPCResponseFromResult(serverID, result, err, shouldAttachAgentTags, snapshot)
+	return logInboundRPCResponseFromResult(serverID, result, err, loggingSnapshot)
 }
 
-// requireSession validates that a session is available for SDK operations.
+// requireSDKSession validates that a session is available for SDK operations.
 // This helper centralizes session validation logic across all MCP method wrappers.
 // Returns an error if the session is nil (e.g., for plain JSON-RPC transport).
-func (c *Connection) requireSession() error {
+func (c *Connection) requireSDKSession() error {
 	if c.getSDKSession() == nil {
 		return fmt.Errorf("SDK session not available for plain JSON-RPC transport")
 	}

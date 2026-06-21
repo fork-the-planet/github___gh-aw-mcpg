@@ -4,10 +4,10 @@ package cmd
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
@@ -23,14 +23,15 @@ var (
 
 func init() {
 	RegisterFlag(func(cmd *cobra.Command) {
-		registerTracingFlags(cmd.Flags(), &otlpEndpoint, &otlpServiceName, &otlpSampleRate,
+		registerTracingFlags(cmd, &otlpEndpoint, &otlpServiceName, &otlpSampleRate,
 			"OTLP HTTP endpoint for trace export (e.g. http://localhost:4318). Defaults from OTEL_EXPORTER_OTLP_ENDPOINT when set. Tracing is disabled when empty.",
 			"Service name reported in traces. Defaults from OTEL_SERVICE_NAME when set.",
 			"Fraction of traces to sample and export (0.0–1.0). Default 1.0 samples everything.")
 	})
 }
 
-func registerTracingFlags(flags *pflag.FlagSet, endpoint *string, serviceName *string, sampleRate *float64, endpointUsage string, serviceUsage string, sampleUsage string) {
+func registerTracingFlags(cmd *cobra.Command, endpoint *string, serviceName *string, sampleRate *float64, endpointUsage string, serviceUsage string, sampleUsage string) {
+	flags := cmd.Flags()
 	flags.StringVar(endpoint, "otlp-endpoint", envutil.GetEnvString("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
 		endpointUsage)
 	flags.StringVar(serviceName, "otlp-service-name", envutil.GetEnvString("OTEL_SERVICE_NAME", config.DefaultTracingServiceName),
@@ -76,5 +77,22 @@ func shutdownTracingProviderWithTimeout(tracingProvider *tracing.Provider, warnf
 		warnf("tracing provider shutdown error: %v", err)
 	} else {
 		debugLog.Print("Tracing provider shut down successfully")
+	}
+}
+
+func logTracingWarnf(format string, args ...any) {
+	log.Printf("Warning: "+format, args...)
+}
+
+func setupCommandTracing(
+	ctx context.Context,
+	tracingCfg *config.TracingConfig,
+	initWarningFormat string,
+	initWarnf func(format string, args ...any),
+	shutdownWarnf func(format string, args ...any),
+) (*tracing.Provider, func()) {
+	tracingProvider := initTracingProviderWithFallback(ctx, tracingCfg, initWarningFormat, initWarnf)
+	return tracingProvider, func() {
+		shutdownTracingProviderWithTimeout(tracingProvider, shutdownWarnf)
 	}
 }

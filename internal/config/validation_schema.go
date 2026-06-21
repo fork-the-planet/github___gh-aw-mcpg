@@ -3,6 +3,7 @@ package config
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/config/rules"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/version"
@@ -35,6 +35,9 @@ var embeddedSchemaBytes []byte
 const (
 	// maxSchemaFetchRetries is the number of fetch attempts before giving up.
 	maxSchemaFetchRetries = 3
+
+	// maxSchemaFetchBytes bounds fetched schema size to avoid unbounded memory usage.
+	maxSchemaFetchBytes = 10 * 1024 * 1024 // 10 MiB
 
 	// embeddedSchemaID is the $id URL used when registering the embedded schema with
 	// the JSON Schema compiler. It matches the $id field in the bundled schema file.
@@ -240,6 +243,21 @@ func fixSchemaBytes(schemaBytes []byte) ([]byte, error) {
 				logSchema.Print("Added trustedBots and keepaliveInterval fields to gatewayConfig")
 			}
 		}
+
+		// Add headers to opentelemetryConfig.
+		// Spec §4.1.3.6 and this implementation support a comma-separated headers field,
+		// but the bundled v0.64.4 schema omits it and would otherwise reject the field
+		// because opentelemetryConfig sets additionalProperties=false.
+		if otelConfig, ok := definitions["opentelemetryConfig"].(map[string]interface{}); ok {
+			if props, ok := otelConfig["properties"].(map[string]interface{}); ok {
+				headersAction := ensureProperty(props, "headers", map[string]interface{}{
+					"type":        "string",
+					"description": "Comma-separated key=value HTTP headers for OTLP export requests. Supports ${VAR} expansion.",
+					"minLength":   1,
+				})
+				logSchema.Printf("%s headers field in opentelemetryConfig", headersAction)
+			}
+		}
 	}
 
 	fixedBytes, err := json.Marshal(schema)
@@ -311,13 +329,24 @@ func fetchAndFixSchema(url string) ([]byte, error) {
 	logSchema.Printf("HTTP request completed in %v", time.Since(startTime))
 
 	readStart := time.Now()
-	schemaBytes, err := io.ReadAll(resp.Body)
+	limitedBody := io.LimitReader(resp.Body, maxSchemaFetchBytes+1)
+	schemaBytes, err := io.ReadAll(limitedBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read schema response: %w", err)
+	}
+	if len(schemaBytes) > maxSchemaFetchBytes {
+		return nil, fmt.Errorf("schema response too large: exceeds %d bytes", maxSchemaFetchBytes)
 	}
 	logSchema.Printf("Schema read completed in %v (size: %d bytes)", time.Since(readStart), len(schemaBytes))
 
 	return fixSchemaBytes(schemaBytes)
+}
+
+// newDraft7Compiler creates a JSON Schema compiler configured for Draft 7.
+func newDraft7Compiler() *jsonschema.Compiler {
+	compiler := jsonschema.NewCompiler()
+	compiler.Draft = jsonschema.Draft7
+	return compiler
 }
 
 // getOrCompileSchema retrieves the cached compiled schema or compiles it on first use.
@@ -356,8 +385,7 @@ func getOrCompileSchema() (*jsonschema.Schema, error) {
 		}
 
 		// Compile the schema
-		compiler := jsonschema.NewCompiler()
-		compiler.Draft = jsonschema.Draft7
+		compiler := newDraft7Compiler()
 
 		// Add the schema using its $id URL so internal $ref references resolve correctly
 		if addErr := compiler.AddResource(schemaID, strings.NewReader(string(schemaJSON))); addErr != nil {
@@ -418,14 +446,15 @@ func formatSchemaError(err error) error {
 	}
 
 	// The jsonschema library returns a ValidationError type with detailed info
-	if ve, ok := err.(*jsonschema.ValidationError); ok {
+	var ve *jsonschema.ValidationError
+	if errors.As(err, &ve) {
 		var sb strings.Builder
 		sb.WriteString(fmt.Sprintf("Configuration validation error (MCP Gateway version: %s):\n\n", version.Get()))
 
 		// Recursively format all errors
 		formatValidationErrorRecursive(ve, &sb, 0)
 
-		rules.AppendConfigDocsFooter(&sb)
+		AppendConfigDocsFooter(&sb)
 
 		return fmt.Errorf("%s", sb.String())
 	}
@@ -464,51 +493,103 @@ func formatValidationErrorRecursive(ve *jsonschema.ValidationError, sb *strings.
 	}
 }
 
+// detailForKeyword returns the addDetail arguments (key and detail lines) for a
+// recognised JSON Schema keyword. Returns "", nil for unknown keywords.
+// This is used by formatErrorContext to centralise the guidance text so it is
+// only written in one place and always stays in sync between the keyword-location
+// switch and the message-fallback checks.
+func detailForKeyword(keyword string) (string, []string) {
+	switch keyword {
+	case "additionalProperties":
+		return "additionalProperties", []string{
+			"Details: Configuration contains field(s) that are not defined in the schema",
+			"  → Check for typos in field names or remove unsupported fields",
+		}
+	case "type":
+		return "type", []string{
+			"Details: Type mismatch - the value type doesn't match what's expected",
+			"  → Verify the value is the correct type (string, number, boolean, object, array)",
+		}
+	case "enum":
+		return "enum", []string{
+			"Details: Invalid value - the field has a restricted set of allowed values",
+			"  → Check the documentation for the list of valid values",
+		}
+	case "required":
+		return "required", []string{
+			"Details: Required field(s) are missing",
+			"  → Add the required field(s) to your configuration",
+		}
+	case "pattern":
+		return "pattern", []string{
+			"Details: Value format is incorrect",
+			"  → The value must match a specific format or pattern",
+		}
+	case "range":
+		return "range", []string{
+			"Details: Value is outside the allowed range",
+			"  → Adjust the value to be within the valid range",
+		}
+	case "oneOf":
+		return "oneOf", []string{
+			"Details: Configuration doesn't match any of the expected formats",
+			"  → Review the structure and ensure it matches one of the valid configuration types",
+		}
+	}
+	return "", nil
+}
+
 // formatErrorContext provides additional context about what caused the validation error
 func formatErrorContext(ve *jsonschema.ValidationError, prefix string) string {
 	var sb strings.Builder
 	msg := ve.Message
+	keyword := keywordFromLocation(ve.KeywordLocation)
+	added := map[string]bool{}
 
-	// For additional properties errors, explain what's wrong
+	addDetail := func(key string, lines ...string) {
+		if added[key] {
+			return
+		}
+		for _, line := range lines {
+			sb.WriteString(fmt.Sprintf("%s%s\n", prefix, line))
+		}
+		added[key] = true
+	}
+
+	addFromKeyword := func(keyword string) {
+		if key, lines := detailForKeyword(keyword); key != "" {
+			addDetail(key, lines...)
+		}
+	}
+	switch keyword {
+	case "additionalProperties", "type", "enum", "required", "pattern", "oneOf":
+		addFromKeyword(keyword)
+	case "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum":
+		addFromKeyword("range")
+	}
+
+	// Fallback path: classify by message content when keyword location is absent
+	// or does not carry enough information.
 	if strings.Contains(msg, "additionalProperties") || strings.Contains(msg, "additional property") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Configuration contains field(s) that are not defined in the schema\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Check for typos in field names or remove unsupported fields\n", prefix))
+		addFromKeyword("additionalProperties")
 	}
-
-	// For type errors, show the mismatch
 	if strings.Contains(msg, "expected") && (strings.Contains(msg, "but got") || strings.Contains(msg, "type")) {
-		sb.WriteString(fmt.Sprintf("%sDetails: Type mismatch - the value type doesn't match what's expected\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Verify the value is the correct type (string, number, boolean, object, array)\n", prefix))
+		addFromKeyword("type")
 	}
-
-	// For enum errors (invalid values from a set of allowed values)
-	if strings.Contains(msg, "value must be one of") || strings.Contains(msg, "must be") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Invalid value - the field has a restricted set of allowed values\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Check the documentation for the list of valid values\n", prefix))
+	if strings.Contains(msg, "value must be one of") || strings.Contains(msg, "must be one of") {
+		addFromKeyword("enum")
 	}
-
-	// For missing required properties
 	if strings.Contains(msg, "missing properties") || strings.Contains(msg, "required") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Required field(s) are missing\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Add the required field(s) to your configuration\n", prefix))
+		addFromKeyword("required")
 	}
-
-	// For pattern validation failures (regex patterns)
 	if strings.Contains(msg, "does not match pattern") || strings.Contains(msg, "pattern") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Value format is incorrect\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → The value must match a specific format or pattern\n", prefix))
+		addFromKeyword("pattern")
 	}
-
-	// For minimum/maximum constraint violations
 	if strings.Contains(msg, "must be >=") || strings.Contains(msg, "must be <=") || strings.Contains(msg, "minimum") || strings.Contains(msg, "maximum") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Value is outside the allowed range\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Adjust the value to be within the valid range\n", prefix))
+		addFromKeyword("range")
 	}
-
-	// For oneOf errors (typically type selection issues)
 	if strings.Contains(msg, "doesn't validate with any of") || strings.Contains(msg, "oneOf") {
-		sb.WriteString(fmt.Sprintf("%sDetails: Configuration doesn't match any of the expected formats\n", prefix))
-		sb.WriteString(fmt.Sprintf("%s  → Review the structure and ensure it matches one of the valid configuration types\n", prefix))
+		addFromKeyword("oneOf")
 	}
 
 	// Add keyword location if it provides useful context
@@ -517,6 +598,20 @@ func formatErrorContext(ve *jsonschema.ValidationError, prefix string) string {
 	}
 
 	return sb.String()
+}
+
+// keywordFromLocation extracts the terminal JSON Schema keyword from a
+// keyword-location path (for example "/properties/foo/type" -> "type").
+func keywordFromLocation(keywordLocation string) string {
+	keywordLocation = strings.TrimSuffix(strings.TrimSpace(keywordLocation), "/")
+	if keywordLocation == "" {
+		return ""
+	}
+	lastSlash := strings.LastIndex(keywordLocation, "/")
+	if lastSlash == -1 {
+		return keywordLocation
+	}
+	return keywordLocation[lastSlash+1:]
 }
 
 // validateStringPatterns validates string fields against regex patterns from the schema
@@ -532,7 +627,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 		// Validate container pattern for stdio servers
 		if server.Type == "" || server.Type == "stdio" || server.Type == "local" {
 			if server.Container != "" && !containerPattern.MatchString(server.Container) {
-				return rules.InvalidPattern("container", server.Container,
+				return InvalidPattern("container", server.Container,
 					fmt.Sprintf("%s.container", jsonPath),
 					"Use a valid container image format (e.g., 'ghcr.io/owner/image:tag', 'owner/image:latest', or 'ghcr.io/owner/image:tag@sha256:<digest>')")
 			}
@@ -540,7 +635,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 			// Validate mount patterns
 			for i, mount := range server.Mounts {
 				if !mountPattern.MatchString(mount) {
-					return rules.InvalidPattern("mounts", mount,
+					return InvalidPattern("mounts", mount,
 						fmt.Sprintf("%s.mounts[%d]", jsonPath, i),
 						"Use format 'source:dest:mode' where mode is 'ro' or 'rw'")
 				}
@@ -548,7 +643,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 
 			// Validate entrypoint is not empty if provided
 			if server.Entrypoint != "" && len(strings.TrimSpace(server.Entrypoint)) == 0 {
-				return rules.InvalidValue("entrypoint", "entrypoint cannot be empty or whitespace only",
+				return InvalidValue("entrypoint", "entrypoint cannot be empty or whitespace only",
 					fmt.Sprintf("%s.entrypoint", jsonPath),
 					"Provide a valid entrypoint path or remove the field")
 			}
@@ -557,7 +652,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 		// Validate URL pattern for HTTP servers
 		if server.Type == "http" {
 			if server.URL != "" && !urlPattern.MatchString(server.URL) {
-				return rules.InvalidPattern("url", server.URL,
+				return InvalidPattern("url", server.URL,
 					fmt.Sprintf("%s.url", jsonPath),
 					"Use a valid HTTP or HTTPS URL (e.g., 'https://api.example.com/mcp')")
 			}
@@ -576,7 +671,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 		if stdinCfg.Gateway.Domain != "" {
 			domain := stdinCfg.Gateway.Domain
 			if domain != "localhost" && domain != "host.docker.internal" && !domainVarPattern.MatchString(domain) {
-				return rules.InvalidValue("domain",
+				return InvalidValue("domain",
 					fmt.Sprintf("domain '%s' must be 'localhost', 'host.docker.internal', or a variable expression", domain),
 					"gateway.domain",
 					"Use 'localhost', 'host.docker.internal', or a variable like '${MCP_GATEWAY_DOMAIN}'")

@@ -86,7 +86,7 @@ func TestRegisterTracingFlags_DefaultsWithNoEnv(t *testing.T) {
 	var endpoint, service string
 	var sampleRate float64
 
-	registerTracingFlags(cmd.Flags(), &endpoint, &service, &sampleRate,
+	registerTracingFlags(cmd, &endpoint, &service, &sampleRate,
 		"endpoint help", "service help", "sample help")
 
 	actualEndpoint, err := cmd.Flags().GetString("otlp-endpoint")
@@ -122,7 +122,7 @@ func TestApplyTracingFlags_ServiceNameEnvVar(t *testing.T) {
 	cmd := &cobra.Command{Use: "test"}
 	var endpoint, service string
 	var sampleRate float64
-	registerTracingFlags(cmd.Flags(), &endpoint, &service, &sampleRate,
+	registerTracingFlags(cmd, &endpoint, &service, &sampleRate,
 		"endpoint help", "service help", "sample help")
 	// Simulate flag parsing without passing --otlp-service-name explicitly.
 	require.NoError(t, cmd.ParseFlags([]string{}))
@@ -152,7 +152,7 @@ func TestApplyTracingFlags_ServiceNameDefaultDoesNotOverrideConfig(t *testing.T)
 	cmd := &cobra.Command{Use: "test"}
 	var endpoint, service string
 	var sampleRate float64
-	registerTracingFlags(cmd.Flags(), &endpoint, &service, &sampleRate,
+	registerTracingFlags(cmd, &endpoint, &service, &sampleRate,
 		"endpoint help", "service help", "sample help")
 	require.NoError(t, cmd.ParseFlags([]string{}))
 

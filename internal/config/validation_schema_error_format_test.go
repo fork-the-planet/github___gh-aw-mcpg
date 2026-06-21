@@ -44,6 +44,13 @@ func TestFormatErrorContext(t *testing.T) {
 			wantContains: []string{"Type mismatch", "correct type", "  Details:"},
 		},
 		{
+			name:         "type mismatch inferred from keyword location",
+			message:      "validation failed",
+			keywordLoc:   "/properties/mcpServers/additionalProperties/properties/type/type",
+			prefix:       "  ",
+			wantContains: []string{"Type mismatch", "correct type", "  Details:"},
+		},
+		{
 			name:         "type mismatch with expected and type",
 			message:      "expected string, got 'null' type",
 			prefix:       "",
@@ -86,6 +93,13 @@ func TestFormatErrorContext(t *testing.T) {
 			wantContains: []string{"Value format is incorrect", "  Details:"},
 		},
 		{
+			name:         "range inferred from keyword location minimum",
+			message:      "validation failed",
+			keywordLoc:   "/properties/mcpServers/additionalProperties/properties/retries/minimum",
+			prefix:       "  ",
+			wantContains: []string{"outside the allowed range", "Adjust the value", "  Details:"},
+		},
+		{
 			name:         "minimum constraint violation",
 			message:      "value must be >= 1",
 			prefix:       "",
@@ -120,6 +134,70 @@ func TestFormatErrorContext(t *testing.T) {
 			message:      "oneOf failed: no schema matches",
 			prefix:       "  ",
 			wantContains: []string{"doesn't match any of the expected formats"},
+		},
+		{
+			name:         "maximum keyword location triggers range detail",
+			message:      "validation failed",
+			keywordLoc:   "/properties/port/maximum",
+			prefix:       "",
+			wantContains: []string{"outside the allowed range", "Adjust the value"},
+		},
+		{
+			name:         "exclusiveMinimum keyword location triggers range detail",
+			message:      "validation failed",
+			keywordLoc:   "/properties/timeout/exclusiveMinimum",
+			prefix:       "",
+			wantContains: []string{"outside the allowed range", "Adjust the value"},
+		},
+		{
+			name:         "exclusiveMaximum keyword location triggers range detail",
+			message:      "validation failed",
+			keywordLoc:   "/properties/timeout/exclusiveMaximum",
+			prefix:       "",
+			wantContains: []string{"outside the allowed range", "Adjust the value"},
+		},
+		{
+			name:         "type keyword location triggers type mismatch detail",
+			message:      "validation failed",
+			keywordLoc:   "/properties/port/type",
+			prefix:       "",
+			wantContains: []string{"Type mismatch", "Verify the value is the correct type"},
+		},
+		{
+			name:         "enum keyword location triggers invalid value detail",
+			message:      "validation failed",
+			keywordLoc:   "/properties/guardMode/enum",
+			prefix:       "",
+			wantContains: []string{"Invalid value", "list of valid values"},
+		},
+		{
+			name:         "required keyword location triggers missing fields detail",
+			message:      "validation failed",
+			keywordLoc:   "/properties/server/required",
+			prefix:       "",
+			wantContains: []string{"Required field(s) are missing", "Add the required field"},
+		},
+		{
+			name:         "pattern keyword location triggers value format detail",
+			message:      "validation failed",
+			keywordLoc:   "/properties/apiKey/pattern",
+			prefix:       "",
+			wantContains: []string{"Value format is incorrect", "specific format or pattern"},
+		},
+		{
+			name:         "oneOf keyword location triggers no-matching-format detail",
+			message:      "validation failed",
+			keywordLoc:   "/properties/server/oneOf",
+			prefix:       "",
+			wantContains: []string{"doesn't match any of the expected formats", "valid configuration types"},
+		},
+		{
+			name:         "keyword and message both match same category - detail appears only once",
+			message:      "additionalProperties 'foo' not allowed",
+			keywordLoc:   "/additionalProperties",
+			prefix:       "",
+			wantContains: []string{"Configuration contains field(s)"},
+			// The "Configuration contains field(s)" line must not appear twice; check via count elsewhere.
 		},
 		{
 			name:         "keyword location different from instance location adds schema location",
@@ -177,6 +255,111 @@ func TestFormatErrorContext(t *testing.T) {
 			for _, notWant := range tt.wantNotContain {
 				assert.NotContains(t, result, notWant,
 					"formatErrorContext result should not contain %q", notWant)
+			}
+		})
+	}
+}
+
+// TestFormatErrorContextDeduplication verifies the addDetail deduplication logic:
+// when both the keyword-location switch and the message-content fallback would add
+// the same detail category, the lines appear exactly once in the output.
+func TestFormatErrorContextDeduplication(t *testing.T) {
+	// Construct an error where the keyword location is "additionalProperties" AND
+	// the message also contains "additionalProperties", so both paths fire.
+	ve := &jsonschema.ValidationError{
+		Message:          "additionalProperties 'unknownField' not allowed",
+		KeywordLocation:  "/additionalProperties",
+		InstanceLocation: "/mcpServers/github",
+	}
+
+	result := formatErrorContext(ve, "")
+
+	// The "Configuration contains field(s)" detail line must appear exactly once.
+	occurrences := strings.Count(result, "Configuration contains field(s)")
+	assert.Equal(t, 1, occurrences,
+		"deduplication: 'Configuration contains field(s)' should appear exactly once even when matched by both keyword and message fallback")
+}
+
+func TestDetailForKeyword(t *testing.T) {
+	tests := []struct {
+		name              string
+		keyword           string
+		wantKey           string
+		wantLinesLen      int
+		wantLine0Contains string
+	}{
+		{
+			name:              "additionalProperties returns field details",
+			keyword:           "additionalProperties",
+			wantKey:           "additionalProperties",
+			wantLinesLen:      2,
+			wantLine0Contains: "Configuration contains field(s)",
+		},
+		{
+			name:              "type returns type mismatch details",
+			keyword:           "type",
+			wantKey:           "type",
+			wantLinesLen:      2,
+			wantLine0Contains: "Type mismatch",
+		},
+		{
+			name:              "enum returns invalid value details",
+			keyword:           "enum",
+			wantKey:           "enum",
+			wantLinesLen:      2,
+			wantLine0Contains: "Invalid value",
+		},
+		{
+			name:              "required returns missing fields details",
+			keyword:           "required",
+			wantKey:           "required",
+			wantLinesLen:      2,
+			wantLine0Contains: "Required field(s) are missing",
+		},
+		{
+			name:              "pattern returns value format details",
+			keyword:           "pattern",
+			wantKey:           "pattern",
+			wantLinesLen:      2,
+			wantLine0Contains: "Value format is incorrect",
+		},
+		{
+			name:              "range returns out-of-range details",
+			keyword:           "range",
+			wantKey:           "range",
+			wantLinesLen:      2,
+			wantLine0Contains: "Value is outside the allowed range",
+		},
+		{
+			name:              "oneOf returns no-matching-format details",
+			keyword:           "oneOf",
+			wantKey:           "oneOf",
+			wantLinesLen:      2,
+			wantLine0Contains: "doesn't match any of the expected formats",
+		},
+		{
+			name:    "unknown keyword returns empty key and nil lines",
+			keyword: "unknown",
+			wantKey: "",
+		},
+		{
+			name:    "empty string returns empty key and nil lines",
+			keyword: "",
+			wantKey: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key, lines := detailForKeyword(tt.keyword)
+			assert.Equal(t, tt.wantKey, key)
+			if tt.wantKey == "" {
+				assert.Nil(t, lines)
+			} else {
+				require.Len(t, lines, tt.wantLinesLen)
+				assert.Contains(t, lines[0], tt.wantLine0Contains)
+				// All known keywords have an action hint (→) in the second line.
+				assert.Contains(t, lines[1], "→")
 			}
 		})
 	}
@@ -351,6 +534,69 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 	})
 }
 
+// TestKeywordFromLocation tests the keywordFromLocation helper function which
+// extracts the terminal JSON Schema keyword from a slash-separated keyword-location path.
+func TestKeywordFromLocation(t *testing.T) {
+	tests := []struct {
+		name            string
+		keywordLocation string
+		want            string
+	}{
+		{
+			name:            "empty string returns empty",
+			keywordLocation: "",
+			want:            "",
+		},
+		{
+			name:            "whitespace-only returns empty",
+			keywordLocation: "   ",
+			want:            "",
+		},
+		{
+			name:            "trailing slash is stripped before extraction",
+			keywordLocation: "/properties/foo/type/",
+			want:            "type",
+		},
+		{
+			name:            "single keyword with no slash returns full string",
+			keywordLocation: "type",
+			want:            "type",
+		},
+		{
+			name:            "slash-prefixed single keyword returns keyword",
+			keywordLocation: "/type",
+			want:            "type",
+		},
+		{
+			name:            "standard nested path returns terminal keyword",
+			keywordLocation: "/properties/mcpServers/additionalProperties/properties/type/type",
+			want:            "type",
+		},
+		{
+			name:            "minimum keyword at end of path",
+			keywordLocation: "/properties/port/minimum",
+			want:            "minimum",
+		},
+		{
+			name:            "maximum keyword at end of path",
+			keywordLocation: "/properties/port/maximum",
+			want:            "maximum",
+		},
+		{
+			name:            "single slash returns empty string",
+			keywordLocation: "/",
+			want:            "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := keywordFromLocation(tt.keywordLocation)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // TestFormatSchemaError tests the formatSchemaError function which formats
 // JSON Schema validation errors with version information and documentation links.
 func TestFormatSchemaError(t *testing.T) {
@@ -393,6 +639,23 @@ func TestFormatSchemaError(t *testing.T) {
 		errStr := result.Error()
 		// The documentation footer is appended via rules.AppendConfigDocsFooter
 		assert.Contains(t, errStr, "mcp-gateway", "Should include config spec URL fragment")
+	})
+
+	t.Run("wrapped jsonschema.ValidationError preserves detailed format", func(t *testing.T) {
+		version.Set("v2.1.0-test")
+
+		wrappedErr := fmt.Errorf("wrapped: %w", &jsonschema.ValidationError{
+			InstanceLocation: "gateway.port",
+			Message:          "must be >= 1 and <= 65535",
+		})
+
+		result := formatSchemaError(wrappedErr)
+		require.Error(t, result)
+		errStr := result.Error()
+		assert.Contains(t, errStr, "Configuration validation error")
+		assert.Contains(t, errStr, "gateway.port")
+		assert.Contains(t, errStr, "must be >= 1 and <= 65535")
+		assert.Contains(t, errStr, "mcp-gateway")
 	})
 
 	t.Run("non-jsonschema error gets simple format", func(t *testing.T) {

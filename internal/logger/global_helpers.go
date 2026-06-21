@@ -16,7 +16,10 @@
 // CloseAllLoggers is the public entry point for closing all global loggers at once.
 package logger
 
-import "sync"
+import (
+	"log"
+	"sync"
+)
 
 // lockable provides a mutex and a withLock helper method. Embed this struct
 // in logger types that need a sync.Mutex plus a withLock convenience method
@@ -149,18 +152,38 @@ func closeGlobalLogger[T closableLogger](mu *sync.RWMutex, logger *T) error {
 // CloseAllLoggers closes all global loggers in a single call.
 // Returns the first error encountered, but attempts to close every logger.
 func CloseAllLoggers() error {
-	closers := []func() error{
-		CloseGlobalLogger,
-		CloseJSONLLogger,
-		CloseMarkdownLogger,
-		CloseToolsLogger,
-		CloseServerFileLogger,
+	return closeLoggerSet(globalLoggerClosers)
+}
+
+// StartupInfo logs a startup informational message to stderr (via log.Printf)
+// and to the startup markdown/file log sink (via LogInfoToMarkdown with "startup" category).
+// This eliminates the need to call log.Printf and LogInfoToMarkdown separately for the same message.
+func StartupInfo(format string, args ...interface{}) {
+	log.Printf(format, args...)
+	LogInfoToMarkdown("startup", format, args...)
+}
+
+// StartupWarn logs a startup warning message to stderr (via log.Printf with
+// "Warning: " prefix) and to the startup warning log sink (via LogWarn with
+// "startup" category).
+// This eliminates the need to call log.Printf and LogWarn separately for the same message.
+func StartupWarn(format string, args ...interface{}) {
+	log.Printf("Warning: "+format, args...)
+	LogWarn("startup", format, args...)
+}
+
+// initWithWarning calls the Init* function result and prints a warning when it returns an error.
+// It is used by InitGatewayLoggers and InitProxyLoggers to report non-fatal initialization
+// failures without aborting startup.
+func initWithWarning(err error, name string) {
+	if err != nil {
+		log.Printf("Warning: Failed to initialize %s: %v", name, err)
 	}
-	var firstErr error
-	for _, fn := range closers {
-		if err := fn(); err != nil && firstErr == nil {
-			firstErr = err
-		}
-	}
-	return firstErr
+}
+
+// logFallbackWarnings prints two WARNING lines for logger initialization failure with fallback:
+// the first includes the underlying error, the second describes the fallback behavior.
+func logFallbackWarnings(err error, errMsg, fallbackMsg string) {
+	log.Printf("WARNING: %s: %v", errMsg, err)
+	log.Printf("WARNING: %s", fallbackMsg)
 }

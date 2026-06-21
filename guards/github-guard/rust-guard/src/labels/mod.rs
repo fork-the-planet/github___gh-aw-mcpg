@@ -39,23 +39,25 @@ pub mod tool_rules;
 // Re-export helpers - these are part of the public API and used by tests
 // The unused_imports warning is suppressed because these are intentionally
 // re-exported for external modules and tests, not used within mod.rs itself
-#[allow(unused_imports)]
-pub use helpers::{
-    blocked_integrity, commit_integrity, ensure_integrity_baseline, extract_graphql_nodes,
-    extract_graphql_single_object, extract_items_array,
-    extract_number_as_string, extract_repo_from_item, extract_repo_info,
-    extract_repo_info_from_search_query, is_blocked_user, is_graphql_wrapper, is_mcp_text_wrapper,
-    is_search_result_wrapper, issue_integrity, limit_items_with_log,
-    merged_integrity, none_integrity, pr_integrity, private_scope_label, private_user_label,
-    project_github_label, reader_integrity, search_result_total_count,
-    writer_integrity, MinIntegrity, PolicyContext, PolicyScopeEntry, ScopeKind,
-};
 #[cfg(test)]
 pub use helpers::has_approval_label;
 #[cfg(test)]
-pub use helpers::{has_demotion_label, has_promotion_label};
+pub use helpers::has_refusal_label;
 #[cfg(test)]
 pub use helpers::secret_label;
+#[allow(unused_imports)]
+pub use helpers::{
+    blocked_integrity, commit_integrity, ensure_integrity_baseline, extract_graphql_nodes,
+    extract_graphql_single_object, extract_items_array, extract_number_as_string,
+    extract_repo_from_item, extract_repo_info, extract_repo_info_from_search_query,
+    is_blocked_user, is_graphql_wrapper, is_mcp_text_wrapper, is_search_result_wrapper,
+    issue_integrity, limit_items_with_log, merged_integrity, none_integrity, pr_integrity,
+    private_scope_label, private_user_label, project_github_label, reader_integrity,
+    search_result_total_count, writer_integrity, MinIntegrity, PolicyContext, PolicyScopeEntry,
+    ScopeKind,
+};
+#[cfg(test)]
+pub use helpers::{has_demotion_label, has_promotion_label};
 
 // Re-export response labeling functions (wrappers that pass PolicyContext)
 pub fn apply_tool_labels(
@@ -154,8 +156,10 @@ pub(crate) fn extract_mcp_response(response: &Value) -> Cow<'_, Value> {
 
 #[cfg(test)]
 mod tests {
+    use super::helpers::{
+        get_bool_or, get_nested_str, get_str_or, has_author_association, make_item_path,
+    };
     use super::*;
-    use super::helpers::{get_bool_or, get_nested_str, get_str_or, has_author_association, make_item_path};
     use crate::labels::constants::{label_constants, scope_names};
     use serde_json::json;
 
@@ -478,6 +482,55 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_get_file_blame() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "path": "README.md"
+        });
+
+        let (secrecy, integrity, desc) = apply_tool_labels(
+            "get_file_blame",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        // get_file_blame has identical secrecy/integrity semantics to get_file_contents
+        assert_eq!(secrecy, vec![] as Vec<String>);
+        assert_eq!(integrity, merged_integrity("github/copilot", &ctx));
+        assert_eq!(desc, "");
+    }
+
+    #[test]
+    fn test_apply_tool_labels_get_file_blame_secret_path() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot",
+            "path": ".env"
+        });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "get_file_blame",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        // Sensitive files get private:owner/repo scope regardless of repo visibility
+        assert_eq!(secrecy, vec!["private:github/copilot".to_string()]);
+        assert_eq!(integrity, merged_integrity("github/copilot", &ctx));
+    }
+
+    #[test]
     fn test_apply_tool_labels_get_file_contents_secret() {
         let ctx = default_ctx();
         let tool_args = json!({
@@ -710,6 +763,37 @@ mod tests {
                 || ff_integrity == none_integrity("github/copilot", &ctx)
         );
         assert!(ff_desc.is_empty());
+    }
+
+    #[test]
+    fn test_apply_tool_labels_list_issue_fields_matches_list_issue_types() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github"
+        });
+
+        let (_types_secrecy, types_integrity, _types_desc) = apply_tool_labels(
+            "list_issue_types",
+            &tool_args,
+            "github",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        let (_fields_secrecy, fields_integrity, _fields_desc) = apply_tool_labels(
+            "list_issue_fields",
+            &tool_args,
+            "github",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(fields_integrity, types_integrity);
+        assert_eq!(fields_integrity, project_github_label(&ctx));
     }
 
     #[test]
@@ -1119,25 +1203,40 @@ mod tests {
         use super::helpers::is_configured_trusted_bot;
 
         let ctx_with_bots = PolicyContext {
-            trusted_bots: vec!["copilot-swe-agent[bot]".to_string(), "my-org-bot".to_string()],
+            trusted_bots: vec![
+                "copilot-swe-agent[bot]".to_string(),
+                "my-org-bot".to_string(),
+            ],
             ..Default::default()
         };
 
         // Configured bots are detected
-        assert!(is_configured_trusted_bot("copilot-swe-agent[bot]", &ctx_with_bots));
+        assert!(is_configured_trusted_bot(
+            "copilot-swe-agent[bot]",
+            &ctx_with_bots
+        ));
         assert!(is_configured_trusted_bot("my-org-bot", &ctx_with_bots));
 
         // Case-insensitive
-        assert!(is_configured_trusted_bot("Copilot-SWE-Agent[bot]", &ctx_with_bots));
+        assert!(is_configured_trusted_bot(
+            "Copilot-SWE-Agent[bot]",
+            &ctx_with_bots
+        ));
         assert!(is_configured_trusted_bot("MY-ORG-BOT", &ctx_with_bots));
 
         // Bots not in the list are not detected
         assert!(!is_configured_trusted_bot("other-bot[bot]", &ctx_with_bots));
-        assert!(!is_configured_trusted_bot("dependabot[bot]", &ctx_with_bots));
+        assert!(!is_configured_trusted_bot(
+            "dependabot[bot]",
+            &ctx_with_bots
+        ));
 
         // Empty context has no configured trusted bots
         let empty_ctx = default_ctx();
-        assert!(!is_configured_trusted_bot("copilot-swe-agent[bot]", &empty_ctx));
+        assert!(!is_configured_trusted_bot(
+            "copilot-swe-agent[bot]",
+            &empty_ctx
+        ));
         assert!(!is_configured_trusted_bot("", &empty_ctx));
     }
 
@@ -1380,7 +1479,9 @@ mod tests {
 
         // All integrity labels should be scoped to "github"
         assert!(
-            integrity.iter().all(|l| l.ends_with(":github") || l.contains("github")),
+            integrity
+                .iter()
+                .all(|l| l.ends_with(":github") || l.contains("github")),
             "Expected all labels scoped to 'github', got: {:?}",
             integrity
         );
@@ -1483,7 +1584,11 @@ mod tests {
         assert_eq!(entry.labels.description, "project-item:issue");
         // MEMBER maps to approved integrity
         assert!(
-            entry.labels.integrity.iter().any(|l| l.starts_with("approved:")),
+            entry
+                .labels
+                .integrity
+                .iter()
+                .any(|l| l.starts_with("approved:")),
             "Expected approved level for MEMBER, got: {:?}",
             entry.labels.integrity
         );
@@ -1513,7 +1618,11 @@ mod tests {
         assert_eq!(entry.labels.description, "project-item:pull_request");
         // CONTRIBUTOR maps to unapproved integrity
         assert!(
-            entry.labels.integrity.iter().any(|l| l.starts_with("unapproved:")),
+            entry
+                .labels
+                .integrity
+                .iter()
+                .any(|l| l.starts_with("unapproved:")),
             "Expected unapproved level for CONTRIBUTOR, got: {:?}",
             entry.labels.integrity
         );
@@ -1541,7 +1650,10 @@ mod tests {
         assert_eq!(entry.labels.description, "project-item:draft_issue");
         assert_eq!(entry.labels.secrecy, vec![] as Vec<String>);
         assert!(
-            entry.labels.integrity.contains(&"approved:github".to_string()),
+            entry
+                .labels
+                .integrity
+                .contains(&"approved:github".to_string()),
             "Expected 'approved:github' for draft issue, got: {:?}",
             entry.labels.integrity
         );
@@ -1574,8 +1686,14 @@ mod tests {
         assert_eq!(result.labeled_paths.len(), 2);
         assert_eq!(result.labeled_paths[0].path, "/items/0");
         assert_eq!(result.labeled_paths[1].path, "/items/1");
-        assert_eq!(result.labeled_paths[0].labels.description, "project-item:issue");
-        assert_eq!(result.labeled_paths[1].labels.description, "project-item:draft_issue");
+        assert_eq!(
+            result.labeled_paths[0].labels.description,
+            "project-item:issue"
+        );
+        assert_eq!(
+            result.labeled_paths[1].labels.description,
+            "project-item:draft_issue"
+        );
     }
 
     // =========================================================================
@@ -1592,6 +1710,13 @@ mod tests {
     fn ctx_with_approval_labels(labels: Vec<&str>) -> PolicyContext {
         PolicyContext {
             approval_labels: labels.into_iter().map(|s| s.to_string()).collect(),
+            ..Default::default()
+        }
+    }
+
+    fn ctx_with_refusal_labels(labels: Vec<&str>) -> PolicyContext {
+        PolicyContext {
+            refusal_labels: labels.into_iter().map(|s| s.to_string()).collect(),
             ..Default::default()
         }
     }
@@ -1619,8 +1744,10 @@ mod tests {
         let scope = "github/copilot";
         let labels = blocked_integrity(scope, &ctx);
         assert_eq!(labels.len(), 1);
-        assert_eq!(labels[0], format!("{}{}",
-            label_constants::BLOCKED_PREFIX, scope));
+        assert_eq!(
+            labels[0],
+            format!("{}{}", label_constants::BLOCKED_PREFIX, scope)
+        );
     }
 
     #[test]
@@ -1713,6 +1840,97 @@ mod tests {
         assert_eq!(
             pr_integrity(&pr, repo, false, Some(false), &ctx),
             blocked_integrity(repo, &ctx)
+        );
+    }
+
+    // =========================================================================
+    // refusal-labels tests
+    // =========================================================================
+
+    #[test]
+    fn test_has_refusal_label_empty_ctx() {
+        let ctx = default_ctx();
+        let item = json!({"labels": [{"name": "unsafe"}]});
+        assert!(!has_refusal_label(&item, &ctx));
+    }
+
+    #[test]
+    fn test_has_refusal_label_case_insensitive() {
+        let ctx = ctx_with_refusal_labels(vec!["Unsafe"]);
+        let item = json!({"labels": [{"name": "unsafe"}]});
+        assert!(has_refusal_label(&item, &ctx));
+    }
+
+    #[test]
+    fn test_pr_integrity_refusal_label_demotes_to_none() {
+        let repo = "github/copilot";
+        let ctx = ctx_with_refusal_labels(vec!["unsafe"]);
+        let pr = json!({
+            "user": {"login": "member"},
+            "author_association": "MEMBER",
+            "merged": false,
+            "labels": [{"name": "unsafe"}]
+        });
+        assert_eq!(
+            pr_integrity(&pr, repo, false, Some(false), &ctx),
+            none_integrity(repo, &ctx)
+        );
+    }
+
+    #[test]
+    fn test_refusal_label_overrides_approval_label_and_trusted_user() {
+        let repo = "github/copilot";
+        let ctx = PolicyContext {
+            refusal_labels: vec!["unsafe".to_string()],
+            approval_labels: vec!["approved".to_string()],
+            trusted_users: vec!["trusted-contractor".to_string()],
+            ..Default::default()
+        };
+        let issue = json!({
+            "user": {"login": "trusted-contractor"},
+            "author_association": "NONE",
+            "labels": [{"name": "approved"}, {"name": "unsafe"}]
+        });
+        assert_eq!(
+            issue_integrity(&issue, repo, false, &ctx),
+            none_integrity(repo, &ctx)
+        );
+    }
+
+    #[test]
+    fn test_blocked_user_overrides_refusal_label() {
+        let repo = "github/copilot";
+        let ctx = PolicyContext {
+            blocked_users: vec!["evil-bot".to_string()],
+            refusal_labels: vec!["unsafe".to_string()],
+            ..Default::default()
+        };
+        let issue = json!({
+            "user": {"login": "evil-bot"},
+            "author_association": "NONE",
+            "labels": [{"name": "unsafe"}]
+        });
+        assert_eq!(
+            issue_integrity(&issue, repo, false, &ctx),
+            blocked_integrity(repo, &ctx)
+        );
+    }
+
+    #[test]
+    fn test_empty_refusal_labels_no_demotion() {
+        let repo = "github/copilot";
+        let ctx = PolicyContext {
+            refusal_labels: vec![],
+            ..Default::default()
+        };
+        let issue = json!({
+            "user": {"login": "member"},
+            "author_association": "MEMBER",
+            "labels": [{"name": "unsafe"}]
+        });
+        assert_eq!(
+            issue_integrity(&issue, repo, false, &ctx),
+            writer_integrity(repo, &ctx)
         );
     }
 
@@ -2198,8 +2416,16 @@ mod tests {
 
         // Job logs always get private:owner/repo scope — CI logs may contain accidentally-printed secrets
         // even in public repos, so visibility-inherited secrecy is not safe here.
-        assert_eq!(secrecy, vec!["private:github/copilot".to_string()], "get_job_logs must always have private scope (CI logs may contain secrets)");
-        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "get_job_logs must have approved integrity (system-generated output)");
+        assert_eq!(
+            secrecy,
+            vec!["private:github/copilot".to_string()],
+            "get_job_logs must always have private scope (CI logs may contain secrets)"
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity("github/copilot", &ctx),
+            "get_job_logs must have approved integrity (system-generated output)"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2226,8 +2452,16 @@ mod tests {
 
         // Secret scanning alerts always get private:owner/repo scope — they contain actual
         // secret values (tokens, keys) regardless of repository visibility.
-        assert_eq!(secrecy, vec!["private:github/copilot".to_string()], "list_secret_scanning_alerts must always have private scope");
-        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "list_secret_scanning_alerts must have approved integrity (automated detection)");
+        assert_eq!(
+            secrecy,
+            vec!["private:github/copilot".to_string()],
+            "list_secret_scanning_alerts must always have private scope"
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity("github/copilot", &ctx),
+            "list_secret_scanning_alerts must have approved integrity (automated detection)"
+        );
     }
 
     #[test]
@@ -2249,7 +2483,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, vec!["private:github/copilot".to_string()], "get_secret_scanning_alert must always have private scope");
+        assert_eq!(
+            secrecy,
+            vec!["private:github/copilot".to_string()],
+            "get_secret_scanning_alert must always have private scope"
+        );
         assert_eq!(integrity, writer_integrity("github/copilot", &ctx));
     }
 
@@ -2279,7 +2517,11 @@ mod tests {
 
         // Artifact downloads always get private:owner/repo scope — artifacts may contain
         // sensitive build outputs or accidentally-included secrets.
-        assert_eq!(secrecy, vec!["private:github/copilot".to_string()], "artifact downloads must always have private scope");
+        assert_eq!(
+            secrecy,
+            vec!["private:github/copilot".to_string()],
+            "artifact downloads must always have private scope"
+        );
         assert_eq!(integrity, writer_integrity("github/copilot", &ctx));
     }
 
@@ -2288,7 +2530,8 @@ mod tests {
     // -------------------------------------------------------------------------
 
     #[test]
-    fn test_apply_tool_labels_actions_list_secrecy_preserves_existing_labels_when_repo_visibility_is_unknown() {
+    fn test_apply_tool_labels_actions_list_secrecy_preserves_existing_labels_when_repo_visibility_is_unknown(
+    ) {
         let ctx = default_ctx();
         let tool_args = json!({
             "owner": "github",
@@ -2309,8 +2552,15 @@ mod tests {
         // In unit tests, repo visibility is not established unless explicitly primed,
         // so actions_list should preserve the existing secrecy labels when visibility
         // cannot be determined. Integrity remains writer-level.
-        assert_eq!(secrecy, initial_secrecy, "actions_list must preserve existing secrecy when repo visibility is unknown");
-        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "actions_list must have writer-level integrity");
+        assert_eq!(
+            secrecy, initial_secrecy,
+            "actions_list must preserve existing secrecy when repo visibility is unknown"
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity("github/copilot", &ctx),
+            "actions_list must have writer-level integrity"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2332,8 +2582,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, private_user_label(), "get_me must carry private:user secrecy (PII)");
-        assert_eq!(integrity, project_github_label(&ctx), "get_me must have project:github integrity (GitHub-controlled)");
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "get_me must carry private:user secrecy (PII)"
+        );
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "get_me must have project:github integrity (GitHub-controlled)"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2355,8 +2613,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, private_user_label(), "get_teams must carry private:user secrecy (org structure is sensitive)");
-        assert_eq!(integrity, project_github_label(&ctx), "get_teams must have project:github integrity");
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "get_teams must carry private:user secrecy (org structure is sensitive)"
+        );
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "get_teams must have project:github integrity"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2378,8 +2644,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, private_user_label(), "get_team_members must carry private:user secrecy");
-        assert_eq!(integrity, project_github_label(&ctx), "get_team_members must have project:github integrity");
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "get_team_members must carry private:user secrecy"
+        );
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "get_team_members must have project:github integrity"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2402,9 +2676,17 @@ mod tests {
         );
 
         // In test mode backend returns None → secrecy stays [] (public assumption)
-        assert_eq!(secrecy, vec![] as Vec<String>, "list_discussions secrecy inherits repo visibility");
+        assert_eq!(
+            secrecy,
+            vec![] as Vec<String>,
+            "list_discussions secrecy inherits repo visibility"
+        );
         // writer_integrity is used regardless of repo visibility — approved at resource level
-        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "list_discussions integrity is approved at resource level");
+        assert_eq!(
+            integrity,
+            writer_integrity("github/copilot", &ctx),
+            "list_discussions integrity is approved at resource level"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2480,8 +2762,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, vec![] as Vec<String>, "list_discussion_categories secrecy inherits repo visibility");
-        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "list_discussion_categories must have approved integrity (maintainer-managed)");
+        assert_eq!(
+            secrecy,
+            vec![] as Vec<String>,
+            "list_discussion_categories secrecy inherits repo visibility"
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity("github/copilot", &ctx),
+            "list_discussion_categories must have approved integrity (maintainer-managed)"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2503,8 +2793,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, private_user_label(), "list_gists must carry private:user secrecy (mix of public/secret gists)");
-        assert_eq!(integrity, reader_integrity(scope_names::USER, &ctx), "list_gists must have reader (unapproved) integrity (user content)");
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "list_gists must carry private:user secrecy (mix of public/secret gists)"
+        );
+        assert_eq!(
+            integrity,
+            reader_integrity(scope_names::USER, &ctx),
+            "list_gists must have reader (unapproved) integrity (user content)"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2526,8 +2824,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, private_user_label(), "get_gist must carry private:user secrecy");
-        assert_eq!(integrity, reader_integrity(scope_names::USER, &ctx), "get_gist must have reader integrity");
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "get_gist must carry private:user secrecy"
+        );
+        assert_eq!(
+            integrity,
+            reader_integrity(scope_names::USER, &ctx),
+            "get_gist must have reader integrity"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2553,8 +2859,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, vec![] as Vec<String>, "get_repository_tree secrecy inherits repo visibility");
-        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "get_repository_tree must have approved integrity (repo metadata)");
+        assert_eq!(
+            secrecy,
+            vec![] as Vec<String>,
+            "get_repository_tree secrecy inherits repo visibility"
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity("github/copilot", &ctx),
+            "get_repository_tree must have approved integrity (repo metadata)"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2576,8 +2890,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, vec![] as Vec<String>, "list_label secrecy inherits repo visibility");
-        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "list_label must have approved integrity (maintainer-managed metadata)");
+        assert_eq!(
+            secrecy,
+            vec![] as Vec<String>,
+            "list_label secrecy inherits repo visibility"
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity("github/copilot", &ctx),
+            "list_label must have approved integrity (maintainer-managed metadata)"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2599,7 +2921,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, private_user_label(), "list_notifications must carry private:user secrecy");
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "list_notifications must carry private:user secrecy"
+        );
         // integrity = vec![] in rule → ensure_integrity_baseline("", [], ctx) = none_integrity("", ctx) = ["none"]
         assert_eq!(integrity, none_integrity("", &ctx), "list_notifications must have none-level integrity (references external content of unknown trust)");
     }
@@ -2623,8 +2949,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, private_user_label(), "get_notification_details must carry private:user secrecy");
-        assert_eq!(integrity, none_integrity("", &ctx), "get_notification_details must have none-level integrity");
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "get_notification_details must carry private:user secrecy"
+        );
+        assert_eq!(
+            integrity,
+            none_integrity("", &ctx),
+            "get_notification_details must have none-level integrity"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2647,7 +2981,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity("github", &ctx), "projects_list must have approved:owner integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity("github", &ctx),
+            "projects_list must have approved:owner integrity"
+        );
     }
 
     #[test]
@@ -2717,7 +3055,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, private_user_label(), "list_starred_repositories must carry private:user secrecy (personal preferences)");
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "list_starred_repositories must carry private:user secrecy (personal preferences)"
+        );
         assert_eq!(integrity, project_github_label(&ctx), "list_starred_repositories must have project:github integrity (GitHub-controlled metadata)");
     }
 
@@ -2740,8 +3082,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, vec![] as Vec<String>, "search_orgs must have public (empty) secrecy");
-        assert_eq!(integrity, project_github_label(&ctx), "search_orgs must have project:github integrity");
+        assert_eq!(
+            secrecy,
+            vec![] as Vec<String>,
+            "search_orgs must have public (empty) secrecy"
+        );
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "search_orgs must have project:github integrity"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2763,8 +3113,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, vec![] as Vec<String>, "global advisories are public CVE data — empty secrecy");
-        assert_eq!(integrity, project_github_label(&ctx), "global advisories curated by GitHub security team — project:github integrity");
+        assert_eq!(
+            secrecy,
+            vec![] as Vec<String>,
+            "global advisories are public CVE data — empty secrecy"
+        );
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "global advisories curated by GitHub security team — project:github integrity"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2814,7 +3172,11 @@ mod tests {
             vec!["private:github/copilot".to_string()],
             "repo security advisories may contain embargoed vulnerability info — private:repo secrecy"
         );
-        assert_eq!(integrity, writer_integrity("github/copilot", &ctx), "repo security advisories maintained by repo security contacts — approved integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity("github/copilot", &ctx),
+            "repo security advisories maintained by repo security contacts — approved integrity"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2864,7 +3226,11 @@ mod tests {
         );
 
         assert_eq!(secrecy, private_user_label(), "get_copilot_space must carry private:user secrecy (org-scoped, may contain private config)");
-        assert_eq!(integrity, project_github_label(&ctx), "get_copilot_space must have project:github integrity — GitHub-controlled metadata");
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "get_copilot_space must have project:github integrity — GitHub-controlled metadata"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2887,7 +3253,11 @@ mod tests {
         );
 
         assert_eq!(secrecy, private_user_label(), "list_copilot_spaces must carry private:user secrecy (lists spaces visible to authenticated user)");
-        assert_eq!(integrity, project_github_label(&ctx), "list_copilot_spaces must have project:github integrity — GitHub-controlled metadata");
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "list_copilot_spaces must have project:github integrity — GitHub-controlled metadata"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -2909,7 +3279,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, vec![] as Vec<String>, "github_support_docs_search is public documentation — empty secrecy");
+        assert_eq!(
+            secrecy,
+            vec![] as Vec<String>,
+            "github_support_docs_search is public documentation — empty secrecy"
+        );
         assert_eq!(integrity, project_github_label(&ctx), "github_support_docs_search must have project:github integrity — GitHub-curated content");
     }
 
@@ -2933,8 +3307,16 @@ mod tests {
 
         assert_eq!(items.len(), 1, "should label one gist item");
         let item = &items[0];
-        assert_eq!(item.labels.secrecy, vec![] as Vec<String>, "public gist must have empty secrecy");
-        assert_eq!(item.labels.integrity, reader_integrity(scope_names::USER, &ctx), "gist must have reader integrity");
+        assert_eq!(
+            item.labels.secrecy,
+            vec![] as Vec<String>,
+            "public gist must have empty secrecy"
+        );
+        assert_eq!(
+            item.labels.integrity,
+            reader_integrity(scope_names::USER, &ctx),
+            "gist must have reader integrity"
+        );
         assert_eq!(item.labels.description, "gist:abc123def456");
     }
 
@@ -2954,8 +3336,16 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         let item = &items[0];
-        assert_eq!(item.labels.secrecy, private_user_label(), "secret gist must carry private:user secrecy");
-        assert_eq!(item.labels.integrity, reader_integrity(scope_names::USER, &ctx), "secret gist still has reader integrity");
+        assert_eq!(
+            item.labels.secrecy,
+            private_user_label(),
+            "secret gist must carry private:user secrecy"
+        );
+        assert_eq!(
+            item.labels.integrity,
+            reader_integrity(scope_names::USER, &ctx),
+            "secret gist still has reader integrity"
+        );
         assert_eq!(item.labels.description, "gist:secret789xyz");
     }
 
@@ -2976,12 +3366,27 @@ mod tests {
         let items = label_response_items("list_gists", &tool_args, &response, &ctx);
 
         assert_eq!(items.len(), 3);
-        assert_eq!(items[0].labels.secrecy, vec![] as Vec<String>, "first item is public → empty secrecy");
-        assert_eq!(items[1].labels.secrecy, private_user_label(), "second item is private → private:user");
-        assert_eq!(items[2].labels.secrecy, vec![] as Vec<String>, "third item is public → empty secrecy");
+        assert_eq!(
+            items[0].labels.secrecy,
+            vec![] as Vec<String>,
+            "first item is public → empty secrecy"
+        );
+        assert_eq!(
+            items[1].labels.secrecy,
+            private_user_label(),
+            "second item is private → private:user"
+        );
+        assert_eq!(
+            items[2].labels.secrecy,
+            vec![] as Vec<String>,
+            "third item is public → empty secrecy"
+        );
         // All gists share the same reader integrity level
         for item in &items {
-            assert_eq!(item.labels.integrity, reader_integrity(scope_names::USER, &ctx));
+            assert_eq!(
+                item.labels.integrity,
+                reader_integrity(scope_names::USER, &ctx)
+            );
         }
     }
 
@@ -2997,9 +3402,16 @@ mod tests {
 
         let items = label_response_items("get_gist", &tool_args, &response, &ctx);
 
-        assert_eq!(items.len(), 1, "single-object response must produce one labeled item");
+        assert_eq!(
+            items.len(),
+            1,
+            "single-object response must produce one labeled item"
+        );
         assert_eq!(items[0].labels.secrecy, vec![] as Vec<String>);
-        assert_eq!(items[0].labels.integrity, reader_integrity(scope_names::USER, &ctx));
+        assert_eq!(
+            items[0].labels.integrity,
+            reader_integrity(scope_names::USER, &ctx)
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -3016,7 +3428,10 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].labels.secrecy, private_user_label());
-        assert_eq!(items[0].labels.integrity, reader_integrity(scope_names::USER, &ctx));
+        assert_eq!(
+            items[0].labels.integrity,
+            reader_integrity(scope_names::USER, &ctx)
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -3044,9 +3459,17 @@ mod tests {
 
         assert_eq!(items.len(), 2, "should label both notification items");
         for item in &items {
-            assert_eq!(item.labels.secrecy, private_user_label(), "notifications are always private:user");
+            assert_eq!(
+                item.labels.secrecy,
+                private_user_label(),
+                "notifications are always private:user"
+            );
             // none_integrity("", ctx) = ["none"]
-            assert_eq!(item.labels.integrity, none_integrity("", &ctx), "notifications carry no trust — none integrity");
+            assert_eq!(
+                item.labels.integrity,
+                none_integrity("", &ctx),
+                "notifications carry no trust — none integrity"
+            );
         }
         assert_eq!(items[0].labels.description, "notification:n1");
         assert_eq!(items[1].labels.description, "notification:n2");
@@ -3095,8 +3518,15 @@ mod tests {
 
         assert_eq!(result.labeled_paths.len(), 1);
         assert_eq!(result.labeled_paths[0].path, "/0");
-        assert_eq!(result.labeled_paths[0].labels.secrecy, vec![] as Vec<String>, "public gist path must have empty secrecy");
-        assert_eq!(result.labeled_paths[0].labels.integrity, reader_integrity(scope_names::USER, &ctx));
+        assert_eq!(
+            result.labeled_paths[0].labels.secrecy,
+            vec![] as Vec<String>,
+            "public gist path must have empty secrecy"
+        );
+        assert_eq!(
+            result.labeled_paths[0].labels.integrity,
+            reader_integrity(scope_names::USER, &ctx)
+        );
         assert_eq!(result.labeled_paths[0].labels.description, "gist:pub1");
     }
 
@@ -3116,8 +3546,15 @@ mod tests {
             .expect("list_gists should produce path labels");
 
         assert_eq!(result.labeled_paths.len(), 1);
-        assert_eq!(result.labeled_paths[0].labels.secrecy, private_user_label(), "private gist path must carry private:user secrecy");
-        assert_eq!(result.labeled_paths[0].labels.integrity, reader_integrity(scope_names::USER, &ctx));
+        assert_eq!(
+            result.labeled_paths[0].labels.secrecy,
+            private_user_label(),
+            "private gist path must carry private:user secrecy"
+        );
+        assert_eq!(
+            result.labeled_paths[0].labels.integrity,
+            reader_integrity(scope_names::USER, &ctx)
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -3137,12 +3574,21 @@ mod tests {
             .expect("list_gists should produce path labels");
 
         assert_eq!(result.labeled_paths.len(), 2);
-        assert_eq!(result.labeled_paths[0].labels.secrecy, vec![] as Vec<String>);
+        assert_eq!(
+            result.labeled_paths[0].labels.secrecy,
+            vec![] as Vec<String>
+        );
         assert_eq!(result.labeled_paths[1].labels.secrecy, private_user_label());
         // Default labels for the collection use conservative reader integrity
-        let default_labels = result.default_labels.as_ref().expect("should have default labels");
+        let default_labels = result
+            .default_labels
+            .as_ref()
+            .expect("should have default labels");
         assert_eq!(default_labels.secrecy, vec![] as Vec<String>);
-        assert_eq!(default_labels.integrity, reader_integrity(scope_names::USER, &ctx));
+        assert_eq!(
+            default_labels.integrity,
+            reader_integrity(scope_names::USER, &ctx)
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -3163,14 +3609,25 @@ mod tests {
 
         assert_eq!(result.labeled_paths.len(), 2);
         for entry in &result.labeled_paths {
-            assert_eq!(entry.labels.secrecy, private_user_label(), "all notification paths must be private:user");
+            assert_eq!(
+                entry.labels.secrecy,
+                private_user_label(),
+                "all notification paths must be private:user"
+            );
             // response_paths.rs uses vec![] directly (not none_integrity)
-            assert_eq!(entry.labels.integrity, vec![] as Vec<String>, "notification paths carry no integrity tags");
+            assert_eq!(
+                entry.labels.integrity,
+                vec![] as Vec<String>,
+                "notification paths carry no integrity tags"
+            );
         }
         assert_eq!(result.labeled_paths[0].path, "/0");
         assert_eq!(result.labeled_paths[1].path, "/1");
 
-        let default_labels = result.default_labels.as_ref().expect("should have default labels");
+        let default_labels = result
+            .default_labels
+            .as_ref()
+            .expect("should have default labels");
         assert_eq!(default_labels.secrecy, private_user_label());
         assert_eq!(default_labels.integrity, vec![] as Vec<String>);
     }
@@ -3202,7 +3659,11 @@ mod tests {
         let entry = &result.labeled_paths[0];
         assert_eq!(entry.labels.description, "project-item:issue");
         assert!(
-            entry.labels.integrity.iter().any(|l| l.starts_with("approved:")),
+            entry
+                .labels
+                .integrity
+                .iter()
+                .any(|l| l.starts_with("approved:")),
             "MEMBER association must yield approved-level integrity, got: {:?}",
             entry.labels.integrity
         );
@@ -3227,9 +3688,16 @@ mod tests {
         assert_eq!(result.labeled_paths.len(), 1);
         let entry = &result.labeled_paths[0];
         assert_eq!(entry.labels.description, "project-item:draft_issue");
-        assert_eq!(entry.labels.secrecy, vec![] as Vec<String>, "draft issues have no repo — empty secrecy");
+        assert_eq!(
+            entry.labels.secrecy,
+            vec![] as Vec<String>,
+            "draft issues have no repo — empty secrecy"
+        );
         assert!(
-            entry.labels.integrity.contains(&"approved:github".to_string()),
+            entry
+                .labels
+                .integrity
+                .contains(&"approved:github".to_string()),
             "DRAFT_ISSUE must have approved:github integrity, got: {:?}",
             entry.labels.integrity
         );
@@ -3258,7 +3726,11 @@ mod tests {
         let entry = &result.labeled_paths[0];
         assert_eq!(entry.labels.description, "project-item:pull_request");
         assert!(
-            entry.labels.integrity.iter().any(|l| l.starts_with("unapproved:")),
+            entry
+                .labels
+                .integrity
+                .iter()
+                .any(|l| l.starts_with("unapproved:")),
             "CONTRIBUTOR association must yield unapproved-level integrity, got: {:?}",
             entry.labels.integrity
         );
@@ -3282,7 +3754,11 @@ mod tests {
         let items = label_response_items("issue_read", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1);
         assert!(
-            items[0].labels.integrity.iter().any(|t| t.starts_with("approved:")),
+            items[0]
+                .labels
+                .integrity
+                .iter()
+                .any(|t| t.starts_with("approved:")),
             "issue_read for trusted bot should get approved integrity, got: {:?}",
             items[0].labels.integrity
         );
@@ -3304,7 +3780,11 @@ mod tests {
         let items = label_response_items("pull_request_read", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1);
         assert!(
-            items[0].labels.integrity.iter().any(|t| t.starts_with("approved:")),
+            items[0]
+                .labels
+                .integrity
+                .iter()
+                .any(|t| t.starts_with("approved:")),
             "pull_request_read for MEMBER should get approved integrity, got: {:?}",
             items[0].labels.integrity
         );
@@ -3324,8 +3804,10 @@ mod tests {
         // Single-object responses are not collections; label_response_paths returns None
         // and the DIFC pipeline falls back to label_response_items
         let result = label_response_paths("issue_read", &tool_args, &response, &ctx);
-        assert!(result.is_none(),
-            "issue_read single-object response should return None for path labeling");
+        assert!(
+            result.is_none(),
+            "issue_read single-object response should return None for path labeling"
+        );
     }
 
     #[test]
@@ -3342,8 +3824,10 @@ mod tests {
             "head": {"repo": {"full_name": "github/gh-aw-mcpg"}}
         });
         let result = label_response_paths("pull_request_read", &tool_args, &response, &ctx);
-        assert!(result.is_none(),
-            "pull_request_read single-object response should return None for path labeling");
+        assert!(
+            result.is_none(),
+            "pull_request_read single-object response should return None for path labeling"
+        );
     }
 
     // =========================================================================
@@ -3365,7 +3849,10 @@ mod tests {
             }
         });
         let (items, path) = extract_items_array(&response);
-        assert!(items.is_some(), "Should extract pullRequests.nodes from GraphQL");
+        assert!(
+            items.is_some(),
+            "Should extract pullRequests.nodes from GraphQL"
+        );
         assert_eq!(items.unwrap().len(), 2);
         assert_eq!(path, "/data/repository/pullRequests/nodes");
     }
@@ -3441,7 +3928,10 @@ mod tests {
             }
         });
         let obj = extract_graphql_single_object(&response);
-        assert!(obj.is_some(), "Should extract single pullRequest from GraphQL");
+        assert!(
+            obj.is_some(),
+            "Should extract single pullRequest from GraphQL"
+        );
         assert_eq!(obj.unwrap()["number"], 99);
     }
 
@@ -3478,15 +3968,26 @@ mod tests {
         // response_items should label the PR from GraphQL format
         let items = label_response_items("list_pull_requests", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1, "Should find 1 PR in GraphQL response");
+        assert_eq!(
+            items[0].labels.description, "pr:testorg/testrepo#1",
+            "PR without embedded repo should fall back to tool_args repo scope"
+        );
         assert!(
-            items[0].labels.integrity.iter().any(|t| t == "approved" || t.starts_with("approved:")),
+            items[0]
+                .labels
+                .integrity
+                .iter()
+                .any(|t| t == "approved" || t.starts_with("approved:")),
             "Merged MEMBER PR should get approved integrity, got: {:?}",
             items[0].labels.integrity
         );
 
         // response_paths should also work with GraphQL format
         let paths = label_response_paths("list_pull_requests", &tool_args, &response, &ctx);
-        assert!(paths.is_some(), "Should generate path labels for GraphQL PR response");
+        assert!(
+            paths.is_some(),
+            "Should generate path labels for GraphQL PR response"
+        );
         let paths = paths.unwrap();
         assert_eq!(paths.labeled_paths.len(), 1);
         assert!(
@@ -3519,9 +4020,16 @@ mod tests {
 
         let items = label_response_items("list_issues", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1, "Should find 1 issue in GraphQL response");
+        assert_eq!(
+            items[0].labels.description, "issue:testorg/testrepo#10",
+            "Issue without embedded repo should fall back to tool_args repo scope"
+        );
 
         let paths = label_response_paths("list_issues", &tool_args, &response, &ctx);
-        assert!(paths.is_some(), "Should generate path labels for GraphQL issue response");
+        assert!(
+            paths.is_some(),
+            "Should generate path labels for GraphQL issue response"
+        );
         let paths = paths.unwrap();
         assert_eq!(paths.labeled_paths.len(), 1);
         assert!(
@@ -3546,10 +4054,18 @@ mod tests {
         });
 
         let items = label_response_items("list_pull_requests", &tool_args, &response, &ctx);
-        assert_eq!(items.len(), 0, "GraphQL wrapper should not be treated as a single PR");
+        assert_eq!(
+            items.len(),
+            0,
+            "GraphQL wrapper should not be treated as a single PR"
+        );
 
         let items = label_response_items("list_issues", &tool_args, &response, &ctx);
-        assert_eq!(items.len(), 0, "GraphQL wrapper should not be treated as a single issue");
+        assert_eq!(
+            items.len(),
+            0,
+            "GraphQL wrapper should not be treated as a single issue"
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -3623,12 +4139,10 @@ mod tests {
             "author_association": "MEMBER"
         }]);
 
-        let items =
-            label_response_items("search_pull_requests", &tool_args, &response, &ctx);
+        let items = label_response_items("search_pull_requests", &tool_args, &response, &ctx);
         assert_eq!(items.len(), 1, "Should find 1 PR in search results");
         assert_eq!(
-            items[0].labels.description,
-            "pr:github/gh-aw-mcpg#2388",
+            items[0].labels.description, "pr:github/gh-aw-mcpg#2388",
             "Should extract repo from repository_url and number from html_url"
         );
         assert!(
@@ -3660,8 +4174,7 @@ mod tests {
 
         assert_eq!(labeled.labeled_paths.len(), 1);
         assert_eq!(
-            labeled.labeled_paths[0].labels.description,
-            "pr:github/gh-aw-mcpg#2388",
+            labeled.labeled_paths[0].labels.description, "pr:github/gh-aw-mcpg#2388",
             "Should extract repo from repository_url and number from html_url"
         );
     }
@@ -3685,8 +4198,7 @@ mod tests {
 
         assert_eq!(labeled.labeled_paths.len(), 1);
         assert_eq!(
-            labeled.labeled_paths[0].labels.description,
-            "issue:github/gh-aw-mcpg#2093",
+            labeled.labeled_paths[0].labels.description, "issue:github/gh-aw-mcpg#2093",
             "Should extract number from html_url when number field is missing"
         );
         assert!(
@@ -3719,12 +4231,7 @@ mod tests {
         });
 
         // Item-based labeling should produce zero items
-        let labeled = label_response_items(
-            "search_pull_requests",
-            &tool_args,
-            &response,
-            &ctx,
-        );
+        let labeled = label_response_items("search_pull_requests", &tool_args, &response, &ctx);
         assert!(
             labeled.is_empty(),
             "Empty search result should produce zero labeled items, got: {}",
@@ -3732,12 +4239,7 @@ mod tests {
         );
 
         // Path-based labeling should return None (no items to label)
-        let labeled = label_response_paths(
-            "search_pull_requests",
-            &tool_args,
-            &response,
-            &ctx,
-        );
+        let labeled = label_response_paths("search_pull_requests", &tool_args, &response, &ctx);
         assert!(
             labeled.is_none() || labeled.as_ref().unwrap().labeled_paths.is_empty(),
             "Empty search result should produce no labeled paths"
@@ -3747,12 +4249,7 @@ mod tests {
         let tool_args = serde_json::json!({
             "query": "repo:github/gh-aw-mcpg is:closed number:2086"
         });
-        let labeled = label_response_items(
-            "search_issues",
-            &tool_args,
-            &response,
-            &ctx,
-        );
+        let labeled = label_response_items("search_issues", &tool_args, &response, &ctx);
         assert!(
             labeled.is_empty(),
             "Empty search_issues result should produce zero labeled items, got: {}",
@@ -3781,12 +4278,7 @@ mod tests {
         });
 
         // Item-based labeling should produce zero items
-        let labeled = label_response_items(
-            "list_issues",
-            &tool_args,
-            &response,
-            &ctx,
-        );
+        let labeled = label_response_items("list_issues", &tool_args, &response, &ctx);
         assert!(
             labeled.is_empty(),
             "MCP text error should produce zero labeled items, got: {}",
@@ -3794,12 +4286,7 @@ mod tests {
         );
 
         // Path-based labeling should return None
-        let labeled = label_response_paths(
-            "list_issues",
-            &tool_args,
-            &response,
-            &ctx,
-        );
+        let labeled = label_response_paths("list_issues", &tool_args, &response, &ctx);
         assert!(
             labeled.is_none() || labeled.as_ref().unwrap().labeled_paths.is_empty(),
             "MCP text error should produce no labeled paths"
@@ -3811,13 +4298,23 @@ mod tests {
         use helpers::is_search_result_wrapper;
 
         // REST format
-        assert!(is_search_result_wrapper(&serde_json::json!({"total_count": 0, "incomplete_results": false})));
-        assert!(is_search_result_wrapper(&serde_json::json!({"total_count": 5, "items": []})));
+        assert!(is_search_result_wrapper(
+            &serde_json::json!({"total_count": 0, "incomplete_results": false})
+        ));
+        assert!(is_search_result_wrapper(
+            &serde_json::json!({"total_count": 5, "items": []})
+        ));
         // GraphQL format (MCP server v0.32.0+)
-        assert!(is_search_result_wrapper(&serde_json::json!({"totalCount": 0, "issues": [], "pageInfo": {}})));
-        assert!(is_search_result_wrapper(&serde_json::json!({"totalCount": 3, "issues": [{}]})));
+        assert!(is_search_result_wrapper(
+            &serde_json::json!({"totalCount": 0, "issues": [], "pageInfo": {}})
+        ));
+        assert!(is_search_result_wrapper(
+            &serde_json::json!({"totalCount": 3, "issues": [{}]})
+        ));
         // Non-search
-        assert!(!is_search_result_wrapper(&serde_json::json!({"number": 42, "title": "issue"})));
+        assert!(!is_search_result_wrapper(
+            &serde_json::json!({"number": 42, "title": "issue"})
+        ));
         assert!(!is_search_result_wrapper(&serde_json::json!({})));
     }
 
@@ -3826,13 +4323,28 @@ mod tests {
         use helpers::search_result_total_count;
 
         // REST format
-        assert_eq!(search_result_total_count(&json!({"total_count": 0})), Some(0));
-        assert_eq!(search_result_total_count(&json!({"total_count": 42})), Some(42));
+        assert_eq!(
+            search_result_total_count(&json!({"total_count": 0})),
+            Some(0)
+        );
+        assert_eq!(
+            search_result_total_count(&json!({"total_count": 42})),
+            Some(42)
+        );
         // GraphQL format
-        assert_eq!(search_result_total_count(&json!({"totalCount": 0})), Some(0));
-        assert_eq!(search_result_total_count(&json!({"totalCount": 7})), Some(7));
+        assert_eq!(
+            search_result_total_count(&json!({"totalCount": 0})),
+            Some(0)
+        );
+        assert_eq!(
+            search_result_total_count(&json!({"totalCount": 7})),
+            Some(7)
+        );
         // REST takes precedence when both present
-        assert_eq!(search_result_total_count(&json!({"total_count": 1, "totalCount": 2})), Some(1));
+        assert_eq!(
+            search_result_total_count(&json!({"total_count": 1, "totalCount": 2})),
+            Some(1)
+        );
         // Neither present
         assert_eq!(search_result_total_count(&json!({"number": 42})), None);
     }
@@ -3914,8 +4426,12 @@ mod tests {
     fn test_helpers_is_mcp_text_wrapper() {
         use helpers::is_mcp_text_wrapper;
 
-        assert!(is_mcp_text_wrapper(&serde_json::json!({"content": [{"type": "text", "text": "some error"}]})));
-        assert!(!is_mcp_text_wrapper(&serde_json::json!({"content": [{"type": "image", "data": "..."}]})));
+        assert!(is_mcp_text_wrapper(
+            &serde_json::json!({"content": [{"type": "text", "text": "some error"}]})
+        ));
+        assert!(!is_mcp_text_wrapper(
+            &serde_json::json!({"content": [{"type": "image", "data": "..."}]})
+        ));
         assert!(!is_mcp_text_wrapper(&serde_json::json!({"number": 42})));
         assert!(!is_mcp_text_wrapper(&serde_json::json!({})));
     }
@@ -3981,15 +4497,23 @@ mod tests {
         let result = label_response_paths("search_issues", &tool_args, &response, &ctx)
             .expect("search_issues should produce path labels");
 
-        assert_eq!(result.labeled_paths.len(), 3, "all 3 bot-authored issues must be labeled");
+        assert_eq!(
+            result.labeled_paths.len(),
+            3,
+            "all 3 bot-authored issues must be labeled"
+        );
 
         // Every item must have approved:licensee integrity (owner-scoped)
         // so DIFC passes when agent has ["none:licensee", "unapproved:licensee", "approved:licensee"]
         for (i, entry) in result.labeled_paths.iter().enumerate() {
             assert!(
-                entry.labels.integrity.contains(&"approved:licensee".to_string()),
+                entry
+                    .labels
+                    .integrity
+                    .contains(&"approved:licensee".to_string()),
                 "item {} must have 'approved:licensee' for DIFC to pass, got: {:?}",
-                i, entry.labels.integrity
+                i,
+                entry.labels.integrity
             );
         }
     }
@@ -4030,13 +4554,21 @@ mod tests {
         let result = label_response_paths("search_issues", &tool_args, &response, &ctx)
             .expect("search_issues with GraphQL format should produce path labels");
 
-        assert_eq!(result.labeled_paths.len(), 2, "both GraphQL items must be labeled");
+        assert_eq!(
+            result.labeled_paths.len(),
+            2,
+            "both GraphQL items must be labeled"
+        );
 
         for (i, entry) in result.labeled_paths.iter().enumerate() {
             assert!(
-                entry.labels.integrity.contains(&"approved:licensee".to_string()),
+                entry
+                    .labels
+                    .integrity
+                    .contains(&"approved:licensee".to_string()),
                 "GraphQL item {} must have 'approved:licensee', got: {:?}",
-                i, entry.labels.integrity
+                i,
+                entry.labels.integrity
             );
             assert_eq!(
                 entry.path,
@@ -4150,7 +4682,10 @@ mod tests {
 
         assert_eq!(result.labeled_paths.len(), 1);
         assert!(
-            result.labeled_paths[0].labels.integrity.contains(&"approved:licensee".to_string()),
+            result.labeled_paths[0]
+                .labels
+                .integrity
+                .contains(&"approved:licensee".to_string()),
             "MCP-wrapped bot item must have approved:licensee, got: {:?}",
             result.labeled_paths[0].labels.integrity
         );
@@ -4179,9 +4714,16 @@ mod tests {
 
         let items = label_response_items("search_issues", &tool_args, &response, &ctx);
 
-        assert_eq!(items.len(), 1, "response_items must find item in 'issues' array");
+        assert_eq!(
+            items.len(),
+            1,
+            "response_items must find item in 'issues' array"
+        );
         assert!(
-            items[0].labels.integrity.contains(&"approved:licensee".to_string()),
+            items[0]
+                .labels
+                .integrity
+                .contains(&"approved:licensee".to_string()),
             "Bot-authored item from 'issues' key must have approved:licensee, got: {:?}",
             items[0].labels.integrity
         );
@@ -4212,9 +4754,16 @@ mod tests {
 
         let items = label_response_items("search_pull_requests", &tool_args, &response, &ctx);
 
-        assert_eq!(items.len(), 1, "response_items must find item in 'pull_requests' array");
+        assert_eq!(
+            items.len(),
+            1,
+            "response_items must find item in 'pull_requests' array"
+        );
         assert!(
-            items[0].labels.integrity.contains(&"approved:licensee".to_string()),
+            items[0]
+                .labels
+                .integrity
+                .contains(&"approved:licensee".to_string()),
             "Bot-authored PR from 'pull_requests' key must have approved:licensee, got: {:?}",
             items[0].labels.integrity
         );
@@ -4360,7 +4909,9 @@ mod tests {
     fn test_extract_repo_from_github_url_ghec() {
         // GHEC tenant URLs (api.<tenant>.ghe.com)
         assert_eq!(
-            helpers::extract_repo_from_github_url("https://api.mycompany.ghe.com/repos/owner/repo/issues"),
+            helpers::extract_repo_from_github_url(
+                "https://api.mycompany.ghe.com/repos/owner/repo/issues"
+            ),
             Some("owner/repo".to_string())
         );
         assert_eq!(
@@ -4373,7 +4924,9 @@ mod tests {
     fn test_extract_repo_from_github_url_ghes() {
         // GHES URLs (host/api/v3/repos/...)
         assert_eq!(
-            helpers::extract_repo_from_github_url("https://github.example.com/api/v3/repos/owner/repo/pulls"),
+            helpers::extract_repo_from_github_url(
+                "https://github.example.com/api/v3/repos/owner/repo/pulls"
+            ),
             Some("owner/repo".to_string())
         );
     }
@@ -4382,7 +4935,9 @@ mod tests {
     fn test_extract_repo_from_github_url_standard() {
         // Standard github.com API URLs
         assert_eq!(
-            helpers::extract_repo_from_github_url("https://api.github.com/repos/octocat/Hello-World/issues"),
+            helpers::extract_repo_from_github_url(
+                "https://api.github.com/repos/octocat/Hello-World/issues"
+            ),
             Some("octocat/Hello-World".to_string())
         );
         // Standard github.com HTML URLs
@@ -4682,8 +5237,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, private_user_label(), "create_gist must carry private:user secrecy");
-        assert_eq!(integrity, reader_integrity(scope_names::USER, &ctx), "create_gist must have reader integrity (user content)");
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "create_gist must carry private:user secrecy"
+        );
+        assert_eq!(
+            integrity,
+            reader_integrity(scope_names::USER, &ctx),
+            "create_gist must have reader integrity (user content)"
+        );
     }
 
     #[test]
@@ -4701,8 +5264,16 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, private_user_label(), "update_gist must carry private:user secrecy");
-        assert_eq!(integrity, reader_integrity(scope_names::USER, &ctx), "update_gist must have reader integrity");
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "update_gist must carry private:user secrecy"
+        );
+        assert_eq!(
+            integrity,
+            reader_integrity(scope_names::USER, &ctx),
+            "update_gist must have reader integrity"
+        );
     }
 
     #[test]
@@ -4725,7 +5296,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "create_issue should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "create_issue should have writer integrity"
+        );
     }
 
     #[test]
@@ -4749,7 +5324,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "issue_write should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "issue_write should have writer integrity"
+        );
     }
 
     #[test]
@@ -4773,7 +5352,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "add_issue_comment should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "add_issue_comment should have writer integrity"
+        );
     }
 
     #[test]
@@ -4798,7 +5381,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "create_pull_request should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "create_pull_request should have writer integrity"
+        );
     }
 
     #[test]
@@ -4823,7 +5410,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "create_pull_request_with_copilot should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "create_pull_request_with_copilot should have writer integrity"
+        );
     }
 
     #[test]
@@ -4846,7 +5437,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "merge_pull_request should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "merge_pull_request should have writer integrity"
+        );
     }
 
     #[test]
@@ -4870,7 +5465,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "create_or_update_file should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "create_or_update_file should have writer integrity"
+        );
     }
 
     #[test]
@@ -4893,7 +5492,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "push_files should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "push_files should have writer integrity"
+        );
     }
 
     #[test]
@@ -4917,7 +5520,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "create_branch should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "create_branch should have writer integrity"
+        );
     }
 
     #[test]
@@ -4939,7 +5546,69 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity("github", &ctx), "projects_write should have writer integrity scoped to owner");
+        assert_eq!(
+            integrity,
+            writer_integrity("github", &ctx),
+            "projects_write should have writer integrity scoped to owner"
+        );
+    }
+
+    #[test]
+    fn test_apply_tool_labels_cli_projects_write_aliases_match_projects_write() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "projectId": "PVT_123"
+        });
+
+        let expected = apply_tool_labels(
+            "projects_write",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        for op in &[
+            "copy_project",
+            "delete_project",
+            "link_project",
+            "unlink_project",
+            "update_project",
+        ] {
+            let actual = apply_tool_labels(op, &tool_args, "", vec![], vec![], String::new(), &ctx);
+            assert_eq!(
+                actual, expected,
+                "{op} should match projects_write labeling"
+            );
+        }
+    }
+
+    #[test]
+    fn test_apply_tool_labels_delete_issue_and_delete_repository_are_repo_scoped_writes() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot"
+        });
+        let repo_id = "github/copilot";
+
+        for op in &["delete_issue", "delete_repository"] {
+            let (secrecy, integrity, _desc) =
+                apply_tool_labels(op, &tool_args, repo_id, vec![], vec![], String::new(), &ctx);
+
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{op} should have repo-scoped writer integrity"
+            );
+            assert!(
+                secrecy.is_empty(),
+                "{op}: public repo should have empty secrecy"
+            );
+        }
     }
 
     #[test]
@@ -4963,7 +5632,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "label_write should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "label_write should have writer integrity"
+        );
     }
 
     #[test]
@@ -4986,7 +5659,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "actions_run_trigger should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "actions_run_trigger should have writer integrity"
+        );
     }
 
     #[test]
@@ -5069,8 +5746,15 @@ mod tests {
             &ctx,
         );
 
-        assert!(secrecy.is_empty(), "star_repository should have empty (public) secrecy");
-        assert_eq!(integrity, project_github_label(&ctx), "star_repository should have project:github integrity");
+        assert!(
+            secrecy.is_empty(),
+            "star_repository should have empty (public) secrecy"
+        );
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "star_repository should have project:github integrity"
+        );
     }
 
     #[test]
@@ -5088,7 +5772,10 @@ mod tests {
             &ctx,
         );
 
-        assert!(secrecy.is_empty(), "enable_toolset should have empty (public) secrecy");
+        assert!(
+            secrecy.is_empty(),
+            "enable_toolset should have empty (public) secrecy"
+        );
         assert_eq!(
             integrity,
             writer_integrity("github", &ctx),
@@ -5116,7 +5803,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "assign_copilot_to_issue should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "assign_copilot_to_issue should have writer integrity"
+        );
     }
 
     #[test]
@@ -5141,7 +5832,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "pull_request_review_write should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "pull_request_review_write should have writer integrity"
+        );
     }
 
     #[test]
@@ -5165,7 +5860,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "sub_issue_write should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "sub_issue_write should have writer integrity"
+        );
     }
 
     #[test]
@@ -5199,7 +5898,11 @@ mod tests {
 
             // Repo-scoped secrecy (public repo in default_ctx → empty)
             assert_eq!(secrecy, vec![] as Vec<String>, "{tool} secrecy mismatch");
-            assert_eq!(integrity, writer_integrity(repo_id, &ctx), "{tool} should have writer integrity");
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{tool} should have writer integrity"
+            );
         }
     }
 
@@ -5229,7 +5932,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(secrecy, vec![] as Vec<String>, "set_issue_fields secrecy mismatch");
+        assert_eq!(
+            secrecy,
+            vec![] as Vec<String>,
+            "set_issue_fields secrecy mismatch"
+        );
         assert_eq!(
             integrity,
             writer_integrity(repo_id, &ctx),
@@ -5248,7 +5955,11 @@ mod tests {
             "sub_issue_id": 2
         });
 
-        for tool in &["add_sub_issue", "remove_sub_issue", "reprioritize_sub_issue"] {
+        for tool in &[
+            "add_sub_issue",
+            "remove_sub_issue",
+            "reprioritize_sub_issue",
+        ] {
             let (secrecy, integrity, _desc) = apply_tool_labels(
                 tool,
                 &tool_args,
@@ -5260,7 +5971,11 @@ mod tests {
             );
 
             assert_eq!(secrecy, vec![] as Vec<String>, "{tool} secrecy mismatch");
-            assert_eq!(integrity, writer_integrity(repo_id, &ctx), "{tool} should have writer integrity");
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{tool} should have writer integrity"
+            );
         }
     }
 
@@ -5291,7 +6006,12 @@ mod tests {
             );
 
             assert_eq!(secrecy, vec![] as Vec<String>, "{} secrecy mismatch", tool);
-            assert_eq!(integrity, writer_integrity(repo_id, &ctx), "{} should have writer integrity", tool);
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{} should have writer integrity",
+                tool
+            );
         }
     }
 
@@ -5325,7 +6045,12 @@ mod tests {
             );
 
             assert_eq!(secrecy, vec![] as Vec<String>, "{} secrecy mismatch", tool);
-            assert_eq!(integrity, writer_integrity(repo_id, &ctx), "{} should have writer integrity", tool);
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{} should have writer integrity",
+                tool
+            );
         }
     }
 
@@ -5348,7 +6073,10 @@ mod tests {
             &ctx,
         );
 
-        assert!(secrecy.is_empty(), "fork_repository should have empty (public) secrecy");
+        assert!(
+            secrecy.is_empty(),
+            "fork_repository should have empty (public) secrecy"
+        );
         assert_eq!(
             integrity,
             writer_integrity("github", &ctx),
@@ -5374,7 +6102,10 @@ mod tests {
             &ctx,
         );
 
-        assert!(secrecy.is_empty(), "create_repository should have empty (public) secrecy");
+        assert!(
+            secrecy.is_empty(),
+            "create_repository should have empty (public) secrecy"
+        );
         assert_eq!(
             integrity,
             writer_integrity("github", &ctx),
@@ -5401,7 +6132,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "edit_repository should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "edit_repository should have writer integrity"
+        );
     }
 
     #[test]
@@ -5424,7 +6159,11 @@ mod tests {
             &ctx,
         );
 
-        assert_eq!(integrity, writer_integrity(repo_id, &ctx), "revert_pull_request should have writer integrity");
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "revert_pull_request should have writer integrity"
+        );
     }
 
     #[test]
@@ -5591,10 +6330,17 @@ mod tests {
         let repo = "github/copilot";
         let writer = writer_integrity(repo, &ctx);
         let result = helpers::elevate_via_collaborator_permission(
-            "someuser", repo, "issue", "github/copilot#1",
-            writer.clone(), &ctx,
+            "someuser",
+            repo,
+            "issue",
+            "github/copilot#1",
+            writer.clone(),
+            &ctx,
         );
-        assert_eq!(result, writer, "should return unchanged when already at writer level");
+        assert_eq!(
+            result, writer,
+            "should return unchanged when already at writer level"
+        );
     }
 
     #[test]
@@ -5603,10 +6349,17 @@ mod tests {
         let repo = "github/copilot";
         let merged = merged_integrity(repo, &ctx);
         let result = helpers::elevate_via_collaborator_permission(
-            "someuser", repo, "issue", "github/copilot#1",
-            merged.clone(), &ctx,
+            "someuser",
+            repo,
+            "issue",
+            "github/copilot#1",
+            merged.clone(),
+            &ctx,
         );
-        assert_eq!(result, merged, "should return unchanged when already at merged level");
+        assert_eq!(
+            result, merged,
+            "should return unchanged when already at merged level"
+        );
     }
 
     #[test]
@@ -5615,10 +6368,17 @@ mod tests {
         let repo = "github/copilot";
         let none = none_integrity(repo, &ctx);
         let result = helpers::elevate_via_collaborator_permission(
-            "", repo, "issue", "github/copilot#1",
-            none.clone(), &ctx,
+            "",
+            repo,
+            "issue",
+            "github/copilot#1",
+            none.clone(),
+            &ctx,
         );
-        assert_eq!(result, none, "should return unchanged when author_login is empty");
+        assert_eq!(
+            result, none,
+            "should return unchanged when author_login is empty"
+        );
     }
 
     #[test]
@@ -5626,10 +6386,17 @@ mod tests {
         let ctx = default_ctx();
         let none = none_integrity("invalid", &ctx);
         let result = helpers::elevate_via_collaborator_permission(
-            "someuser", "invalid", "issue", "invalid#1",
-            none.clone(), &ctx,
+            "someuser",
+            "invalid",
+            "issue",
+            "invalid#1",
+            none.clone(),
+            &ctx,
         );
-        assert_eq!(result, none, "should return unchanged for invalid repo format");
+        assert_eq!(
+            result, none,
+            "should return unchanged for invalid repo format"
+        );
     }
 
     #[test]
@@ -5637,15 +6404,23 @@ mod tests {
         let ctx = default_ctx();
         let none = none_integrity("/repo", &ctx);
         let result = helpers::elevate_via_collaborator_permission(
-            "someuser", "/repo", "issue", "/repo#1",
-            none.clone(), &ctx,
+            "someuser",
+            "/repo",
+            "issue",
+            "/repo#1",
+            none.clone(),
+            &ctx,
         );
         assert_eq!(result, none, "should return unchanged for empty owner");
 
         let none2 = none_integrity("owner/", &ctx);
         let result2 = helpers::elevate_via_collaborator_permission(
-            "someuser", "owner/", "issue", "owner/#1",
-            none2.clone(), &ctx,
+            "someuser",
+            "owner/",
+            "issue",
+            "owner/#1",
+            none2.clone(),
+            &ctx,
         );
         assert_eq!(result2, none2, "should return unchanged for empty repo");
     }
@@ -5656,10 +6431,17 @@ mod tests {
         let repo = "github/copilot";
         let none = none_integrity(repo, &ctx);
         let result = helpers::elevate_via_collaborator_permission(
-            "dsyme", repo, "issue", "github/copilot#42",
-            none.clone(), &ctx,
+            "dsyme",
+            repo,
+            "issue",
+            "github/copilot#42",
+            none.clone(),
+            &ctx,
         );
-        assert_eq!(result, none, "should return unchanged when collaborator lookup yields no result");
+        assert_eq!(
+            result, none,
+            "should return unchanged when collaborator lookup yields no result"
+        );
     }
 
     #[test]
@@ -5668,9 +6450,16 @@ mod tests {
         let repo = "github/copilot";
         let reader = reader_integrity(repo, &ctx);
         let result = helpers::elevate_via_collaborator_permission(
-            "contributor", repo, "pr", "github/copilot#10",
-            reader.clone(), &ctx,
+            "contributor",
+            repo,
+            "pr",
+            "github/copilot#10",
+            reader.clone(),
+            &ctx,
         );
-        assert_eq!(result, reader, "should preserve reader integrity when no org lookup available");
+        assert_eq!(
+            result, reader,
+            "should preserve reader integrity when no org lookup available"
+        );
     }
 }

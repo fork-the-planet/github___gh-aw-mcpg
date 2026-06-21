@@ -158,6 +158,11 @@ func TestAllowOnlyPolicyUnmarshalJSON_FieldErrorPaths(t *testing.T) {
 			wantErr: "invalid allow-only.blocked-users",
 		},
 		{
+			name:    "tool-call-limits field invalid JSON type",
+			json:    `{"repos": "all", "min-integrity": "none", "tool-call-limits": "notamap"}`,
+			wantErr: "invalid allow-only.tool-call-limits",
+		},
+		{
 			name:    "approval-labels field invalid JSON type",
 			json:    `{"repos": "all", "min-integrity": "none", "approval-labels": 42}`,
 			wantErr: "invalid allow-only.approval-labels",
@@ -186,6 +191,16 @@ func TestAllowOnlyPolicyUnmarshalJSON_FieldErrorPaths(t *testing.T) {
 			name:    "endorser-min-integrity field invalid JSON type",
 			json:    `{"repos": "all", "min-integrity": "none", "endorser-min-integrity": {}}`,
 			wantErr: "invalid allow-only.endorser-min-integrity",
+		},
+		{
+			name:    "promotion-label field invalid JSON type",
+			json:    `{"repos": "all", "min-integrity": "none", "promotion-label": 123}`,
+			wantErr: "invalid allow-only.promotion-label",
+		},
+		{
+			name:    "demotion-label field invalid JSON type",
+			json:    `{"repos": "all", "min-integrity": "none", "demotion-label": [1,2,3]}`,
+			wantErr: "invalid allow-only.demotion-label",
 		},
 	}
 
@@ -416,6 +431,7 @@ func TestAllowOnlyPolicyUnmarshalJSON_FullRoundTrip(t *testing.T) {
 		BlockedUsers:         []string{"bad-actor"},
 		ApprovalLabels:       []string{"approved"},
 		TrustedUsers:         []string{"contractor"},
+		ToolCallLimits:       map[string]int{"issue_read": 1},
 		EndorsementReactions: []string{"THUMBS_UP"},
 		DisapprovalReactions: []string{"THUMBS_DOWN"},
 		DisapprovalIntegrity: "none",
@@ -434,6 +450,7 @@ func TestAllowOnlyPolicyUnmarshalJSON_FullRoundTrip(t *testing.T) {
 	assert.Equal(t, original.BlockedUsers, parsed.BlockedUsers)
 	assert.Equal(t, original.ApprovalLabels, parsed.ApprovalLabels)
 	assert.Equal(t, original.TrustedUsers, parsed.TrustedUsers)
+	assert.Equal(t, original.ToolCallLimits, parsed.ToolCallLimits)
 	assert.Equal(t, original.EndorsementReactions, parsed.EndorsementReactions)
 	assert.Equal(t, original.DisapprovalReactions, parsed.DisapprovalReactions)
 	assert.Equal(t, original.DisapprovalIntegrity, parsed.DisapprovalIntegrity)

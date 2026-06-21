@@ -217,6 +217,8 @@ func TestDetectContainerIDWithPaths_MultipleIndicatorLines(t *testing.T) {
 // TestExtractContainerIDFromCgroupFiles_ReturnsFirstFound tests that
 // extractContainerIDFromCgroupFiles returns the ID from the first file that yields one.
 func TestExtractContainerIDFromCgroupFiles_ReturnsFirstFound(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	first := writeTempFile(t, dir, "cgroup1", "0::/docker/aabbccdd1234\n")
@@ -229,6 +231,8 @@ func TestExtractContainerIDFromCgroupFiles_ReturnsFirstFound(t *testing.T) {
 // TestExtractContainerIDFromCgroupFiles_SkipsEmptyFile tests that a file with
 // no container ID is skipped and the next file is tried.
 func TestExtractContainerIDFromCgroupFiles_SkipsEmptyFile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	noMatch := writeTempFile(t, dir, "cgroup1", "0::/user.slice\n")
@@ -241,6 +245,8 @@ func TestExtractContainerIDFromCgroupFiles_SkipsEmptyFile(t *testing.T) {
 // TestExtractContainerIDFromCgroupFiles_AllEmpty tests that "" is returned when
 // no files yield a container ID.
 func TestExtractContainerIDFromCgroupFiles_AllEmpty(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	f1 := writeTempFile(t, dir, "cgroup1", "0::/\n")
@@ -252,12 +258,14 @@ func TestExtractContainerIDFromCgroupFiles_AllEmpty(t *testing.T) {
 
 // TestExtractContainerIDFromCgroupFiles_NilPaths tests the nil-slice edge case.
 func TestExtractContainerIDFromCgroupFiles_NilPaths(t *testing.T) {
+	t.Parallel()
 	id := extractContainerIDFromCgroupFiles(nil)
 	assert.Empty(t, id)
 }
 
 // TestExtractContainerIDFromCgroupFiles_EmptyPaths tests the empty-slice edge case.
 func TestExtractContainerIDFromCgroupFiles_EmptyPaths(t *testing.T) {
+	t.Parallel()
 	id := extractContainerIDFromCgroupFiles([]string{})
 	assert.Empty(t, id)
 }
@@ -265,6 +273,7 @@ func TestExtractContainerIDFromCgroupFiles_EmptyPaths(t *testing.T) {
 // TestExtractContainerIDFromCgroupFiles_NonexistentPaths tests that missing files
 // are silently skipped and "" is returned when none exist.
 func TestExtractContainerIDFromCgroupFiles_NonexistentPaths(t *testing.T) {
+	t.Parallel()
 	id := extractContainerIDFromCgroupFiles([]string{"/nonexistent/a", "/nonexistent/b"})
 	assert.Empty(t, id)
 }

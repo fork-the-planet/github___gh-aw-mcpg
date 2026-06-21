@@ -4,13 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
+	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,27 +99,43 @@ func TestServeHTTP_HealthCheck(t *testing.T) {
 	}
 }
 
-func TestServeHTTP_MetaPassthrough(t *testing.T) {
-	var receivedURL string
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedURL = r.URL.RequestURI()
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, err := w.Write([]byte(`{"verifiable_password_authentication":true}`))
-		require.NoError(t, err)
-	}))
-	defer upstream.Close()
+func TestServeHTTP_MetadataPassthroughAllowlist(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		response string
+	}{
+		{name: "meta", path: "/api/v3/meta", response: `{"verifiable_password_authentication":true}`},
+		{name: "rate limit", path: "/api/v3/rate_limit", response: `{"resources":{"core":{"limit":5000}}}`},
+		{name: "octocat", path: "/api/v3/octocat", response: `"*meow*"`},
+		{name: "zen", path: "/api/v3/zen", response: `"keep it logically awesome"`},
+		{name: "versions", path: "/api/v3/versions", response: `["3.16","3.17"]`},
+	}
 
-	s := newTestServer(t, upstream.URL)
-	h := &proxyHandler{server: s}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var receivedURL string
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedURL = r.URL.RequestURI()
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, err := w.Write([]byte(tt.response))
+				require.NoError(t, err)
+			}))
+			defer upstream.Close()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v3/meta", nil)
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
+			s := newTestServer(t, upstream.URL)
+			h := &proxyHandler{server: s}
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "/meta", receivedURL)
-	assert.Contains(t, w.Body.String(), "verifiable_password_authentication")
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, StripGHHostPrefix(req.URL.Path), receivedURL)
+			assert.JSONEq(t, tt.response, w.Body.String())
+		})
+	}
 }
 
 // ─── ServeHTTP: write operations (non-GraphQL POST/PUT/DELETE/PATCH) ─────────
@@ -140,18 +161,85 @@ func TestServeHTTP_WriteOperationsPassthrough(t *testing.T) {
 	}
 }
 
-// ─── ServeHTTP: unknown REST endpoint ────────────────────────────────────────
+// ─── ServeHTTP: known and unknown REST endpoints ─────────────────────────────
 
-func TestServeHTTP_UnknownRESTEndpointBlocked(t *testing.T) {
-	s := newTestServer(t, "http://unused")
+func TestServeHTTP_KnownDataEndpointUsesDIFCPipeline(t *testing.T) {
+	upstream := mockUpstream(t, http.StatusOK, map[string]interface{}{"login": "octocat"})
+	defer upstream.Close()
+
+	s := newTestServerWithStub(t, upstream.URL, &stubGuard{
+		labelResourceErr: errors.New("guard unavailable"),
+	}, difc.EnforcementFilter)
 	h := &proxyHandler{server: s}
 
-	// "/v1/unknown" does not match any route in the routes table
+	req := httptest.NewRequest(http.MethodGet, "/user", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadGateway, w.Code)
+	assert.Contains(t, w.Body.String(), "resource labeling failed")
+}
+
+func TestServeHTTP_UnknownRESTEndpointPassthroughWithEmptyLabels(t *testing.T) {
+	require.NoError(t, logger.CloseAllLoggers())
+
+	logDir := filepath.Join(t.TempDir(), "proxy-logs")
+	logger.InitProxyLoggers(logDir)
+	t.Cleanup(func() {
+		require.NoError(t, logger.CloseAllLoggers())
+	})
+
+	var receivedURL string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedURL = r.URL.RequestURI()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte(`{"status":"ok"}`))
+		require.NoError(t, err)
+	}))
+	defer upstream.Close()
+
+	reg := difc.NewAgentRegistryWithDefaults(nil, []difc.Tag{"approved"})
+	s := &Server{
+		guard: guard.NewNoopGuard(),
+		DIFCComponents: difc.DIFCComponents{
+			Mode:          difc.EnforcementPropagate,
+			Evaluator:     difc.NewEvaluatorWithMode(difc.EnforcementPropagate),
+			AgentRegistry: reg,
+			Capabilities:  difc.NewCapabilities(),
+		},
+		githubAPIURL:     upstream.URL,
+		httpClient:       &http.Client{},
+		guardInitialized: true,
+	}
+	h := &proxyHandler{server: s}
+
 	req := httptest.NewRequest(http.MethodGet, "/v1/unknown/endpoint", nil)
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
-	assertJSONErrorResponse(t, w.Result(), http.StatusForbidden, "forbidden", "access denied: unrecognized endpoint")
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "/v1/unknown/endpoint", receivedURL)
+	assert.JSONEq(t, `{"status":"ok"}`, w.Body.String())
+	assert.Empty(t, reg.GetOrCreate(proxyAgentID).GetSecrecyTags())
+	assert.Empty(t, reg.GetOrCreate(proxyAgentID).GetIntegrityTags(), "empty integrity labels should drop existing integrity in propagate mode")
+
+	require.NoError(t, logger.CloseAllLoggers())
+
+	textLog, err := os.ReadFile(filepath.Join(logDir, "proxy.log"))
+	require.NoError(t, err)
+	assert.Contains(t, string(textLog), "unrecognized_endpoint_passthrough")
+	assert.Contains(t, string(textLog), `"path":"/v1/unknown/endpoint"`)
+
+	markdownLog, err := os.ReadFile(filepath.Join(logDir, "gateway.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(markdownLog), "UNRECOGNIZED-ENDPOINT")
+	assert.Contains(t, string(markdownLog), "passthrough_with_empty_labels")
+
+	jsonlLog, err := os.ReadFile(filepath.Join(logDir, "rpc-messages.jsonl"))
+	require.NoError(t, err)
+	assert.Contains(t, string(jsonlLog), `"event":"unrecognized_endpoint_passthrough"`)
+	assert.Contains(t, string(jsonlLog), `"path":"/v1/unknown/endpoint"`)
 }
 
 // ─── ServeHTTP: /api/v3 GH-host prefix is stripped ───────────────────────────
@@ -169,6 +257,43 @@ func TestServeHTTP_GHHostPrefixStripped(t *testing.T) {
 	var got map[string]string
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
 	assert.Equal(t, "ok", got["status"])
+}
+
+func TestServeHTTP_ReflectReturnsAllAgents(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{name: "/reflect", path: "/reflect"},
+		{name: "/api/v3/reflect", path: "/api/v3/reflect"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestServer(t, "http://unused")
+			s.Mode = difc.EnforcementPropagate
+			s.AgentRegistry.Register(proxyAgentID, []difc.Tag{"repo:github/private-repo"}, []difc.Tag{"approved"})
+			s.AgentRegistry.Register("abc123def456", nil, []difc.Tag{"unapproved"})
+
+			h := &proxyHandler{server: s}
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code)
+			require.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+			var got difc.ReflectResponse
+			require.NoError(t, json.NewDecoder(w.Body).Decode(&got))
+			assert.Equal(t, "propagate", got.Mode)
+			assert.ElementsMatch(t, []string{"repo:github/private-repo"}, got.Agents["proxy"].Secrecy)
+			assert.ElementsMatch(t, []string{"approved"}, got.Agents["proxy"].Integrity)
+			assert.Empty(t, got.Agents["abc123def456"].Secrecy)
+			assert.ElementsMatch(t, []string{"unapproved"}, got.Agents["abc123def456"].Integrity)
+			_, err := time.Parse(time.RFC3339, got.Timestamp)
+			assert.NoError(t, err)
+		})
+	}
 }
 
 // ─── ServeHTTP: unknown GraphQL query is blocked ─────────────────────────────
@@ -386,6 +511,65 @@ func TestHandleWithDIFC_JSONArrayResponse(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	// NoopGuard returns nil LabelResponse → coarse check (IsAllowed on empty labels) passes
 	// so the original responseData is written
+}
+
+func TestHandleWithDIFC_IssueCommentsArrayResponse(t *testing.T) {
+	upstreamBody := []interface{}{
+		map[string]interface{}{"id": float64(1), "body": "first"},
+		map[string]interface{}{"id": float64(2), "body": "second"},
+	}
+	upstream := mockUpstream(t, http.StatusOK, upstreamBody)
+	defer upstream.Close()
+
+	// Simulate the legacy singleton fallback behavior from the guard: the entire
+	// top-level array is emitted as one labeled collection item.
+	g := &stubGuard{
+		labelResourceResult: publicResource(),
+		labelResourceOp:     difc.OperationRead,
+		labelResponseData: &difc.CollectionLabeledData{
+			Items: []difc.LabeledItem{
+				{
+					Data:   upstreamBody,
+					Labels: publicResource(),
+				},
+			},
+		},
+	}
+	s := newTestServerWithStub(t, upstream.URL, g, difc.EnforcementFilter)
+	h := &proxyHandler{server: s}
+
+	req := httptest.NewRequest(http.MethodGet, "/repos/org/repo/issues/7/comments", nil)
+	w := httptest.NewRecorder()
+	h.handleWithDIFC(w, req, "/repos/org/repo/issues/7/comments", "issue_read",
+		map[string]interface{}{"owner": "org", "repo": "repo", "issue_number": "7", "method": "get_comments"}, nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `[{"id":1,"body":"first"},{"id":2,"body":"second"}]`, w.Body.String())
+}
+
+func TestHandleWithDIFC_IssueCommentsArrayResponse_NoFineGrainedLabels(t *testing.T) {
+	upstreamBody := []interface{}{
+		map[string]interface{}{"id": float64(1), "body": "first"},
+		map[string]interface{}{"id": float64(2), "body": "second"},
+	}
+	upstream := mockUpstream(t, http.StatusOK, upstreamBody)
+	defer upstream.Close()
+
+	g := &stubGuard{
+		labelResourceResult: publicResource(),
+		labelResourceOp:     difc.OperationRead,
+		labelResponseData:   nil, // simulate label_response returning 0 (no fine-grained labels)
+	}
+	s := newTestServerWithStub(t, upstream.URL, g, difc.EnforcementFilter)
+	h := &proxyHandler{server: s}
+
+	req := httptest.NewRequest(http.MethodGet, "/repos/org/repo/issues/7/comments", nil)
+	w := httptest.NewRecorder()
+	h.handleWithDIFC(w, req, "/repos/org/repo/issues/7/comments", "issue_read",
+		map[string]interface{}{"owner": "org", "repo": "repo", "issue_number": "7", "method": "get_comments"}, nil)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `[{"id":1,"body":"first"},{"id":2,"body":"second"}]`, w.Body.String())
 }
 
 // ─── handleWithDIFC: GraphQL query passes through DIFC ───────────────────────

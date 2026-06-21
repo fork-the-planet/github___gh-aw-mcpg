@@ -11,6 +11,51 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLoggerRegistries(t *testing.T) {
+	t.Run("gateway logger registry includes expected entries", func(t *testing.T) {
+		names := make([]string, 0, len(gatewayLoggerInitializers))
+		for _, entry := range gatewayLoggerInitializers {
+			names = append(names, entry.name)
+		}
+
+		assert.Equal(t, []string{
+			"file logger",
+			"server file logger",
+			"markdown logger",
+			"JSONL logger",
+			"tools logger",
+		}, names)
+	})
+
+	t.Run("proxy logger registry includes expected entries", func(t *testing.T) {
+		names := make([]string, 0, len(proxyLoggerInitializers))
+		for _, entry := range proxyLoggerInitializers {
+			names = append(names, entry.name)
+		}
+
+		assert.Equal(t, []string{
+			"file logger",
+			"markdown logger",
+			"JSONL logger",
+		}, names)
+	})
+
+	t.Run("global logger closer registry includes expected entries", func(t *testing.T) {
+		names := make([]string, 0, len(globalLoggerClosers))
+		for _, entry := range globalLoggerClosers {
+			names = append(names, entry.name)
+		}
+
+		assert.Equal(t, []string{
+			"file logger",
+			"JSONL logger",
+			"markdown logger",
+			"tools logger",
+			"server file logger",
+		}, names)
+	})
+}
+
 // TestInitWithWarning tests the initWithWarning helper.
 func TestInitWithWarning(t *testing.T) {
 	t.Run("nil error does not log anything", func(t *testing.T) {
@@ -108,6 +153,7 @@ func TestInitProxyLoggers(t *testing.T) {
 		// Verify that expected proxy log files were created
 		expectedFiles := []string{
 			"proxy.log",
+			"gateway.md",
 			"rpc-messages.jsonl",
 		}
 		for _, f := range expectedFiles {
@@ -129,20 +175,15 @@ func TestInitProxyLoggers(t *testing.T) {
 		}, "InitProxyLoggers should not panic on bad directory")
 	})
 
-	t.Run("proxy loggers only create proxy files not gateway files", func(t *testing.T) {
+	t.Run("proxy loggers do not create tools log", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		logDir := filepath.Join(tmpDir, "proxy-only-logs")
 
 		InitProxyLoggers(logDir)
 
-		// gateway.md is a gateway-only file; proxy loggers should not create it
-		gatewayMdPath := filepath.Join(logDir, "gateway.md")
-		_, err := os.Stat(gatewayMdPath)
-		assert.Error(t, err, "gateway.md should NOT be created by InitProxyLoggers")
-
-		// tools.json is also gateway-only
+		// tools.json remains gateway-only.
 		toolsPath := filepath.Join(logDir, "tools.json")
-		_, err = os.Stat(toolsPath)
+		_, err := os.Stat(toolsPath)
 		assert.Error(t, err, "tools.json should NOT be created by InitProxyLoggers")
 	})
 }

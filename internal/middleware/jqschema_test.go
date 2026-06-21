@@ -1746,3 +1746,136 @@ func TestWrapToolHandler_JsonNumberData(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(textContent.Text), &meta))
 	assert.Equal(t, "number", meta["payloadSchema"], "schema for json.Number data should be 'number'")
 }
+
+// panicOnMarshalBool is a test helper used to ensure json.Marshal(data) is not called
+// when the WrapToolHandler fast path fires.
+type panicOnMarshalBool bool
+
+func (panicOnMarshalBool) MarshalJSON() ([]byte, error) {
+	panic("unexpected json.Marshal(data) on fast path")
+}
+
+// TestWrapToolHandler_FastPath_SkipsMarshal verifies the fast-path optimisation:
+// when the handler returns a result whose first content item is a TextContent whose
+// byte length is clearly within the threshold (i.e. threshold - fastPathOverheadBound),
+// the middleware returns the original result without performing a json.Marshal.
+func TestWrapToolHandler_FastPath_SkipsMarshal(t *testing.T) {
+	t.Parallel()
+	baseDir := t.TempDir()
+
+	const innerText = `{"repo":"owner/test","stars":42}`
+	// Construct the MCP envelope that a real backend would return.
+	innerData := map[string]interface{}{
+		"content": []interface{}{
+			map[string]interface{}{"type": "text", "text": innerText},
+		},
+		"isError": panicOnMarshalBool(false),
+	}
+
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+		result := &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: innerText}},
+			IsError: false,
+		}
+		return result, innerData, nil
+	}
+
+	// threshold is well above len(innerText) + fastPathOverheadBound, so fast path fires.
+	threshold := len(innerText) + fastPathOverheadBound + 1024
+	wrapped := WrapToolHandler(mockHandler, "test_tool", baseDir, "", threshold, testGetSessionID)
+	result, data, err := wrapped(context.Background(), &sdk.CallToolRequest{}, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Fast path must return the original result unchanged (no metadata wrapping).
+	require.Len(t, result.Content, 1)
+	tc, ok := result.Content[0].(*sdk.TextContent)
+	require.True(t, ok, "fast path must preserve TextContent")
+	assert.Equal(t, innerText, tc.Text, "fast path must not rewrite text content")
+
+	// data must be the original envelope map, not a PayloadMetadata.
+	_, isMetadata := data.(PayloadMetadata)
+	assert.False(t, isMetadata, "fast path must not produce PayloadMetadata")
+
+	// No payload file should have been written.
+	entries, readErr := os.ReadDir(baseDir)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries, "fast path must not create payload files")
+}
+
+func TestWrapToolHandler_FastPath_SkipsMarshalForTypedContentSlice(t *testing.T) {
+	t.Parallel()
+	baseDir := t.TempDir()
+
+	const innerText = `{"repo":"owner/test","stars":42}`
+	innerData := map[string]interface{}{
+		"content": []map[string]interface{}{
+			{"type": "text", "text": innerText},
+		},
+		"isError": panicOnMarshalBool(false),
+	}
+
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+		result := &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: innerText}},
+			IsError: false,
+		}
+		return result, innerData, nil
+	}
+
+	threshold := len(innerText) + fastPathOverheadBound + 1024
+	wrapped := WrapToolHandler(mockHandler, "test_tool", baseDir, "", threshold, testGetSessionID)
+	result, data, err := wrapped(context.Background(), &sdk.CallToolRequest{}, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.Content, 1)
+
+	tc, ok := result.Content[0].(*sdk.TextContent)
+	require.True(t, ok, "fast path must preserve TextContent for typed content slices")
+	assert.Equal(t, innerText, tc.Text)
+
+	_, isMetadata := data.(PayloadMetadata)
+	assert.False(t, isMetadata, "fast path must not produce PayloadMetadata for typed content slices")
+
+	entries, readErr := os.ReadDir(baseDir)
+	require.NoError(t, readErr)
+	assert.Empty(t, entries, "fast path must not create payload files for typed content slices")
+}
+
+// TestWrapToolHandler_FastPath_FallsThroughAtBoundary verifies that the fast-path
+// does NOT fire when the threshold is smaller than the text length plus the overhead
+// margin, ensuring the full json.Marshal path still runs in that case.
+func TestWrapToolHandler_FastPath_FallsThroughAtBoundary(t *testing.T) {
+	t.Parallel()
+	baseDir := t.TempDir()
+
+	// Use a threshold <= fastPathOverheadBound so the fast-path guard is skipped.
+	// The code path falls through to json.Marshal, measures the real size, and
+	// triggers payload storage (threshold 0 forces storage for any non-empty payload).
+	threshold := 0
+	const innerText = `{"repo":"owner/test"}`
+	innerData := map[string]interface{}{
+		"content": []interface{}{
+			map[string]interface{}{"type": "text", "text": innerText},
+		},
+		"isError": false,
+	}
+
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+		result := &sdk.CallToolResult{
+			Content: []sdk.Content{&sdk.TextContent{Text: innerText}},
+			IsError: false,
+		}
+		return result, innerData, nil
+	}
+
+	wrapped := WrapToolHandler(mockHandler, "test_tool", baseDir, "", threshold, testGetSessionID)
+	_, data, err := wrapped(context.Background(), &sdk.CallToolRequest{}, nil)
+
+	require.NoError(t, err)
+	// With threshold 0, every payload exceeds the threshold; metadata must be returned.
+	_, isMetadata := data.(PayloadMetadata)
+	assert.True(t, isMetadata, "threshold 0 must always trigger storage, not fast-path")
+}

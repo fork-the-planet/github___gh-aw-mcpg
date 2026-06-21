@@ -1,62 +1,6 @@
 package mcp
 
-import (
-	"encoding/json"
-	"fmt"
-)
-
-// marshalToResponse marshals an SDK result into a Response object.
-// This helper reduces code duplication across all MCP method wrappers.
-//
-// The ID field is set to a static placeholder (1) because this Response is only
-// constructed after the SDK's session.XXX() call has already resolved the
-// request–response correlation internally. The gateway never uses this ID for
-// matching; it is present solely to satisfy the JSON-RPC 2.0 structure.
-func marshalToResponse(result interface{}) (*Response, error) {
-	resultJSON, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal result: %w", err)
-	}
-
-	return &Response{
-		JSONRPC: "2.0",
-		ID:      1, // Placeholder – see function comment for safety rationale
-		Result:  resultJSON,
-	}, nil
-}
-
-// unmarshalParams converts generic interface{} params to a specific struct type.
-// This helper reduces code duplication across MCP method wrappers and ensures
-// consistent error handling for parameter conversion. It uses marshal/unmarshal
-// to maintain JSON schema validation benefits.
-func unmarshalParams(params interface{}, target interface{}) error {
-	paramsJSON, err := json.Marshal(params)
-	if err != nil {
-		return fmt.Errorf("failed to marshal params: %w", err)
-	}
-	if err := json.Unmarshal(paramsJSON, target); err != nil {
-		return fmt.Errorf("invalid params: %w", err)
-	}
-	return nil
-}
-
-// callParamMethod is a generic helper for SDK operations that require typed parameters.
-// It handles the common pattern of: requireSession → unmarshalParams → fn(params) → marshalToResponse.
-// P is the type of the parameter struct to unmarshal into.
-func callParamMethod[P any](c *Connection, rawParams interface{}, fn func(P) (interface{}, error)) (*Response, error) {
-	if err := c.requireSession(); err != nil {
-		return nil, err
-	}
-	var params P
-	if err := unmarshalParams(rawParams, &params); err != nil {
-		return nil, err
-	}
-	result, err := fn(params)
-	if err != nil {
-		return nil, err
-	}
-	return marshalToResponse(result)
-}
+import "fmt"
 
 // paginatedPage holds a single page of results from a paginated SDK list call.
 type paginatedPage[T any] struct {
@@ -69,9 +13,47 @@ type paginatedPage[T any] struct {
 // sequence of pages, which would otherwise consume unbounded memory and time.
 const paginateAllMaxPages = 100
 
+// PaginateAll is the canonical cursor-based pagination algorithm shared across the
+// codebase. It collects all items from a sequence of paginated fetch calls.
+//
+// fetch is called with a cursor string (empty string for the first call) and must
+// return the items for that page, the cursor for the next page (empty when done),
+// and any error. PaginateAll stops as soon as a page returns an empty next-cursor.
+//
+// maxPages caps the total number of fetch calls to prevent runaway loops. It must
+// be a positive integer; a value of 0 or negative disables the cap (no page limit),
+// which should only be used in tests or when the caller enforces its own limit.
+// Returns an error if the cap is reached or if the same cursor is returned twice (cycle).
+func PaginateAll[T any](maxPages int, fetch func(cursor string) ([]T, string, error)) ([]T, error) {
+	var all []T
+	cursor := ""
+	seenCursors := make(map[string]struct{})
+	for pageCount := 0; ; pageCount++ {
+		if maxPages > 0 && pageCount >= maxPages {
+			return nil, fmt.Errorf("pagination exceeded %d-page limit", maxPages)
+		}
+		items, nextCursor, err := fetch(cursor)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, items...)
+		if nextCursor == "" {
+			break
+		}
+		if _, seen := seenCursors[nextCursor]; seen {
+			return nil, fmt.Errorf("pagination detected cyclical cursor %q", nextCursor)
+		}
+		seenCursors[nextCursor] = struct{}{}
+		cursor = nextCursor
+	}
+	return all, nil
+}
+
 // paginateAll collects all items across paginated SDK list calls.
 // It returns an error if the backend returns more than paginateAllMaxPages pages,
 // protecting against runaway backends.
+// The canonical shared algorithm is PaginateAll; paginateAll adds server-specific
+// logging and richer error context on top of it.
 func paginateAll[T any](
 	serverID string,
 	itemKind string,
@@ -117,7 +99,7 @@ func listMCPItems[Item any, Result any](
 	fetchPage func(cursor string) (paginatedPage[Item], error),
 	buildResult func([]Item) Result,
 ) (*Response, error) {
-	if err := c.requireSession(); err != nil {
+	if err := c.requireSDKSession(); err != nil {
 		return nil, err
 	}
 	logConn.Printf("list%s: requesting %s list from backend serverID=%s", kind, kind, c.serverID)
@@ -126,4 +108,29 @@ func listMCPItems[Item any, Result any](
 		return nil, err
 	}
 	return marshalToResponse(buildResult(items))
+}
+
+// listSDKItems adapts cursor-based SDK list calls to listMCPItems.
+// Item is the per-entry type (e.g. *sdk.Tool), SDKResult is the SDK list
+// response type (e.g. *sdk.ListToolsResult), and Result is the final marshalled
+// response wrapper. list executes a page request for a cursor, toPage extracts
+// items and next cursor from SDKResult, and buildResult wraps the collected items
+// for JSON-RPC response marshalling.
+func listSDKItems[Item any, SDKResult any, Result any](
+	c *Connection,
+	kind string,
+	list func(cursor string) (SDKResult, error),
+	toPage func(SDKResult) paginatedPage[Item],
+	buildResult func([]Item) Result,
+) (*Response, error) {
+	return listMCPItems(c, kind,
+		func(cursor string) (paginatedPage[Item], error) {
+			result, err := list(cursor)
+			if err != nil {
+				return paginatedPage[Item]{}, err
+			}
+			return toPage(result), nil
+		},
+		buildResult,
+	)
 }

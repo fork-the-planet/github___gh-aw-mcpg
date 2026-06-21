@@ -79,14 +79,18 @@ check_optional_env_vars() {
         warnings=$((warnings + 1))
     fi
     
-    if [ -z "$MCP_GATEWAY_API_KEY" ]; then
-        log_warn "MCP_GATEWAY_API_KEY not set, API authentication disabled"
+    # Accept MCP_GATEWAY_AGENT_ID (preferred) or MCP_GATEWAY_API_KEY (deprecated fallback)
+    if [ -z "$MCP_GATEWAY_AGENT_ID" ] && [ -z "$MCP_GATEWAY_API_KEY" ]; then
+        log_warn "MCP_GATEWAY_AGENT_ID not set; API authentication will be disabled if your config uses \${MCP_GATEWAY_AGENT_ID}"
         warnings=$((warnings + 1))
+    elif [ -z "$MCP_GATEWAY_AGENT_ID" ] && [ -n "$MCP_GATEWAY_API_KEY" ]; then
+        log_warn "MCP_GATEWAY_API_KEY is deprecated; please rename it to MCP_GATEWAY_AGENT_ID"
+        export MCP_GATEWAY_AGENT_ID="$MCP_GATEWAY_API_KEY"
     fi
     
     if [ $warnings -gt 0 ]; then
         log_warn "Some environment variables are not set. For production, set:"
-        log_warn "  MCP_GATEWAY_PORT, MCP_GATEWAY_DOMAIN, MCP_GATEWAY_API_KEY"
+        log_warn "  MCP_GATEWAY_PORT, MCP_GATEWAY_DOMAIN, MCP_GATEWAY_AGENT_ID"
     fi
 }
 

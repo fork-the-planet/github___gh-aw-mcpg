@@ -4,17 +4,55 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// errReader is an io.Reader that always returns an error, used to exercise the
+// body-read error path in hmacMiddleware.
+type errReader struct{}
+
+func (errReader) Read(_ []byte) (int, error) {
+	return 0, errors.New("simulated read error")
+}
+
+// barrierReader synchronises two concurrent goroutines so they both pass the
+// seenNonce pre-check before either proceeds to checkAndSet. On the first Read
+// call it signals the WaitGroup and then blocks until release is closed, ensuring
+// that io.ReadAll stalls in a known place while the sibling goroutine also
+// reaches the same stall point.
+type barrierReader struct {
+	buf     *bytes.Reader
+	entered *sync.WaitGroup
+	release chan struct{}
+	once    sync.Once
+}
+
+func newBarrierReader(data []byte, entered *sync.WaitGroup, release chan struct{}) *barrierReader {
+	return &barrierReader{
+		buf:     bytes.NewReader(data),
+		entered: entered,
+		release: release,
+	}
+}
+
+func (r *barrierReader) Read(p []byte) (int, error) {
+	r.once.Do(func() {
+		r.entered.Done() // signal: this goroutine is inside Read (past seenNonce)
+		<-r.release      // stall here until the test releases both goroutines
+	})
+	return r.buf.Read(p)
+}
 
 const testHMACSecret = "test-hmac-secret-32-bytes-long!!"
 
@@ -360,4 +398,86 @@ func TestHMACMiddleware_InvalidSigDoesNotPoisonNonceCache(t *testing.T) {
 	wrapped(w2, req2)
 	assert.Equal(t, http.StatusOK, w2.Code, "valid request should succeed after bad-sig attempt with same nonce")
 	assert.Equal(t, 1, called, "handler called exactly once")
+}
+
+// TestHMACMiddleware_BodyReadError verifies that a body-read failure returns
+// 400 Bad Request with the expected error message. This exercises the
+// `io.ReadAll` error branch inside hmacMiddleware that was previously uncovered.
+func TestHMACMiddleware_BodyReadError(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	wrapped := hmacMiddleware(testHMACSecret, next)
+
+	// errReader always returns an error, triggering the body-read failure branch.
+	// The body must be non-nil and not http.NoBody for the read path to execute.
+	req := httptest.NewRequest("POST", "/mcp", errReader{})
+	tsStr := strconv.FormatInt(time.Now().Unix(), 10)
+	req.Header.Set(HMACTimestampHeader, tsStr)
+	req.Header.Set(HMACNonceHeader, "nonce-body-err")
+	req.Header.Set(HMACSignatureHeader, "any-sig-body-not-read-yet")
+
+	w := httptest.NewRecorder()
+	wrapped(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body read error should return 400")
+	assert.Contains(t, w.Body.String(), "failed to read request body")
+}
+
+// TestHMACMiddleware_ConcurrentReplay_PostCheckRejected verifies the post-check
+// replay branch: when two concurrent requests carry the same nonce, both pass the
+// seenNonce pre-check (nonce absent from cache), but exactly one wins the
+// subsequent checkAndSet write, and the other is rejected as a replay.
+//
+// The barrierReader stalls both goroutines inside io.ReadAll — after seenNonce but
+// before checkAndSet — so the race is reliably exercised.
+func TestHMACMiddleware_ConcurrentReplay_PostCheckRejected(t *testing.T) {
+	var successCount, replayCount atomic.Int32
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	wrapped := hmacMiddleware(testHMACSecret, next)
+
+	body := []byte(`{"method":"concurrent"}`)
+	ts := time.Now()
+	nonce := "concurrent-post-check-nonce"
+	tsStr := strconv.FormatInt(ts.Unix(), 10)
+	// Pre-compute the valid signature both requests will carry.
+	sig := computeHMAC(testHMACSecret, tsStr, nonce, "/mcp", body)
+
+	// entered counts down as each goroutine enters its first Read call.
+	entered := &sync.WaitGroup{}
+	entered.Add(2)
+	release := make(chan struct{})
+
+	makeRequest := func() {
+		br := newBarrierReader(body, entered, release)
+		req := httptest.NewRequest("POST", "/mcp", br)
+		req.Header.Set(HMACTimestampHeader, tsStr)
+		req.Header.Set(HMACNonceHeader, nonce)
+		req.Header.Set(HMACSignatureHeader, sig)
+
+		w := httptest.NewRecorder()
+		wrapped(w, req)
+
+		switch w.Code {
+		case http.StatusOK:
+			successCount.Add(1)
+		case http.StatusUnauthorized:
+			replayCount.Add(1)
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); makeRequest() }()
+	go func() { defer wg.Done(); makeRequest() }()
+
+	// Wait until both goroutines are stalled in io.ReadAll (i.e. both have passed
+	// seenNonce), then release them to race on checkAndSet.
+	entered.Wait()
+	close(release)
+	wg.Wait()
+
+	require.Equal(t, int32(1), successCount.Load(), "exactly one concurrent request should succeed")
+	require.Equal(t, int32(1), replayCount.Load(), "the concurrent duplicate should be rejected as replay")
 }

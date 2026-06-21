@@ -5,95 +5,103 @@
 
 /// Write operations that modify data
 pub const WRITE_OPERATIONS: &[&str] = &[
-    "create_repository",
+    // Keep sorted for binary_search correctness.
+    "actions_run_trigger",
+    "add_comment_to_pending_review",
+    "add_deploy_key",
+    "add_gpg_key", // gh gpg-key add — adds a user GPG signing key
+    "add_issue_comment",
+    "add_project_item", // deprecated alias for projects_write (addProjectV2ItemById)
+    "add_reply_to_pull_request_comment",
+    "add_ssh_key",        // gh ssh-key add — adds a user SSH auth/signing key
+    "archive_repository", // gh repo archive — blocked: repo settings change unsupported
+    "assign_copilot_to_issue",
+    "cancel_workflow_run", // gh run cancel       — cancels an in-progress workflow run
+    "copy_project",        // gh project copy — creates a new Projects v2 board from an existing one
     "create_branch",
+    "create_discussion", // gh discussion create — creates a discussion in a repository
+    "create_gist",
+    "create_issue",
     "create_or_update_file",
-    "push_files",
-    "delete_file",
-    "fork_repository",
     "create_pull_request",
     "create_pull_request_with_copilot",
-    "add_comment_to_pending_review",
-    "add_reply_to_pull_request_comment",
-    "request_copilot_review",
-    "add_issue_comment",
-    "assign_copilot_to_issue",
-    "actions_run_trigger",
-    "create_gist",
+    "create_release", // POST /repos/.../releases
+    "create_repository",
+    "delete_deploy_key",
+    "delete_file",
+    "delete_gist",              // DELETE /gists/{gist_id}
+    "delete_gpg_key",           // gh gpg-key delete — removes a user GPG signing key
+    "delete_issue",             // gh issue delete — deletes an issue via GraphQL deleteIssue
+    "delete_issue_comment",     // DELETE /repos/.../issues/comments/{id}
+    "delete_project",           // gh project delete — deletes a Projects v2 project
+    "delete_project_item",      // deprecated alias for projects_write (deleteProjectV2Item)
+    "delete_release",           // DELETE /repos/.../releases/{id}
+    "delete_release_asset",     // gh release delete-asset — deletes a release asset
+    "delete_repository",        // gh repo delete — permanently deletes a repository
+    "delete_ssh_key",           // gh ssh-key delete — removes a user SSH auth/signing key
+    "delete_workflow_run",      // gh run delete — deletes a workflow run record
+    "delete_workflow_run_logs", // deprecated alias for actions_run_trigger (DELETE run logs)
+    "disable_workflow",         // gh workflow disable
+    "discussion_comment_write", // creates or edits GitHub Discussion comments
     "dismiss_notification",
-    "mark_all_notifications_read",
+    "edit_discussion", // gh discussion edit   — edits title/body/labels of a discussion
+    "edit_release",    // PATCH /repos/.../releases/{id}
+    "edit_repository", // gh repo edit — can change visibility, security settings
+    "enable_toolset", // Dynamically enables additional toolsets, expanding the agent's capability set
+    "enable_workflow", // gh workflow enable
+    "force_cancel_workflow_run", // gh run cancel --force — force-cancels a workflow run
+    "fork_repository",
+    "label_write",
+    "link_project", // gh project link — links a Projects v2 board to a repository or team
     "manage_notification_subscription",
     "manage_repository_notification_subscription",
+    "mark_all_notifications_read",
+    "pin_issue", // gh issue pin
     "projects_write",
-    "star_repository",
-    "unstar_repository",
-    "label_write",
-    "create_issue",
-    // Dynamically enables additional toolsets, expanding the agent's capability set
-    "enable_toolset",
-    // Pre-emptive entries for anticipated future MCP tools (no equivalent tool today)
-    "archive_repository",   // gh repo archive   — blocked: repo settings change unsupported
-    "unarchive_repository", // gh repo unarchive — blocked: symmetric to archive_repository
-    "rename_repository",    // gh repo rename    — blocked: breaks clone URLs and integrations
-    "transfer_issue",       // gh issue transfer
-    "transfer_repository",  // gh repo transfer  — blocked: repo ownership transfer is irreversible
-    "pin_issue",            // gh issue pin
-    "unpin_issue",          // gh issue unpin
-    "enable_workflow",    // gh workflow enable
-    "disable_workflow",   // gh workflow disable
-    "set_secret",         // gh secret set
-    "set_variable",         // gh variable set
-    "upload_release_asset", // gh release upload
-    "sync_fork",            // gh repo sync
-    // gh run cancel / force-cancel
-    "cancel_workflow_run",       // gh run cancel       — cancels an in-progress workflow run
-    "force_cancel_workflow_run", // gh run cancel --force — force-cancels a workflow run
-    // gh run rerun
-    "rerun_workflow_run",  // gh run rerun        — reruns a completed workflow run
+    "push_files",
+    "rename_repository", // gh repo rename    — blocked: breaks clone URLs and integrations
+    "request_copilot_review",
     "rerun_failed_jobs",   // gh run rerun --failed — reruns only failed jobs
     "rerun_workflow_job",  // gh run rerun --job  — reruns a specific job
-    // Pre-emptive: gh repo edit (PATCH /repos/{owner}/{repo}) — can change visibility, security settings
-    "edit_repository",
-    // Pre-emptive: gh pr revert (GraphQL revertPullRequest) — creates revert branch + PR
-    "revert_pull_request",
-    // Pre-emptive: gh repo deploy-key add/delete — SSH key with optional write access
-    "add_deploy_key",
-    "delete_deploy_key",
-    // Deprecated alias coverage (guard sees alias name before backend resolves it)
-    "run_workflow",             // deprecated alias for actions_run_trigger (POST workflow dispatch)
-    "delete_workflow_run_logs", // deprecated alias for actions_run_trigger (DELETE run logs)
-    "add_project_item",        // deprecated alias for projects_write (addProjectV2ItemById)
-    "delete_project_item",     // deprecated alias for projects_write (deleteProjectV2Item)
-    // Pre-emptive: issue/PR comment editing/deletion (gh issue/pr comment --edit/--delete)
+    "rerun_workflow_run",  // gh run rerun        — reruns a completed workflow run
+    "revert_pull_request", // gh pr revert — creates revert branch + PR
+    "run_workflow",        // deprecated alias for actions_run_trigger (POST workflow dispatch)
+    "set_secret",          // gh secret set
+    "set_variable",        // gh variable set
+    "star_repository",
+    "sync_fork",            // gh repo sync
+    "transfer_issue",       // gh issue transfer
+    "transfer_repository",  // gh repo transfer  — blocked: repo ownership transfer is irreversible
+    "unarchive_repository", // gh repo unarchive — blocked: symmetric to archive_repository
+    "unlink_project", // gh project unlink — unlinks a Projects v2 board from a repository or team
+    "unpin_issue",    // gh issue unpin
+    "unstar_repository",
     "update_issue_comment", // PATCH /repos/.../issues/comments/{id}
-    "delete_issue_comment", // DELETE /repos/.../issues/comments/{id}
-    // Pre-emptive: release management (gh release create/edit/delete)
-    "create_release", // POST /repos/.../releases
-    "edit_release",   // PATCH /repos/.../releases/{id}
-    "delete_release", // DELETE /repos/.../releases/{id}
-    // Pre-emptive: gist deletion (gh gist delete)
-    "delete_gist", // DELETE /gists/{gist_id}
-    // Discussion comment write (addDiscussionComment / updateDiscussionComment via GraphQL)
-    "discussion_comment_write", // creates or edits GitHub Discussion comments
-
+    "update_project",       // gh project close/edit/reopen — updates Projects v2 metadata/status
+    "upload_release_asset", // gh release upload
 ];
 
 /// Read-write operations that both read and modify data
 pub const READ_WRITE_OPERATIONS: &[&str] = &[
-    "merge_pull_request",
-    "update_pull_request",
-    "update_pull_request_branch",
-    "pull_request_review_write",
+    // Keep sorted for binary_search correctness.
+    "add_pull_request_review_comment", // POST /repos/.../pulls/{number}/comments
+    "add_sub_issue",                   // POST  /repos/.../issues/{number}/sub_issues
+    "create_agent_task", // gh agent-task create — creates a Copilot coding-agent job (branch + PR); blocked as unsupported
+    "create_pull_request_review", // POST /repos/.../pulls/{number}/reviews
+    "delete_pending_pull_request_review", // DELETE /repos/.../pulls/{number}/reviews/{id}
     "issue_write",
+    "issue_write_ff_remote_mcp_issue_fields", // feature-flag variant of issue_write
+    "merge_pull_request",
+    "pull_request_review_write",
+    "remove_sub_issue",               // DELETE/POST — remove sub-issue link
+    "reprioritize_sub_issue",         // PATCH — reorder sub-issues
+    "request_pull_request_reviewers", // POST /repos/.../pulls/{number}/requested_reviewers
+    "resolve_review_thread",          // PUT  /graphql — resolveReviewThread
+    "set_issue_fields", // GraphQL — sets custom field values on a specific repository issue
     "sub_issue_write",
+    "submit_pending_pull_request_review", // POST /repos/.../pulls/{number}/reviews/{id}/events
+    "unresolve_review_thread",            // PUT  /graphql — unresolveReviewThread
     "update_gist",
-    // Pre-emptive entries for anticipated future MCP tools (no equivalent tool today)
-    // gh agent-task create — creates a Copilot coding-agent job (branch + PR); blocked as unsupported
-    "create_agent_task",
-    // Deprecated alias coverage
-    "update_project_item", // deprecated alias for projects_write (updateProjectV2ItemFieldValue)
-
-    // Granular issue update tools (alongside issue_write composite)
     "update_issue_assignees", // PATCH — modifies issue assignees
     "update_issue_body",      // PATCH — modifies issue body
     "update_issue_labels",    // PATCH — modifies issue labels
@@ -101,26 +109,10 @@ pub const READ_WRITE_OPERATIONS: &[&str] = &[
     "update_issue_state",     // PATCH — opens or closes an issue
     "update_issue_title",     // PATCH — modifies issue title
     "update_issue_type",      // PATCH — modifies issue type
-
-    // Issue custom field mutation (field definitions are org-level; target issue is repo-scoped)
-    "set_issue_fields", // GraphQL — sets custom field values on a specific repository issue
-
-    // Sub-issue management tools (alongside sub_issue_write composite)
-    "add_sub_issue",          // POST  /repos/.../issues/{number}/sub_issues
-    "remove_sub_issue",       // DELETE/POST — remove sub-issue link
-    "reprioritize_sub_issue", // PATCH — reorder sub-issues
-
-    // PR review tools (alongside pull_request_review_write composite)
-    "add_pull_request_review_comment",    // POST /repos/.../pulls/{number}/comments
-    "create_pull_request_review",         // POST /repos/.../pulls/{number}/reviews
-    "delete_pending_pull_request_review", // DELETE /repos/.../pulls/{number}/reviews/{id}
-    "request_pull_request_reviewers",     // POST /repos/.../pulls/{number}/requested_reviewers
-    "resolve_review_thread",              // PUT  /graphql — resolveReviewThread
-    "submit_pending_pull_request_review", // POST /repos/.../pulls/{number}/reviews/{id}/events
-    "unresolve_review_thread",            // PUT  /graphql — unresolveReviewThread
-
-    // Granular PR update tools (alongside update_pull_request composite)
-    "update_pull_request_body",        // PATCH — modifies PR body
+    "update_project_item",    // deprecated alias for projects_write (updateProjectV2ItemFieldValue)
+    "update_pull_request",
+    "update_pull_request_body", // PATCH — modifies PR body
+    "update_pull_request_branch",
     "update_pull_request_draft_state", // PATCH — converts to/from draft
     "update_pull_request_state",       // PATCH — opens or closes a PR
     "update_pull_request_title",       // PATCH — modifies PR title
@@ -128,14 +120,14 @@ pub const READ_WRITE_OPERATIONS: &[&str] = &[
 
 /// Check if a tool is a write operation
 pub fn is_write_operation(tool_name: &str) -> bool {
-    WRITE_OPERATIONS.contains(&tool_name)
+    WRITE_OPERATIONS.binary_search(&tool_name).is_ok()
         || is_lock_operation(tool_name)
         || is_unlock_operation(tool_name)
 }
 
 /// Check if a tool is a read-write operation
 pub fn is_read_write_operation(tool_name: &str) -> bool {
-    READ_WRITE_OPERATIONS.contains(&tool_name)
+    READ_WRITE_OPERATIONS.binary_search(&tool_name).is_ok()
 }
 
 /// Check if a tool is a merge operation
@@ -160,36 +152,19 @@ pub fn is_unlock_operation(tool_name: &str) -> bool {
 
 /// Tools that are unconditionally blocked regardless of agent integrity.
 ///
-/// These operations are too dangerous or unsupported to ever permit via an agent.
-/// Entries here should also appear in `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS`
-/// so the tool is still subject to all normal write-path checks before being denied.
+/// Keep sorted for `binary_search` correctness (see `blocked_tools_are_sorted` test).
+/// Entries here should also appear in `WRITE_OPERATIONS` or `READ_WRITE_OPERATIONS`.
 pub const BLOCKED_TOOLS: &[&str] = &[
-    "transfer_repository",  // irreversible ownership transfer
     "archive_repository",   // repo settings change; unsupported
-    "unarchive_repository", // symmetric to archive_repository
-    "rename_repository",    // breaks clone URLs and integrations
     "create_agent_task",    // unsupported agent-task creation
+    "rename_repository",    // breaks clone URLs and integrations
+    "transfer_repository",  // irreversible ownership transfer
+    "unarchive_repository", // symmetric to archive_repository
 ];
 
-/// Check if a tool is unconditionally blocked (always denied regardless of agent integrity).
-///
-/// Blocked tools are listed here when the operation is considered too dangerous
-/// to ever permit via an agent, even if the agent would otherwise satisfy the
-/// integrity requirements for a normal write operation.
-///
-/// Current entries:
-/// - `transfer_repository`: repository ownership transfer is irreversible and
-///   must never be performed by an automated agent.
-/// - `archive_repository`: archives a repository, restricting contributions; unsupported as an
-///   agent operation.
-/// - `unarchive_repository`: re-enables contributions to a previously archived repository;
-///   symmetric to `archive_repository` and equally unsupported.
-/// - `rename_repository`: renames a repository, breaking all clone URLs, webhooks, and external
-///   references; unsupported as an agent operation.
-/// - `create_agent_task`: creates a Copilot coding-agent job that opens a branch and PR;
-///   unsupported as a directly invocable agent operation.
+/// Returns `true` if `tool_name` is in [`BLOCKED_TOOLS`] — denied regardless of agent integrity.
 pub fn is_blocked_tool(tool_name: &str) -> bool {
-    BLOCKED_TOOLS.contains(&tool_name)
+    BLOCKED_TOOLS.binary_search(&tool_name).is_ok()
 }
 
 #[cfg(test)]
@@ -207,6 +182,39 @@ mod tests {
     }
 
     #[test]
+    fn write_operations_are_sorted() {
+        let mut sorted = WRITE_OPERATIONS.to_vec();
+        sorted.sort_unstable();
+        assert_eq!(
+            WRITE_OPERATIONS,
+            sorted.as_slice(),
+            "WRITE_OPERATIONS must be kept in sorted order for binary_search correctness"
+        );
+    }
+
+    #[test]
+    fn read_write_operations_are_sorted() {
+        let mut sorted = READ_WRITE_OPERATIONS.to_vec();
+        sorted.sort_unstable();
+        assert_eq!(
+            READ_WRITE_OPERATIONS,
+            sorted.as_slice(),
+            "READ_WRITE_OPERATIONS must be kept in sorted order for binary_search correctness"
+        );
+    }
+
+    #[test]
+    fn blocked_tools_are_sorted() {
+        let mut sorted = BLOCKED_TOOLS.to_vec();
+        sorted.sort_unstable();
+        assert_eq!(
+            BLOCKED_TOOLS,
+            sorted.as_slice(),
+            "BLOCKED_TOOLS must be kept in sorted order for binary_search correctness"
+        );
+    }
+
+    #[test]
     fn test_is_blocked_tool_transfer_repository() {
         assert!(
             is_blocked_tool("transfer_repository"),
@@ -216,7 +224,11 @@ mod tests {
 
     #[test]
     fn test_is_blocked_tool_repo_modifying_operations() {
-        for op in &["archive_repository", "unarchive_repository", "rename_repository"] {
+        for op in &[
+            "archive_repository",
+            "unarchive_repository",
+            "rename_repository",
+        ] {
             assert!(
                 is_blocked_tool(op),
                 "{} must be unconditionally blocked (modifying gh repo operation)",
@@ -228,12 +240,13 @@ mod tests {
     #[test]
     fn test_is_blocked_tool_other_write_ops_not_blocked() {
         // Regular write operations should not be blocked
-        for op in &["create_issue", "add_issue_comment", "pin_issue", "unpin_issue"] {
-            assert!(
-                !is_blocked_tool(op),
-                "{} should not be blocked",
-                op
-            );
+        for op in &[
+            "create_issue",
+            "add_issue_comment",
+            "pin_issue",
+            "unpin_issue",
+        ] {
+            assert!(!is_blocked_tool(op), "{} should not be blocked", op);
         }
     }
 
@@ -247,7 +260,11 @@ mod tests {
 
     #[test]
     fn test_repo_modifying_operations_are_write_operations() {
-        for op in &["archive_repository", "unarchive_repository", "rename_repository"] {
+        for op in &[
+            "archive_repository",
+            "unarchive_repository",
+            "rename_repository",
+        ] {
             assert!(
                 is_write_operation(op),
                 "{} must be classified as a write operation",
@@ -271,6 +288,7 @@ mod tests {
     #[test]
     fn test_workflow_run_cancel_rerun_are_write_operations() {
         for op in &[
+            "delete_workflow_run",
             "cancel_workflow_run",
             "force_cancel_workflow_run",
             "rerun_workflow_run",
@@ -292,6 +310,12 @@ mod tests {
             "revert_pull_request",
             "add_deploy_key",
             "delete_deploy_key",
+            "add_gpg_key",
+            "add_ssh_key",
+            "delete_gpg_key",
+            "delete_ssh_key",
+            "delete_release_asset",
+            "delete_workflow_run",
         ] {
             assert!(
                 is_write_operation(op),
@@ -344,11 +368,20 @@ mod tests {
     #[test]
     fn test_preemptive_cli_write_operations() {
         for op in &[
+            "copy_project",
+            "delete_issue",
+            "delete_project",
+            "delete_repository",
+            "link_project",
+            "unlink_project",
             "update_issue_comment",
             "delete_issue_comment",
             "create_release",
             "edit_release",
             "delete_release",
+            "delete_release_asset",
+            "update_project",
+            "upload_release_asset",
             "delete_gist",
         ] {
             assert!(
@@ -399,8 +432,28 @@ mod tests {
     }
 
     #[test]
-    fn test_sub_issue_management_tools_are_read_write_operations() {
-        for op in &["add_sub_issue", "remove_sub_issue", "reprioritize_sub_issue"] {
+    fn test_issue_write_ff_remote_mcp_issue_fields_is_read_write_operation() {
+        let op = "issue_write_ff_remote_mcp_issue_fields";
+        assert!(
+            is_read_write_operation(op),
+            "{} must be classified as a read-write operation",
+            op
+        );
+        assert!(
+            !is_write_operation(op),
+            "{} should not be in WRITE_OPERATIONS (it is in READ_WRITE_OPERATIONS)",
+            op
+        );
+    }
+
+    #[test]
+    fn test_sub_issue_tools_are_read_write_operations() {
+        for op in &[
+            "sub_issue_write",
+            "add_sub_issue",
+            "remove_sub_issue",
+            "reprioritize_sub_issue",
+        ] {
             assert!(
                 is_read_write_operation(op),
                 "{} must be classified as a read-write operation",
@@ -491,6 +544,20 @@ mod tests {
             !is_read_write_operation("discussion_comment_write"),
             "discussion_comment_write should not be in READ_WRITE_OPERATIONS"
         );
+    }
+
+    #[test]
+    fn test_create_and_edit_discussion_are_write_operations() {
+        for op in &["create_discussion", "edit_discussion"] {
+            assert!(
+                is_write_operation(op),
+                "{op} must be classified as a write operation"
+            );
+            assert!(
+                !is_read_write_operation(op),
+                "{op} should not be in READ_WRITE_OPERATIONS"
+            );
+        }
     }
 
     #[test]

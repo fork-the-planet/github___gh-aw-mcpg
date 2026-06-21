@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -153,10 +154,12 @@ func TestForwardToGitHub_ForwardsRequestBody(t *testing.T) {
 // construction logic can be verified independently.
 func TestForwardToGitHub_GraphQLPathRouting(t *testing.T) {
 	tests := []struct {
-		name           string
-		apiURLSuffix   string // appended to the mock server URL to form githubAPIURL
-		requestPath    string // path argument to forwardToGitHub
-		wantServerPath string // path the upstream server should receive
+		name                string
+		apiURLSuffix        string // appended to the mock server URL to form githubAPIURL
+		githubAPIURL        string // explicit githubAPIURL (used for custom host cases)
+		routeToUpstreamHost bool   // when true, route the custom githubAPIURL host to the mock server
+		requestPath         string // path argument to forwardToGitHub
+		wantServerPath      string // path the upstream server should receive
 	}{
 		{
 			name:           "standard graphql path routes to base/graphql",
@@ -186,6 +189,35 @@ func TestForwardToGitHub_GraphQLPathRouting(t *testing.T) {
 			wantServerPath: "/api/graphql?ref=main&query=foo",
 		},
 		{
+			// GHE Cloud data residency (e.g. copilot-api.sj.ghe.com) has no /api/v3
+			// suffix but the gh CLI sends GraphQL requests to /api/graphql.
+			// forwardToGitHub must forward to base/api/graphql, not base/graphql.
+			name:                "GHE Cloud data residency api/graphql path routes to base/api/graphql",
+			githubAPIURL:        "http://copilot-api.sj.ghe.com",
+			routeToUpstreamHost: true,
+			requestPath:         "/api/graphql",
+			wantServerPath:      "/api/graphql",
+		},
+		{
+			name:                "GHE Cloud data residency api/graphql with query string preserves query",
+			githubAPIURL:        "http://copilot-api.sj.ghe.com",
+			routeToUpstreamHost: true,
+			requestPath:         "/api/graphql?foo=bar",
+			wantServerPath:      "/api/graphql?foo=bar",
+		},
+		{
+			name:           "dotcom-style api graphql path normalises to graphql",
+			apiURLSuffix:   "",
+			requestPath:    "/api/graphql",
+			wantServerPath: "/graphql",
+		},
+		{
+			name:           "dotcom-style api graphql trailing slash normalises to graphql",
+			apiURLSuffix:   "",
+			requestPath:    "/api/graphql/",
+			wantServerPath: "/graphql",
+		},
+		{
 			// Non-GraphQL paths are forwarded unchanged regardless of API URL format.
 			name:           "non-graphql REST path is not rewritten",
 			apiURLSuffix:   "/api/v3",
@@ -204,9 +236,25 @@ func TestForwardToGitHub_GraphQLPathRouting(t *testing.T) {
 			}))
 			defer upstream.Close()
 
+			githubAPIURL := upstream.URL + tt.apiURLSuffix
+			httpClient := upstream.Client()
+			if tt.githubAPIURL != "" {
+				githubAPIURL = tt.githubAPIURL
+			}
+			if tt.routeToUpstreamHost {
+				httpClient = &http.Client{
+					Transport: &http.Transport{
+						DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+							var d net.Dialer
+							return d.DialContext(ctx, network, upstream.Listener.Addr().String())
+						},
+					},
+				}
+			}
+
 			s := &Server{
-				githubAPIURL: upstream.URL + tt.apiURLSuffix,
-				httpClient:   upstream.Client(),
+				githubAPIURL: githubAPIURL,
+				httpClient:   httpClient,
 			}
 
 			resp, err := s.forwardToGitHub(context.Background(), http.MethodPost, tt.requestPath, nil, "", "")
@@ -217,6 +265,69 @@ func TestForwardToGitHub_GraphQLPathRouting(t *testing.T) {
 			assert.Equal(t, tt.wantServerPath, capturedPath,
 				"upstream received wrong path for requestPath=%q with apiURLSuffix=%q",
 				tt.requestPath, tt.apiURLSuffix)
+		})
+	}
+}
+
+// TestUpstreamHost verifies that upstreamHost correctly extracts the hostname
+// from the configured githubAPIURL across three parsing strategies:
+//
+//  1. Full URL with scheme (e.g. "https://api.github.com")       — fast path
+//  2. Scheme-less hostname (e.g. "api.github.com/api/v3")        — prepend https://
+//  3. Unresolvable value (empty string)                          — strings.Cut fallback
+func TestUpstreamHost(t *testing.T) {
+	tests := []struct {
+		name         string
+		githubAPIURL string
+		want         string
+	}{
+		{
+			name:         "full URL with scheme returns hostname",
+			githubAPIURL: "https://api.github.com",
+			want:         "api.github.com",
+		},
+		{
+			name:         "full URL with port strips port from hostname",
+			githubAPIURL: "https://api.github.com:443",
+			want:         "api.github.com",
+		},
+		{
+			name:         "http URL with port strips port from hostname",
+			githubAPIURL: "http://localhost:8080",
+			want:         "localhost",
+		},
+		{
+			// url.Parse("api.github.com") treats the value as a relative URL (no host),
+			// so the function falls through to the second path that prepends "https://".
+			name:         "scheme-less hostname uses second-parse path",
+			githubAPIURL: "api.github.com",
+			want:         "api.github.com",
+		},
+		{
+			name:         "scheme-less hostname with path strips path",
+			githubAPIURL: "api.github.com/api/v3",
+			want:         "api.github.com",
+		},
+		{
+			// Leading slashes are trimmed before the second url.Parse attempt.
+			name:         "leading slashes are stripped before second parse",
+			githubAPIURL: "///api.github.com",
+			want:         "api.github.com",
+		},
+		{
+			// An empty githubAPIURL yields an empty host from both url.Parse attempts,
+			// so upstreamHost falls back to strings.Cut and returns "".
+			name:         "empty URL returns empty string via fallback",
+			githubAPIURL: "",
+			want:         "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Server{githubAPIURL: tt.githubAPIURL}
+			got := s.upstreamHost()
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

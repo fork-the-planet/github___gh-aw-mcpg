@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -15,8 +14,7 @@ import (
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
-	"github.com/github/gh-aw-mcpg/internal/oidc"
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -40,6 +38,15 @@ const sessionNotFoundMessage = "session not found"
 // fallback path in this package. Streamable and SSE transports are SDK-managed
 // and negotiate protocol versions internally.
 const MCPProtocolVersion = "2025-11-25"
+
+// streamableMaxRetries disables SDK-level automatic reconnect retries on
+// StreamableClientTransport. The SDK interprets 0 as "use the default of 5
+// retries"; a negative value means 0 retries (give up immediately on stream
+// close). The gateway handles reconnection itself, so SDK-level retries would
+// cause double-retry behaviour.
+// Verified: go-sdk v1.6.1 streamable.go:1547-1552.
+// See TestMaxRetriesSentinelCanary for an automated guard against SDK changes.
+const streamableMaxRetries = -1
 
 // requestIDCounter is used to generate unique request IDs for HTTP requests
 var requestIDCounter uint64
@@ -182,23 +189,6 @@ func parseJSONRPCResponseWithSSE(body []byte, statusCode int, contextDesc string
 	return &rpcResponse, nil
 }
 
-// newMCPClient creates a new MCP SDK client with standard implementation details
-// Pass nil for logger parameter to disable SDK logging (for tests)
-// Pass keepAlive > 0 to enable periodic ping keepalives (recommended for HTTP backends)
-func newMCPClient(log *logger.Logger, keepAlive time.Duration) *sdk.Client {
-	var slogLogger *slog.Logger
-	if log != nil {
-		slogLogger = logger.NewSlogLoggerWithHandler(log)
-	}
-	return sdk.NewClient(&sdk.Implementation{
-		Name:    "awmg",
-		Version: version.Get(),
-	}, &sdk.ClientOptions{
-		Logger:    slogLogger,
-		KeepAlive: keepAlive,
-	})
-}
-
 // newHTTPConnection creates a new HTTP Connection struct with common fields.
 // keepAlive is passed through to store on the connection so that reconnectSDKTransport
 // can re-create the SDK client with the same keepalive setting.
@@ -224,81 +214,6 @@ func newHTTPConnection(ctx context.Context, cancel context.CancelFunc, client *s
 		keepAliveInterval: keepAlive,
 		connectTimeout:    connectTimeout,
 	}
-}
-
-// headerInjectingRoundTripper is an http.RoundTripper that injects a fixed set of
-// HTTP headers into every outgoing request. It is used so that SDK-managed transports
-// (StreamableClientTransport, SSEClientTransport) can send custom auth headers even
-// though those transports do not expose a per-request header API.
-type headerInjectingRoundTripper struct {
-	base    http.RoundTripper
-	headers map[string]string
-}
-
-func (rt *headerInjectingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Clone the request so we don't mutate the caller's copy.
-	reqCopy := req.Clone(req.Context())
-	for k, v := range rt.headers {
-		reqCopy.Header.Set(k, v)
-	}
-	return rt.base.RoundTrip(reqCopy)
-}
-
-// buildHTTPClientWithHeaders returns a copy of baseClient whose transport injects
-// the provided headers into every outgoing request.  When headers is empty the
-// original baseClient is returned unchanged.
-func buildHTTPClientWithHeaders(baseClient *http.Client, headers map[string]string) *http.Client {
-	if len(headers) == 0 {
-		return baseClient
-	}
-	logHTTP.Printf("Wrapping HTTP client with %d custom header(s)", len(headers))
-	base := baseClient.Transport
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	clone := *baseClient
-	clone.Transport = &headerInjectingRoundTripper{base: base, headers: headers}
-	return &clone
-}
-
-// oidcRoundTripper is an http.RoundTripper that dynamically acquires a GitHub Actions
-// OIDC token and injects it as an Authorization: Bearer header on every outgoing request.
-// It wraps an inner transport (typically a headerInjectingRoundTripper for static headers)
-// and overrides any Authorization header set by that inner layer.
-type oidcRoundTripper struct {
-	base     http.RoundTripper
-	provider *oidc.Provider
-	audience string
-}
-
-func (rt *oidcRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	logHTTP.Printf("Acquiring OIDC token for audience=%s", rt.audience)
-	token, err := rt.provider.Token(req.Context(), rt.audience)
-	if err != nil {
-		return nil, fmt.Errorf("OIDC token acquisition failed: %w", err)
-	}
-	reqCopy := req.Clone(req.Context())
-	reqCopy.Header.Set("Authorization", "Bearer "+token)
-	return rt.base.RoundTrip(reqCopy)
-}
-
-// buildHTTPClientWithOIDC returns a copy of baseClient whose transport dynamically
-// injects a GitHub Actions OIDC token as Authorization: Bearer on every request.
-// Static headers (from buildHTTPClientWithHeaders) are applied first, then the OIDC
-// token overwrites the Authorization header.
-func buildHTTPClientWithOIDC(baseClient *http.Client, provider *oidc.Provider, audience string) *http.Client {
-	logHTTP.Printf("Wrapping HTTP client with OIDC provider: audience=%s", audience)
-	base := baseClient.Transport
-	if base == nil {
-		base = http.DefaultTransport
-	}
-	clone := *baseClient
-	clone.Transport = &oidcRoundTripper{
-		base:     base,
-		provider: provider,
-		audience: audience,
-	}
-	return &clone
 }
 
 // createJSONRPCRequest creates a JSON-RPC 2.0 request map
@@ -457,11 +372,9 @@ func tryStreamableHTTPTransport(ctx context.Context, cancel context.CancelFunc, 
 			return &sdk.StreamableClientTransport{
 				Endpoint:   url,
 				HTTPClient: httpClient,
-				// MaxRetries: -1 disables SDK-level reconnect retries (0 = SDK default 5 retries;
-				// negative = 0 retries). We fall through to SSE or plain JSON-RPC on failure.
-				// Verified against go-sdk v1.6.0 streamable.go:1547-1552.
-				// See TestMaxRetriesSentinelCanary for an automated guard against SDK changes.
-				MaxRetries: -1,
+				// See streamableMaxRetries for rationale. We fall through to SSE or plain
+				// JSON-RPC on failure.
+				MaxRetries: streamableMaxRetries,
 				// DisableStandaloneSSE prevents the SDK from issuing a GET request for a
 				// persistent server-sent events stream immediately after initialization.
 				// Some HTTP MCP servers (e.g. cloud APIs) return 5xx or keep the GET
@@ -541,15 +454,11 @@ func (c *Connection) initializeHTTPSession() (string, error) {
 
 	logConn.Printf("Sending initialize request")
 
-	// Generate a temporary session ID for the initialize request
-	// Some backends may require this header even during initialization
-	tempSessionID := fmt.Sprintf("awmg-init-%d", requestID)
-
-	// Execute HTTP request with custom header modification
-	result, err := c.executeHTTPRequest(context.Background(), "initialize", initParams, requestID, func(httpReq *http.Request) {
-		httpReq.Header.Set("Mcp-Session-Id", tempSessionID)
-		logConn.Printf("Sending initialize with temporary session ID: %s", tempSessionID)
-	})
+	// Execute HTTP request without a Mcp-Session-Id header: the MCP spec does not
+	// define a session ID on the initialize request — the server assigns it in the
+	// response.  Sending a synthetic ID could cause some backends to misinterpret
+	// the request as resuming an existing (and unknown) session.
+	result, err := c.executeHTTPRequest(c.ctx, "initialize", initParams, requestID, nil)
 	if err != nil {
 		return "", err
 	}
@@ -559,10 +468,7 @@ func (c *Connection) initializeHTTPSession() (string, error) {
 	if sessionID != "" {
 		logConn.Printf("Captured Mcp-Session-Id from response: %s", sessionID)
 	} else {
-		// If no session ID in response, use the temporary one
-		// This handles backends that don't return a session ID
-		sessionID = tempSessionID
-		logConn.Printf("No Mcp-Session-Id in response, using temporary session ID: %s", sessionID)
+		logConn.Printf("No Mcp-Session-Id in initialize response; backend does not use session management")
 	}
 
 	logConn.Printf("Initialize response: status=%d, body_len=%d, session=%s", result.StatusCode, len(result.ResponseBody), sessionID)

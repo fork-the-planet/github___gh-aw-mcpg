@@ -15,7 +15,7 @@ This gateway is used with [GitHub Agentic Workflows](https://github.com/github/g
    ```json
    {
      "gateway": {
-       "apiKey": "${MCP_GATEWAY_API_KEY}"
+       "agentId": "${MCP_GATEWAY_AGENT_ID}"
      },
      "mcpServers": {
        "github": {
@@ -36,7 +36,7 @@ This gateway is used with [GitHub Agentic Workflows](https://github.com/github/g
    docker run --rm -i \
      -e MCP_GATEWAY_PORT=8000 \
      -e MCP_GATEWAY_DOMAIN=localhost \
-     -e MCP_GATEWAY_API_KEY=your-secret-key \
+     -e MCP_GATEWAY_AGENT_ID=your-agent-id \
      -v /var/run/docker.sock:/var/run/docker.sock \
      -v /path/to/logs:/tmp/gh-aw/mcp-logs \
      -p 8000:8000 \
@@ -57,9 +57,38 @@ Inside the container, the gateway starts in routed mode on `http://0.0.0.0:8000`
 
 When running `awmg` directly (outside `docker run`), useful CLI flags include:
 - `--config-stdin`: Read JSON config from stdin (required when piping config, e.g. `cat config.json | awmg --config-stdin --routed`).
+  - For backward compatibility, JSON stdin also accepts legacy snake_case server timeout aliases: `connect_timeout` and `tool_timeout` (prefer `connectTimeout` and `toolTimeout`).
 - `--env <file>`: Load environment variables from a `.env` file before startup.
 - `-v`, `-vv`, `-vvv`: Increase verbosity (`info`, `debug`, `trace`).
-- Containerized-only startup env vars such as `MCP_GATEWAY_HOST` and `MCP_GATEWAY_MODE` are documented in [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md).
+- A complete reference for all environment variables — including guard policy, TLS, tracing, authentication tokens, and containerized deployment — is in [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md).
+
+## Authentication
+
+The gateway reads a GitHub token from the first non-empty value of these variables (checked in priority order):
+
+| Variable | Description |
+|----------|-------------|
+| `GITHUB_MCP_SERVER_TOKEN` | Highest-priority GitHub auth token |
+| `GITHUB_TOKEN` | Standard GitHub token (set automatically in GitHub Actions) |
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | Personal access token |
+| `GH_TOKEN` | Lowest-priority fallback (set by GitHub CLI) |
+
+For proxy mode, a token is needed only when clients do not send their own `Authorization` header. In unified gateway mode, collaborator permission checks require one of these to be set. See [`docs/ENVIRONMENT_VARIABLES.md`](docs/ENVIRONMENT_VARIABLES.md) for full details.
+
+## Tracing
+
+The gateway supports OpenTelemetry distributed tracing. Set these variables to enable it:
+
+| Variable | Description |
+|----------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP endpoint (e.g., `http://localhost:4318`); tracing is disabled when empty |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated `key=value` headers for OTLP export (W3C Baggage format); used as fallback when not set in config |
+| `GH_AW_OTLP_ENDPOINTS` | Comma-separated OTLP URLs (or JSON array with per-endpoint `headers`) for multi-backend fan-out; all listed endpoints receive every span. Takes precedence over `OTEL_EXPORTER_OTLP_ENDPOINT`. |
+| `OTEL_SERVICE_NAME` | Service name reported in traces (default: `mcp-gateway`) |
+
+Use `--otlp-sample-rate <float>` to control trace sampling (range `0.0`–`1.0`, default `1.0`).
+
+See [`docs/ENVIRONMENT_VARIABLES.md`](docs/ENVIRONMENT_VARIABLES.md) for full details.
 
 ## Guard Policies
 
@@ -103,11 +132,14 @@ Restricts which repositories a guard allows and at what integrity level:
 
 **`trusted-users`** *(optional)* — Array of GitHub usernames whose content is unconditionally elevated to `approved` integrity. Useful for granting specific external contributors (e.g., trusted open-source maintainers) the same treatment as repository members, without lowering `min-integrity` globally. Uses `max(base, approved)` so it never lowers integrity. Does not override `blocked-users`.
 
+**`tool-call-limits`** *(optional)* — Map of tool names to per-session call limits enforced by the gateway before the backend is invoked. Positive values hard-limit that tool for the session, while `0` or an omitted entry leaves the tool unlimited.
+
 ```json
 "guard-policies": {
   "allow-only": {
     "repos": ["myorg/*"],
     "min-integrity": "approved",
+    "tool-call-limits": {"issue_read": 1},
     "blocked-users": ["spam-bot", "compromised-user"],
     "approval-labels": ["human-reviewed", "safe-for-agent"],
     "trusted-users": ["alice", "trusted-contributor"]
@@ -144,6 +176,22 @@ The `accept` entries must match the secrecy tags assigned by the guard. Key mapp
 
 See **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** for the complete mapping table and accept pattern reference.
 
+## Gateway Configuration
+
+Key configuration fields (gateway-level under `[gateway]` in TOML / `"gateway"` in JSON, plus top-level JSON stdin fields):
+
+| Field | Description |
+|-------|-------------|
+| `agent_id` / `agentId` | Agent/session identifier used for routing and optional auth matching |
+| `api_key` / `apiKey` | Deprecated alias for `agent_id` / `agentId` (accepted with warnings) |
+| `port` | Metadata only; validated (1–65535) but does not control the listen address. Use the `--listen` flag or `MCP_GATEWAY_PORT` env var (containerized) to set the actual listen port. |
+| `payload_dir` / `payloadDir` | Directory for large payload storage (must be absolute path) |
+| `payload_size_threshold` / `payloadSizeThreshold` | Size threshold in bytes for payload storage (default: `524288`) |
+| `trusted_bots` / `trustedBots` | Additional bot usernames to treat as trusted with "approved" integrity. Additive to the built-in trusted bot list. Non-empty array when present. Example: `["my-bot[bot]"]` |
+| `customSchemas` (JSON stdin top-level) | Map custom server `type` names to HTTPS JSON schema URLs for custom server validation |
+
+For the full gateway field list (including rate limiting, tracing, keepalive, and more), see **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**.
+
 ## Architecture
 
 ```
@@ -169,7 +217,7 @@ See **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** for the complete mapping 
 
 **Routing**: Routed mode (`/mcp/{serverID}`) exposes each backend at its own endpoint. Unified mode (`/mcp`) routes to all configured servers through a single endpoint.
 
-**Security**: WASM-based DIFC guards enforce secrecy and integrity labels per request. Guards are loaded from `MCP_GATEWAY_WASM_GUARDS_DIR` and assigned per-server. Authentication uses plain API keys per MCP spec 7.1 (`Authorization: <api-key>`).
+**Security**: WASM-based DIFC guards enforce secrecy and integrity labels per request. Guards are loaded from `MCP_GATEWAY_WASM_GUARDS_DIR` and assigned per-server. Authentication uses the configured agent identifier value per MCP spec 7.1 (`Authorization: <agent-id>`), and session routing can also use `X-Agent-ID`.
 
 **Logging**: Per-server log files (`{serverID}.log`) and unified `mcp-gateway.log` use bracketed UTC ISO-8601 timestamps with milliseconds (`[YYYY-MM-DDTHH:mm:ss.SSSZ]`). Machine-readable `rpc-messages.jsonl` records include required `timestamp`, `event` (`snake_case`), and `_schema` fields; RPC events use `_schema: "rpc-message/v2"` with `event` values `rpc_request`/`rpc_response`, and DIFC filter records use `_schema: "difc-filtered/v2"` with `event: "difc_filtered"`. Markdown workflow previews (`gateway.md`) and the wazero cache (`<parent-of-log-dir>/wazero-cache`, a sibling of `--log-dir` by default) are also produced.
 
@@ -178,8 +226,32 @@ See **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)** for the complete mapping 
 - `POST /mcp/{serverID}` — Routed mode (default): JSON-RPC request to specific server
 - `POST /mcp` — Unified mode: JSON-RPC request routed to configured servers
 - `GET /health` — Health check; returns JSON `{"status":"healthy" | "unhealthy","specVersion":"...","gatewayVersion":"...","servers":{...}}`
+- `POST /close` — Graceful shutdown; terminates all backend servers and exits the process (auth-protected when agent ID is configured; not HMAC-protected)
+- `GET /reflect` — Unauthenticated DIFC label snapshot for all known agents (gateway and proxy mode)
 
-Supported MCP methods: `tools/list`, `tools/call`, and any other method (forwarded as-is).
+### `GET /reflect` response schema
+
+```json
+{
+  "agents": {
+    "<agent-id>": {
+      "secrecy": ["<tag>"],
+      "integrity": ["<tag>"]
+    }
+  },
+  "mode": "strict|filter|propagate",
+  "timestamp": "RFC3339 UTC timestamp"
+}
+```
+
+- `agents`: map keyed by agent ID with current DIFC labels.
+- `secrecy`/`integrity`: sorted arrays of label tags (empty array when none).
+- `mode`: active DIFC enforcement mode.
+- `timestamp`: snapshot generation time in UTC (`time.RFC3339`).
+
+> Security note: `/reflect` is intentionally unauthenticated for local/runtime debugging and operational introspection. It exposes active agent IDs and current DIFC labels, so operators should only expose the gateway/proxy on trusted networks.
+
+Supported MCP methods: `tools/list`, `tools/call` (proxied to backend servers), plus standard lifecycle methods (`initialize`, etc.) handled natively by the MCP SDK.
 
 ## Proxy Mode
 
@@ -193,7 +265,7 @@ awmg proxy \
   --listen localhost:8080
 ```
 
-This maps ~25 REST URL patterns and GraphQL queries to guard tool names, then runs the same 6-phase DIFC pipeline used by the MCP gateway. See [docs/PROXY_MODE.md](docs/PROXY_MODE.md) for full documentation.
+This maps ~50 REST URL patterns and ~15 GraphQL query patterns to guard tool names, then runs the same 6-phase DIFC pipeline used by the MCP gateway. See [docs/PROXY_MODE.md](docs/PROXY_MODE.md) for full documentation.
 
 ## Further Reading
 

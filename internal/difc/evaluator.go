@@ -2,6 +2,7 @@ package difc
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
@@ -87,6 +88,20 @@ func ParseEnforcementMode(s string) (EnforcementMode, error) {
 	default:
 		return EnforcementStrict, fmt.Errorf("unknown enforcement mode: %s (valid modes: %s, %s, %s)", s, ModeStrict, ModeFilter, ModePropagate)
 	}
+}
+
+// DefaultEnforcementMode returns the default guards mode, checking
+// MCP_GATEWAY_GUARDS_MODE first and falling back to strict.
+func DefaultEnforcementMode() string {
+	if envMode := os.Getenv("MCP_GATEWAY_GUARDS_MODE"); envMode != "" {
+		mode := strings.ToLower(envMode)
+		if _, err := ParseEnforcementMode(mode); err == nil {
+			logEvaluator.Printf("Guards mode set from MCP_GATEWAY_GUARDS_MODE: %s", mode)
+			return mode
+		}
+		logEvaluator.Printf("MCP_GATEWAY_GUARDS_MODE value %q is invalid, falling back to default: %s", envMode, ModeStrict)
+	}
+	return ModeStrict
 }
 
 // DIFCComponents holds the set of DIFC objects needed by a server or proxy.
@@ -339,44 +354,6 @@ func (e *Evaluator) evaluateWrite(
 
 	logEvaluator.Printf("Write access allowed: resource=%s", resource.Description)
 	return result
-}
-
-// FormatViolationError creates a detailed error message explaining the violation and its implications
-func FormatViolationError(result *EvaluationResult, agentSecrecy *SecrecyLabel, agentIntegrity *IntegrityLabel, resource *LabeledResource) error {
-	if result.Decision == AccessAllow {
-		return nil
-	}
-
-	var msg strings.Builder
-	msg.WriteString(fmt.Sprintf("DIFC Violation: %s\n\n", result.Reason))
-
-	if len(result.SecrecyToAdd) > 0 {
-		msg.WriteString(fmt.Sprintf("Required Action: Add secrecy tags %v\n", result.SecrecyToAdd))
-		msg.WriteString("\nImplications of adding secrecy tags:\n")
-		msg.WriteString("  - Agent will be restricted from writing to resources that lack these tags\n")
-		msg.WriteString("  - This includes public resources (e.g., public repositories, public internet)\n")
-		msg.WriteString("  - Agent will be marked as handling sensitive information\n")
-		msg.WriteString(fmt.Sprintf("  - Future writes must target resources with tags: %v\n", result.SecrecyToAdd))
-	}
-
-	if len(result.IntegrityToDrop) > 0 {
-		msg.WriteString(fmt.Sprintf("\nRequired Action: Drop integrity tags %v\n", result.IntegrityToDrop))
-		msg.WriteString("\nImplications of dropping integrity tags:\n")
-		msg.WriteString("  - Agent will no longer be able to write to high-integrity resources\n")
-		msg.WriteString(fmt.Sprintf("  - Specifically, agent cannot write to resources requiring tags: %v\n", result.IntegrityToDrop))
-		msg.WriteString("  - This action acknowledges that agent has been influenced by lower-integrity data\n")
-		msg.WriteString("  - Agent's outputs will be considered less trustworthy\n")
-	}
-
-	msg.WriteString("\nCurrent Agent Labels:\n")
-	msg.WriteString(fmt.Sprintf("  Secrecy: %v\n", agentSecrecy.Label.GetTags()))
-	msg.WriteString(fmt.Sprintf("  Integrity: %v\n", agentIntegrity.Label.GetTags()))
-
-	msg.WriteString("\nResource Requirements:\n")
-	msg.WriteString(fmt.Sprintf("  Secrecy: %v\n", resource.Secrecy.Label.GetTags()))
-	msg.WriteString(fmt.Sprintf("  Integrity: %v\n", resource.Integrity.Label.GetTags()))
-
-	return fmt.Errorf("%s", msg.String())
 }
 
 // FilterCollection filters a collection based on agent labels

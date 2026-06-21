@@ -59,6 +59,9 @@ func DoGitHubGET(ctx context.Context, apiBaseURL, path, authHeader string) (*htt
 // ParseRateLimitResetHeader parses the Unix-timestamp value of the
 // X-RateLimit-Reset HTTP header into a time.Time.
 // Returns zero time when the header value is absent or malformed.
+//
+// See also: parseRateLimitResetFromText in server/rate_limit.go, which parses
+// the same timing information from MCP tool result text bodies instead of HTTP headers.
 func ParseRateLimitResetHeader(value string) time.Time {
 	if value == "" {
 		return time.Time{}
@@ -71,4 +74,27 @@ func ParseRateLimitResetHeader(value string) time.Time {
 	reset := time.Unix(unix, 0)
 	logHTTP.Printf("Parsed X-RateLimit-Reset: resetAt=%s", reset.UTC().Format(time.RFC3339))
 	return reset
+}
+
+// ComputeRetryAfter returns the number of seconds a client should wait before
+// retrying after a rate-limit response. It accepts the parsed reset time from
+// ParseRateLimitResetHeader. When resetAt is in the future the delay is clamped
+// to [1, 3600] seconds. When resetAt is zero or already in the past a default
+// of 60 seconds is returned.
+func ComputeRetryAfter(resetAt time.Time) int {
+	const (
+		defaultDelay = 60
+		maxDelay     = 3600
+	)
+	if resetAt.IsZero() {
+		return defaultDelay
+	}
+	secs := int(time.Until(resetAt).Seconds()) + 1 // add 1s buffer
+	if secs < 1 {
+		return defaultDelay
+	}
+	if secs > maxDelay {
+		return maxDelay
+	}
+	return secs
 }

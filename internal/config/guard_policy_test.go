@@ -9,6 +9,58 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestAllIntegrityLevelsReturnsCopy(t *testing.T) {
+	levels := AllIntegrityLevels()
+	require.Equal(t, []string{IntegrityNone, IntegrityUnapproved, IntegrityApproved, IntegrityMerged}, levels)
+
+	levels[0] = "mutated"
+
+	assert.Equal(t, IntegrityNone, AllIntegrityLevels()[0])
+}
+
+func TestNormalizeIntegrityLevel(t *testing.T) {
+	tests := []struct {
+		name            string
+		raw             string
+		optional        bool
+		want            string
+		wantErrContains string
+	}{
+		{
+			name:     "normalizes case and whitespace",
+			raw:      "  ApProVed ",
+			optional: false,
+			want:     "approved",
+		},
+		{
+			name:     "optional empty allowed",
+			raw:      " ",
+			optional: true,
+			want:     "",
+		},
+		{
+			name:            "invalid value rejected",
+			raw:             "invalid",
+			optional:        false,
+			wantErrContains: "must be one of: none, unapproved, approved, merged",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NormalizeIntegrityLevel(tt.raw, tt.optional)
+			if tt.wantErrContains != "" {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErrContains)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 // TestNormalizeGuardPolicy tests NormalizeGuardPolicy with all branch paths.
 func TestNormalizeGuardPolicy(t *testing.T) {
 	tests := []struct {
@@ -22,12 +74,12 @@ func TestNormalizeGuardPolicy(t *testing.T) {
 		{
 			name:    "nil policy",
 			policy:  nil,
-			wantErr: "policy must include allow-only",
+			wantErr: errMsgPolicyMissingKey,
 		},
 		{
 			name:    "policy with nil AllowOnly",
 			policy:  &GuardPolicy{AllowOnly: nil},
-			wantErr: "policy must include allow-only",
+			wantErr: errMsgPolicyMissingKey,
 		},
 		{
 			name: "repos string all",
@@ -279,6 +331,44 @@ func TestNormalizeGuardPolicyBlockedAndApproval(t *testing.T) {
 		got, err := NormalizeGuardPolicy(policy)
 		require.NoError(t, err)
 		assert.Empty(t, got.BlockedUsers)
+	})
+}
+
+func TestNormalizeGuardPolicyRefusalLabels(t *testing.T) {
+	t.Run("refusal-labels propagated to normalized policy", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:         "public",
+			MinIntegrity:  "none",
+			RefusalLabels: []string{"unsafe", "security-blocked"},
+		}}
+
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"unsafe", "security-blocked"}, got.RefusalLabels)
+	})
+
+	t.Run("refusal-labels case-insensitive deduplication", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:         "public",
+			MinIntegrity:  "none",
+			RefusalLabels: []string{"Unsafe", "unsafe", "UNSAFE"},
+		}}
+
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"Unsafe"}, got.RefusalLabels)
+	})
+
+	t.Run("empty refusal-labels entry returns error", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:         "public",
+			MinIntegrity:  "none",
+			RefusalLabels: []string{"unsafe", ""},
+		}}
+
+		_, err := NormalizeGuardPolicy(policy)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "refusal-labels entries must not be empty")
 	})
 }
 
@@ -572,9 +662,9 @@ func TestGuardPolicyUnmarshalJSON(t *testing.T) {
 			wantErr: `unsupported field "extra"`,
 		},
 		{
-			name:    "missing allow-only field",
+			name:    "missing allow-only and write-sink fields",
 			json:    `{}`,
-			wantErr: "policy must include allow-only",
+			wantErr: errMsgPolicyMissingKey,
 		},
 		{
 			name: "canonical allow-only key",
@@ -678,6 +768,32 @@ func TestAllowOnlyPolicyUnmarshalJSON(t *testing.T) {
 			json: `{"repos":"public","min-integrity":"none","blocked-users":["evil-bot","bad-actor"]}`,
 			check: func(t *testing.T, p *AllowOnlyPolicy) {
 				assert.Equal(t, []string{"evil-bot", "bad-actor"}, p.BlockedUsers)
+			},
+		},
+		{
+			name: "refusal-labels parsed correctly",
+			json: `{"repos":"public","min-integrity":"none","refusal-labels":["unsafe","blocked"]}`,
+			check: func(t *testing.T, p *AllowOnlyPolicy) {
+				assert.Equal(t, []string{"unsafe", "blocked"}, p.RefusalLabels)
+			},
+		},
+		{
+			name: "refusal-labels expression parsed correctly",
+			json: `{"repos":"public","min-integrity":"none","refusal-labels":"unsafe, blocked\nneeds-triage"}`,
+			check: func(t *testing.T, p *AllowOnlyPolicy) {
+				assert.Equal(t, []string{"unsafe", "blocked", "needs-triage"}, p.RefusalLabels)
+			},
+		},
+		{
+			name:    "empty refusal-labels expression rejected",
+			json:    `{"repos":"public","min-integrity":"none","refusal-labels":"   "}`,
+			wantErr: "invalid allow-only.refusal-labels: must include at least one label",
+		},
+		{
+			name: "tool-call-limits parsed correctly",
+			json: `{"repos":"public","min-integrity":"none","tool-call-limits":{"issue_read":1,"list_issues":2}}`,
+			check: func(t *testing.T, p *AllowOnlyPolicy) {
+				assert.Equal(t, map[string]int{"issue_read": 1, "list_issues": 2}, p.ToolCallLimits)
 			},
 		},
 		{
@@ -829,6 +945,21 @@ func TestAllowOnlyPolicyMarshalJSON(t *testing.T) {
 		assert.Contains(t, jsonStr, `"human-reviewed"`)
 	})
 
+	t.Run("tool-call-limits is included when set", func(t *testing.T) {
+		policy := AllowOnlyPolicy{
+			Repos:          "public",
+			MinIntegrity:   "none",
+			ToolCallLimits: map[string]int{"issue_read": 1},
+		}
+
+		data, err := json.Marshal(policy)
+		require.NoError(t, err)
+
+		jsonStr := string(data)
+		assert.Contains(t, jsonStr, `"tool-call-limits"`)
+		assert.Contains(t, jsonStr, `"issue_read"`)
+	})
+
 	t.Run("nil blocked-users and approval-labels are omitted", func(t *testing.T) {
 		policy := AllowOnlyPolicy{
 			Repos:        "public",
@@ -954,13 +1085,23 @@ func TestValidateGuardPolicy(t *testing.T) {
 	t.Run("nil policy returns error", func(t *testing.T) {
 		err := ValidateGuardPolicy(nil)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "policy must include allow-only")
+		assert.EqualError(t, err, errMsgPolicyMissingKey)
 	})
 
 	t.Run("valid policy returns nil", func(t *testing.T) {
 		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
 			Repos:        "all",
 			MinIntegrity: "none",
+		}}
+		err := ValidateGuardPolicy(policy)
+		require.NoError(t, err)
+	})
+
+	t.Run("zero tool-call-limit is treated as unlimited", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:          "all",
+			MinIntegrity:   "none",
+			ToolCallLimits: map[string]int{"issue_read": 0},
 		}}
 		err := ValidateGuardPolicy(policy)
 		require.NoError(t, err)
@@ -973,6 +1114,17 @@ func TestValidateGuardPolicy(t *testing.T) {
 		}}
 		err := ValidateGuardPolicy(policy)
 		require.Error(t, err)
+	})
+
+	t.Run("negative tool-call-limit returns error", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:          "all",
+			MinIntegrity:   "none",
+			ToolCallLimits: map[string]int{"issue_read": -1},
+		}}
+		err := ValidateGuardPolicy(policy)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, `allow-only.tool-call-limits["issue_read"] must be >= 0`)
 	})
 }
 
@@ -1002,6 +1154,17 @@ func TestNormalizeGuardPolicyReactionEndorsement(t *testing.T) {
 		got, err := NormalizeGuardPolicy(policy)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"THUMBS_UP", "HEART"}, got.EndorsementReactions)
+	})
+
+	t.Run("tool-call-limits propagated to normalized policy", func(t *testing.T) {
+		policy := &GuardPolicy{AllowOnly: &AllowOnlyPolicy{
+			Repos:          "public",
+			MinIntegrity:   "approved",
+			ToolCallLimits: map[string]int{"issue_read": 1, "list_issues": 0},
+		}}
+		got, err := NormalizeGuardPolicy(policy)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]int{"issue_read": 1, "list_issues": 0}, got.ToolCallLimits)
 	})
 
 	t.Run("disapproval-reactions propagated and normalized to uppercase", func(t *testing.T) {
@@ -1215,4 +1378,57 @@ func TestNormalizeGuardPolicyPromotionDemotionLabels(t *testing.T) {
 		assert.Equal(t, "agent-approved", got.AllowOnly.PromotionLabel)
 		assert.Equal(t, "agent-blocked", got.AllowOnly.DemotionLabel)
 	})
+}
+
+func TestValidateAndNormalizeIntegrityField(t *testing.T) {
+	tests := []struct {
+		name            string
+		fieldPath       string
+		raw             string
+		optional        bool
+		want            string
+		wantErrContains string
+	}{
+		{
+			name:      "required integrity trims and lowercases",
+			fieldPath: "allow-only.min-integrity",
+			raw:       "  ApProVed ",
+			optional:  false,
+			want:      "approved",
+		},
+		{
+			name:      "optional empty is allowed",
+			fieldPath: "allow-only.disapproval-integrity",
+			raw:       "   ",
+			optional:  true,
+			want:      "",
+		},
+		{
+			name:            "required empty is rejected",
+			fieldPath:       "allow-only.min-integrity",
+			raw:             " ",
+			optional:        false,
+			wantErrContains: "allow-only.min-integrity must be one of",
+		},
+		{
+			name:            "invalid optional value is rejected",
+			fieldPath:       "allow-only.endorser-min-integrity",
+			raw:             "invalid",
+			optional:        true,
+			wantErrContains: "allow-only.endorser-min-integrity must be one of",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ValidateAndNormalizeIntegrityField(tt.fieldPath, tt.raw, tt.optional)
+			if tt.wantErrContains != "" {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErrContains)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }

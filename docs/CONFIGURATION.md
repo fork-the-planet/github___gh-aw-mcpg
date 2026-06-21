@@ -22,7 +22,7 @@ TOML configuration requires `command = "docker"` for stdio-based MCP servers to 
 ```toml
 [gateway]
 port = 3000
-api_key = "your-api-key"
+agent_id = "your-agent-id"
 
 [servers.github]
 command = "docker"
@@ -84,7 +84,7 @@ JSON configuration is the primary format for containerized deployments. Pass via
   },
   "gateway": {
     "port": 8080,
-    "apiKey": "${MCP_GATEWAY_API_KEY}",
+    "agentId": "${MCP_GATEWAY_AGENT_ID}",
     "domain": "localhost"
   }
 }
@@ -174,6 +174,7 @@ Run `./awmg --help` for full CLI options. Key flags:
 - **`tool_response_filters`** (optional): Per-tool jq expressions that transform tool response data before it is returned to the agent and before large-payload preview/schema processing runs
   - Map key: tool name; map value: jq expression string
   - Expressions are validated at startup (compile check); invalid jq causes startup/config validation failure
+  - JSON key name is intentionally snake_case: `tool_response_filters` (there is no `toolResponseFilters` alias)
   - Example:
     ```json
     "tool_response_filters": {
@@ -189,6 +190,35 @@ Run `./awmg --help` for full CLI options. Key flags:
   - References a guard defined in the top-level `[guards]` section
   - Enables per-server DIFC guard assignment independent of `guard-policies`
   - Example: `guard = "github"` (uses the guard named `github` from `[guards.github]`)
+  - Worked example (TOML):
+    ```toml
+    [guards.github]
+    type = "wasm"
+    path = "guards/github-guard/github_guard.wasm"
+
+    [servers.github]
+    command = "docker"
+    args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+    guard = "github"
+    ```
+  - Worked example (JSON stdin):
+    ```json
+    {
+      "guards": {
+        "github": {
+          "type": "wasm",
+          "path": "guards/github-guard/github_guard.wasm"
+        }
+      },
+      "mcpServers": {
+        "github": {
+          "type": "stdio",
+          "container": "ghcr.io/github/github-mcp-server:latest",
+          "guard": "github"
+        }
+      }
+    }
+    ```
 
 - **`connectTimeout`** (preferred JSON) / **`connect_timeout`** (legacy JSON alias, HTTP servers only): Per-transport connection timeout in seconds for connecting to HTTP backends. The gateway tries streamable HTTP, then SSE, then plain JSON-RPC over HTTP POST in sequence; this timeout applies to each attempt. It does **not** set the end-to-end `tools/call` execution timeout. Default: `30`.
 
@@ -197,9 +227,9 @@ Run `./awmg --help` for full CLI options. Key flags:
   - Example (stdin JSON): `"toolTimeout": 600` on an HTTP MCP server that may take up to 10 minutes
   - Example (TOML): `tool_timeout = 600` under a `[servers.my-server]` section
 
-- **`rate_limit_threshold`** (optional, TOML/JSON file configs only): Number of consecutive rate-limit errors from this backend that will trip the circuit breaker (transition CLOSED → OPEN). When OPEN, requests are immediately rejected until the breaker is eligible to transition to HALF-OPEN again; this is normally controlled by `rate_limit_cooldown`, but if the gateway knows an upstream rate-limit reset time (for example from response headers or parsed tool error text), that reset time takes precedence. **Not available in JSON stdin format.** Default: `3`.
+- **`rate_limit_threshold`** (optional, TOML config only): Number of consecutive rate-limit errors from this backend that will trip the circuit breaker (transition CLOSED → OPEN). When OPEN, requests are immediately rejected until the breaker is eligible to transition to HALF-OPEN again; this is normally controlled by `rate_limit_cooldown`, but if the gateway knows an upstream rate-limit reset time (for example from response headers or parsed tool error text), that reset time takes precedence. **Not available in JSON stdin format.** Default: `3`.
 
-- **`rate_limit_cooldown`** (optional, TOML/JSON file configs only): Default number of seconds before the circuit breaker allows a single probe request (transition OPEN → HALF-OPEN). If the gateway knows an upstream rate-limit reset time, it uses that reset time instead of this cooldown to decide when to probe again. If the probe succeeds the circuit closes; if rate-limited again it re-opens. **Not available in JSON stdin format.** Default: `60`.
+- **`rate_limit_cooldown`** (optional, TOML config only): Default number of seconds before the circuit breaker allows a single probe request (transition OPEN → HALF-OPEN). If the gateway knows an upstream rate-limit reset time, it uses that reset time instead of this cooldown to decide when to probe again. If the probe succeeds the circuit closes; if rate-limited again it re-opens. **Not available in JSON stdin format.** Default: `60`.
 
 - **`working_directory`** (optional, TOML format only): Working directory for the server process
   - **Note**: This field is parsed and stored but not yet implemented in the launcher; it has no runtime effect currently
@@ -250,6 +280,8 @@ min-integrity = "unapproved"
 - **`approval-labels`** *(optional)*: Array of GitHub label names that promote a content item's effective integrity to `approved` when present. Uses `max(base, approved)` so it never lowers integrity. Does not override `blocked-users`.
 
 - **`trusted-users`** *(optional)*: Array of GitHub usernames whose content is unconditionally elevated to `approved` integrity. Useful for granting specific external contributors the same treatment as repository members without lowering `min-integrity` globally. Uses `max(base, approved)` so it never lowers integrity. Does not override `blocked-users`.
+
+- **`tool-call-limits`** *(optional)*: Map of tool names to per-session call limits enforced by the gateway. Positive values cap how many times that tool may be called in one session; `0` or an omitted entry leaves the tool unlimited.
 
 - **Meaning**: Restricts the GitHub MCP server to only access specified repositories. Tools like `get_file_contents`, `search_code`, etc. will only work on allowed repositories. Attempts to access other repositories will be denied by the guard policy.
 
@@ -378,8 +410,8 @@ The `customSchemas` top-level field allows you to define custom server types bey
   - Variable expansion with `${VAR_NAME}` is applied globally (all fields are expanded before parsing) and fails fast on undefined variables
 - **TOML format**:
   - Uses `command` and `args` fields directly (e.g., `command = "docker"`)
-  - Variable expansion with `${VAR_NAME}` is only supported in `[gateway.opentelemetry]` and legacy `[gateway.tracing]` fields
-  - Server `env` values, `url`, `args`, `gateway.api_key`, and other non-tracing fields are not expanded
+  - Variable expansion with `${VAR_NAME}` is only supported in `[gateway.opentelemetry]` fields (the legacy `[gateway.tracing]` section does **not** support variable expansion)
+  - Server `env` values, `url`, `args`, `gateway.agent_id`, and other non-tracing fields are not expanded
   - For host environment passthrough to container `env`, use an empty string `""` value
 - **Common rules** (both formats):
   - Empty/"local" type automatically normalized to "stdio"
@@ -395,12 +427,13 @@ The `customSchemas` top-level field allows you to define custom server types bey
 | Field | Description | Default |
 |-------|-------------|---------|
 | `port` | Validated and stored for metadata purposes only. The actual listen address is always set by the `--listen` CLI flag (default `127.0.0.1:3000`). | `3000` (informational only) |
-| `apiKey` | API key for authentication | (disabled) |
+| `agentId` | Agent/session identifier used for routing and optional auth matching | (disabled) |
+| `apiKey` | Deprecated alias for `agentId` (accepted for backward compatibility) | (deprecated) |
 | `domain` | Gateway domain (`"localhost"`, `"host.docker.internal"`, or `"${VAR}"`) | (unset) |
 | `startupTimeout` | Seconds to wait for backend startup | `30` |
 | `toolTimeout` | Maximum seconds for a single tool call, enforced as a context deadline on all backend requests (stdio and HTTP) | `60` |
 | `payloadDir` | Directory for large payload files. Must be an absolute path. | `/tmp/jq-payloads` |
-| `payloadPathPrefix` | Optional path prefix used when returning `payloadPath` values to clients (for example when the host payload directory is mounted at a different in-container path) | (empty - use actual filesystem path) |
+| `payloadPathPrefix` (JSON stdin) / `payload_path_prefix` (TOML) | Optional path prefix used when returning `payloadPath` values to clients (for example when the host payload directory is mounted at a different in-container path) | (empty - use actual filesystem path) |
 | `payloadSizeThreshold` (JSON) / `payload_size_threshold` (TOML) | Size threshold in bytes; responses larger than this are stored to disk and returned as a `payloadPath` reference | `524288` (512 KB) |
 | `trustedBots` (JSON) / `trusted_bots` (TOML) | Optional list of additional bot usernames to trust with "approved" integrity level. Additive to the built-in trusted bot list. When specified, must be a non-empty array with non-empty string entries (spec §4.1.3.4); omit the field entirely if not needed. Example: `["my-bot[bot]", "org-automation"]` | (disabled) |
 | `keepaliveInterval` (JSON) / `keepalive_interval` (TOML) | Interval (seconds) between keepalive pings sent to HTTP backends. Prevents remote servers from expiring idle sessions. Set to `-1` to disable keepalive pings entirely. | `1500` (25 min) |
@@ -416,7 +449,7 @@ The gateway supports OpenTelemetry tracing via a nested configuration block. For
 | `traceId` (JSON) / `trace_id` (TOML) | Parent trace ID (32-char lowercase hex, W3C format) to link gateway spans into a pre-existing trace. Supports `${VAR}` expansion. | (none) |
 | `spanId` (JSON) / `span_id` (TOML) | Parent span ID (16-char lowercase hex, W3C format). Ignored without `traceId`. Supports `${VAR}` expansion. | (none) |
 | `serviceName` (JSON) / `service_name` (TOML) | The `service.name` resource attribute reported in traces. | `mcp-gateway` |
-| `sample_rate` (TOML only) | Fraction of traces sampled and exported (0.0–1.0). TOML/CLI only — not available in JSON stdin. Gateway extension, not in spec §4.1.3.6. | `1.0` |
+| `sample_rate` (TOML only) | Fraction of traces sampled and exported (0.0–1.0). Also available via CLI `--otlp-sample-rate`. Gateway extension, not in spec §4.1.3.6. | `1.0` |
 
 **TOML example:**
 
@@ -449,7 +482,6 @@ headers = "Authorization=Bearer ${OTEL_TOKEN}"
 
 | Option | CLI Flag | Env Var | Default |
 |--------|----------|---------|---------|
-| Payload path prefix | `--payload-path-prefix` | `MCP_GATEWAY_PAYLOAD_PATH_PREFIX` | (empty) |
 | Sequential launch | `--sequential-launch` | — | `false` |
 | Guards mode | `--guards-mode` | `MCP_GATEWAY_GUARDS_MODE` | `strict` |
 

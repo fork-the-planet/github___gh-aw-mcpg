@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/github/gh-aw-mcpg/internal/config"
 )
 
 // normalizePolicyPayload coerces a policy value to a map[string]interface{}.
@@ -56,7 +58,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		}
 	}
 
-	payload, err := PolicyToMap(policy)
+	payload, err := config.GuardPolicyToMap(policy)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode label_agent policy payload: %w", err)
 	}
@@ -104,7 +106,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 	// Validate that the allow-only object contains only known keys.
 	for k := range allowOnly {
 		switch k {
-		case "repos", "min-integrity", "integrity", "blocked-users", "approval-labels", "trusted-users",
+		case "repos", "min-integrity", "integrity", "blocked-users", "refusal-labels", "approval-labels", "trusted-users",
 			"endorsement-reactions", "disapproval-reactions", "disapproval-integrity", "endorser-min-integrity":
 			// valid allow-only keys
 		default:
@@ -112,7 +114,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		}
 	}
 
-	if !isValidAllowOnlyRepos(reposRaw) {
+	if !config.IsValidAllowOnlyReposValue(reposRaw) {
 		return nil, fmt.Errorf("invalid repos value: expected all, public, or non-empty array of scoped strings")
 	}
 
@@ -122,14 +124,23 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 
 	// Validate blocked-users if present: must be an array of non-empty strings.
 	if blockedUsersRaw, ok := allowOnly["blocked-users"]; ok {
-		if err := validateStringArray("blocked-users", blockedUsersRaw, false); err != nil {
+		if err := config.ValidateStringArrayField("blocked-users", blockedUsersRaw, false); err != nil {
 			return nil, err
 		}
 	}
 
+	// Validate refusal-labels if present: array of non-empty strings or comma/newline string expression.
+	if refusalLabelsRaw, ok := allowOnly["refusal-labels"]; ok {
+		normalizedRefusalLabels, err := normalizeLabelListField("refusal-labels", refusalLabelsRaw)
+		if err != nil {
+			return nil, err
+		}
+		allowOnly["refusal-labels"] = normalizedRefusalLabels
+	}
+
 	// Validate approval-labels if present: must be an array of non-empty strings.
 	if approvalLabelsRaw, ok := allowOnly["approval-labels"]; ok {
-		if err := validateStringArray("approval-labels", approvalLabelsRaw, false); err != nil {
+		if err := config.ValidateStringArrayField("approval-labels", approvalLabelsRaw, false); err != nil {
 			return nil, err
 		}
 	}
@@ -137,7 +148,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 	// Validate trusted-bots if present.
 	// Per spec §4.1.3.4: trustedBots MUST be a non-empty array of strings when present.
 	if trustedBotsRaw, hasTrustedBots := payload["trusted-bots"]; hasTrustedBots {
-		if err := validateStringArray("trusted-bots", trustedBotsRaw, true); err != nil {
+		if err := config.ValidateStringArrayField("trusted-bots", trustedBotsRaw, true); err != nil {
 			return nil, err
 		}
 	}
@@ -145,7 +156,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 	// Validate trusted-users if present inside allow-only.
 	// Must be an array of non-empty strings when present.
 	if trustedUsersRaw, ok := allowOnly["trusted-users"]; ok {
-		if err := validateStringArray("trusted-users", trustedUsersRaw, false); err != nil {
+		if err := config.ValidateStringArrayField("trusted-users", trustedUsersRaw, false); err != nil {
 			return nil, err
 		}
 	}
@@ -153,7 +164,7 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 	// Validate endorsement-reactions and disapproval-reactions if present.
 	for _, reactionKey := range []string{"endorsement-reactions", "disapproval-reactions"} {
 		if reactionsRaw, ok := allowOnly[reactionKey]; ok {
-			if err := validateStringArray(reactionKey, reactionsRaw, false); err != nil {
+			if err := config.ValidateStringArrayField(reactionKey, reactionsRaw, false); err != nil {
 				return nil, err
 			}
 		}
@@ -177,6 +188,45 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 	return payload, nil
 }
 
+func normalizeLabelListField(field string, raw interface{}) ([]interface{}, error) {
+	if arr, ok := raw.([]interface{}); ok {
+		if err := config.ValidateStringArrayField(field, arr, false); err != nil {
+			return nil, err
+		}
+		out := make([]interface{}, 0, len(arr))
+		for _, entry := range arr {
+			out = append(out, strings.TrimSpace(entry.(string)))
+		}
+		return out, nil
+	}
+
+	s, ok := raw.(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid %s value: expected array of strings or comma/newline-delimited string", field)
+	}
+
+	parts := strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || r == '\n'
+	})
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("invalid %s value: must include at least one non-empty label", field)
+	}
+
+	out := make([]interface{}, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed == "" {
+			continue
+		}
+		out = append(out, trimmed)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("invalid %s value: must include at least one non-empty label", field)
+	}
+
+	return out, nil
+}
+
 // BuildLabelAgentPayload constructs the label_agent input payload from the given guard policy
 // and optional lists of additional trusted bot usernames and trusted user logins. The trusted
 // bots are merged with the guard's built-in list and cannot remove any built-in entries. If
@@ -191,7 +241,7 @@ func BuildLabelAgentPayload(policy interface{}, trustedBots []string, trustedUse
 	// Convert the policy to a generic map so we can inject the trusted-bots and
 	// trusted-users keys alongside the allow-only policy without altering the
 	// policy itself.
-	payload, err := PolicyToMap(policy)
+	payload, err := config.GuardPolicyToMap(policy)
 	if err != nil {
 		// If we can't convert the policy, return it as-is; buildStrictLabelAgentPayload
 		// will surface the error later.

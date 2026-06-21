@@ -20,6 +20,41 @@ func sortTags(tags []difc.Tag) []difc.Tag {
 	return sorted
 }
 
+func TestParseDIFCTagsFromAny(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  any
+		want []difc.Tag
+	}{
+		{
+			name: "nil returns nil",
+			raw:  nil,
+			want: nil,
+		},
+		{
+			name: "non-array returns nil",
+			raw:  "not-an-array",
+			want: nil,
+		},
+		{
+			name: "empty array returns empty tags",
+			raw:  []any{},
+			want: []difc.Tag{},
+		},
+		{
+			name: "mixed values keep only string tags",
+			raw:  []any{"tag-a", 42, true, nil, "tag-b"},
+			want: []difc.Tag{"tag-a", "tag-b"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, parseDIFCTagsFromAny(tt.raw))
+		})
+	}
+}
+
 // ─── parseResourceResponse ────────────────────────────────────────────────────
 
 func TestParseResourceResponse(t *testing.T) {

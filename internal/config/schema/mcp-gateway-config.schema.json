@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://docs.github.com/gh-aw/schemas/mcp-gateway-config.schema.json",
   "title": "MCP Gateway Configuration",
-  "description": "Configuration schema for the Model Context Protocol (MCP) Gateway. The gateway provides transparent HTTP access to multiple MCP servers with protocol translation, server isolation, and authentication capabilities.",
+  "description": "Configuration schema for the Model Context Protocol (MCP) Gateway as defined in the MCP Gateway Specification v1.0.0. The gateway provides transparent HTTP access to multiple MCP servers with protocol translation, server isolation, and authentication capabilities.",
   "type": "object",
   "properties": {
     "mcpServers": {
@@ -74,9 +74,9 @@
         },
         "container": {
           "type": "string",
-          "description": "Container image for the MCP server (e.g., 'ghcr.io/example/mcp-server:latest' or 'ghcr.io/example/mcp-server@sha256:<digest>'). This field is required for stdio servers per MCP Gateway Specification section 4.1.2.",
+          "description": "Container image for the MCP server (e.g., 'ghcr.io/example/mcp-server:latest'). This field is required for stdio servers per MCP Gateway Specification section 4.1.2.",
           "minLength": 1,
-          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9./_-]*(:([a-zA-Z0-9._-]+|latest))?(@sha256:[a-fA-F0-9]{64})?$"
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9./_-]*(:([a-zA-Z0-9._-]+|latest))?$"
         },
         "entrypoint": {
           "type": "string",
@@ -127,32 +127,26 @@
           ]
         },
         "toolTimeout": {
-          "description": "Preferred camelCase JSON field for per-server tool invocation timeout in seconds. When set to a positive value (minimum 10), overrides the global gateway.toolTimeout for tool calls to this server only. Set to 0 or omit the field to fall back to the global gateway.toolTimeout.",
-          "oneOf": [
+          "type": "integer",
+          "description": "Per-server maximum time (seconds) to wait for a single tool invocation. Overrides the global gateway.toolTimeout for this server. Minimum: 10 (0 = unset).",
+          "anyOf": [
             {
-              "type": "integer",
-              "const": 0,
-              "description": "0 means unset: fall back to gateway.toolTimeout."
+              "const": 0
             },
             {
-              "type": "integer",
-              "minimum": 10,
-              "description": "Positive timeout value in seconds (minimum 10)."
+              "minimum": 10
             }
           ]
         },
         "tool_timeout": {
-          "description": "Legacy snake_case alias for toolTimeout. Accepted for backward compatibility.",
-          "oneOf": [
+          "type": "integer",
+          "description": "Legacy snake_case alias for toolTimeout. Prefer toolTimeout. Minimum: 10 (0 = unset).",
+          "anyOf": [
             {
-              "type": "integer",
-              "const": 0,
-              "description": "0 means unset: fall back to gateway.toolTimeout."
+              "const": 0
             },
             {
-              "type": "integer",
-              "minimum": 10,
-              "description": "Positive timeout value in seconds (minimum 10)."
+              "minimum": 10
             }
           ]
         }
@@ -211,41 +205,59 @@
           "description": "Guard policies for access control at the MCP gateway level. The structure of guard policies is server-specific. For GitHub MCP server, see the GitHub guard policy schema. For other servers (Jira, WorkIQ), different policy schemas will apply.",
           "additionalProperties": true
         },
+        "auth": {
+          "type": "object",
+          "description": "Upstream authentication configuration for the HTTP MCP server. When configured, the gateway dynamically acquires tokens and injects them as Authorization headers on every outgoing request to this server. Currently only GitHub Actions OIDC is supported.",
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "github-oidc"
+              ],
+              "description": "Authentication type. Currently only 'github-oidc' is supported, which acquires short-lived JWTs from the GitHub Actions OIDC endpoint."
+            },
+            "audience": {
+              "type": "string",
+              "description": "The intended audience for the OIDC token (the 'aud' claim). If omitted, defaults to the server's url field.",
+              "format": "uri"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
         "connectTimeout": {
           "type": "integer",
-          "description": "Preferred camelCase JSON field for the per-transport connect timeout in seconds used when connecting to HTTP backends. Non-positive values fall back to the default transport timeout."
+          "description": "Per-transport timeout (in seconds) for connecting to HTTP backends. Default: 30 seconds.",
+          "minimum": 1
         },
         "connect_timeout": {
           "type": "integer",
-          "description": "Legacy snake_case alias for connectTimeout. Accepted for backward compatibility."
+          "description": "Legacy snake_case alias for connectTimeout. Prefer connectTimeout.",
+          "minimum": 1
         },
         "toolTimeout": {
-          "description": "Preferred camelCase JSON field for per-server tool invocation timeout in seconds. When set to a positive value (minimum 10), overrides the global gateway.toolTimeout for tool calls to this server only. Set to 0 or omit the field to fall back to the global gateway.toolTimeout.",
-          "oneOf": [
+          "type": "integer",
+          "description": "Per-server maximum time (seconds) to wait for a single tool invocation. Overrides the global gateway.toolTimeout for this server. Minimum: 10 (0 = unset).",
+          "anyOf": [
             {
-              "type": "integer",
-              "const": 0,
-              "description": "0 means unset: fall back to gateway.toolTimeout."
+              "const": 0
             },
             {
-              "type": "integer",
-              "minimum": 10,
-              "description": "Positive timeout value in seconds (minimum 10)."
+              "minimum": 10
             }
           ]
         },
         "tool_timeout": {
-          "description": "Legacy snake_case alias for toolTimeout. Accepted for backward compatibility.",
-          "oneOf": [
+          "type": "integer",
+          "description": "Legacy snake_case alias for toolTimeout. Prefer toolTimeout. Minimum: 10 (0 = unset).",
+          "anyOf": [
             {
-              "type": "integer",
-              "const": 0,
-              "description": "0 means unset: fall back to gateway.toolTimeout."
+              "const": 0
             },
             {
-              "type": "integer",
-              "minimum": 10,
-              "description": "Positive timeout value in seconds (minimum 10)."
+              "minimum": 10
             }
           ]
         }
@@ -289,10 +301,16 @@
           ],
           "description": "HTTP server port for the gateway. The gateway exposes endpoints at http://{domain}:{port}/. Can be an integer (1-65535) or a variable expression like '${MCP_GATEWAY_PORT}'."
         },
+        "agentId": {
+          "type": "string",
+          "description": "Agent/session identifier for request routing and optional auth matching. When configured, clients include this value in Authorization and may also send X-Agent-ID for explicit session routing.",
+          "minLength": 1
+        },
         "apiKey": {
           "type": "string",
-          "description": "API key for authentication. When configured, clients must include 'Authorization: <apiKey>' header in all RPC requests (the API key is used directly without Bearer or other scheme prefix). Per MCP Gateway Specification section 7.1, the authorization header format is 'Authorization: <apiKey>' where the API key is the complete header value. API keys must not be logged in plaintext per section 7.2.",
-          "minLength": 1
+          "description": "DEPRECATED alias for agentId. Use agentId instead.",
+          "minLength": 1,
+          "deprecated": true
         },
         "domain": {
           "oneOf": [
@@ -319,7 +337,7 @@
         "toolTimeout": {
           "type": "integer",
           "description": "Tool invocation timeout in seconds. The gateway enforces this timeout for individual tool/method calls to MCP servers.",
-          "minimum": 10,
+          "minimum": 1,
           "default": 60
         },
         "payloadDir": {
@@ -347,47 +365,77 @@
           },
           "minItems": 1
         },
+        "keepaliveInterval": {
+          "type": "integer",
+          "description": "Keepalive ping interval in seconds for HTTP MCP backends. Sends periodic pings to prevent session expiry during long-running agent tasks. Set to -1 to disable keepalive pings. Unset or 0 uses the gateway default (1500 seconds = 25 minutes).",
+          "minimum": -1
+        },
         "opentelemetry": {
-          "type": "object",
-          "description": "OpenTelemetry OTLP tracing configuration (spec \u00a74.1.3.6). When present, endpoint is required and MUST be HTTPS. Enables distributed tracing of MCP tool invocations.",
-          "properties": {
-            "endpoint": {
-              "type": "string",
-              "description": "OTLP/HTTP collector URL. MUST use HTTPS (e.g., \"https://otel-collector.example.com\"). Supports ${VAR} expansion.",
-              "minLength": 1,
-              "pattern": "^(https://.+|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\})$"
-            },
-            "headers": {
-              "type": "string",
-              "description": "Comma-separated key=value HTTP headers sent with every OTLP export request (e.g. \"Authorization=Bearer ${OTEL_TOKEN}\"). Supports ${VAR} expansion.",
-              "pattern": "^(\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}|\\s*[^=\\s,][^=,]*=.*?(\\s*,\\s*[^=\\s,][^=,]*=.*?)*)\\s*$"
-            },
-            "traceId": {
-              "type": "string",
-              "description": "Parent trace ID in W3C format (32-char lowercase hex). Used to link gateway spans into a pre-existing trace. Supports ${VAR} expansion.",
-              "pattern": "^([0-9a-f]{32}|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\})$"
-            },
-            "spanId": {
-              "type": "string",
-              "description": "Parent span ID in W3C format (16-char lowercase hex). Paired with traceId to construct the traceparent header. Ignored when traceId is absent. Supports ${VAR} expansion.",
-              "pattern": "^([0-9a-f]{16}|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\})$"
-            },
-            "serviceName": {
-              "type": "string",
-              "description": "service.name resource attribute for all emitted spans. Defaults to \"mcp-gateway\".",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "endpoint"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/opentelemetryConfig",
+          "description": "Optional OpenTelemetry configuration for emitting distributed tracing spans for MCP calls. When configured, the gateway exports OTLP/HTTP traces to the specified collector endpoint."
         }
       },
       "required": [
         "port",
-        "domain",
-        "apiKey"
+        "domain"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "agentId"
+          ]
+        },
+        {
+          "required": [
+            "apiKey"
+          ]
+        }
+      ]
+    },
+    "opentelemetryConfig": {
+      "type": "object",
+      "description": "OpenTelemetry configuration for the MCP Gateway. When present, the gateway emits distributed tracing spans for each MCP tool invocation and exports them via OTLP/HTTP to the configured collector endpoint. Per MCP Gateway Specification section 4.1.3.6.",
+      "properties": {
+        "endpoint": {
+          "type": "string",
+          "description": "OTLP/HTTP endpoint URL for the OpenTelemetry collector (e.g., 'https://collector.example.com:4318/v1/traces'). MUST be an HTTPS URL. Supports variable expressions using '${VARIABLE_NAME}' syntax.",
+          "pattern": "^(https://.+|\\$\\{[A-Z_][A-Z0-9_]*\\})$",
+          "minLength": 1
+        },
+        "traceId": {
+          "type": "string",
+          "description": "Parent trace ID for W3C trace context propagation. When set, all gateway spans are attached as children of this trace. MUST be a 32-character lowercase hexadecimal string (128-bit W3C trace ID). Supports variable expressions.",
+          "oneOf": [
+            {
+              "pattern": "^[0-9a-f]{32}$"
+            },
+            {
+              "pattern": "^\\$\\{[A-Z_][A-Z0-9_]*\\}$"
+            }
+          ]
+        },
+        "spanId": {
+          "type": "string",
+          "description": "Parent span ID for W3C trace context propagation. When set together with traceId, this span becomes the direct parent of the gateway root span. MUST be a 16-character lowercase hexadecimal string (64-bit W3C span ID). Ignored when traceId is not set. Supports variable expressions.",
+          "oneOf": [
+            {
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            {
+              "pattern": "^\\$\\{[A-Z_][A-Z0-9_]*\\}$"
+            }
+          ]
+        },
+        "serviceName": {
+          "type": "string",
+          "description": "Logical service name reported in the 'service.name' resource attribute of all emitted spans. Identifies the gateway in the tracing backend. Defaults to 'mcp-gateway' when not specified.",
+          "minLength": 1,
+          "default": "mcp-gateway"
+        }
+      },
+      "required": [
+        "endpoint"
       ],
       "additionalProperties": false
     }
@@ -405,7 +453,7 @@
       "gateway": {
         "port": 8080,
         "domain": "localhost",
-        "apiKey": "gateway-secret-token"
+        "agentId": "gateway-secret-token"
       }
     },
     {
@@ -452,7 +500,7 @@
       "gateway": {
         "port": 8080,
         "domain": "localhost",
-        "apiKey": "gateway-secret-token"
+        "agentId": "gateway-secret-token"
       }
     },
     {
@@ -476,7 +524,7 @@
       "gateway": {
         "port": 8080,
         "domain": "localhost",
-        "apiKey": "gateway-secret-token"
+        "agentId": "gateway-secret-token"
       },
       "customSchemas": {
         "safeinputs": "https://docs.github.com/gh-aw/schemas/mcp-scripts-config.schema.json"

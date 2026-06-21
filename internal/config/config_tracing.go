@@ -2,6 +2,10 @@
 // This file defines the tracing configuration for OpenTelemetry OTLP export.
 package config
 
+import "github.com/github/gh-aw-mcpg/internal/logger"
+
+var logTracingCfg = logger.New("config:config_tracing")
+
 // DefaultTracingSampleRate is the default sample rate for tracing (100% sampling).
 const DefaultTracingSampleRate = 1.0
 
@@ -76,6 +80,7 @@ func init() {
 	RegisterDefaults(func(cfg *Config) {
 		if cfg.Gateway != nil && cfg.Gateway.Tracing != nil {
 			if cfg.Gateway.Tracing.ServiceName == "" {
+				logTracingCfg.Printf("Applying default tracing service name: %s", DefaultTracingServiceName)
 				cfg.Gateway.Tracing.ServiceName = DefaultTracingServiceName
 			}
 		}
@@ -87,6 +92,8 @@ func init() {
 			return
 		}
 		otel := stdinCfg.Gateway.OpenTelemetry
+		logTracingCfg.Printf("Converting OpenTelemetry config from stdin: hasEndpoint=%v, hasServiceName=%v, hasTraceID=%v",
+			otel.Endpoint != "", otel.ServiceName != "", otel.TraceID != "")
 		if cfg.Gateway == nil {
 			cfg.Gateway = &GatewayConfig{}
 		}
@@ -98,47 +105,8 @@ func init() {
 			ServiceName: otel.ServiceName,
 		}
 		if cfg.Gateway.Tracing.ServiceName == "" {
+			logTracingCfg.Printf("OpenTelemetry service name not configured, applying default: %s", DefaultTracingServiceName)
 			cfg.Gateway.Tracing.ServiceName = DefaultTracingServiceName
 		}
 	})
-}
-
-// expandTracingVariables expands ${VAR} expressions in TracingConfig fields.
-// This is called for TOML-loaded configs before validation, mirroring the
-// stdin JSON path where ExpandRawJSONVariables handles expansion.
-func expandTracingVariables(cfg *TracingConfig) error {
-	if cfg == nil {
-		return nil
-	}
-
-	logValidation.Printf("Expanding tracing config variables: hasEndpoint=%v, hasTraceID=%v, hasSpanID=%v, hasHeaders=%v",
-		cfg.Endpoint != "", cfg.TraceID != "", cfg.SpanID != "", cfg.Headers != "")
-
-	fields := []struct {
-		name     string
-		jsonPath string
-		value    *string
-	}{
-		{name: "endpoint", jsonPath: "gateway.opentelemetry.endpoint", value: &cfg.Endpoint},
-		{name: "traceId", jsonPath: "gateway.opentelemetry.traceId", value: &cfg.TraceID},
-		{name: "spanId", jsonPath: "gateway.opentelemetry.spanId", value: &cfg.SpanID},
-		{name: "headers", jsonPath: "gateway.opentelemetry.headers", value: &cfg.Headers},
-	}
-
-	for _, field := range fields {
-		if *field.value == "" {
-			continue
-		}
-
-		expanded, err := expandVariables(*field.value, field.jsonPath)
-		if err != nil {
-			return err
-		}
-
-		logValidation.Printf("Expanded tracing %s variable", field.name)
-		*field.value = expanded
-	}
-
-	logValidation.Print("Tracing config variable expansion completed")
-	return nil
 }

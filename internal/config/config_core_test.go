@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -54,6 +55,36 @@ command = "docker"
 	require.Error(t, err)
 	assert.Nil(t, cfg)
 	assert.ErrorContains(t, err, "failed to parse TOML")
+
+	var perr toml.ParseError
+	require.ErrorAs(t, err, &perr, "expected wrapped toml.ParseError")
+	assert.Greater(t, perr.Position.Line, 0, "parse error should include line number")
+	assert.Greater(t, perr.Position.Col, 0, "parse error should include column number")
+}
+
+func TestLoadFromFile_BothTracingAndOpenTelemetry_OpenTelemetryTakesPrecedence(t *testing.T) {
+	path := writeTempTOML(t, `
+[gateway.tracing]
+endpoint = "http://legacy-collector.example.com:4318"
+
+[gateway.opentelemetry]
+endpoint = "https://otel-collector.example.com"
+service_name = "new-otel"
+
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+`)
+
+	cfg, err := LoadFromFile(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.Gateway)
+	require.NotNil(t, cfg.Gateway.Tracing)
+
+	assert.Equal(t, "https://otel-collector.example.com", cfg.Gateway.Tracing.Endpoint)
+	assert.Equal(t, "new-otel", cfg.Gateway.Tracing.ServiceName)
+	assert.Nil(t, cfg.Gateway.Opentelemetry)
 }
 
 // TestLoadFromFile_EmptyServers verifies that LoadFromFile returns an error
@@ -166,9 +197,31 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, 8888, cfg.Gateway.Port)
-	assert.Equal(t, "my-secret", cfg.Gateway.APIKey)
+	assert.Equal(t, "my-secret", cfg.Gateway.AgentID)
 	assert.Equal(t, 30, cfg.Gateway.StartupTimeout)
 	assert.Equal(t, 60, cfg.Gateway.ToolTimeout)
+}
+
+func TestLoadFromFile_InvalidGatewayPort(t *testing.T) {
+	path := writeTempTOML(t, `
+[gateway]
+port = 99999
+
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+`)
+
+	cfg, err := LoadFromFile(path)
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.ErrorContains(t, err, "port must be between 1 and 65535")
+}
+
+func TestLoadFromFile_ExampleConfig(t *testing.T) {
+	cfg, err := LoadFromFile(filepath.Join("..", "..", "config.example.toml"))
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
 }
 
 // TestLoadFromFile_ServerFields verifies that all ServerConfig fields are parsed correctly.
@@ -242,6 +295,39 @@ list_code_scanning_alerts = "map("
 	require.Error(t, err)
 	assert.Nil(t, cfg)
 	assert.ErrorContains(t, err, "invalid jq expression")
+}
+
+func TestLoadFromFile_ToolResponseFilter_InvalidJqExpressionMatchesStdinValidation(t *testing.T) {
+	path := writeTempTOML(t, `
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+
+[servers.github.tool_response_filters]
+list_code_scanning_alerts = "map("
+`)
+
+	_, tomlErr := LoadFromFile(path)
+	require.Error(t, tomlErr)
+
+	stdinErr := validateServerConfigWithCustomSchemas("github", &StdinServerConfig{
+		Type:      "stdio",
+		Container: "ghcr.io/github/github-mcp-server:latest",
+		ToolResponseFilters: map[string]string{
+			"list_code_scanning_alerts": "map(",
+		},
+	}, nil)
+	require.Error(t, stdinErr)
+
+	stripPathPrefix := func(s string) string {
+		for i := 0; i < len(s); i++ {
+			if s[i] == ' ' {
+				return s[i+1:]
+			}
+		}
+		return s
+	}
+	assert.Equal(t, stripPathPrefix(stdinErr.Error()), stripPathPrefix(tomlErr.Error()))
 }
 
 // TestLoadFromFile_ToolResponseFilter_WhitespaceOnlyValue verifies that a
@@ -406,24 +492,30 @@ func TestApplyGatewayDefaults_PartialZero(t *testing.T) {
 	assert.Equal(t, DefaultToolTimeout, cfg.ToolTimeout)
 }
 
-// TestGetAPIKey_NilGateway verifies that GetAPIKey returns an empty string
+// TestGetAgentID_NilGateway verifies that GetAgentID returns an empty string
 // when the Config has a nil Gateway field.
-func TestGetAPIKey_NilGateway(t *testing.T) {
+func TestGetAgentID_NilGateway(t *testing.T) {
 	cfg := &Config{Gateway: nil}
-	assert.Equal(t, "", cfg.GetAPIKey())
+	assert.Equal(t, "", cfg.GetAgentID())
 }
 
-// TestGetAPIKey_EmptyKey verifies that GetAPIKey returns an empty string
-// when the Gateway has an empty APIKey.
-func TestGetAPIKey_EmptyKey(t *testing.T) {
-	cfg := &Config{Gateway: &GatewayConfig{APIKey: ""}}
-	assert.Equal(t, "", cfg.GetAPIKey())
+// TestGetAgentID_EmptyID verifies that GetAgentID returns an empty string
+// when the Gateway has an empty AgentID.
+func TestGetAgentID_EmptyID(t *testing.T) {
+	cfg := &Config{Gateway: &GatewayConfig{AgentID: ""}}
+	assert.Equal(t, "", cfg.GetAgentID())
 }
 
-// TestGetAPIKey_ReturnsKey verifies that GetAPIKey returns the configured API key.
-func TestGetAPIKey_ReturnsKey(t *testing.T) {
-	cfg := &Config{Gateway: &GatewayConfig{APIKey: "super-secret-key"}}
-	assert.Equal(t, "super-secret-key", cfg.GetAPIKey())
+// TestGetAgentID_ReturnsID verifies that GetAgentID returns the configured agent ID.
+func TestGetAgentID_ReturnsID(t *testing.T) {
+	cfg := &Config{Gateway: &GatewayConfig{AgentID: "agent-123"}}
+	assert.Equal(t, "agent-123", cfg.GetAgentID())
+}
+
+// TestGetAgentID_LegacyAPIKeyFallback verifies that GetAgentID falls back to APIKey alias.
+func TestGetAgentID_LegacyAPIKeyFallback(t *testing.T) {
+	cfg := &Config{Gateway: &GatewayConfig{APIKey: "legacy-id"}}
+	assert.Equal(t, "legacy-id", cfg.GetAgentID())
 }
 
 // TestLoadFromFile_OIDCAuthMissingEnvVar verifies that LoadFromFile returns an error
@@ -490,21 +582,39 @@ audience = "https://example.com"
 	assert.ErrorContains(t, err, "Remove the auth configuration or change the server type to \"http\"")
 }
 
-// TestLoadFromFile_NegativePayloadSizeThresholdRejected verifies that TOML configs with
-// a negative payload_size_threshold are rejected per spec §4.1.3.3.
-func TestLoadFromFile_NegativePayloadSizeThresholdRejected(t *testing.T) {
-	path := writeTempTOML(t, `
+// TestLoadFromFile_InvalidPayloadSizeThresholdRejected verifies that TOML configs with
+// invalid payload_size_threshold values are rejected per spec §4.1.3.3.
+func TestLoadFromFile_InvalidPayloadSizeThresholdRejected(t *testing.T) {
+	tests := []struct {
+		name      string
+		threshold int
+	}{
+		{
+			name:      "zero value",
+			threshold: 0,
+		},
+		{
+			name:      "negative value",
+			threshold: -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := writeTempTOML(t, fmt.Sprintf(`
 [gateway]
-payload_size_threshold = -1
+payload_size_threshold = %d
 
 [servers.github]
 command = "docker"
 args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
-`)
-	cfg, err := LoadFromFile(path)
-	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.ErrorContains(t, err, "payload_size_threshold must be a positive integer")
+`, tt.threshold))
+			cfg, err := LoadFromFile(path)
+			require.Error(t, err)
+			assert.Nil(t, cfg)
+			assert.ErrorContains(t, err, "payload_size_threshold must be a positive integer")
+		})
+	}
 }
 
 // TestHTTPKeepaliveInterval tests all branches of the HTTPKeepaliveInterval method.
@@ -775,7 +885,7 @@ func TestEnsureGatewayDefaults(t *testing.T) {
 				StartupTimeout:    45,
 				ToolTimeout:       90,
 				KeepaliveInterval: 600,
-				APIKey:            "my-api-key",
+				AgentID:           "my-api-key",
 			},
 		}
 		cfg.EnsureGatewayDefaults()
@@ -784,7 +894,7 @@ func TestEnsureGatewayDefaults(t *testing.T) {
 		assert.Equal(t, 45, cfg.Gateway.StartupTimeout, "Explicit startup timeout should be preserved")
 		assert.Equal(t, 90, cfg.Gateway.ToolTimeout, "Explicit tool timeout should be preserved")
 		assert.Equal(t, 600, cfg.Gateway.KeepaliveInterval, "Explicit keepalive interval should be preserved")
-		assert.Equal(t, "my-api-key", cfg.Gateway.APIKey, "Explicit API key should be preserved")
+		assert.Equal(t, "my-api-key", cfg.Gateway.AgentID, "Explicit agent ID should be preserved")
 	})
 
 	t.Run("calling EnsureGatewayDefaults twice is idempotent", func(t *testing.T) {

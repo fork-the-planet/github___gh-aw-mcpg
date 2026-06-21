@@ -130,7 +130,7 @@ pub struct IssueAuthorInfo {
 #[derive(Debug, Clone)]
 pub struct CollaboratorPermission {
     pub permission: Option<String>,
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg(test)]
     pub login: Option<String>,
 }
 
@@ -494,6 +494,7 @@ pub fn get_collaborator_permission_with_callback(
         ));
         return cached.map(|permission| CollaboratorPermission {
             permission: Some(permission),
+            #[cfg(test)]
             login: Some(username.to_string()),
         });
     }
@@ -559,12 +560,19 @@ pub fn get_collaborator_permission_with_callback(
         .and_then(|v| v.as_str())
         .map(String::from);
 
+    #[cfg(test)]
     let login = data
         .get("user")
         .and_then(|u| u.get("login"))
         .and_then(|v| v.as_str())
         .map(String::from);
 
+    #[cfg(not(test))]
+    crate::log_info(&format!(
+        "get_collaborator_permission: {}/{} user {} → permission={:?}",
+        owner, repo, username, permission
+    ));
+    #[cfg(test)]
     crate::log_info(&format!(
         "get_collaborator_permission: {}/{} user {} → permission={:?} login={:?}",
         owner, repo, username, permission, login
@@ -572,7 +580,11 @@ pub fn get_collaborator_permission_with_callback(
 
     set_cached_collaborator_permission(&cache_key, permission.clone());
 
-    Some(CollaboratorPermission { permission, login })
+    Some(CollaboratorPermission {
+        permission,
+        #[cfg(test)]
+        login,
+    })
 }
 
 pub fn get_collaborator_permission(

@@ -115,13 +115,13 @@ Local usage:
 	cmd.Flags().StringVarP(&proxyListen, "listen", "l", "127.0.0.1:8080", "Proxy listen address")
 	cmd.Flags().StringVar(&proxyLogDir, "log-dir", defaultProxyLogDir, "Log file directory")
 	cmd.Flags().StringVar(&proxyWasmCacheDir, "wasm-cache-dir", resolveWasmCacheDir(false, "", defaultProxyLogDir), "Directory for disk-backed wazero compilation cache (default: sibling of <log-dir>, named wazero-cache)")
-	cmd.Flags().StringVar(&proxyDIFCMode, "guards-mode", "filter", "DIFC enforcement mode: strict, filter, propagate")
+	cmd.Flags().StringVar(&proxyDIFCMode, "guards-mode", difc.DefaultEnforcementMode(), "DIFC enforcement mode: strict, filter, propagate")
 	cmd.Flags().StringVar(&proxyAPIURL, "github-api-url", "", "Upstream GitHub API URL (default: auto-derived from GITHUB_API_URL or GITHUB_SERVER_URL, falls back to https://api.github.com)")
 	cmd.Flags().BoolVar(&proxyTLS, "tls", false, "Enable HTTPS with auto-generated self-signed certificates")
 	cmd.Flags().StringVar(&proxyTLSDir, "tls-dir", "", "Directory for TLS certificates (default: <log-dir>/proxy-tls)")
 	cmd.Flags().StringSliceVar(&proxyTrustedBots, "trusted-bots", nil, "Additional trusted bot usernames (comma-separated, extends built-in list)")
 	cmd.Flags().StringSliceVar(&proxyTrustedUsers, "trusted-users", nil, "User logins that receive approved integrity (comma-separated)")
-	registerTracingFlags(cmd.Flags(), &proxyOTLPEndpoint, &proxyOTLPService, &proxyOTLPSampleRate,
+	registerTracingFlags(cmd, &proxyOTLPEndpoint, &proxyOTLPService, &proxyOTLPSampleRate,
 		"OTLP HTTP endpoint for trace export (e.g. http://localhost:4318). Tracing is disabled when empty.",
 		"Service name reported in traces.",
 		"Fraction of traces to sample and export (0.0–1.0).")
@@ -146,8 +146,8 @@ func runProxy(cmd *cobra.Command, args []string) error {
 
 	logProxyCmd.Printf("Starting proxy: listen=%s, guard=%s, mode=%s, tls=%v", proxyListen, proxyGuardWasm, proxyDIFCMode, proxyTLS)
 
-	if err := validateDIFCModeFlag(proxyDIFCMode); err != nil {
-		return err
+	if _, err := difc.ParseEnforcementMode(proxyDIFCMode); err != nil {
+		return fmt.Errorf("invalid --guards-mode flag: %w", err)
 	}
 
 	// Initialize loggers
@@ -177,19 +177,15 @@ func runProxy(cmd *cobra.Command, args []string) error {
 			SampleRate:  &proxyOTLPSampleRate,
 		}
 	}
-	tracingProvider := initTracingProviderWithFallback(
+	// Provider enablement logging remains tied to explicit proxy flag configuration.
+	_, cleanupTracing := setupCommandTracing(
 		ctx,
 		tracingCfg,
 		"failed to initialize tracing provider: %v",
-		func(format string, args ...any) {
-			log.Printf("Warning: "+format, args...)
-		},
+		logTracingWarnf,
+		logTracingWarnf,
 	)
-	defer func() {
-		shutdownTracingProviderWithTimeout(tracingProvider, func(format string, args ...any) {
-			log.Printf("Warning: "+format, args...)
-		})
-	}()
+	defer cleanupTracing()
 	if tracingCfg != nil {
 		log.Printf("OpenTelemetry tracing enabled for proxy: endpoint=%s, service=%s", proxyOTLPEndpoint, proxyOTLPService)
 		logger.LogInfo("startup", "OpenTelemetry tracing enabled for proxy: endpoint=%s, service=%s", proxyOTLPEndpoint, proxyOTLPService)
@@ -265,74 +261,63 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		httpServer.TLSConfig = tlsCfg.Config
 	}
 
-	// Start server in background
-	go func() {
-		listener, err := net.Listen("tcp", proxyListen)
-		if err != nil {
-			log.Printf("Failed to listen on %s: %v", proxyListen, err)
-			cancel()
-			return
-		}
+	err = serveAndWait(
+		ctx,
+		cancel,
+		httpServer,
+		shutdownTimeout,
+		func() {
+			log.Println("Shutting down proxy...")
+			logger.LogInfo("shutdown", "Proxy shutting down")
+		},
+		func() error {
+			listener, err := net.Listen("tcp", proxyListen)
+			if err != nil {
+				return fmt.Errorf("failed to listen on %s: %w", proxyListen, err)
+			}
 
-		if tlsCfg != nil {
-			listener = tls.NewListener(listener, tlsCfg.Config)
-		}
+			if tlsCfg != nil {
+				listener = tls.NewListener(listener, tlsCfg.Config)
+			}
 
-		actualAddr := listener.Addr().String()
-		scheme := "http"
-		if tlsCfg != nil {
-			scheme = "https"
-		}
+			actualAddr := listener.Addr().String()
+			scheme := "http"
+			if tlsCfg != nil {
+				scheme = "https"
+			}
 
-		log.Printf("MCPG Proxy listening on %s://%s", scheme, actualAddr)
-		logger.LogInfo("startup", "Proxy listening on %s://%s", scheme, actualAddr)
+			log.Printf("MCPG Proxy listening on %s://%s", scheme, actualAddr)
+			logger.LogInfo("startup", "Proxy listening on %s://%s", scheme, actualAddr)
 
-		// Print connection info
-		fmt.Fprintf(os.Stderr, "\nMCPG GitHub API Proxy\n")
-		fmt.Fprintf(os.Stderr, "  Listening: %s://%s\n", scheme, actualAddr)
-		fmt.Fprintf(os.Stderr, "  Upstream:  %s\n", apiURL)
-		fmt.Fprintf(os.Stderr, "  Mode:      %s\n", proxyDIFCMode)
-		fmt.Fprintf(os.Stderr, "  Guard:     %s\n", proxyGuardWasm)
-		if tlsCfg != nil {
-			fmt.Fprintf(os.Stderr, "  CA cert:   %s\n", tlsCfg.CACertPath)
-			fmt.Fprintf(os.Stderr, "\nConnect with:\n")
-			fmt.Fprintf(os.Stderr, "  export GH_HOST=%s\n", clientAddr(actualAddr))
-			fmt.Fprintf(os.Stderr, "  export NODE_EXTRA_CA_CERTS=%s\n", tlsCfg.CACertPath)
-			fmt.Fprintf(os.Stderr, "  export SSL_CERT_FILE=%s\n", tlsCfg.CACertPath)
-			fmt.Fprintf(os.Stderr, "  export GIT_SSL_CAINFO=%s\n", tlsCfg.CACertPath)
-			fmt.Fprintf(os.Stderr, "  gh issue list -R org/repo\n\n")
-		} else {
-			fmt.Fprintf(os.Stderr, "\nConnect with:\n")
-			fmt.Fprintf(os.Stderr, "  curl http://%s/repos/org/repo/issues\n\n", actualAddr)
-		}
+			// Print connection info
+			fmt.Fprintf(os.Stderr, "\nMCPG GitHub API Proxy\n")
+			fmt.Fprintf(os.Stderr, "  Listening: %s://%s\n", scheme, actualAddr)
+			fmt.Fprintf(os.Stderr, "  Upstream:  %s\n", apiURL)
+			fmt.Fprintf(os.Stderr, "  Mode:      %s\n", proxyDIFCMode)
+			fmt.Fprintf(os.Stderr, "  Guard:     %s\n", proxyGuardWasm)
+			if tlsCfg != nil {
+				fmt.Fprintf(os.Stderr, "  CA cert:   %s\n", tlsCfg.CACertPath)
+				fmt.Fprintf(os.Stderr, "\nConnect with:\n")
+				fmt.Fprintf(os.Stderr, "  export GH_HOST=%s\n", clientAddr(actualAddr))
+				fmt.Fprintf(os.Stderr, "  export NODE_EXTRA_CA_CERTS=%s\n", tlsCfg.CACertPath)
+				fmt.Fprintf(os.Stderr, "  export SSL_CERT_FILE=%s\n", tlsCfg.CACertPath)
+				fmt.Fprintf(os.Stderr, "  export GIT_SSL_CAINFO=%s\n", tlsCfg.CACertPath)
+				fmt.Fprintf(os.Stderr, "  gh issue list -R org/repo\n\n")
+			} else {
+				fmt.Fprintf(os.Stderr, "\nConnect with:\n")
+				fmt.Fprintf(os.Stderr, "  curl http://%s/repos/org/repo/issues\n\n", actualAddr)
+			}
 
-		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
-			cancel()
-		}
-	}()
+			return httpServer.Serve(listener)
+		},
+	)
 
-	// Wait for shutdown signal
-	<-ctx.Done()
-	log.Println("Shutting down proxy...")
-	logger.LogInfo("shutdown", "Proxy shutting down")
-
-	return httpServer.Close()
-}
-
-// clientAddr returns a client-friendly address from a listener address.
-// When the host is a wildcard (0.0.0.0, ::, or empty), it substitutes
-// "localhost" so the printed GH_HOST value is usable from a client.
-func clientAddr(addr string) string {
-	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		return addr
+		logger.LogError("shutdown", "Proxy server exited with error: %v", err)
+		return err
 	}
-	switch host {
-	case "", "0.0.0.0", "::", "[::]":
-		return net.JoinHostPort("localhost", port)
-	}
-	return addr
+
+	return nil
 }
 
 func configureTLSTrustEnvironment(caCertPath string) error {

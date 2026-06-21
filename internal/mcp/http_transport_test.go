@@ -1296,7 +1296,7 @@ func TestOIDCRoundTripper_ErrorPropagation(t *testing.T) {
 // gateway's reconnect logic would silently permit extra retries and this test
 // would fail to alert.
 //
-// SDK source: streamable.go:1547-1552 (verified against go-sdk v1.6.0):
+// SDK source: streamable.go:1547-1552 (verified against go-sdk v1.6.1):
 //
 //	maxRetries := t.MaxRetries
 //	if maxRetries == 0 {
@@ -1314,6 +1314,10 @@ func TestMaxRetriesSentinelCanary(t *testing.T) {
 	var sseGETs atomic.Int64
 	// firstSSEDone is signalled once the initial SSE GET has been served.
 	firstSSEDone := make(chan struct{}, 1)
+	// initializeDone is closed after the initialize response is sent so the first
+	// standalone SSE GET cannot race ahead and fail Connect before the handshake
+	// completes under slower/race-enabled scheduling.
+	initializeDone := make(chan struct{})
 
 	// Backend that:
 	//  - Handles the MCP initialize POST (so Connect succeeds)
@@ -1328,12 +1332,17 @@ func TestMaxRetriesSentinelCanary(t *testing.T) {
 			w.Header().Set("Content-Type", "text/event-stream")
 			w.Header().Set("Cache-Control", "no-cache")
 			w.WriteHeader(http.StatusOK)
-			// Close immediately without sending any event or id -- no "progress"
-			// is recorded, so retriesWithoutProgress will increment on each call.
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+			// Close without sending any event or id after initialize completes --
+			// no "progress" is recorded, so retriesWithoutProgress will increment
+			// if the SDK retries.
 			if n == 1 {
 				// Signal that the initial SSE GET has been processed.
 				firstSSEDone <- struct{}{}
 			}
+			<-initializeDone
 		case http.MethodPost:
 			var req map[string]interface{}
 			_ = json.NewDecoder(r.Body).Decode(&req)
@@ -1350,6 +1359,7 @@ func TestMaxRetriesSentinelCanary(t *testing.T) {
 				}
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(resp)
+				close(initializeDone)
 				return
 			}
 			w.WriteHeader(http.StatusOK)
@@ -1400,6 +1410,97 @@ func TestMaxRetriesSentinelCanary(t *testing.T) {
 		"MaxRetries: -1 must result in 0 SSE reconnects (exactly 1 SSE GET total); "+
 			"if this fails after an SDK upgrade, re-verify streamable.go MaxRetries handling "+
 			"and update tryStreamableHTTPTransport / reconnectSDKTransport")
+}
+
+// TestDisableStandaloneSSECanary is a canary test for SDK upgrades.
+//
+// The gateway relies on StreamableClientTransport.DisableStandaloneSSE=true to
+// prevent the SDK from opening a standalone SSE GET stream immediately after
+// initialize. If this behavior changes in the SDK, streamable transport
+// connections to POST-only/backpressure-sensitive servers can regress.
+func TestDisableStandaloneSSECanary(t *testing.T) {
+	runConnect := func(t *testing.T, disableStandaloneSSE bool) int64 {
+		t.Helper()
+
+		var sseGETs atomic.Int64
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodDelete:
+				w.WriteHeader(http.StatusOK)
+			case http.MethodGet:
+				sseGETs.Add(1)
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.Header().Set("Cache-Control", "no-cache")
+				w.WriteHeader(http.StatusOK)
+				if flusher, ok := w.(http.Flusher); ok {
+					flusher.Flush()
+				}
+				select {
+				case <-r.Context().Done():
+				case <-time.After(500 * time.Millisecond):
+				}
+			case http.MethodPost:
+				var req map[string]interface{}
+				_ = json.NewDecoder(r.Body).Decode(&req)
+				method, _ := req["method"].(string)
+				if method == "initialize" {
+					resp := map[string]interface{}{
+						"jsonrpc": "2.0",
+						"id":      req["id"],
+						"result": map[string]interface{}{
+							"protocolVersion": "2024-11-05",
+							"capabilities":    map[string]interface{}{},
+							"serverInfo":      map[string]interface{}{"name": "canary-disable-sse", "version": "1.0"},
+						},
+					}
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(resp)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+			}
+		}))
+		defer srv.Close()
+
+		transport := &sdk.StreamableClientTransport{
+			Endpoint:             srv.URL,
+			HTTPClient:           srv.Client(),
+			DisableStandaloneSSE: disableStandaloneSSE,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		client := sdk.NewClient(
+			&sdk.Implementation{Name: "canary-disable-sse-client", Version: "1.0"},
+			&sdk.ClientOptions{},
+		)
+		session, err := client.Connect(ctx, transport, nil)
+		require.NoError(t, err, "Initial connect should succeed")
+		defer session.Close()
+
+		if disableStandaloneSSE {
+			// Give the SDK a brief window to start any unexpected standalone GET.
+			time.Sleep(500 * time.Millisecond)
+			return sseGETs.Load()
+		}
+
+		// When DisableStandaloneSSE is false, wait for the SDK to actually issue the GET
+		// (a fixed sleep can be flaky on slow CI).
+		require.Eventually(t, func() bool { return sseGETs.Load() > 0 }, 2*time.Second, 10*time.Millisecond,
+			"timed out waiting for standalone SSE GET")
+		return sseGETs.Load()
+	}
+
+	t.Run("DisableStandaloneSSE=true suppresses standalone GET", func(t *testing.T) {
+		assert.Equal(t, int64(0), runConnect(t, true),
+			"DisableStandaloneSSE=true must suppress standalone SSE GET; re-verify on SDK upgrade")
+	})
+
+	t.Run("DisableStandaloneSSE=false allows standalone GET", func(t *testing.T) {
+		assert.GreaterOrEqual(t, runConnect(t, false), int64(1),
+			"DisableStandaloneSSE=false must allow standalone SSE GET; re-verify on SDK upgrade")
+	})
 }
 
 // TestResponseHeaderTimeout_NotCappedByConnectTimeout verifies that
@@ -1545,4 +1646,55 @@ func TestParseHTTPResult(t *testing.T) {
 		assert.Equal(t, -32601, resp.Error.Code)
 		assert.Equal(t, "Method not found", resp.Error.Message)
 	})
+
+	t.Run("non-200 status with JSON-RPC body synthesises HTTP error", func(t *testing.T) {
+		// parseJSONRPCResponseWithSSE synthesises a synthetic HTTP error for non-200 responses.
+		// In the current implementation this means the JSON-RPC error already present in the body
+		// is overridden by the synthetic error, so the -32603 code is what callers observe.
+		// This test documents that current behaviour; if parseJSONRPCResponseWithSSE is changed
+		// to pass through the body-level error, the assertions below will need updating.
+		result := &httpRequestResult{
+			StatusCode:   http.StatusInternalServerError,
+			ResponseBody: []byte(`{"jsonrpc":"2.0","id":4,"error":{"code":-32000,"message":"Server overloaded"}}`),
+		}
+		resp, err := parseHTTPResult(result)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.NotNil(t, resp.Error, "non-200 response should have an error set")
+		// Synthetic HTTP error is produced by parseJSONRPCResponseWithSSE for non-200 statuses.
+		assert.Equal(t, -32603, resp.Error.Code, "synthetic HTTP error code should be -32603")
+		assert.Contains(t, resp.Error.Message, "500", "synthetic error should include HTTP status")
+	})
+}
+
+// TestBuildHTTPClientWithHeaders_NilTransport verifies that when the base client has
+// a nil Transport, buildHTTPClientWithHeaders falls back to http.DefaultTransport as
+// the inner transport for the injecting round-tripper.
+func TestBuildHTTPClientWithHeaders_NilTransport(t *testing.T) {
+	// Use a buffered channel to safely pass the observed header value from the
+	// handler goroutine to the test goroutine without a data race.
+	receivedHeader := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeader <- r.Header.Get("X-Test-Header")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	// base client has no Transport set (nil) — the wrapper must fall back to
+	// http.DefaultTransport so real network requests still work.
+	base := &http.Client{}
+	injected := buildHTTPClientWithHeaders(base, map[string]string{
+		"X-Test-Header": "nil-transport-value",
+	})
+	assert.NotSame(t, base, injected, "non-empty headers should return a new client")
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := injected.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	assert.Equal(t, "nil-transport-value", <-receivedHeader,
+		"header should be injected even when base client Transport is nil")
 }

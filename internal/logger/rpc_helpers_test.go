@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -153,8 +154,8 @@ func TestExtractErrorMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ExtractErrorMessage(tt.input)
-			assert.Equal(t, tt.expected, result, "ExtractErrorMessage(%q)", tt.input)
+			result := testExtractErrorMessage(tt.input)
+			assert.Equal(t, tt.expected, result, "testExtractErrorMessage(%q)", tt.input)
 		})
 	}
 }
@@ -163,7 +164,7 @@ func BenchmarkExtractErrorMessage(b *testing.B) {
 	testLine := "2024-01-01T12:00:00.123Z ERROR: connection failed to remote server"
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExtractErrorMessage(testLine)
+		testExtractErrorMessage(testLine)
 	}
 }
 
@@ -171,7 +172,7 @@ func BenchmarkExtractErrorMessageLong(b *testing.B) {
 	testLine := "2024-01-01T12:00:00.123Z ERROR: " + strings.Repeat("very long error message ", 20)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ExtractErrorMessage(testLine)
+		testExtractErrorMessage(testLine)
 	}
 }
 
@@ -231,101 +232,6 @@ func TestTruncateAndSanitize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := truncateAndSanitize(tt.payload, tt.maxLength)
 			assert.Equal(t, tt.want, result)
-		})
-	}
-}
-
-// TestExtractEssentialFields tests the extractEssentialFields function
-func TestExtractEssentialFields(t *testing.T) {
-	tests := []struct {
-		name    string
-		payload string
-		want    map[string]interface{}
-	}{
-		{
-			name:    "valid JSON-RPC request",
-			payload: `{"jsonrpc":"2.0","method":"tools/list","id":1,"params":{"name":"test"}}`,
-			want: map[string]interface{}{
-				"jsonrpc":     "2.0",
-				"method":      "tools/list",
-				"id":          float64(1),
-				"params_keys": []string{"name"},
-			},
-		},
-		{
-			name:    "JSON-RPC response with error",
-			payload: `{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid Request"}}`,
-			want: map[string]interface{}{
-				"jsonrpc": "2.0",
-				"id":      float64(1),
-				"error": map[string]interface{}{
-					"code":    float64(-32600),
-					"message": "Invalid Request",
-				},
-			},
-		},
-		{
-			name:    "minimal request with method only",
-			payload: `{"method":"initialize"}`,
-			want: map[string]interface{}{
-				"method": "initialize",
-			},
-		},
-		{
-			name:    "request with null params",
-			payload: `{"jsonrpc":"2.0","method":"test","id":2,"params":null}`,
-			want: map[string]interface{}{
-				"jsonrpc": "2.0",
-				"method":  "test",
-				"id":      float64(2),
-			},
-		},
-		{
-			name:    "request with complex params",
-			payload: `{"method":"call","params":{"arg1":"val1","arg2":"val2","arg3":"val3"}}`,
-			want: map[string]interface{}{
-				"method":      "call",
-				"params_keys": []string{"arg1", "arg2", "arg3"},
-			},
-		},
-		{
-			name:    "invalid JSON",
-			payload: `{invalid json}`,
-			want:    nil,
-		},
-		{
-			name:    "empty JSON object",
-			payload: `{}`,
-			want:    map[string]interface{}{},
-		},
-		{
-			name:    "empty string",
-			payload: ``,
-			want:    nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := extractEssentialFields([]byte(tt.payload))
-
-			if tt.want == nil {
-				assert.Nil(t, result)
-				return
-			}
-
-			require.NotNil(t, result)
-			assert.Equal(t, tt.want["jsonrpc"], result["jsonrpc"])
-			assert.Equal(t, tt.want["method"], result["method"])
-			assert.Equal(t, tt.want["id"], result["id"])
-			assert.Equal(t, tt.want["error"], result["error"])
-
-			// Special handling for params_keys since order may vary
-			if expectedKeys, ok := tt.want["params_keys"].([]string); ok {
-				actualKeys, ok := result["params_keys"].([]string)
-				require.True(t, ok, "params_keys should be []string")
-				assert.ElementsMatch(t, expectedKeys, actualKeys)
-			}
 		})
 	}
 }
@@ -393,4 +299,103 @@ func TestIsEffectivelyEmpty(t *testing.T) {
 			assert.Equal(t, tt.want, result)
 		})
 	}
+}
+
+func TestLogMarshaledForDebug_Success(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	var (
+		gotJSON       string
+		gotMarshalErr error
+	)
+
+	LogMarshaledForDebug(
+		map[string]string{"status": "ok"},
+		func(resultJSON string) {
+			gotJSON = resultJSON
+		},
+		func(err error) {
+			gotMarshalErr = err
+		},
+	)
+
+	require.NoError(gotMarshalErr)
+	assert.JSONEq(`{"status":"ok"}`, gotJSON)
+}
+
+func TestLogMarshaledForDebug_MarshalFailure(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	var (
+		gotJSON       string
+		gotMarshalErr error
+	)
+
+	LogMarshaledForDebug(
+		make(chan int),
+		func(resultJSON string) {
+			gotJSON = resultJSON
+		},
+		func(err error) {
+			gotMarshalErr = err
+		},
+	)
+
+	require.Error(gotMarshalErr)
+	assert.Empty(gotJSON)
+}
+
+func TestLogMarshaledForDebugf_Success(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	var (
+		gotSuccess string
+		gotFailure string
+	)
+
+	LogMarshaledForDebugf(
+		map[string]string{"status": "ok"},
+		func(format string, args ...interface{}) {
+			gotSuccess = fmt.Sprintf(format, args...)
+		},
+		"guard=%s payload=%s",
+		func(format string, args ...interface{}) {
+			gotFailure = fmt.Sprintf(format, args...)
+		},
+		"guard=%s err=%v",
+		"test-guard",
+	)
+
+	require.Empty(gotFailure)
+	assert.Equal(`guard=test-guard payload={"status":"ok"}`, gotSuccess)
+}
+
+func TestLogMarshaledForDebugf_MarshalFailure(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	var (
+		gotSuccess string
+		gotFailure string
+	)
+
+	LogMarshaledForDebugf(
+		make(chan int),
+		func(format string, args ...interface{}) {
+			gotSuccess = fmt.Sprintf(format, args...)
+		},
+		"guard=%s payload=%s",
+		func(format string, args ...interface{}) {
+			gotFailure = fmt.Sprintf(format, args...)
+		},
+		"guard=%s err=%v",
+		"test-guard",
+	)
+
+	require.Empty(gotSuccess)
+	assert.Contains(gotFailure, "guard=test-guard err=")
+	assert.Contains(gotFailure, "unsupported type")
 }

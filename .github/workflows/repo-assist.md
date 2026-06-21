@@ -70,7 +70,7 @@ safe-outputs:
 tools:
   web-fetch:
   github:
-    toolsets: [all]
+    toolsets: [default, search, discussions, actions]
     allowed-repos: ["github/*"]
     min-integrity: unapproved
   bash: true

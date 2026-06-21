@@ -47,6 +47,10 @@ fn safe_preview(s: &str, max_bytes: usize) -> &str {
     &s[..end]
 }
 
+fn should_fallback_to_single_item_label(response: &Value) -> bool {
+    !response.is_array()
+}
+
 /// Global policy context for WASM runtime entry points.
 ///
 /// `label_agent` stores the parsed policy here; `label_resource` and
@@ -192,6 +196,16 @@ fn log_error(msg: &str) {
     log(LogLevel::Error, msg);
 }
 
+/// Copy `bytes` into the WASM linear-memory output buffer.
+///
+/// # Safety
+/// `output_ptr` must point to at least `bytes.len()` writable bytes in WASM
+/// linear memory. The caller must have already verified `bytes.len() <= output_size`.
+unsafe fn write_bytes_to_output(output_ptr: u32, bytes: &[u8]) {
+    let dest = slice::from_raw_parts_mut(output_ptr as *mut u8, bytes.len());
+    dest.copy_from_slice(bytes);
+}
+
 // ============================================================================
 // Input/Output Types
 // ============================================================================
@@ -301,6 +315,101 @@ struct LabelResponseOutput {
     items: Vec<LabeledItem>,
 }
 
+enum FallbackAction {
+    ContinueProcessing,
+    SkipLabeling,
+}
+
+/// Applies metadata/singleton fallback labeling when no fine-grained items exist.
+/// Returns [`FallbackAction::SkipLabeling`] when the caller should return `0`
+/// (top-level array passthrough), or [`FallbackAction::ContinueProcessing`]
+/// when normal output generation should continue.
+fn apply_singleton_fallback_if_needed(
+    input: &LabelResponseInput,
+    ctx: &PolicyContext,
+    labeled_items: &mut Vec<LabeledItem>,
+) -> FallbackAction {
+    if !labeled_items.is_empty() {
+        return FallbackAction::ContinueProcessing;
+    }
+
+    // Extract repo info from tool args (same logic as label_resource)
+    let (_, _, repo_id) = extract_repo_info(&input.tool_args);
+    let baseline_scope = infer_scope_for_baseline(&input.tool_name, &input.tool_args, &repo_id);
+
+    // Server-generated metadata (pagination errors, empty search results) contains
+    // no repository data — pass through with approved integrity so the agent can
+    // see instructional messages and empty-result confirmations.
+    let actual_response = labels::extract_mcp_response(&input.tool_result);
+    let is_server_metadata = labels::is_mcp_text_wrapper(&actual_response)
+        || (labels::is_search_result_wrapper(&actual_response)
+            && labels::search_result_total_count(&actual_response) == Some(0));
+
+    if is_server_metadata {
+        let scope = if baseline_scope.is_empty() {
+            scope_names::GITHUB
+        } else {
+            &baseline_scope
+        };
+        // Use writer_integrity which goes through normalize_scope to match
+        // the policy scope token (e.g., "github" for owner-scoped policies).
+        let integrity = labels::writer_integrity(scope, ctx);
+        let desc = format!("metadata:{}", input.tool_name);
+
+        log_info(&format!(
+            "    server metadata (text message or empty search), integrity={:?}",
+            integrity
+        ));
+
+        labeled_items.push(LabeledItem {
+            data: input.tool_result.clone(),
+            labels: ResourceLabels {
+                description: desc,
+                secrecy: vec![].into(),
+                integrity: integrity.into(),
+            },
+        });
+        return FallbackAction::ContinueProcessing;
+    }
+
+    if !should_fallback_to_single_item_label(&actual_response) {
+        log_info("    no fine-grained items for top-level array response, skipping fallback label");
+        return FallbackAction::SkipLabeling;
+    }
+
+    log_info("    no fine-grained items, creating fallback single-item label");
+
+    // Use apply_tool_labels to get proper labels for this tool
+    let desc = format!("resource:{}", input.tool_name);
+    let (secrecy, integrity, final_desc) = labels::apply_tool_labels(
+        &input.tool_name,
+        &input.tool_args,
+        &repo_id,
+        vec![], // default secrecy
+        vec![], // default integrity
+        desc,
+        ctx,
+    );
+
+    let integrity = labels::ensure_integrity_baseline(&baseline_scope, integrity, ctx);
+
+    log_info(&format!(
+        "    fallback labels: secrecy={:?}, integrity={:?}",
+        secrecy, integrity
+    ));
+
+    labeled_items.push(LabeledItem {
+        data: input.tool_result.clone(),
+        labels: ResourceLabels {
+            description: final_desc,
+            secrecy: secrecy.into(),
+            integrity: integrity.into(),
+        },
+    });
+
+    FallbackAction::ContinueProcessing
+}
+
 fn infer_scope_for_baseline<'a>(
     tool_name: &str,
     tool_args: &Value,
@@ -345,6 +454,8 @@ struct AllowOnlyPolicy {
     min_integrity: String,
     #[serde(rename = "blocked-users", default)]
     blocked_users: Vec<String>,
+    #[serde(rename = "refusal-labels", default)]
+    refusal_labels: Vec<String>,
     #[serde(rename = "approval-labels", default)]
     approval_labels: Vec<String>,
     #[serde(rename = "trusted-users", default)]
@@ -484,16 +595,12 @@ fn parse_scope(scope: ReposValue) -> Result<Vec<PolicyScopeEntry>, String> {
 }
 
 fn parse_integrity(value: &str) -> Result<MinIntegrity, String> {
-    match value {
-        policy_integrity::NONE => Ok(MinIntegrity::None),
-        policy_integrity::UNAPPROVED => Ok(MinIntegrity::Unapproved),
-        policy_integrity::APPROVED => Ok(MinIntegrity::Approved),
-        policy_integrity::MERGED => Ok(MinIntegrity::Merged),
-        _ => Err(format!(
+    MinIntegrity::from_policy_str(value).ok_or_else(|| {
+        format!(
             "AllowOnly.min-integrity must be one of {}",
             policy_integrity::ORDER_LOW_TO_HIGH_PIPED
-        )),
-    }
+        )
+    })
 }
 
 fn scope_string(scope_kind: ScopeKind, owner: Option<&str>, repo: Option<&str>) -> String {
@@ -578,6 +685,7 @@ pub extern "C" fn label_agent(
         scopes,
         trusted_bots,
         blocked_users: policy.blocked_users,
+        refusal_labels: policy.refusal_labels,
         approval_labels: policy.approval_labels,
         trusted_users: policy.trusted_users,
         endorsement_reactions: policy.endorsement_reactions,
@@ -590,12 +698,7 @@ pub extern "C" fn label_agent(
 
     // Compute integrity before moving ctx into the global — borrows ctx, no clone needed.
     let token = labels::helpers::policy_scope_token(&ctx.scopes);
-    let integrity = match integrity_floor {
-        MinIntegrity::None => labels::none_integrity(&token, &ctx),
-        MinIntegrity::Unapproved => labels::reader_integrity(&token, &ctx),
-        MinIntegrity::Approved => labels::writer_integrity(&token, &ctx),
-        MinIntegrity::Merged => labels::merged_integrity(&token, &ctx),
-    };
+    let integrity = integrity_floor.build_labels(&token, &ctx);
     set_runtime_policy_context(ctx);
 
     let normalized_policy = NormalizedPolicy {
@@ -629,11 +732,7 @@ pub extern "C" fn label_agent(
         return -1;
     }
 
-    let output_bytes = output_json.as_bytes();
-    unsafe {
-        let dest = slice::from_raw_parts_mut(output_ptr as *mut u8, output_bytes.len());
-        dest.copy_from_slice(output_bytes);
-    }
+    unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
 
     log_info(&format!(
         "<<< label_agent returning {} bytes",
@@ -777,11 +876,7 @@ pub extern "C" fn label_resource(
     }
 
     // Write output
-    let output_bytes = output_json.as_bytes();
-    unsafe {
-        let dest = slice::from_raw_parts_mut(output_ptr as *mut u8, output_bytes.len());
-        dest.copy_from_slice(output_bytes);
-    }
+    unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
 
     log_info(&format!(
         "<<< label_resource returning {} bytes",
@@ -892,11 +987,7 @@ pub extern "C" fn label_response(
         }
 
         // Write output
-        let output_bytes = output_json.as_bytes();
-        unsafe {
-            let dest = slice::from_raw_parts_mut(output_ptr as *mut u8, output_bytes.len());
-            dest.copy_from_slice(output_bytes);
-        }
+        unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
 
         log_info(&format!(
             "<<< label_response returning {} bytes (path-based)",
@@ -913,75 +1004,14 @@ pub extern "C" fn label_response(
         labels::label_response_items(&input.tool_name, &input.tool_args, &input.tool_result, &ctx);
 
     // If no items were generated, wrap entire response as single item with computed labels
-    // This ensures single-item responses (like get_file_contents) are properly labeled
-    if labeled_items.is_empty() {
-        // Extract repo info from tool args (same logic as label_resource)
-        let (_, _, repo_id) = extract_repo_info(&input.tool_args);
-        let baseline_scope = infer_scope_for_baseline(&input.tool_name, &input.tool_args, &repo_id);
-
-        // Server-generated metadata (pagination errors, empty search results) contains
-        // no repository data — pass through with approved integrity so the agent can
-        // see instructional messages and empty-result confirmations.
-        let actual_response = labels::extract_mcp_response(&input.tool_result);
-        let is_server_metadata = labels::is_mcp_text_wrapper(&actual_response)
-            || (labels::is_search_result_wrapper(&actual_response)
-                && labels::search_result_total_count(&actual_response) == Some(0));
-
-        if is_server_metadata {
-            let scope = if baseline_scope.is_empty() {
-                scope_names::GITHUB
-            } else {
-                &baseline_scope
-            };
-            // Use writer_integrity which goes through normalize_scope to match
-            // the policy scope token (e.g., "github" for owner-scoped policies).
-            let integrity = labels::writer_integrity(scope, &ctx);
-            let desc = format!("metadata:{}", input.tool_name);
-
-            log_info(&format!(
-                "    server metadata (text message or empty search), integrity={:?}",
-                integrity
-            ));
-
-            labeled_items.push(LabeledItem {
-                data: input.tool_result.clone(),
-                labels: ResourceLabels {
-                    description: desc,
-                    secrecy: vec![].into(),
-                    integrity: integrity.into(),
-                },
-            });
-        } else {
-            log_info("    no fine-grained items, creating fallback single-item label");
-
-            // Use apply_tool_labels to get proper labels for this tool
-            let desc = format!("resource:{}", input.tool_name);
-            let (secrecy, integrity, final_desc) = labels::apply_tool_labels(
-                &input.tool_name,
-                &input.tool_args,
-                &repo_id,
-                vec![], // default secrecy
-                vec![], // default integrity
-                desc,
-                &ctx,
-            );
-
-            let integrity = labels::ensure_integrity_baseline(&baseline_scope, integrity, &ctx);
-
-            log_info(&format!(
-                "    fallback labels: secrecy={:?}, integrity={:?}",
-                secrecy, integrity
-            ));
-
-            labeled_items.push(LabeledItem {
-                data: input.tool_result.clone(),
-                labels: ResourceLabels {
-                    description: final_desc,
-                    secrecy: secrecy.into(),
-                    integrity: integrity.into(),
-                },
-            });
-        }
+    // when appropriate. This ensures single-item responses (like get_file_contents)
+    // are properly labeled while preserving unlabeled top-level array passthrough.
+    if matches!(
+        apply_singleton_fallback_if_needed(&input, &ctx, &mut labeled_items),
+        FallbackAction::SkipLabeling
+    ) {
+        log_info("<<< label_response returning 0 (top-level array passthrough)");
+        return 0;
     }
 
     log_info(&format!(
@@ -1019,11 +1049,7 @@ pub extern "C" fn label_response(
     }
 
     // Write output
-    let output_bytes = output_json.as_bytes();
-    unsafe {
-        let dest = slice::from_raw_parts_mut(output_ptr as *mut u8, output_bytes.len());
-        dest.copy_from_slice(output_bytes);
-    }
+    unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
 
     log_info(&format!(
         "<<< label_response returning {} bytes",
@@ -1081,6 +1107,43 @@ pub extern "C" fn dealloc(ptr: u32, size: u32) {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn top_level_array_responses_skip_single_item_fallback() {
+        assert!(!should_fallback_to_single_item_label(&json!([{"id": 1}])));
+    }
+
+    #[test]
+    fn singleton_object_responses_use_single_item_fallback() {
+        assert!(should_fallback_to_single_item_label(&json!({"id": 1})));
+    }
+
+    #[test]
+    fn label_response_control_flow_skips_fallback_for_unlabeled_top_level_array() {
+        let input = LabelResponseInput {
+            tool_name: "issue_read".to_string(),
+            tool_args: json!({
+                "owner": "org",
+                "repo": "repo",
+                "issue_number": "7",
+                "method": "get_comments"
+            }),
+            tool_result: json!([
+                {"id": 1, "body": "first"},
+                {"id": 2, "body": "second"}
+            ]),
+        };
+
+        let mut labeled_items = Vec::new();
+        let action = apply_singleton_fallback_if_needed(
+            &input,
+            &PolicyContext::default(),
+            &mut labeled_items,
+        );
+
+        assert!(matches!(action, FallbackAction::SkipLabeling));
+        assert!(labeled_items.is_empty());
+    }
 
     #[test]
     fn parse_scope_accepts_owner_wildcard_array_entry() {
@@ -1461,6 +1524,13 @@ mod tests {
         assert_eq!(parse_integrity("unapproved"), Ok(MinIntegrity::Unapproved));
         assert_eq!(parse_integrity("approved"), Ok(MinIntegrity::Approved));
         assert_eq!(parse_integrity("merged"), Ok(MinIntegrity::Merged));
+    }
+
+    #[test]
+    fn parse_integrity_accepts_mixed_case() {
+        assert_eq!(parse_integrity("None"), Ok(MinIntegrity::None));
+        assert_eq!(parse_integrity("APPROVED"), Ok(MinIntegrity::Approved));
+        assert_eq!(parse_integrity("  merged  "), Ok(MinIntegrity::Merged));
     }
 
     #[test]

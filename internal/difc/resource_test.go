@@ -101,7 +101,7 @@ func TestSimpleLabeledData_ToResult(t *testing.T) {
 
 			result, err := sld.ToResult()
 
-			assert.NoError(t, err, "ToResult should not return an error")
+			require.NoError(t, err, "ToResult should not return an error")
 			assert.Equal(t, tt.data, result, "ToResult should return the data unchanged")
 		})
 	}
@@ -582,7 +582,7 @@ func TestFilteredCollectionLabeledData_Integration(t *testing.T) {
 
 	// ToResult should only return accessible data
 	result, err := f.ToResult()
-	assert.NoError(err)
+	require.NoError(t, err)
 	resultSlice, ok := result.([]interface{})
 	require.True(t, ok)
 	assert.Len(resultSlice, 1)

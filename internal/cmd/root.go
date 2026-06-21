@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/config"
@@ -54,10 +53,13 @@ It provides routing, aggregation, and management of multiple MCP backend servers
 
   # Run with debug logging
   DEBUG=* awmg --config config.toml`,
-	Version:           cliVersion,
-	Args:              cobra.NoArgs,
-	SilenceUsage:      true, // Don't show help on runtime errors
-	SilenceErrors:     true, // Prevent cobra from printing errors — Execute() caller handles display
+	Version: cliVersion,
+	Args:    cobra.NoArgs,
+	// SilenceUsage: cobra checks this on the specific subcommand to suppress usage on runtime errors.
+	SilenceUsage: true,
+	// SilenceErrors: cobra checks this on the root command for ALL subcommands; the Execute() caller
+	// in main handles display so we suppress cobra's own error printing here.
+	SilenceErrors:     true,
 	PersistentPreRunE: preRun,
 	RunE:              run,
 	PersistentPostRun: postRun,
@@ -68,12 +70,20 @@ func init() {
 	// Without this, a child's PersistentPreRunE replaces the parent's entirely.
 	cobra.EnableTraverseRunHooks = true
 
+	// Preserve the intentional command registration order within each group
+	// (cobra sorts alphabetically by default, overriding AddGroup ordering).
+	cobra.EnableCommandSorting = false
+
 	// Set custom error prefix for better branding
 	rootCmd.SetErrPrefix("MCPG Error:")
 
 	// Set custom version template with enhanced formatting
 	rootCmd.SetVersionTemplate(`MCPG Gateway {{.Version}}
 `)
+
+	// Disable cobra's auto-generated "completion" command since we provide a
+	// custom one via newCompletionCmd().
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
 	// Register all flags from feature modules (flags_*.go files)
 	registerAllFlags(rootCmd)
@@ -109,8 +119,7 @@ func preRun(cmd *cobra.Command, args []string) error {
 		// Level 3: enable all debug logs
 		switch verbosity {
 		case 1:
-			// Info level - no special DEBUG setting (standard log output)
-			log.Printf("Logging level: info (-v)")
+			// Info level - no special DEBUG setting.
 		case 2:
 			// Debug level - enable debug logs for main packages
 			os.Setenv("DEBUG", debugMainPackages)
@@ -209,8 +218,8 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Validate guards mode before applying
-	if err := validateDIFCModeFlag(difcMode); err != nil {
-		return err
+	if _, err := difc.ParseEnforcementMode(difcMode); err != nil {
+		return fmt.Errorf("invalid --guards-mode flag: %w", err)
 	}
 
 	// Apply command-line flags to config
@@ -226,6 +235,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("invalid guard policy configuration: %w", err)
 	}
+	debugLog.Printf("Guard policy resolved: hasOverride=%v, source=%s", policyOverride != nil, policySource)
 	if policyOverride != nil {
 		cfg.GuardPolicy = policyOverride
 		cfg.GuardPolicySource = policySource
@@ -236,7 +246,7 @@ func run(cmd *cobra.Command, args []string) error {
 		logger.StartupInfo("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS=%q", envSinkServerIDs)
 	}
 
-	resolvedSinkServerIDs, err := parseDIFCSinkServerIDs(difcSinkServerIDs)
+	resolvedSinkServerIDs, err := difc.ParseSinkServerIDs(difcSinkServerIDs)
 	if err != nil {
 		return fmt.Errorf("invalid --guards-sink-server-ids value: %w", err)
 	}
@@ -271,16 +281,17 @@ func run(cmd *cobra.Command, args []string) error {
 
 	debugLog.Printf("Server mode: %s, guards mode: %s", mode, cfg.DIFCMode)
 
-	// Per spec §7.3: generate a random API key on startup if none is configured.
-	// The generated key is set in the config so it propagates to both the HTTP
+	// Per spec §7.3: generate a random agent identifier on startup if none is configured.
+	// The generated value is set in the config so it propagates to both the HTTP
 	// server authentication and the stdout configuration output (spec §5.4).
-	if cfg.GetAPIKey() == "" {
-		randomKey, err := auth.GenerateRandomAPIKey()
+	if cfg.GetAgentID() == "" {
+		randomKey, err := auth.GenerateRandomAgentID()
 		if err != nil {
-			return fmt.Errorf("failed to generate random API key: %w", err)
+			return fmt.Errorf("failed to generate random agent ID: %w", err)
 		}
+		cfg.Gateway.AgentID = randomKey
 		cfg.Gateway.APIKey = randomKey
-		logger.StartupInfo("No API key configured — generated temporary random API key (spec §7.3)")
+		logger.StartupInfo("No agent ID configured — generated temporary random agent ID (spec §7.3)")
 	}
 
 	// Apply tracing flags: CLI flags and env var overrides take precedence over config values.
@@ -305,19 +316,14 @@ func run(cmd *cobra.Command, args []string) error {
 	if cfg.Gateway != nil {
 		tracingCfg = cfg.Gateway.Tracing
 	}
-	tracingProvider := initTracingProviderWithFallback(
+	tracingProvider, cleanupTracing := setupCommandTracing(
 		ctx,
 		tracingCfg,
 		"Failed to initialize tracing provider: %v",
-		func(format string, args ...any) {
-			logger.StartupWarn(format, args...)
-		},
+		logger.StartupWarn,
+		logTracingWarnf,
 	)
-	defer func() {
-		shutdownTracingProviderWithTimeout(tracingProvider, func(format string, args ...any) {
-			log.Printf("Warning: "+format, args...)
-		})
-	}()
+	defer cleanupTracing()
 
 	// Apply W3C parent context from configured traceId/spanId (spec §4.1.3.6).
 	// This links the gateway process lifetime span into a pre-existing trace when provided.
@@ -333,19 +339,28 @@ func run(cmd *cobra.Command, args []string) error {
 			sampleRate = tracingCfg.GetSampleRate()
 			serviceName = tracingCfg.ServiceName
 		}
-		if endpoint != "" {
+		if tracingProvider.IsEnabled() {
+			// When GH_AW_OTLP_ENDPOINTS is set, InitProvider uses fan-out mode and
+			// it takes precedence over the primary endpoint; use the env var as the
+			// display value to accurately reflect what is actually receiving spans.
+			displayEndpoint := os.Getenv("GH_AW_OTLP_ENDPOINTS")
+			if displayEndpoint == "" {
+				displayEndpoint = endpoint
+			}
 			logger.StartupInfo("OpenTelemetry tracing enabled: endpoint=%s, service=%s, sampleRate=%.2f",
-				endpoint, serviceName, sampleRate)
+				displayEndpoint, serviceName, sampleRate)
 		} else {
 			logger.StartupInfo("OpenTelemetry tracing disabled (no OTLP endpoint configured)")
 		}
 	}
 
 	// Create unified MCP server (backend for both modes)
+	debugLog.Printf("Creating unified MCP server: mode=%s, servers=%d", mode, len(cfg.Servers))
 	unifiedServer, err := server.NewUnified(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to create unified server: %w", err)
 	}
+	debugLog.Printf("Unified MCP server created successfully")
 	defer unifiedServer.Close()
 
 	// Handle graceful shutdown via context cancellation
@@ -362,18 +377,18 @@ func run(cmd *cobra.Command, args []string) error {
 		logger.StartupInfo("Starting MCPG in ROUTED mode on %s", listenAddr)
 		logger.StartupInfo("Routes: /mcp/<server> where <server> is one of: %v", unifiedServer.GetServerIDs())
 
-		// Extract API key from gateway config (spec 7.1)
-		apiKey := cfg.GetAPIKey()
+		// Extract agent ID from gateway config (spec 7.1)
+		agentID := cfg.GetAgentID()
 
-		httpServer = server.CreateHTTPServerForRoutedMode(listenAddr, unifiedServer, apiKey, hmacSecret)
+		httpServer = server.CreateHTTPServerForRoutedMode(listenAddr, unifiedServer, agentID, hmacSecret)
 	} else {
 		logger.StartupInfo("Starting MCPG in UNIFIED mode on %s", listenAddr)
 		logger.StartupInfo("Endpoint: /mcp")
 
-		// Extract API key from gateway config (spec 7.1)
-		apiKey := cfg.GetAPIKey()
+		// Extract agent ID from gateway config (spec 7.1)
+		agentID := cfg.GetAgentID()
 
-		httpServer = server.CreateHTTPServerForMCP(listenAddr, unifiedServer, apiKey, hmacSecret)
+		httpServer = server.CreateHTTPServerForMCP(listenAddr, unifiedServer, agentID, hmacSecret)
 	}
 	// Set BaseContext so every incoming request inherits the startup context,
 	// which carries the configured W3C parent span context (traceId/spanId).
@@ -394,11 +409,14 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Build net.Listener — optionally wrapping with TLS (ASI-07 Phase 1).
 	// Plain HTTP is still used when no TLS certificate is configured (backward compatible).
-	// Validate that TLS flags are consistent: cert+key must both be provided together,
-	// and CA cert requires cert+key to be set.
+	// CLI-flag co-requirement is enforced by MarkFlagsRequiredTogether("tls-cert","tls-key")
+	// in flags_tls.go; the checks below catch env-var defaults that bypass cobra's flag
+	// parsing (MarkFlagsRequiredTogether only fires when flags are explicitly changed on
+	// the command line).
 	hasCert := tlsCertPath != ""
 	hasKey := tlsKeyPath != ""
 	hasCA := tlsCAPath != ""
+	debugLog.Printf("TLS configuration: hasCert=%v, hasKey=%v, hasCA=%v", hasCert, hasKey, hasCA)
 	if hasCert != hasKey {
 		return fmt.Errorf("--tls-cert and --tls-key must both be provided together")
 	}
@@ -410,6 +428,7 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", listenAddr, err)
 	}
+	debugLog.Printf("TCP listener created on %s", listenAddr)
 	tlsEnabled := hasCert && hasKey
 	var tlsCfg *tls.Config
 	if tlsEnabled {
@@ -431,27 +450,25 @@ func run(cmd *cobra.Command, args []string) error {
 		logger.StartupInfo("HMAC request signing enabled (ASI-07)")
 	}
 
-	// Start HTTP server in background
-	go func() {
-		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
-			cancel()
-		}
-	}()
-
 	// Write gateway configuration to stdout per spec section 5.4
 	if err := writeGatewayConfigToStdout(cfg, listenAddr, mode, tlsEnabled); err != nil {
 		log.Printf("Warning: failed to write gateway configuration to stdout: %v", err)
 	}
 
-	// Wait for shutdown signal
-	<-ctx.Done()
-
-	// Gracefully shutdown HTTP server with timeout
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Printf("HTTP server shutdown error: %v", err)
+	if err := serveAndWait(
+		ctx,
+		cancel,
+		httpServer,
+		shutdownTimeout,
+		func() {
+			debugLog.Print("Shutdown signal received, initiating graceful shutdown")
+		},
+		func() error {
+			return httpServer.Serve(listener)
+		},
+	); err != nil {
+		debugLog.Printf("Server exited with error: %v", err)
+		return err
 	}
 
 	return nil

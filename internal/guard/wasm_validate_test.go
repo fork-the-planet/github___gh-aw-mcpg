@@ -3,6 +3,7 @@ package guard
 import (
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -183,7 +184,7 @@ func TestValidateStringArray(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateStringArray(tt.fieldName, tt.raw, tt.requireNonEmpty)
+			err := config.ValidateStringArrayField(tt.fieldName, tt.raw, tt.requireNonEmpty)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.wantErrContains != "" {
@@ -210,28 +211,28 @@ func TestValidateIntegrityField(t *testing.T) {
 			fieldName:       "disapproval-integrity",
 			raw:             42,
 			wantErr:         true,
-			wantErrContains: "invalid disapproval-integrity value",
+			wantErrContains: "disapproval-integrity must be one of",
 		},
 		{
 			name:            "bool returns error",
 			fieldName:       "endorser-min-integrity",
 			raw:             true,
 			wantErr:         true,
-			wantErrContains: "invalid endorser-min-integrity value",
+			wantErrContains: "endorser-min-integrity must be one of",
 		},
 		{
 			name:            "nil returns error",
 			fieldName:       "min-integrity",
 			raw:             nil,
 			wantErr:         true,
-			wantErrContains: "invalid min-integrity value",
+			wantErrContains: "min-integrity must be one of",
 		},
 		{
 			name:            "slice returns error",
 			fieldName:       "disapproval-integrity",
 			raw:             []string{"none"},
 			wantErr:         true,
-			wantErrContains: "invalid disapproval-integrity value",
+			wantErrContains: "disapproval-integrity must be one of",
 		},
 		// Invalid string value
 		{
@@ -239,21 +240,21 @@ func TestValidateIntegrityField(t *testing.T) {
 			fieldName:       "disapproval-integrity",
 			raw:             "invalid",
 			wantErr:         true,
-			wantErrContains: "invalid disapproval-integrity value",
+			wantErrContains: "disapproval-integrity must be one of",
 		},
 		{
 			name:            "empty string returns error",
 			fieldName:       "endorser-min-integrity",
 			raw:             "",
 			wantErr:         true,
-			wantErrContains: "invalid endorser-min-integrity value",
+			wantErrContains: "endorser-min-integrity must be one of",
 		},
 		{
 			name:            "whitespace-only string returns error",
 			fieldName:       "min-integrity",
 			raw:             "   ",
 			wantErr:         true,
-			wantErrContains: "invalid min-integrity value",
+			wantErrContains: "min-integrity must be one of",
 		},
 		// Valid integrity levels
 		{
@@ -305,7 +306,7 @@ func TestValidateIntegrityField(t *testing.T) {
 			fieldName:       "disapproval-integrity",
 			raw:             "bad",
 			wantErr:         true,
-			wantErrContains: "none|unapproved|approved|merged",
+			wantErrContains: "must be one of",
 		},
 	}
 
@@ -322,11 +323,4 @@ func TestValidateIntegrityField(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestInvalidIntegrityFieldError(t *testing.T) {
-	err := invalidIntegrityFieldError("test-field")
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "test-field")
-	assert.ErrorContains(t, err, "none|unapproved|approved|merged")
 }

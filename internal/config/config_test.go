@@ -27,7 +27,7 @@ func TestLoadFromStdin_ValidJSON(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -105,7 +105,7 @@ func TestLoadFromStdin_WithGateway(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -129,7 +129,7 @@ func TestLoadFromStdin_WithGateway(t *testing.T) {
 	require.NotNil(t, stdinCfg.Gateway, "Gateway not parsed")
 	require.NotNil(t, stdinCfg.Gateway.Port, "Gateway port is nil")
 	assert.Equal(t, port, *stdinCfg.Gateway.Port, "Gateway port not correct")
-	assert.Equal(t, "test-key", stdinCfg.Gateway.APIKey, "Gateway API key not correct")
+	assert.Equal(t, "test-key", stdinCfg.Gateway.AgentID, "Gateway agent ID not correct")
 }
 
 func TestLoadFromStdin_UnsupportedType(t *testing.T) {
@@ -147,7 +147,7 @@ func TestLoadFromStdin_UnsupportedType(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -190,7 +190,7 @@ func TestLoadFromStdin_DirectCommand(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -251,7 +251,7 @@ func TestLoadFromStdin_StdioType(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -311,7 +311,7 @@ func TestLoadFromStdin_HttpType(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -355,7 +355,7 @@ func TestLoadFromStdin_LocalTypeBackwardCompatibility(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -397,7 +397,7 @@ func TestLoadFromStdin_GatewayWithAllFields(t *testing.T) {
 		},
 		"gateway": {
 			"port": 8080,
-			"apiKey": "test-key-123",
+			"agentId": "test-key-123",
 			"domain": "localhost",
 			"startupTimeout": 30,
 			"toolTimeout": 60
@@ -426,7 +426,7 @@ func TestLoadFromStdin_GatewayWithAllFields(t *testing.T) {
 	require.NotNil(t, stdinCfg.Gateway.Port, "Gateway port is nil")
 	assert.Equal(t, port, *stdinCfg.Gateway.Port, "Expected gateway port")
 
-	assert.Equal(t, "test-key-123", stdinCfg.Gateway.APIKey, "Expected gateway API key 'test-key-123'")
+	assert.Equal(t, "test-key-123", stdinCfg.Gateway.AgentID, "Expected gateway agent ID 'test-key-123'")
 
 	assert.Equal(t, "localhost", stdinCfg.Gateway.Domain, "Expected gateway domain 'localhost'")
 
@@ -448,7 +448,7 @@ func TestLoadFromStdin_GatewayWithoutPayloadDir(t *testing.T) {
 		},
 		"gateway": {
 			"port": 8080,
-			"apiKey": "test-key-123",
+			"agentId": "test-key-123",
 			"domain": "localhost"
 		}
 	}`
@@ -481,7 +481,7 @@ func TestLoadFromStdin_GatewayWithPayloadPathPrefix(t *testing.T) {
 		},
 		"gateway": {
 			"port": 8080,
-			"apiKey": "test-key-123",
+			"agentId": "test-key-123",
 			"domain": "localhost",
 			"payloadPathPrefix": "/workspace/payloads"
 		}
@@ -522,7 +522,7 @@ func TestLoadFromStdin_ServerWithURL(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -572,7 +572,7 @@ func TestLoadFromStdin_MixedServerTypes(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -621,7 +621,7 @@ func TestLoadFromStdin_ContainerWithStdioType(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -691,7 +691,7 @@ func TestLoadFromStdin_WithEntrypoint(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -742,7 +742,7 @@ func TestLoadFromStdin_WithMounts(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -793,7 +793,7 @@ func TestLoadFromStdin_WithAllNewFields(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -909,7 +909,7 @@ func TestLoadFromStdin_InvalidMountFormat(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`, tt.mounts)
 
@@ -974,7 +974,7 @@ args = ["run", "--rm", "-i", "test/container:latest"]
 	require.NotNil(t, cfg.Gateway, "Gateway config should not be nil")
 
 	assert.Equal(t, 8080, cfg.Gateway.Port)
-	assert.Equal(t, "test-key-123", cfg.Gateway.APIKey)
+	assert.Equal(t, "test-key-123", cfg.Gateway.AgentID)
 	assert.Equal(t, "localhost", cfg.Gateway.Domain)
 	assert.Equal(t, 30, cfg.Gateway.StartupTimeout)
 	assert.Equal(t, 60, cfg.Gateway.ToolTimeout)
@@ -1182,7 +1182,7 @@ func TestLoadFromStdin_FilesystemServerConfig(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -1254,7 +1254,7 @@ func TestLoadFromStdin_PlaywrightServerConfig(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key"
+			"agentId": "test-key"
 		}
 	}`
 
@@ -1343,7 +1343,7 @@ func TestLoadFromStdin_WithRegistryField(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			serverName:   "github",
@@ -1364,7 +1364,7 @@ func TestLoadFromStdin_WithRegistryField(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			serverName:   "markitdown",
@@ -1384,7 +1384,7 @@ func TestLoadFromStdin_WithRegistryField(t *testing.T) {
 				"gateway": {
 					"port": 8080,
 					"domain": "localhost",
-					"apiKey": "test-key"
+					"agentId": "test-key"
 				}
 			}`,
 			serverName:   "custom",
@@ -1510,35 +1510,40 @@ func TestApplyGatewayDefaults_AllFieldsSet(t *testing.T) {
 }
 
 // TestApplyGatewayDefaults_OtherFieldsUnaffected verifies that fields not managed by
-// applyGatewayDefaults (APIKey, Domain, etc.) are not touched.
+// applyGatewayDefaults (AgentID, Domain, etc.) are not touched.
 func TestApplyGatewayDefaults_OtherFieldsUnaffected(t *testing.T) {
 	cfg := &GatewayConfig{
-		APIKey: "my-api-key",
-		Domain: "example.com",
+		AgentID: "agent-123",
+		Domain:  "example.com",
 	}
 	applyGatewayDefaults(cfg)
 
-	assert.Equal(t, "my-api-key", cfg.APIKey, "APIKey should not be modified by applyGatewayDefaults")
+	assert.Equal(t, "agent-123", cfg.AgentID, "AgentID should not be modified by applyGatewayDefaults")
 	assert.Equal(t, "example.com", cfg.Domain, "Domain should not be modified by applyGatewayDefaults")
 	// Defaults applied for the zero fields
 	assert.Equal(t, DefaultPort, cfg.Port)
 }
 
-// TestGetAPIKey verifies that GetAPIKey handles nil Gateway and returns the key when set.
-func TestGetAPIKey(t *testing.T) {
+// TestGetAgentID verifies that GetAgentID handles nil Gateway and returns the ID when set.
+func TestGetAgentID(t *testing.T) {
 	t.Run("nil Gateway returns empty string", func(t *testing.T) {
 		cfg := &Config{}
-		assert.Equal(t, "", cfg.GetAPIKey())
+		assert.Equal(t, "", cfg.GetAgentID())
 	})
 
-	t.Run("Gateway with no key returns empty string", func(t *testing.T) {
+	t.Run("Gateway with no ID returns empty string", func(t *testing.T) {
 		cfg := &Config{Gateway: &GatewayConfig{}}
-		assert.Equal(t, "", cfg.GetAPIKey())
+		assert.Equal(t, "", cfg.GetAgentID())
 	})
 
-	t.Run("Gateway with key returns key", func(t *testing.T) {
-		cfg := &Config{Gateway: &GatewayConfig{APIKey: "my-secret-key"}}
-		assert.Equal(t, "my-secret-key", cfg.GetAPIKey())
+	t.Run("Gateway with ID returns ID", func(t *testing.T) {
+		cfg := &Config{Gateway: &GatewayConfig{AgentID: "agent-123"}}
+		assert.Equal(t, "agent-123", cfg.GetAgentID())
+	})
+
+	t.Run("Legacy APIKey still maps to agent ID", func(t *testing.T) {
+		cfg := &Config{Gateway: &GatewayConfig{APIKey: "legacy-id"}}
+		assert.Equal(t, "legacy-id", cfg.GetAgentID())
 	})
 }
 
@@ -1611,7 +1616,7 @@ func TestLoadFromStdin_WithTrustedBots(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key",
+			"agentId": "test-key",
 			"trustedBots": ["github-actions[bot]", "copilot-swe-agent[bot]"]
 		}
 	}`
@@ -1648,7 +1653,7 @@ func TestLoadFromStdin_WithEmptyTrustedBots(t *testing.T) {
 		"gateway": {
 			"port": 8080,
 			"domain": "localhost",
-			"apiKey": "test-key",
+			"agentId": "test-key",
 			"trustedBots": []
 		}
 	}`
@@ -1685,7 +1690,7 @@ func TestLoadFromStdin_HTTPServerWithToolTimeout(t *testing.T) {
 "gateway": {
 "port": 3000,
 "domain": "localhost",
-"apiKey": "test-key"
+"agentId": "test-key"
 }
 }`
 
@@ -1726,7 +1731,7 @@ func TestLoadFromStdin_HTTPServerToolTimeoutOverridesGlobal(t *testing.T) {
 "gateway": {
 "port": 3000,
 "domain": "localhost",
-"apiKey": "test-key",
+"agentId": "test-key",
 "toolTimeout": 60
 }
 }`
@@ -1772,7 +1777,7 @@ func TestLoadFromStdin_HTTPServerToolTimeoutBelowMinimum(t *testing.T) {
 "gateway": {
 "port": 3000,
 "domain": "localhost",
-"apiKey": "test-key"
+"agentId": "test-key"
 }
 }`
 
@@ -1804,7 +1809,7 @@ func TestLoadFromStdin_HTTPServerWithLegacySnakeCaseTimeoutFields(t *testing.T) 
 "gateway": {
 "port": 3000,
 "domain": "localhost",
-"apiKey": "test-key"
+"agentId": "test-key"
 }
 }`
 
@@ -1839,7 +1844,7 @@ func TestLoadFromStdin_HTTPServerWithLegacySnakeCaseToolTimeoutBelowMinimum(t *t
 "gateway": {
 "port": 3000,
 "domain": "localhost",
-"apiKey": "test-key"
+"agentId": "test-key"
 }
 }`
 

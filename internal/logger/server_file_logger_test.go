@@ -27,6 +27,26 @@ func TestInitServerFileLogger(t *testing.T) {
 	assert.NoError(t, err, "Log directory was not created: %s", logDir)
 }
 
+func TestNewServerFileLogger(t *testing.T) {
+	t.Run("initializes fields for standard mode", func(t *testing.T) {
+		sfl := newServerFileLogger("/tmp/test", false)
+		require.NotNil(t, sfl)
+		assert.Equal(t, "/tmp/test", sfl.logDir)
+		assert.False(t, sfl.useFallback)
+		assert.NotNil(t, sfl.loggers)
+		assert.NotNil(t, sfl.files)
+	})
+
+	t.Run("initializes fields for fallback mode", func(t *testing.T) {
+		sfl := newServerFileLogger("/tmp/fallback", true)
+		require.NotNil(t, sfl)
+		assert.Equal(t, "/tmp/fallback", sfl.logDir)
+		assert.True(t, sfl.useFallback)
+		assert.NotNil(t, sfl.loggers)
+		assert.NotNil(t, sfl.files)
+	})
+}
+
 func TestServerFileLoggerCreatesLogFiles(t *testing.T) {
 	// Create a temporary directory for testing
 	tmpDir := t.TempDir()

@@ -9,7 +9,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 **Test**: `make test` (run unit tests, no build required)  
 **Test-Unit**: `make test-unit` (run unit tests only)  
 **Test-Integration**: `make test-integration` (run binary integration tests, auto-builds binary if not present)  
-**Test-All**: `make test-all` (run both unit and integration tests)  
+**Test-All**: `make test-all` (run both unit and integration tests; always builds the binary first)  
 **Test-CI**: `make test-ci` (unit tests with coverage and JSON output for CI)  
 **Lint**: `make lint` (runs go vet, gofmt checks, and golangci-lint)  
 **Coverage**: `make coverage` (unit tests with coverage report)  
@@ -67,12 +67,12 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 ```toml
 [gateway]
 port = 3000
-api_key = "your-api-key"
+agent_id = "your-agent-id"
 payload_dir = "/tmp/jq-payloads"  # Optional: directory for large payload storage (must be absolute)
 
 [servers.github]
 command = "docker"
-args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-i", "ghcr.io/github/github-mcp-server:latest"]
+args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-e", "NO_COLOR=1", "-e", "TERM=dumb", "-i", "ghcr.io/github/github-mcp-server:latest"]
 ```
 
 **JSON** (stdin):
@@ -99,8 +99,10 @@ args = ["run", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "-i", "ghcr.io/gith
 - **Containerization Requirement**: TOML stdio servers must use `command = "docker"` per [MCP Gateway Specification Section 3.2.1](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md#321-containerization-requirement)
 - **Note**: In JSON stdin format, the `command` field is not supported - stdio servers must use `container` field
 - **Note**: In JSON stdin format, `args` is optional and provides extra Docker runtime arguments inserted before the container image name
-- **Note**: In JSON stdin format, stdio servers also support optional `entrypoint`, `entrypointArgs`, and `mounts` fields; HTTP servers support optional `connectTimeout`
+- **Note**: In JSON stdin format, stdio servers also support optional `entrypoint`, `entrypointArgs`, and `mounts` fields; HTTP servers support optional `connectTimeout` and `toolTimeout`
+- **Note**: JSON stdin accepts legacy snake_case timeout aliases `connect_timeout` and `tool_timeout` for backward compatibility (prefer `connectTimeout` and `toolTimeout`)
 - **Note**: For the full JSON stdin field list and complete TOML examples (including `gateway.keepalive_interval`, top-level `sequential_launch`, and `guards_mode`), see `docs/CONFIGURATION.md` and `config.example.toml`
+- **Note**: For the full gateway field list (including `trusted_bots`, `rate_limit_threshold`, `rate_limit_cooldown`, and all server fields), see [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md)
 - Port range validation: 1-65535
 - Timeout validation: positive integers only
 
@@ -230,7 +232,7 @@ golangci-lint run --enable=gosec,testifylint,errcheck --timeout=5m
 - Test actual server behavior and CLI flags
 - Run with: `make test-integration`
 
-**All Tests**: `make test-all` runs both unit and integration tests
+**All Tests**: `make test-all` runs both unit and integration tests; always builds the binary first
 
 ## Common Tasks
 
@@ -249,7 +251,7 @@ This command runs the complete verification pipeline:
 1. **Format** - Auto-formats all Go code with gofmt
 2. **Build** - Ensures the project compiles successfully
 3. **Lint** - Runs go vet and gofmt checks
-4. **Test All** - Executes the full test suite (unit + integration tests)
+4. **Test All** - Runs `go test ./...` (Go package tests) and Rust guard unit tests. Binary integration tests from `test/integration/` are run separately via `make test-integration`.
 
 **Requirements:**
 - **ALL failures must be fixed** before completion
@@ -390,15 +392,16 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `ACTIONS_ID_TOKEN_REQUEST_TOKEN` - GitHub Actions OIDC request token; required for `github-oidc` auth type
 - `MCP_GATEWAY_PORT` - Used by environment validation (`--validate-env`) for container port-mapping checks (validated 1-65535); does not override the gateway listen address
 - `MCP_GATEWAY_DOMAIN` - Used by environment validation (`--validate-env`) and containerized startup checks; to set config values use `gateway.domain` (or `"${MCP_GATEWAY_DOMAIN}"` in JSON stdin config)
-- `MCP_GATEWAY_API_KEY` - Used by environment validation (`--validate-env`) and containerized startup checks; to enable auth set `gateway.apiKey` (commonly `"${MCP_GATEWAY_API_KEY}"` in JSON stdin config)
+- `MCP_GATEWAY_AGENT_ID` - Used by environment validation (`--validate-env`) and containerized startup checks; to enable auth set `gateway.agentId` (commonly `"${MCP_GATEWAY_AGENT_ID}"` in JSON stdin config)
 - `DEBUG` - Enable debug logging (e.g., `DEBUG=*`, `DEBUG=server:*,launcher:*`)
 - `DEBUG_COLORS` - Control colored output (0 to disable, auto-disabled when piping)
 - `MCP_GATEWAY_LOG_DIR` - Log file directory (sets default for `--log-dir` flag, default: `/tmp/gh-aw/mcp-logs`)
-- `MCP_GATEWAY_WASM_CACHE_DIR` - Disk-backed wazero compilation cache directory (sets default for `--wasm-cache-dir`, default: `<log-dir>/wazero-cache`)
+- `MCP_GATEWAY_WASM_CACHE_DIR` - Disk-backed wazero compilation cache directory (sets default for `--wasm-cache-dir`, default: `<parent-of-log-dir>/wazero-cache` — sibling of `--log-dir`)
 - `MCP_GATEWAY_PAYLOAD_DIR` - Large payload storage directory (sets default for `--payload-dir` flag, default: `/tmp/jq-payloads`). Must be an absolute path.
 - `MCP_GATEWAY_PAYLOAD_PATH_PREFIX` - Path prefix for remapping payloadPath returned to clients (sets default for `--payload-path-prefix` flag, default: empty). In JSON stdin config use `gateway.payloadPathPrefix`.
 - `MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD` - Size threshold in bytes for payload storage; payloads larger than this are stored to disk (sets default for `--payload-size-threshold` flag, default: `524288`)
 - `MCP_GATEWAY_SESSION_TIMEOUT` - Session timeout for stateful sessions in both unified mode (`/mcp`) and routed mode (`/mcp/<server>`). Accepts Go duration strings (e.g., `30m`, `1h`, `2h30m`). (default: `6h`)
+- `MCP_GATEWAY_SHUTDOWN_TIMEOUT` - Maximum time to wait for in-flight requests to complete during graceful shutdown (sets default for `--shutdown-timeout` flag). Accepts Go duration strings (e.g., `30s`, `2m`). (default: `5s`)
 - `MCP_GATEWAY_TOOL_TIMEOUT` - Tool invocation timeout in seconds. Fallback when `gateway.toolTimeout` is not set in stdin JSON config. Accepts any integer ≥ 10 (no upper bound). Priority: stdin config > env var > built-in default. (default: `60`)
 - `DOCKER_HOST` - Docker daemon socket path (default: `/var/run/docker.sock`)
 - `MCP_GATEWAY_GUARDS_SINK_SERVER_IDS` - Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots (sets default for `--guards-sink-server-ids`)
@@ -415,7 +418,9 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `MCP_GATEWAY_HMAC_SECRET` - Shared HMAC-SHA256 secret for request signing and replay protection; when set, requests to MCP handlers must carry valid `X-MCP-Timestamp`, `X-MCP-Nonce`, and `X-MCP-Signature` headers (sets default for `--hmac-secret`)
 - `OTEL_EXPORTER_OTLP_ENDPOINT` - OTLP HTTP endpoint for trace export; sets default for `--otlp-endpoint`
 - `OTEL_EXPORTER_OTLP_HEADERS` - Comma-separated `key=value` OTLP export headers (W3C Baggage format); used as fallback when `gateway.opentelemetry.headers` / `gateway.tracing.headers` is not set in config
+- `GH_AW_OTLP_ENDPOINTS` - Comma-separated list of OTLP HTTP endpoint URLs for multi-backend fan-out; when set, spans are exported to ALL listed endpoints (partial-failure tolerant). Takes precedence over `OTEL_EXPORTER_OTLP_ENDPOINT`. Shared headers from `OTEL_EXPORTER_OTLP_HEADERS` / config apply to every endpoint.
 - `OTEL_SERVICE_NAME` - Service name in traces; sets default for `--otlp-service-name`
+- `TAVILY_API_KEY` - Tavily API key; when unset, integration tests that use it are automatically skipped
 - `AWMG_BINARY_PATH` - Override binary path for integration tests
 - `AWMG_WASM_GUARD_PATH` - Override WASM guard path for proxy integration tests
 - `RUNNING_IN_CONTAINER` - Set to `"true"` to force container detection when `/.dockerenv` and cgroup detection are unavailable
@@ -491,8 +496,8 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 
 ## Security Notes
 
-- **Auth**: `Authorization: <apiKey>` header (plain API key per spec 7.1, NOT Bearer scheme)
-- **Sessions**: Session ID extracted from Authorization header value
+- **Auth**: `Authorization: <agentId>` header (plain value per spec 7.1, NOT Bearer scheme)
+- **Sessions**: Session ID extracted from `X-Agent-ID` (preferred) or Authorization header value
 - **Stdio servers**: Containerized execution only (no direct command support)
 - **mTLS**: Mutual TLS can be enabled with `--tls-cert`, `--tls-key`, and `--tls-ca` flags (or corresponding env vars) to require client certificates for all connections
 - **HMAC request signing**: Set `--hmac-secret` (or `MCP_GATEWAY_HMAC_SECRET`) to require HMAC-SHA256 signed requests; protects against replay attacks using `X-MCP-Timestamp`, `X-MCP-Nonce`, and `X-MCP-Signature` headers

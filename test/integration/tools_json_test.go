@@ -101,7 +101,7 @@ func TestToolsJSONLogging(t *testing.T) {
   "gateway": {
     "port": 13120,
     "domain": "localhost",
-    "apiKey": "test-tools-key"
+    "agentId": "test-tools-key"
   }
 }`, mockBackend.URL, mockBackend.URL)
 

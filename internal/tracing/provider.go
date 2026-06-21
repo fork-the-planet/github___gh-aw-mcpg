@@ -19,12 +19,9 @@ package tracing
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"net/url"
-	"os"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -32,12 +29,13 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/version"
 )
 
@@ -47,9 +45,10 @@ var logTracing = logger.New("tracing:provider")
 
 // Provider wraps an OpenTelemetry TracerProvider and provides a Shutdown method.
 type Provider struct {
-	tp     trace.TracerProvider
-	sdk    *sdktrace.TracerProvider // non-nil only when OTLP is configured
-	tracer trace.Tracer
+	tp       trace.TracerProvider
+	sdk      *sdktrace.TracerProvider // non-nil only when OTLP is configured
+	tracer   trace.Tracer
+	resource *resource.Resource // resource used when building the SDK provider
 }
 
 // Tracer returns the tracer for the MCP gateway instrumentation scope.
@@ -57,148 +56,245 @@ func (p *Provider) Tracer() trace.Tracer {
 	return p.tracer
 }
 
+// IsEnabled reports whether the provider has a real SDK (non-noop) exporter active.
+func (p *Provider) IsEnabled() bool {
+	return p.sdk != nil
+}
+
+// Resource returns the OTel resource associated with this provider, or nil if
+// the provider is a noop (no OTLP endpoint configured).
+func (p *Provider) Resource() *resource.Resource {
+	return p.resource
+}
+
 // Shutdown flushes and shuts down the tracer provider.
 // For noop providers this is a no-op. Must be called on application exit.
 func (p *Provider) Shutdown(ctx context.Context) error {
 	if p.sdk != nil {
+		logTracing.Print("Flushing and shutting down OTLP tracer provider")
 		return p.sdk.Shutdown(ctx)
 	}
 	return nil
 }
 
-// defaultSignalPath is the OTLP traces signal path per the OpenTelemetry spec.
-const defaultSignalPath = "/v1/traces"
-
-// resolveEndpoint returns the OTLP endpoint from config.
-// CLI flags set the config value using env vars as defaults, so config already
-// reflects the correct precedence: CLI flag > env var > config file.
-//
-// Per the OpenTelemetry specification, OTEL_EXPORTER_OTLP_ENDPOINT is a base URL
-// and SDKs must append the signal path (/v1/traces for traces). Since we use
-// WithEndpointURL (which takes the URL as-is), we append the signal path here
-// when it is not already present. The path defaults to /v1/traces but can be
-// overridden via TracingConfig.SignalPath.
-func resolveEndpoint(cfg *config.TracingConfig) string {
-	if cfg == nil || cfg.Endpoint == "" {
-		return ""
-	}
-	endpoint := cfg.Endpoint
-	signalPath := cfg.SignalPath
-	if signalPath == "" {
-		signalPath = defaultSignalPath
-	}
-
-	u, err := url.Parse(endpoint)
+// generateRandomSpanID creates a cryptographically random 8-byte span ID.
+func generateRandomSpanID() (trace.SpanID, error) {
+	var id trace.SpanID
+	b, err := strutil.RandomBytes(len(id))
 	if err != nil {
-		// If unparseable, fall back to string append for best-effort.
-		// Normalize trailing slashes before the suffix check to avoid
-		// duplicating the signal path when input already ends with it.
-		normalized := strings.TrimRight(endpoint, "/")
-		if !strings.HasSuffix(normalized, signalPath) {
-			normalized += signalPath
-		}
-		return normalized
+		return id, fmt.Errorf("failed to generate random span ID: %w", err)
+	}
+	copy(id[:], b)
+	return id, nil
+}
+
+// registerPropagator installs the global W3C TraceContext + Baggage propagator.
+// This enables incoming traceparent/tracestate headers to be extracted so that
+// agent-initiated traces are continued rather than fragmented.
+func registerPropagator() {
+	logTracing.Print("Registering global W3C TraceContext+Baggage text map propagator")
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
+}
+
+// InitProvider initializes the global OpenTelemetry tracer provider.
+// When no endpoint is configured, a noop provider is installed (zero overhead).
+// When one or more endpoints are configured, an OTLP/HTTP exporter is created
+// for each endpoint and the SDK tracer provider is registered as the global
+// provider. Multiple endpoints (from GH_AW_OTLP_ENDPOINTS) are supported via a
+// fan-out exporter so that every backend receives complete gateway traces.
+//
+// In both cases a W3C TraceContext propagator is registered globally so that
+// incoming traceparent/tracestate headers are honoured by all HTTP middleware.
+//
+// The returned Provider must be shut down on application exit to flush buffered spans.
+func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, error) {
+	endpoint := resolveEndpoint(cfg)
+	extraEndpoints := resolveExtraEndpointConfigs(cfg)
+	serviceName := resolveServiceName(cfg)
+	sampleRate := resolveSampleRate(cfg)
+
+	// Always register the W3C propagator so that incoming traceparent headers
+	// are extracted, even when tracing is disabled (noop spans are still
+	// parented correctly if propagation is later enabled upstream).
+	registerPropagator()
+
+	// Determine the active set of endpoints:
+	//   - GH_AW_OTLP_ENDPOINTS takes precedence (fan-out to all listed endpoints).
+	//   - Falls back to the single endpoint from config/OTEL_EXPORTER_OTLP_ENDPOINT.
+	var activeEndpoints []extraEndpointConfig
+	if len(extraEndpoints) > 0 {
+		activeEndpoints = extraEndpoints
+	} else if endpoint != "" {
+		activeEndpoints = []extraEndpointConfig{{URL: endpoint}}
 	}
 
-	// Normalize path and check whether signal path is already the suffix
-	normalizedPath := strings.TrimRight(u.Path, "/")
-	if !strings.HasSuffix(normalizedPath, signalPath) {
-		u.Path = normalizedPath + signalPath
+	if len(activeEndpoints) == 0 {
+		logTracing.Printf("Tracing disabled: no OTLP endpoint configured")
+		noopTP := noop.NewTracerProvider()
+		otel.SetTracerProvider(noopTP)
+		return &Provider{
+			tp:     noopTP,
+			tracer: noopTP.Tracer(instrumentationName),
+		}, nil
+	}
+
+	if len(activeEndpoints) > 1 {
+		logTracing.Printf("Initializing OTLP fan-out tracing: %d endpoints, service=%s, sampleRate=%.2f",
+			len(activeEndpoints), serviceName, sampleRate)
 	} else {
-		u.Path = normalizedPath
-	}
-	return u.String()
-}
-
-// resolveServiceName returns the service name from config.
-func resolveServiceName(cfg *config.TracingConfig) string {
-	if cfg != nil && cfg.ServiceName != "" {
-		return cfg.ServiceName
-	}
-	return config.DefaultTracingServiceName
-}
-
-// resolveSampleRate returns the sample rate from config (defaults to 1.0).
-// Valid configured values are in the range [0.0, 1.0], where 0.0 disables sampling.
-func resolveSampleRate(cfg *config.TracingConfig) float64 {
-	rate := cfg.GetSampleRate()
-
-	if rate >= 0.0 && rate <= 1.0 {
-		return rate
+		logTracing.Printf("Initializing OTLP tracing: endpoint=%s, service=%s, sampleRate=%.2f",
+			activeEndpoints[0].URL, serviceName, sampleRate)
 	}
 
-	logTracing.Printf("Warning: invalid tracing sample rate %.4f; using default %.2f", rate, config.DefaultTracingSampleRate)
-	return config.DefaultTracingSampleRate
-}
+	// Resolve shared headers applied to all exporters.
+	headers := resolveHeaders(cfg)
+	if headers != nil {
+		logTracing.Printf("Applying %d OTLP export header(s)", len(headers))
+	}
 
-// parseOTLPHeaders parses a comma-separated "key=value" string into a map.
-// Empty pairs, pairs without "=", and pairs with an empty key are logged as
-// warnings and skipped to avoid invalid HTTP header field names.
-// Leading/trailing whitespace around keys and values is trimmed.
-func parseOTLPHeaders(raw string) map[string]string {
-	return parseOTLPHeadersWithDecoder(raw, false)
-}
-
-func parseOTLPHeadersWithDecoder(raw string, decodeValues bool) map[string]string {
-	headers := make(map[string]string)
-	for _, pair := range strings.Split(raw, ",") {
-		trimmed := strings.TrimSpace(pair)
-		if trimmed == "" {
+	// Build one OTLP HTTP exporter per active endpoint.
+	exporters := make([]sdktrace.SpanExporter, 0, len(activeEndpoints))
+	var constructionErrs []error
+	for _, ep := range activeEndpoints {
+		exporterHeaders := mergeOTLPHeaders(headers, ep.Headers)
+		opts := []otlptracehttp.Option{
+			otlptracehttp.WithEndpointURL(ep.URL),
+			otlptracehttp.WithTimeout(10 * time.Second),
+		}
+		if exporterHeaders != nil {
+			opts = append(opts, otlptracehttp.WithHeaders(exporterHeaders))
+		}
+		exp, err := otlptracehttp.New(ctx, opts...)
+		if err != nil {
+			logTracing.Printf("Warning: failed to create OTLP exporter for endpoint %s: %v; skipping", ep.URL, err)
+			constructionErrs = append(constructionErrs, fmt.Errorf("endpoint %s: %w", ep.URL, err))
 			continue
 		}
-		k, v, ok := strings.Cut(trimmed, "=")
-		if !ok {
-			logTracing.Printf("Warning: skipping malformed OTLP header pair (missing '=')")
-			continue
-		}
-		key := strings.TrimSpace(k)
-		if key == "" {
-			logTracing.Printf("Warning: skipping OTLP header pair with empty key")
-			continue
-		}
-		value := strings.TrimSpace(v)
-		if decodeValues {
-			decoded, err := url.PathUnescape(value)
-			if err != nil {
-				logTracing.Printf("Warning: invalid percent-encoding in OTLP header value for key %q; using raw value", key)
-			} else {
-				value = decoded
-			}
-		}
-		headers[key] = value
+		exporters = append(exporters, exp)
 	}
-	return headers
+	if len(exporters) == 0 {
+		return nil, fmt.Errorf("failed to create any OTLP trace exporters: %w", errors.Join(constructionErrs...))
+	}
+	logTracing.Printf("OTLP HTTP trace exporter(s) created: %d", len(exporters))
+
+	// Wrap in a fan-out exporter (returns the single exporter directly when only one).
+	exporter := newFanoutExporter(exporters)
+
+	// Build resource with service name, version, and SDK metadata.
+	// resource.WithTelemetrySDK(), resource.WithHost(), resource.WithProcessPID(), and
+	// resource.WithContainer() are built-in detectors that use semconv/v1.41.0 internally
+	// (matching the SDK v1.44.0 pin). Using the same semconv version here avoids the
+	// "conflicting Schema URL" error that previously caused all resource attributes to be lost.
+	res, err := resource.New(ctx,
+		resource.WithTelemetrySDK(),
+		resource.WithContainer(),
+		resource.WithAttributes(
+			semconv.ServiceName(serviceName),
+			semconv.ServiceVersion(version.Get()),
+		),
+		resource.WithProcessPID(),
+		resource.WithHost(),
+	)
+	if err != nil {
+		logTracing.Printf("Warning: failed to create OTEL resource: %v", err)
+		serviceResource := resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName(serviceName),
+			semconv.ServiceVersion(version.Get()),
+		)
+		// resource.New can return a best-effort resource alongside an error.
+		// Preserve detected attributes and only ensure service identity exists.
+		merged, mergeErr := resource.Merge(res, serviceResource)
+		if mergeErr != nil {
+			logTracing.Printf("Warning: failed to merge OTEL resource fallback: %v", mergeErr)
+			res = serviceResource
+		} else {
+			res = merged
+		}
+	}
+
+	// Select sampler based on configured rate
+	var sampler sdktrace.Sampler
+	switch {
+	case sampleRate >= 1.0:
+		sampler = sdktrace.AlwaysSample()
+		logTracing.Print("Using AlwaysSample tracer sampler")
+	case sampleRate <= 0.0:
+		sampler = sdktrace.NeverSample()
+		logTracing.Print("Using NeverSample tracer sampler")
+	default:
+		sampler = sdktrace.TraceIDRatioBased(sampleRate)
+		logTracing.Printf("Using TraceIDRatioBased tracer sampler: rate=%.4f", sampleRate)
+	}
+
+	sdkTP := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sampler),
+	)
+
+	// Register as the global provider so instrumented libraries pick it up
+	otel.SetTracerProvider(sdkTP)
+
+	tracer := sdkTP.Tracer(instrumentationName)
+	logTracing.Printf("OTLP tracing initialized successfully")
+
+	return &Provider{
+		tp:       sdkTP,
+		sdk:      sdkTP,
+		tracer:   tracer,
+		resource: res,
+	}, nil
 }
 
-// resolveHeaders parses the configured OTLP export headers string (or returns nil).
-// When no headers are configured via config, it falls back to the standard
-// OTEL_EXPORTER_OTLP_HEADERS environment variable (W3C Baggage format:
-// "key1=value1,key2=value2") per the OTel OTLP Exporter specification.
-func resolveHeaders(cfg *config.TracingConfig) map[string]string {
-	raw := ""
-	if cfg != nil {
-		raw = cfg.Headers
+// Tracer returns the global MCP gateway tracer.
+// This is a convenience wrapper around otel.Tracer for packages that don't
+// hold a reference to the Provider.
+func Tracer() trace.Tracer {
+	return otel.Tracer(instrumentationName)
+}
+
+// GetCachedOrGlobal returns cached if non-nil, otherwise falls back to the global tracer.
+func GetCachedOrGlobal(cached trace.Tracer) trace.Tracer {
+	if cached != nil {
+		return cached
 	}
-	if raw == "" {
-		raw = os.Getenv("OTEL_EXPORTER_OTLP_HEADERS")
-		if raw != "" {
-			logTracing.Printf("Using OTEL_EXPORTER_OTLP_HEADERS env var for OTLP export headers")
-		}
-	}
-	if raw == "" {
+	return Tracer()
+}
+
+func mergeOTLPHeaders(shared, specific map[string]string) map[string]string {
+	if len(shared) == 0 && len(specific) == 0 {
 		return nil
 	}
-	if cfg == nil || cfg.Headers == "" {
-		return parseOTLPHeadersWithDecoder(raw, true)
+
+	merged := make(map[string]string, len(shared)+len(specific))
+	for key, value := range shared {
+		merged[key] = value
 	}
-	return parseOTLPHeaders(raw)
+	for key, value := range specific {
+		merged[key] = value
+	}
+	return merged
 }
 
-// resolveParentContext builds a context carrying the W3C remote parent span context
+// CachedTracer holds an optional pre-initialized tracer and falls back to the
+// global tracer when the cached tracer is nil.
+type CachedTracer struct {
+	Tracer trace.Tracer
+}
+
+// GetTracer returns the cached tracer when set, otherwise the global tracer.
+func (ct CachedTracer) GetTracer() trace.Tracer {
+	return GetCachedOrGlobal(ct.Tracer)
+}
+
+// ParentContext returns a context carrying the W3C remote parent span context
 // from the configured traceId and spanId (spec §4.1.3.6).
-// If traceId is absent, or either ID is malformed, the original context is returned unchanged.
-// A missing spanId is replaced with a random span ID so the traceparent is still valid.
-func resolveParentContext(ctx context.Context, cfg *config.TracingConfig) context.Context {
+// Exported for use at startup to build the root span's parent context.
+func ParentContext(ctx context.Context, cfg *config.TracingConfig) context.Context {
 	if cfg == nil || cfg.TraceID == "" {
 		return ctx
 	}
@@ -216,15 +312,11 @@ func resolveParentContext(ctx context.Context, cfg *config.TracingConfig) contex
 		spanIDBytes, err := hex.DecodeString(cfg.SpanID)
 		if err != nil || len(spanIDBytes) != 8 {
 			logTracing.Printf("Warning: invalid spanId '%s'; generating a random span ID", cfg.SpanID)
-			// Fall through to generate a random span ID below
 		} else {
 			copy(spanID[:], spanIDBytes)
 		}
 	}
 
-	// When spanId is all-zeros (absent or invalid), generate a random span ID.
-	// A valid SpanContext requires a non-zero SpanID (W3C Trace Context spec).
-	// T-OTEL-008: when only traceId is provided, a random spanId is generated.
 	if spanID == (trace.SpanID{}) {
 		generatedID, genErr := generateRandomSpanID()
 		if genErr != nil {
@@ -247,141 +339,4 @@ func resolveParentContext(ctx context.Context, cfg *config.TracingConfig) contex
 	}
 	logTracing.Printf("W3C parent context resolved: traceId=%s, spanId=%s", traceID, spanID)
 	return trace.ContextWithRemoteSpanContext(ctx, sc)
-}
-
-// generateRandomSpanID creates a cryptographically random 8-byte span ID.
-func generateRandomSpanID() (trace.SpanID, error) {
-	var id trace.SpanID
-	if _, err := rand.Read(id[:]); err != nil {
-		return id, fmt.Errorf("failed to generate random span ID: %w", err)
-	}
-	return id, nil
-}
-
-// registerPropagator installs the global W3C TraceContext + Baggage propagator.
-// This enables incoming traceparent/tracestate headers to be extracted so that
-// agent-initiated traces are continued rather than fragmented.
-func registerPropagator() {
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	))
-}
-
-// InitProvider initializes the global OpenTelemetry tracer provider.
-// When endpoint is empty, a noop provider is installed (zero overhead).
-// When endpoint is configured, an OTLP/HTTP exporter is created and the SDK
-// tracer provider is registered as the global provider.
-//
-// In both cases a W3C TraceContext propagator is registered globally so that
-// incoming traceparent/tracestate headers are honoured by all HTTP middleware.
-//
-// The returned Provider must be shut down on application exit to flush buffered spans.
-func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, error) {
-	endpoint := resolveEndpoint(cfg)
-	serviceName := resolveServiceName(cfg)
-	sampleRate := resolveSampleRate(cfg)
-
-	// Always register the W3C propagator so that incoming traceparent headers
-	// are extracted, even when tracing is disabled (noop spans are still
-	// parented correctly if propagation is later enabled upstream).
-	registerPropagator()
-
-	if endpoint == "" {
-		logTracing.Printf("Tracing disabled: no OTLP endpoint configured")
-		noopTP := noop.NewTracerProvider()
-		otel.SetTracerProvider(noopTP)
-		return &Provider{
-			tp:     noopTP,
-			tracer: noopTP.Tracer(instrumentationName),
-		}, nil
-	}
-
-	logTracing.Printf("Initializing OTLP tracing: endpoint=%s, service=%s, sampleRate=%.2f", endpoint, serviceName, sampleRate)
-
-	// Build OTLP HTTP exporter options
-	exporterOpts := []otlptracehttp.Option{
-		otlptracehttp.WithEndpointURL(endpoint),
-		otlptracehttp.WithTimeout(10 * time.Second),
-	}
-
-	// Apply configured headers (spec §4.1.3.6: headers sent with every OTLP export request)
-	if headers := resolveHeaders(cfg); headers != nil {
-		logTracing.Printf("Applying %d OTLP export header(s)", len(headers))
-		exporterOpts = append(exporterOpts, otlptracehttp.WithHeaders(headers))
-	}
-
-	// Build OTLP HTTP exporter with 10s timeout
-	exporter, err := otlptracehttp.New(ctx, exporterOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create OTLP trace exporter: %w", err)
-	}
-
-	// Build resource with service name, version, and SDK metadata
-	res, err := resource.New(ctx,
-		resource.WithTelemetrySDK(),
-		resource.WithSchemaURL(semconv.SchemaURL),
-		resource.WithAttributes(
-			semconv.ServiceName(serviceName),
-			semconv.ServiceVersion(version.Get()),
-		),
-		resource.WithProcessPID(),
-		resource.WithHost(),
-	)
-	if err != nil {
-		// Non-fatal: proceed with empty resource
-		logTracing.Printf("Warning: failed to create OTEL resource: %v", err)
-		res = resource.Empty()
-	}
-
-	// Select sampler based on configured rate
-	var sampler sdktrace.Sampler
-	switch {
-	case sampleRate >= 1.0:
-		sampler = sdktrace.AlwaysSample()
-	case sampleRate <= 0.0:
-		sampler = sdktrace.NeverSample()
-	default:
-		sampler = sdktrace.TraceIDRatioBased(sampleRate)
-	}
-
-	sdkTP := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sampler),
-	)
-
-	// Register as the global provider so instrumented libraries pick it up
-	otel.SetTracerProvider(sdkTP)
-
-	tracer := sdkTP.Tracer(instrumentationName)
-	logTracing.Printf("OTLP tracing initialized successfully")
-
-	return &Provider{
-		tp:     sdkTP,
-		sdk:    sdkTP,
-		tracer: tracer,
-	}, nil
-}
-
-// Tracer returns the global MCP gateway tracer.
-// This is a convenience wrapper around otel.Tracer for packages that don't
-// hold a reference to the Provider.
-func Tracer() trace.Tracer {
-	return otel.Tracer(instrumentationName)
-}
-
-// GetCachedOrGlobal returns cached if non-nil, otherwise falls back to the global tracer.
-func GetCachedOrGlobal(cached trace.Tracer) trace.Tracer {
-	if cached != nil {
-		return cached
-	}
-	return Tracer()
-}
-
-// ParentContext returns a context carrying the W3C remote parent span context
-// from the configured traceId and spanId (spec §4.1.3.6).
-// Exported for use at startup to build the root span's parent context.
-func ParentContext(ctx context.Context, cfg *config.TracingConfig) context.Context {
-	return resolveParentContext(ctx, cfg)
 }

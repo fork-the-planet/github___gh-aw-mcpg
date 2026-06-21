@@ -33,6 +33,7 @@ type StdinConfig struct {
 // Uses pointers for optional fields to distinguish between unset and zero values.
 type StdinGatewayConfig struct {
 	Port                 *int                      `json:"port,omitempty"`
+	AgentID              string                    `json:"agentId,omitempty"`
 	APIKey               string                    `json:"apiKey,omitempty"`
 	Domain               string                    `json:"domain,omitempty"`
 	StartupTimeout       *int                      `json:"startupTimeout,omitempty"`
@@ -43,6 +44,31 @@ type StdinGatewayConfig struct {
 	PayloadSizeThreshold *int                      `json:"payloadSizeThreshold,omitempty"`
 	TrustedBots          []string                  `json:"trustedBots,omitempty"`
 	OpenTelemetry        *StdinOpenTelemetryConfig `json:"opentelemetry,omitempty"`
+
+	agentIDSet      bool `json:"-"`
+	legacyAPIKeySet bool `json:"-"`
+}
+
+// UnmarshalJSON enables backward-compatible parsing for gateway.apiKey and
+// tracks deprecated field usage for warning emission.
+func (g *StdinGatewayConfig) UnmarshalJSON(data []byte) error {
+	type Alias StdinGatewayConfig
+	aux := &struct {
+		*Alias
+	}{
+		Alias: (*Alias)(g),
+	}
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	var rawFields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawFields); err != nil {
+		return err
+	}
+	_, g.agentIDSet = rawFields["agentId"]
+	_, g.legacyAPIKeySet = rawFields["apiKey"]
+	return nil
 }
 
 // StdinOpenTelemetryConfig represents the OpenTelemetry configuration in stdin JSON format (spec §4.1.3.6).
@@ -241,6 +267,7 @@ func assignLegacyIntAlias(rawFields map[string]json.RawMessage, alias string, ta
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return fmt.Errorf("invalid %s value: %w", alias, err)
 	}
+	logStdin.Printf("Applying legacy alias %q: value=%d (prefer camelCase equivalent)", alias, value)
 	*target = &value
 	return nil
 }
@@ -278,7 +305,9 @@ func stripExtensionFieldsForValidation(data []byte) ([]byte, error) {
 	delete(config, "guards")
 
 	// Strip per-server "guard" and "auth" extension fields
+	serverCount := 0
 	if servers, ok := config["mcpServers"].(map[string]interface{}); ok {
+		serverCount = len(servers)
 		for _, server := range servers {
 			if serverMap, ok := server.(map[string]interface{}); ok {
 				delete(serverMap, "guard")
@@ -288,6 +317,7 @@ func stripExtensionFieldsForValidation(data []byte) ([]byte, error) {
 		}
 	}
 
+	logStdin.Printf("Stripped gateway extension fields for schema validation: %d servers processed", serverCount)
 	return json.Marshal(config)
 }
 
@@ -370,11 +400,13 @@ func convertStdinConfig(stdinCfg *StdinConfig) (*Config, error) {
 	if stdinCfg.Gateway != nil {
 		cfg.Gateway = &GatewayConfig{
 			Port:              intPtrOrDefault(stdinCfg.Gateway.Port, DefaultPort),
+			AgentID:           stdinCfg.Gateway.AgentID,
 			APIKey:            stdinCfg.Gateway.APIKey,
 			Domain:            stdinCfg.Gateway.Domain,
 			StartupTimeout:    intPtrOrDefault(stdinCfg.Gateway.StartupTimeout, DefaultStartupTimeout),
 			KeepaliveInterval: intPtrOrDefault(stdinCfg.Gateway.KeepaliveInterval, DefaultKeepaliveInterval),
 		}
+		cfg.Gateway.normalizeAgentID(stdinCfg.Gateway.agentIDSet, stdinCfg.Gateway.legacyAPIKeySet, "stdin JSON")
 		if stdinCfg.Gateway.ToolTimeout != nil {
 			cfg.Gateway.ToolTimeout = *stdinCfg.Gateway.ToolTimeout
 		} else {
@@ -473,20 +505,24 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 		logConfig.Printf("Configured HTTP MCP server: name=%s, url=%s", name, server.URL)
 		log.Printf("[CONFIG] Configured HTTP MCP server: %s -> %s", name, server.URL)
 		serverCfg := &ServerConfig{
-			Type:                "http",
-			URL:                 server.URL,
-			Headers:             server.Headers,
-			Tools:               server.Tools,
-			ToolResponseFilters: server.ToolResponseFilters,
-			Registry:            server.Registry,
-			GuardPolicies:       server.GuardPolicies,
-			Guard:               server.Guard,
+			Type:    "http",
+			URL:     server.URL,
+			Headers: server.Headers,
 		}
+		applyCommonServerConfigFields(serverCfg, server)
 		if server.ConnectTimeout != nil {
 			serverCfg.ConnectTimeout = *server.ConnectTimeout
 		}
-		if server.ToolTimeout != nil {
-			serverCfg.ToolTimeout = *server.ToolTimeout
+		if server.ConnectTimeout != nil || server.ToolTimeout != nil {
+			var connectTimeout any
+			if server.ConnectTimeout != nil {
+				connectTimeout = *server.ConnectTimeout
+			}
+			var toolTimeout any
+			if server.ToolTimeout != nil {
+				toolTimeout = *server.ToolTimeout
+			}
+			logStdin.Printf("HTTP server %q: custom timeouts configured: connectTimeout=%v, toolTimeout=%v", name, connectTimeout, toolTimeout)
 		}
 		if server.Auth != nil {
 			serverCfg.Auth = &AuthConfig{
@@ -504,20 +540,6 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 	// stdio/local servers only from this point
 	// All stdio servers use Docker containers
 	return buildStdioServerConfig(name, server), nil
-}
-
-func expandMapInPlace(m *map[string]string, serverName, fieldDesc string) error {
-	if len(*m) == 0 {
-		return nil
-	}
-
-	logStdin.Printf("Server %q: expanding %d %s", serverName, len(*m), fieldDesc)
-	expanded, err := expandEnvVariables(*m, serverName)
-	if err != nil {
-		return fmt.Errorf("server %q: failed to expand %s: %w", serverName, fieldDesc, err)
-	}
-	*m = expanded
-	return nil
 }
 
 // buildStdioServerConfig builds a ServerConfig for a stdio server.
@@ -574,20 +596,26 @@ func buildStdioServerConfig(name string, server *StdinServerConfig) *ServerConfi
 	logConfig.Printf("Configured stdio MCP server: name=%s, container=%s", name, server.Container)
 
 	serverCfg := &ServerConfig{
-		Type:                "stdio",
-		Command:             "docker",
-		Args:                args,
-		Env:                 make(map[string]string),
-		Tools:               server.Tools,
-		ToolResponseFilters: server.ToolResponseFilters,
-		Registry:            server.Registry,
-		GuardPolicies:       server.GuardPolicies,
-		Guard:               server.Guard,
+		Type:    "stdio",
+		Command: "docker",
+		Args:    args,
+		Env:     make(map[string]string),
 	}
-	if server.ToolTimeout != nil {
-		serverCfg.ToolTimeout = *server.ToolTimeout
-	}
+	applyCommonServerConfigFields(serverCfg, server)
 	return serverCfg
+}
+
+// applyCommonServerConfigFields sets the ServerConfig fields that are shared
+// between HTTP and stdio server configurations.
+func applyCommonServerConfigFields(cfg *ServerConfig, src *StdinServerConfig) {
+	cfg.Tools = src.Tools
+	cfg.ToolResponseFilters = src.ToolResponseFilters
+	cfg.Registry = src.Registry
+	cfg.GuardPolicies = src.GuardPolicies
+	cfg.Guard = src.Guard
+	if src.ToolTimeout != nil {
+		cfg.ToolTimeout = *src.ToolTimeout
+	}
 }
 
 // normalizeLocalType normalizes "local" type to "stdio" for backward compatibility.

@@ -167,6 +167,10 @@ import (
 // These helpers ensure thread-safe initialization with proper cleanup of any
 // existing logger instance.
 //
+// Gateway/proxy startup and CloseAllLoggers use shared registries in registry.go
+// so that new logger types only need one centralized startup/cleanup entry per
+// command path, while the per-logger Init*/Close* public APIs remain explicit.
+//
 // When to Use Each Logger Type:
 //
 // - FileLogger: Required operational logs (startup, errors, warnings)
@@ -196,7 +200,7 @@ import (
 //
 // Three sets of four public functions — one set per logger variant — share an
 // identical structure where each exported one-liner delegates to an unexported
-// per-level closure created by helper constructors in this file:
+// per-level closure registered by helpers in this file:
 //
 //	func Log<Level>(category, format string, args ...interface{}) {
 //	    log<level>(category, format, args...)
@@ -208,59 +212,76 @@ import (
 //	markdown_logger.go   LogInfoToMarkdown / ... / LogDebugToMarkdown     → logWithMarkdown
 //	server_file_logger.go LogInfoToServer / ... / LogDebugToServer        → logWithLevelAndServer
 //
-// This pattern keeps exported APIs immutable (`func` declarations) while still
-// eliminating repeated inline level wiring.
-//
-// The makeLevelLogger and makeServerLevelLogger helpers are for internal
-// delegation only and should not replace exported functions with reassignable
-// function variables.
-//
-// This remains intentionally consistent across the three files because:
-//   - Each set is a distinct public API with a different signature and set of callers.
-//   - The exported wrappers preserve a stable, non-mutable API surface.
-//   - Internal closure generation removes repetitive level-binding boilerplate.
-//
-// The log levels (Info, Warn, Error, Debug) are stable and not expected to grow.
-// This four-level set maps to standard syslog-style severity and covers all
-// operational needs of the gateway. The pattern is intentionally accepted as
-// idiomatic Go API design rather than collapsed via code generation, because:
-//   - The thin wrappers provide named, documented, discoverable public functions.
-//   - The wrapper layer is passive (no logic) so the duplication risk is negligible.
-//   - Adding a new level would require a deliberate API decision, not a routine change.
+// This pattern keeps exported APIs immutable (`func` declarations) while moving
+// the repetitive per-level closure setup into shared helpers. Each logger file
+// still exposes its own stable public API surface, but the registration of the
+// Info/Warn/Error/Debug closures is centralized here.
 //
 // The shared logFuncs map below centralises the LogLevel → log-function
 // mapping so that the internal helpers (logWithMarkdown, logWithLevelAndServer)
 // do not need their own switch-on-level blocks.
 //
 // If a new LogLevel constant is ever added (e.g., LogLevelTrace), update all
-// three locations to keep the public API consistent:
+// required locations to keep the public API consistent:
 //  1. Add a new entry to the logFuncs map in this file.
-//  2. In file_logger.go: add a var entry and exported wrapper (see LogInfo pattern).
-//  3. In markdown_logger.go: add a var entry and exported wrapper (see LogInfoToMarkdown pattern).
-//  4. In server_file_logger.go: add a var entry and exported wrapper (see LogInfoToServer pattern).
-//  5. Update TestLogLevelWrappers_CoverAllRegisteredLevels in log_level_wrappers_test.go.
+//  2. Update newLogFuncSet in this file.
+//  3. In file_logger.go: add an exported wrapper (see LogInfo pattern).
+//  4. In markdown_logger.go: add an exported wrapper (see LogInfoToMarkdown pattern).
+//  5. In server_file_logger.go: add an exported wrapper (see LogInfoToServer pattern).
+//  6. Update TestLogLevelWrappers_CoverAllRegisteredLevels in log_level_wrappers_test.go.
 //
 // logFuncs maps each LogLevel to its corresponding global log function.
 // This eliminates repeated switch-on-level blocks in logWithMarkdown
 // (markdown_logger.go) and logWithLevelAndServer (server_file_logger.go).
 // When adding a new LogLevel constant, add a corresponding entry here so
 // that all dispatch sites automatically support the new level.
-func makeLevelLogger(
-	dispatch func(level LogLevel, category, format string, args ...interface{}),
-	level LogLevel,
-) func(category, format string, args ...interface{}) {
-	return func(category, format string, args ...interface{}) {
-		dispatch(level, category, format, args...)
+
+// logFuncSet is a generic bundle of per-level logging closures all sharing the
+// same function signature F. It is the single source of truth for the
+// info/warn/error/debug quad used by every logger variant.
+type logFuncSet[F any] struct {
+	info  F
+	warn  F
+	error F
+	debug F
+}
+
+// newLogFuncSet builds a logFuncSet by calling makeFunc once per log level.
+// This eliminates the structural duplication between newLevelLoggerFuncs and
+// newServerLevelLoggerFuncs — both now delegate here with their own closure.
+func newLogFuncSet[F any](makeFunc func(LogLevel) F) logFuncSet[F] {
+	return logFuncSet[F]{
+		info:  makeFunc(LogLevelInfo),
+		warn:  makeFunc(LogLevelWarn),
+		error: makeFunc(LogLevelError),
+		debug: makeFunc(LogLevelDebug),
 	}
 }
 
-func makeServerLevelLogger(
+// levelLoggerFuncs holds per-level closures for non-server loggers.
+type levelLoggerFuncs = logFuncSet[func(string, string, ...interface{})]
+
+func newLevelLoggerFuncs(
+	dispatch func(level LogLevel, category, format string, args ...interface{}),
+) levelLoggerFuncs {
+	return newLogFuncSet(func(level LogLevel) func(string, string, ...interface{}) {
+		return func(category, format string, args ...interface{}) {
+			dispatch(level, category, format, args...)
+		}
+	})
+}
+
+// serverLevelLoggerFuncs holds per-level closures for server-scoped loggers.
+type serverLevelLoggerFuncs = logFuncSet[func(string, string, string, ...interface{})]
+
+func newServerLevelLoggerFuncs(
 	dispatch func(serverID string, level LogLevel, category, format string, args ...interface{}),
-	level LogLevel,
-) func(serverID, category, format string, args ...interface{}) {
-	return func(serverID, category, format string, args ...interface{}) {
-		dispatch(serverID, level, category, format, args...)
-	}
+) serverLevelLoggerFuncs {
+	return newLogFuncSet(func(level LogLevel) func(string, string, string, ...interface{}) {
+		return func(serverID, category, format string, args ...interface{}) {
+			dispatch(serverID, level, category, format, args...)
+		}
+	})
 }
 
 var logFuncs = map[LogLevel]func(string, string, ...interface{}){
@@ -314,15 +335,6 @@ func formatLogLine(level LogLevel, category, format string, args ...interface{})
 	timestamp := time.Now().UTC().Format(jsonTimestampLayout)
 	message := fmt.Sprintf(format, args...)
 	return fmt.Sprintf("[%s] [%s] [%s] %s", timestamp, level, category, message)
-}
-
-// SessionSuffix returns a formatted session suffix for log messages.
-// Returns " for session '<sessionID>'" when sessionID is non-empty, or "" otherwise.
-func SessionSuffix(sessionID string) string {
-	if sessionID == "" {
-		return ""
-	}
-	return fmt.Sprintf(" for session '%s'", sessionID)
 }
 
 // It syncs buffered data before closing and handles errors appropriately.
@@ -387,6 +399,10 @@ type loggerSetupFunc[T closableLogger] func(file *os.File, logDir, fileName stri
 
 // loggerErrorHandlerFunc is a function type that handles errors during logger initialization.
 // It receives the error and returns a configured logger (possibly a fallback) or an error.
+//
+// Fallback-capable handlers must return a degraded logger with useFallback=true and a nil
+// error so initLogger can proceed in degraded mode. Strict handlers such as JSONLLogger
+// should return the zero logger value together with the initialization error instead.
 type loggerErrorHandlerFunc[T closableLogger] func(err error, logDir, fileName string) (T, error)
 
 // loggerFactory bundles the setup and error-handler function pair for a logger type.
@@ -431,10 +447,13 @@ type loggerFactory[T closableLogger] struct {
 //  4. If unsuccessful, calls factory.onError to implement the logger's fallback strategy
 //  5. Returns an error if factory.setup returns a nil logger without an error (would leak the file)
 //
-// The factory.onError handler determines the fallback behavior. See "Initialization Pattern
-// for Logger Types" documentation above for details on fallback strategies:
-//   - FileLogger: Falls back to stdout
+// The factory.onError handler determines the fallback behavior. Fallback-capable handlers
+// return a logger with useFallback=true and a nil error; strict handlers return the error.
+// See "Initialization Pattern for Logger Types" documentation above for details on
+// fallback strategies:
+//   - FileLogger: Falls back to stderr
 //   - MarkdownLogger: Silent fallback (no output)
+//   - ToolsLogger: Silent fallback (no output)
 //   - JSONLLogger: Returns error (no fallback)
 func initLogger[T closableLogger](
 	logDir, fileName string,

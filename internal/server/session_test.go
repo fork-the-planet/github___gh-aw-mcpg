@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -342,4 +344,65 @@ func TestGetSessionKeys(t *testing.T) {
 
 		assert.Len(t, keys, mapLen)
 	})
+}
+
+func TestSysInitHandler(t *testing.T) {
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"github": {Type: "http", URL: "http://127.0.0.1:1"},
+		},
+	}
+	us, err := NewUnified(context.Background(), cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { us.Close() })
+	us.payloadDir = t.TempDir()
+
+	req := &sdk.CallToolRequest{
+		Params: &sdk.CallToolParamsRaw{
+			Arguments: json.RawMessage(`{"token":"test-token"}`),
+		},
+	}
+	ctx := context.WithValue(context.Background(), SessionIDContextKey, "handler-session")
+
+	result, data, handlerErr := us.sysInitHandler(ctx, req, nil)
+
+	require.NoError(t, handlerErr)
+	assert.Nil(t, result)
+	assert.NotNil(t, data)
+
+	us.sessionMu.RLock()
+	session := us.sessions["handler-session"]
+	us.sessionMu.RUnlock()
+
+	require.NotNil(t, session)
+	assert.Equal(t, "test-token", session.Token)
+	assert.DirExists(t, filepath.Join(us.payloadDir, "handler-session"))
+}
+
+func TestSysListServersHandler(t *testing.T) {
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"github": {Type: "http", URL: "http://127.0.0.1:1"},
+			"slack":  {Type: "http", URL: "http://127.0.0.1:1"},
+		},
+	}
+	us, err := NewUnified(context.Background(), cfg)
+	require.NoError(t, err)
+	t.Cleanup(func() { us.Close() })
+	us.payloadDir = t.TempDir()
+
+	ctx := context.WithValue(context.Background(), SessionIDContextKey, "list-handler-session")
+
+	result, data, handlerErr := us.sysListServersHandler(ctx, &sdk.CallToolRequest{}, nil)
+
+	require.NoError(t, handlerErr)
+	assert.Nil(t, result)
+	assert.NotNil(t, data)
+
+	us.sessionMu.RLock()
+	session := us.sessions["list-handler-session"]
+	us.sessionMu.RUnlock()
+
+	require.NotNil(t, session)
+	assert.DirExists(t, filepath.Join(us.payloadDir, "list-handler-session"))
 }

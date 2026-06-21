@@ -7,6 +7,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logDifcLog = logger.New("server:difc_log")
@@ -48,77 +49,40 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 	// Extract identifying metadata from the raw item data.
 	// Data is interface{} from JSON parsing — typically map[string]interface{}.
 	if m, ok := detail.Item.Data.(map[string]interface{}); ok {
-		entry.AuthorAssociation = getFilteredItemStringField(m, "author_association", "authorAssociation")
-		entry.AuthorLogin = extractAuthorLogin(m)
-		entry.HTMLURL = getFilteredItemStringField(m, "html_url", "htmlUrl")
-		entry.Number = extractNumberField(m)
-		entry.SHA = getFilteredItemStringField(m, "sha")
+		entry.AuthorAssociation = strutil.GetStringFromMap(m, "author_association", "authorAssociation")
+		userLoginFound := false
+		if user, ok := m["user"].(map[string]interface{}); ok {
+			if login, ok := user["login"].(string); ok {
+				entry.AuthorLogin = login
+				userLoginFound = true
+			}
+		}
+		if !userLoginFound {
+			if author, ok := m["author"].(map[string]interface{}); ok {
+				if login, ok := author["login"].(string); ok {
+					entry.AuthorLogin = login
+				}
+			}
+		}
+		entry.HTMLURL = strutil.GetStringFromMap(m, "html_url", "htmlUrl")
+		if n, ok := m["number"]; ok {
+			switch v := n.(type) {
+			case float64:
+				entry.Number = fmt.Sprintf("%d", int64(v))
+			case json.Number:
+				entry.Number = v.String()
+			}
+		}
+		entry.SHA = strutil.GetStringFromMap(m, "sha")
 		logDifcLog.Printf("Filtered item metadata: author=%s, number=%s, url=%s", entry.AuthorLogin, entry.Number, entry.HTMLURL)
 	}
 
 	return entry
 }
 
-// getFilteredItemStringField returns the first non-empty string value from the map
-// matching any of the given field names.
-// NOTE: This helper is intentionally generic; if similar untyped JSON map extraction
-// patterns appear elsewhere, consider moving it to a shared utility package.
-func getFilteredItemStringField(m map[string]interface{}, fields ...string) string {
-	for _, f := range fields {
-		if v, ok := m[f]; ok {
-			if s, ok := v.(string); ok && s != "" {
-				return s
-			}
-		}
-	}
-	return ""
-}
-
-// extractAuthorLogin extracts the author login from nested user/author objects.
-func extractAuthorLogin(m map[string]interface{}) string {
-	if user, ok := m["user"].(map[string]interface{}); ok {
-		if login, ok := user["login"].(string); ok {
-			return login
-		}
-	}
-	if author, ok := m["author"].(map[string]interface{}); ok {
-		if login, ok := author["login"].(string); ok {
-			return login
-		}
-	}
-	return ""
-}
-
-// extractNumberField extracts the item number as a string.
-func extractNumberField(m map[string]interface{}) string {
-	if n, ok := m["number"]; ok {
-		switch v := n.(type) {
-		case float64:
-			return fmt.Sprintf("%d", int64(v))
-		case json.Number:
-			return v.String()
-		}
-	}
-	return ""
-}
-
 // maxFilteredItemsInNotice is the maximum number of individual item descriptions
 // to include inline in the DIFC filtered notice surfaced to the agent.
 const maxFilteredItemsInNotice = 5
-
-// isSingularReadTool returns true when toolName refers to a tool that is expected
-// to return a single item (e.g. issue_read, get_issue, pull_request_read).  List and
-// search tools — whose result set is inherently variable and may legitimately contain
-// just one matching item — return false so they keep the notice-only behavior even
-// when that single item is filtered.
-//
-// The heuristic: tools with the "list_" or "search_" prefix are collection tools;
-// everything else (get_*, *_read, etc.) is treated as a singular read.
-func isSingularReadTool(toolName string) bool {
-	singular := !strings.HasPrefix(toolName, "list_") && !strings.HasPrefix(toolName, "search_")
-	logDifcLog.Printf("isSingularReadTool: toolName=%s, singular=%v", toolName, singular)
-	return singular
-}
 
 // buildDIFCSingleItemFilteredError constructs an error for when exactly one item is
 // entirely blocked by DIFC policy.  Unlike the notice approach (which appends a text

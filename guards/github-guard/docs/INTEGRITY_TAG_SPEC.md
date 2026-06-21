@@ -127,14 +127,14 @@ Resource labels are coarse pre-check labels by tool call.
 | `search_pull_requests` | baseline `none` (cross-repo coarse) | baseline `none` |
 | `get_commit` | start at max(author_association floor, approved); if default-branch reachable => merged | start at author_association floor; if default-branch reachable => merged; otherwise remain floor unless other endorsement applies |
 | `list_commits` | if ref is default/no-ref: merged; else max(author_association floor, approved) | if ref is default/no-ref: merged; else author_association floor (response items refine per commit) |
-| `get_file_contents` | default/no-ref: merged; otherwise approved (author floor does not usually apply to blob metadata) | default/no-ref: merged; otherwise approved |
+| `get_file_contents`, `get_file_blame` | default/no-ref: merged; otherwise approved (author floor does not usually apply to blob metadata) | default/no-ref: merged; otherwise approved |
 | `list_branches`, `list_tags`, `get_tag`, `list_releases`, `get_latest_release`, `get_release_by_tag`, `get_label`, `list_label`, `actions_get`, `actions_list`, `search_code`, `get_repository`, `search_repositories`, `get_repository_tree`, `list_discussion_categories` | approved | approved |
 | `get_job_logs` | approved | approved |
 | `list_discussions`, `get_discussion`, `get_discussion_comments` | max(author_association floor, approved) | author_association floor (user content) |
 | `list_gists`, `get_gist` | unapproved:user | unapproved:user |
 | `list_notifications`, `get_notification_details` | none | none |
 | `list_secret_scanning_alerts`, `get_secret_scanning_alert`, `list_code_scanning_alerts`, `get_code_scanning_alert`, `list_dependabot_alerts`, `get_dependabot_alert` | approved | approved |
-| `list_issue_types`, `search_users`, `search_orgs`, `get_me`, `get_teams`, `get_team_members`, `list_starred_repositories` (GitHub-global/user metadata) | approved:github | approved:github |
+| `list_issue_types`, `list_issue_fields`, `search_users`, `search_orgs`, `get_me`, `get_teams`, `get_team_members`, `list_starred_repositories` (GitHub-global/user metadata) | approved:github | approved:github |
 | `list_global_security_advisories`, `get_global_security_advisory` (public CVE data) | approved:github | approved:github |
 | `list_repository_security_advisories`, `list_org_repository_security_advisories` | approved | approved |
 | `projects_list`, `projects_get`, `list_projects`, `get_project`, `list_project_fields`, `list_project_items` | approved:<owner> | approved:<owner> |
@@ -156,7 +156,7 @@ Response labels are fine-grained per item and are authoritative when available.
 | Issue item (`list_issues`, `search_issues`, `get_issue`) | max(author_association floor, approved) | author_association floor (NONE => `unapproved`, FIRST_TIMER => `none`) |
 | Pull request item (`list_pull_requests`, `search_pull_requests`, `get_pull_request`) | max(author_association floor, approved); if merged/default-branch reachable => merged | start from author_association floor; apply lineage baseline (direct => approved, forked => unapproved); if merged/default-branch reachable => merged |
 | Commit item (`list_commits`, `get_commit`) | max(author_association floor, approved); if default-branch reachable => merged | author_association floor; if default-branch reachable => merged; otherwise stay at floor unless other endorsement evidence applies |
-| File content item (`get_file_contents`) | default/no-ref: merged; otherwise approved | default/no-ref: merged; otherwise approved |
+| File content item (`get_file_contents`, `get_file_blame`) | default/no-ref: merged; otherwise approved | default/no-ref: merged; otherwise approved |
 | Branch/tag/release metadata item (`list_branches`, `list_tags`, `get_tag`, `list_releases`, `get_latest_release`, `get_release_by_tag`) | merged if tied to default branch, otherwise approved | merged if tied to default branch, otherwise approved |
 | Label metadata (`get_label`, `list_label`) | approved | approved |
 | GitHub Actions workflow/artifact metadata (`actions_get`, `actions_list`) | approved | approved |
@@ -177,6 +177,7 @@ Notes:
 - For user-authored objects that include `author_association`, response labeling starts from the author-association floor and then elevates with endorsement evidence.
 - For issue/PR/commit-style response objects, helper functions enforce explicit baseline `none` when no stronger integrity is present.
 - Response labeling is authoritative and may be more precise than coarse resource labels.
+- `pull_request_read` sub-method responses (e.g., `get_commits`, `get_files`, `get_reviews`, `get_review_comments`, `get_check_runs`) use PR-level resource labels from the tool call rather than per-item response labeling; the PR facts lookup (merge status, author association, fork lineage) provides the correct integrity bound for all PR sub-resources.
 
 ---
 

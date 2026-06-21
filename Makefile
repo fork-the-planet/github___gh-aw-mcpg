@@ -287,9 +287,13 @@ install:
 	@if command -v go >/dev/null 2>&1; then \
 		INSTALLED_VERSION=$$(go version | awk '{print $$3}' | sed 's/go//'); \
 		echo "✓ Go $$INSTALLED_VERSION is installed"; \
-		if [ "$$INSTALLED_VERSION" != "$(GO_VERSION)" ]; then \
-			echo "⚠ Warning: Expected Go $(GO_VERSION), but found $$INSTALLED_VERSION"; \
-			echo "  Visit https://go.dev/dl/ to install Go $(GO_VERSION)"; \
+		INSTALLED_MAJOR=$$(echo "$$INSTALLED_VERSION" | cut -d. -f1 | grep -oE '^[0-9]+' || echo 0); \
+		INSTALLED_MINOR=$$(echo "$$INSTALLED_VERSION" | cut -d. -f2 | grep -oE '^[0-9]+' || echo 0); \
+		REQUIRED_MAJOR=$$(echo "$(GO_VERSION)" | cut -d. -f1 | grep -oE '^[0-9]+' || echo 0); \
+		REQUIRED_MINOR=$$(echo "$(GO_VERSION)" | cut -d. -f2 | grep -oE '^[0-9]+' || echo 0); \
+		if [ "$$INSTALLED_MAJOR" -lt "$$REQUIRED_MAJOR" ] || { [ "$$INSTALLED_MAJOR" -eq "$$REQUIRED_MAJOR" ] && [ "$$INSTALLED_MINOR" -lt "$$REQUIRED_MINOR" ]; }; then \
+			echo "⚠ Warning: Expected Go $(GO_VERSION) or later, but found $$INSTALLED_VERSION"; \
+			echo "  Visit https://go.dev/dl/ to install Go $(GO_VERSION) or later"; \
 		fi; \
 	else \
 		echo "✗ Go is not installed"; \

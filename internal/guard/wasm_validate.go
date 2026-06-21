@@ -3,82 +3,20 @@ package guard
 import (
 	"fmt"
 	"strings"
+
+	"github.com/github/gh-aw-mcpg/internal/config"
 )
-
-// AllowedIntegrityLevels is the single source of truth for valid integrity-level values.
-var AllowedIntegrityLevels = []string{"none", "unapproved", "approved", "merged"}
-
-var allowedIntegrityLevelSet = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(AllowedIntegrityLevels))
-	for _, level := range AllowedIntegrityLevels {
-		m[level] = struct{}{}
-	}
-	return m
-}()
-
-func invalidIntegrityFieldError(fieldName string) error {
-	return fmt.Errorf(
-		"invalid %s value: expected one of %s",
-		fieldName,
-		strings.Join(AllowedIntegrityLevels, "|"),
-	)
-}
 
 // validateIntegrityField returns an error if raw is not a valid integrity-level
 // string. fieldName is used in the error message (e.g. "disapproval-integrity").
+// It delegates to config.ValidateAndNormalizeIntegrityField for validation.
 func validateIntegrityField(fieldName string, raw interface{}) error {
 	s, ok := raw.(string)
 	if !ok {
-		return invalidIntegrityFieldError(fieldName)
+		s = ""
 	}
-	normalized := strings.ToLower(strings.TrimSpace(s))
-	if _, ok := allowedIntegrityLevelSet[normalized]; ok {
-		return nil
-	}
-	return invalidIntegrityFieldError(fieldName)
-}
-
-// validateStringArray checks that raw is a []interface{} of non-empty strings.
-// When requireNonEmpty is true, a zero-length array is also rejected.
-func validateStringArray(fieldName string, raw interface{}, requireNonEmpty bool) error {
-	arr, ok := raw.([]interface{})
-	if !ok {
-		if requireNonEmpty {
-			return fmt.Errorf("invalid %s value: expected non-empty array of strings", fieldName)
-		}
-		return fmt.Errorf("invalid %s value: expected array of strings", fieldName)
-	}
-	if requireNonEmpty && len(arr) == 0 {
-		return fmt.Errorf("invalid %s value: must be a non-empty array when present", fieldName)
-	}
-	for _, entry := range arr {
-		if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
-			return fmt.Errorf("invalid %s value: each entry must be a non-empty string", fieldName)
-		}
-	}
-	return nil
-}
-
-// isValidAllowOnlyRepos returns true if repos is either a recognised string
-// shorthand ("all" or "public") or a non-empty array of strings.
-func isValidAllowOnlyRepos(repos interface{}) bool {
-	switch value := repos.(type) {
-	case string:
-		trimmed := strings.TrimSpace(strings.ToLower(value))
-		return trimmed == "all" || trimmed == "public"
-	case []interface{}:
-		if len(value) == 0 {
-			return false
-		}
-		for _, entry := range value {
-			if _, ok := entry.(string); !ok {
-				return false
-			}
-		}
-		return true
-	default:
-		return false
-	}
+	_, err := config.ValidateAndNormalizeIntegrityField(fieldName, s, false)
+	return err
 }
 
 // checkBoolFailure returns a non-nil error if the given raw response map

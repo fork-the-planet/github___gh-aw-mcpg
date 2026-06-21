@@ -60,6 +60,14 @@ func convertMapToCallToolResult(m map[string]interface{}) (*sdk.CallToolResult, 
 
 	// Collect content items from either []interface{} (produced by json.Unmarshal) or
 	// []map[string]interface{} (produced by helpers like BuildMCPTextResponse).
+	//
+	// Note: This switch intentionally returns an error when a non-map item is encountered
+	// (strict semantics), unlike mcpresult.NormalizeContentItems which silently skips
+	// non-map items (lenient semantics). The strict behavior here is required because this
+	// function produces SDK-valid CallToolResult values; a non-map item indicates malformed
+	// backend data that should surface as an error rather than be silently dropped.
+	// Do NOT replace this switch with a call to mcpresult.NormalizeContentItems — the
+	// two have deliberately different error-handling semantics.
 	var items []map[string]interface{}
 	switch v := contentVal.(type) {
 	case []interface{}:

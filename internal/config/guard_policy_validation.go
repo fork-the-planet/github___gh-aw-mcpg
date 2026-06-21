@@ -1,18 +1,19 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/github/gh-aw-mcpg/internal/guard"
 )
+
+const errMsgPolicyMissingKey = "policy must include allow-only or write-sink"
 
 // ValidateGuardPolicy validates AllowOnly or WriteSink policy input.
 func ValidateGuardPolicy(policy *GuardPolicy) error {
 	if policy == nil {
 		logGuardPolicy.Print("ValidateGuardPolicy: policy is nil")
-		return fmt.Errorf("policy must include allow-only or write-sink")
+		return errors.New(errMsgPolicyMissingKey)
 	}
 	if policy.WriteSink != nil {
 		logGuardPolicy.Printf("ValidateGuardPolicy: delegating to write-sink validation, acceptCount=%d", len(policy.WriteSink.Accept))
@@ -90,27 +91,34 @@ func validateAcceptEntry(entry string) error {
 // NormalizeGuardPolicy validates and normalizes an allow-only policy shape.
 func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	if policy == nil || (policy.AllowOnly == nil && policy.WriteSink == nil) {
-		return nil, fmt.Errorf("policy must include allow-only or write-sink")
+		return nil, errors.New(errMsgPolicyMissingKey)
 	}
 	if policy.AllowOnly == nil {
 		// Write-sink policies don't produce a NormalizedGuardPolicy
 		return nil, fmt.Errorf("policy must include allow-only")
 	}
 
-	integrity := strings.ToLower(strings.TrimSpace(policy.AllowOnly.MinIntegrity))
-	if _, ok := validMinIntegrityValues[integrity]; !ok {
-		return nil, fmt.Errorf("allow-only.min-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
+	integrity, err := ValidateAndNormalizeIntegrityField("allow-only.min-integrity", policy.AllowOnly.MinIntegrity, false)
+	if err != nil {
+		return nil, err
 	}
 
 	normalized := &NormalizedGuardPolicy{MinIntegrity: integrity}
 
 	logGuardPolicy.Printf("Normalizing guard policy: integrity=%s, reposType=%T", integrity, policy.AllowOnly.Repos)
 
-	var err error
+	normalized.ToolCallLimits, err = normalizeToolCallLimits(policy.AllowOnly.ToolCallLimits)
+	if err != nil {
+		return nil, err
+	}
 
-	// Validate and normalize blocked-users, approval-labels, trusted-users.
+	// Validate and normalize blocked-users, refusal-labels, approval-labels, trusted-users.
 	// Dedup uses lowercased keys; original trimmed values are stored.
 	normalized.BlockedUsers, err = normalizeStringSlice("blocked-users", policy.AllowOnly.BlockedUsers, strings.ToLower, false)
+	if err != nil {
+		return nil, err
+	}
+	normalized.RefusalLabels, err = normalizeStringSlice("refusal-labels", policy.AllowOnly.RefusalLabels, strings.ToLower, false)
 	if err != nil {
 		return nil, err
 	}
@@ -136,26 +144,23 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 
 	// Validate and normalize disapproval-integrity (optional; empty means feature
 	// uses Rust-side default of "none" when endorsement/disapproval is evaluated).
-	if v := strings.ToLower(strings.TrimSpace(policy.AllowOnly.DisapprovalIntegrity)); v != "" {
-		if _, ok := validMinIntegrityValues[v]; !ok {
-			return nil, fmt.Errorf("allow-only.disapproval-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
-		}
-		normalized.DisapprovalIntegrity = v
+	normalized.DisapprovalIntegrity, err = ValidateAndNormalizeIntegrityField("allow-only.disapproval-integrity", policy.AllowOnly.DisapprovalIntegrity, true)
+	if err != nil {
+		return nil, err
 	}
 
 	// Validate and normalize endorser-min-integrity (optional; empty means feature
 	// uses Rust-side default of "approved" when evaluating reactor eligibility).
-	if v := strings.ToLower(strings.TrimSpace(policy.AllowOnly.EndorserMinIntegrity)); v != "" {
-		if _, ok := validMinIntegrityValues[v]; !ok {
-			return nil, fmt.Errorf("allow-only.endorser-min-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", "))
-		}
-		normalized.EndorserMinIntegrity = v
+	normalized.EndorserMinIntegrity, err = ValidateAndNormalizeIntegrityField("allow-only.endorser-min-integrity", policy.AllowOnly.EndorserMinIntegrity, true)
+	if err != nil {
+		return nil, err
 	}
 
 	// Pass through promotion-label and demotion-label as-is (validated by Rust guard).
 	if v := strings.TrimSpace(policy.AllowOnly.PromotionLabel); v != "" {
 		normalized.PromotionLabel = v
 	}
+
 	if v := strings.TrimSpace(policy.AllowOnly.DemotionLabel); v != "" {
 		normalized.DemotionLabel = v
 	}
@@ -197,6 +202,16 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 	default:
 		return nil, fmt.Errorf("allow-only.repos must be 'all', 'public', or a non-empty array of repo scope strings")
 	}
+}
+
+// ValidateAndNormalizeIntegrityField validates and normalizes a named integrity-level field.
+// It wraps NormalizeIntegrityLevel and prefixes the field path in any error message.
+func ValidateAndNormalizeIntegrityField(fieldPath, raw string, optional bool) (string, error) {
+	v, err := NormalizeIntegrityLevel(raw, optional)
+	if err != nil {
+		return "", fmt.Errorf("%s %w", fieldPath, err)
+	}
+	return v, nil
 }
 
 func normalizeAndValidateScopeArray(scopes []interface{}) ([]string, error) {
@@ -329,6 +344,61 @@ func normalizeStringSlice(field string, input []string, caseNorm func(string) st
 				out = append(out, v)
 			}
 		}
+	}
+	return out, nil
+}
+
+// ValidateStringArrayField validates that raw is an array of non-empty strings.
+// When requireNonEmpty is true, an empty array is rejected.
+func ValidateStringArrayField(field string, raw interface{}, requireNonEmpty bool) error {
+	arr, ok := raw.([]interface{})
+	if !ok {
+		if requireNonEmpty {
+			return fmt.Errorf("invalid %s value: expected non-empty array of strings", field)
+		}
+		return fmt.Errorf("invalid %s value: expected array of strings", field)
+	}
+	if requireNonEmpty && len(arr) == 0 {
+		return fmt.Errorf("invalid %s value: must be a non-empty array when present", field)
+	}
+	for _, entry := range arr {
+		if s, ok := entry.(string); !ok || strings.TrimSpace(s) == "" {
+			return fmt.Errorf("invalid %s value: each entry must be a non-empty string", field)
+		}
+	}
+	return nil
+}
+
+// IsValidAllowOnlyReposValue returns true when repos is either "all"/"public"
+// (case-insensitive) or a valid non-empty allow-only scope array.
+func IsValidAllowOnlyReposValue(repos interface{}) bool {
+	switch value := repos.(type) {
+	case string:
+		trimmed := strings.TrimSpace(strings.ToLower(value))
+		return trimmed == "all" || trimmed == "public"
+	case []interface{}:
+		_, err := normalizeAndValidateScopeArray(value)
+		return err == nil
+	default:
+		return false
+	}
+}
+
+func normalizeToolCallLimits(input map[string]int) (map[string]int, error) {
+	if len(input) == 0 {
+		return nil, nil
+	}
+
+	out := make(map[string]int, len(input))
+	for toolName, limit := range input {
+		toolName = strings.TrimSpace(toolName)
+		if toolName == "" {
+			return nil, fmt.Errorf("allow-only.tool-call-limits keys must not be empty")
+		}
+		if limit < 0 {
+			return nil, fmt.Errorf("allow-only.tool-call-limits[%q] must be >= 0", toolName)
+		}
+		out[toolName] = limit
 	}
 	return out, nil
 }

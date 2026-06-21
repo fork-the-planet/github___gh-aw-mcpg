@@ -69,58 +69,6 @@ func TestValidateDIFCMode(t *testing.T) {
 	}
 }
 
-func TestGetDefaultDIFCMode(t *testing.T) {
-	tests := []struct {
-		name     string
-		envValue string
-		want     string
-	}{
-		{
-			name:     "no env var returns strict",
-			envValue: "",
-			want:     "strict",
-		},
-		{
-			name:     "env var strict",
-			envValue: "strict",
-			want:     "strict",
-		},
-		{
-			name:     "env var filter",
-			envValue: "filter",
-			want:     "filter",
-		},
-		{
-			name:     "env var propagate",
-			envValue: "propagate",
-			want:     "propagate",
-		},
-		{
-			name:     "env var FILTER uppercase",
-			envValue: "FILTER",
-			want:     "filter",
-		},
-		{
-			name:     "env var invalid falls back to strict",
-			envValue: "invalid",
-			want:     "strict",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.envValue != "" {
-				t.Setenv("MCP_GATEWAY_GUARDS_MODE", tt.envValue)
-			} else {
-				t.Setenv("MCP_GATEWAY_GUARDS_MODE", "")
-			}
-
-			got := getDefaultDIFCMode()
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestValidDIFCModes(t *testing.T) {
 	require := require.New(t)
 
@@ -134,32 +82,6 @@ func TestValidDIFCModes(t *testing.T) {
 
 	// Verify ValidModes slice has 3 entries
 	require.Len(difc.ValidModes, 3, "should only have 3 valid modes")
-}
-
-func TestValidateDIFCModeFlag(t *testing.T) {
-	tests := []struct {
-		name    string
-		mode    string
-		wantErr bool
-	}{
-		{name: "strict valid", mode: "strict", wantErr: false},
-		{name: "filter valid", mode: "filter", wantErr: false},
-		{name: "propagate valid", mode: "propagate", wantErr: false},
-		{name: "empty defaults to strict", mode: "", wantErr: false},
-		{name: "invalid mode", mode: "bogus", wantErr: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateDIFCModeFlag(tt.mode)
-			if tt.wantErr {
-				require.Error(t, err, "expected error for mode %q", tt.mode)
-				assert.ErrorContains(t, err, "invalid --guards-mode flag")
-			} else {
-				assert.NoError(t, err, "unexpected error for mode %q", tt.mode)
-			}
-		})
-	}
 }
 
 func TestParseDIFCSinkServerIDs(t *testing.T) {
@@ -218,7 +140,7 @@ func TestParseDIFCSinkServerIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := parseDIFCSinkServerIDs(tt.input)
+			result, err := difc.ParseSinkServerIDs(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

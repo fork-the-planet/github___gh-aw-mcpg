@@ -46,9 +46,3 @@ func (w *responseWriter) Body() []byte {
 	logResponseWriter.Printf("Retrieving captured body: %d bytes", len(bodyBytes))
 	return bodyBytes
 }
-
-// StatusCode returns the captured HTTP status code
-func (w *responseWriter) StatusCode() int {
-	logResponseWriter.Printf("Retrieving captured status code: %d", w.BaseResponseWriter.StatusCode)
-	return w.BaseResponseWriter.StatusCode
-}

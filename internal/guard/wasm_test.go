@@ -205,10 +205,12 @@ type mockBackendCaller struct {
 type mockCompilationCache struct {
 	closeErr error
 	closed   bool
+	closeCnt int
 }
 
 func (m *mockCompilationCache) Close(context.Context) error {
 	m.closed = true
+	m.closeCnt++
 	return m.closeErr
 }
 
@@ -251,7 +253,7 @@ func TestWasmGuardContextPropagation(t *testing.T) {
 		defer cancel()
 
 		// Create a wazero runtime that will close when the context is done.
-		runtime := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfig().WithCloseOnContextDone(true))
+		runtime := wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigCompiler().WithCloseOnContextDone(true))
 		defer func() {
 			_ = runtime.Close(ctx)
 		}()
@@ -513,7 +515,7 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "invalid min-integrity value")
+		assert.ErrorContains(t, err, "min-integrity must be one of")
 	})
 
 	t.Run("valid allow-only policy succeeds", func(t *testing.T) {
@@ -705,6 +707,57 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 		assert.Contains(t, allowOnly, "approval-labels")
 	})
 
+	t.Run("valid refusal-labels in allow-only succeeds", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":           "public",
+				"min-integrity":   "none",
+				"refusal-labels":  []interface{}{"unsafe", "needs-triage"},
+				"approval-labels": []interface{}{"approved"},
+			},
+		}
+
+		result, err := buildStrictLabelAgentPayload(policy)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		allowOnly := result["allow-only"].(map[string]interface{})
+		assert.Contains(t, allowOnly, "refusal-labels")
+	})
+
+	t.Run("refusal-labels array entries are trimmed", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":          "public",
+				"min-integrity":  "none",
+				"refusal-labels": []interface{}{" unsafe ", "needs-triage\t"},
+			},
+		}
+
+		result, err := buildStrictLabelAgentPayload(policy)
+		require.NoError(t, err)
+		allowOnly := result["allow-only"].(map[string]interface{})
+		refusalLabels, ok := allowOnly["refusal-labels"].([]interface{})
+		require.True(t, ok)
+		assert.Equal(t, []interface{}{"unsafe", "needs-triage"}, refusalLabels)
+	})
+
+	t.Run("refusal-labels expression string is normalized", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":          "public",
+				"min-integrity":  "none",
+				"refusal-labels": "unsafe, blocked\nneeds-review",
+			},
+		}
+
+		result, err := buildStrictLabelAgentPayload(policy)
+		require.NoError(t, err)
+		allowOnly := result["allow-only"].(map[string]interface{})
+		refusalLabels, ok := allowOnly["refusal-labels"].([]interface{})
+		require.True(t, ok)
+		assert.Equal(t, []interface{}{"unsafe", "blocked", "needs-review"}, refusalLabels)
+	})
+
 	t.Run("blocked-users and approval-labels together with trusted-bots succeeds", func(t *testing.T) {
 		policy := map[string]interface{}{
 			"allow-only": map[string]interface{}{
@@ -830,6 +883,21 @@ func TestBuildStrictLabelAgentPayloadExtended(t *testing.T) {
 		_, err := buildStrictLabelAgentPayload(policy)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "approval-labels")
+		assert.ErrorContains(t, err, "non-empty string")
+	})
+
+	t.Run("refusal-labels with non-string entry returns error", func(t *testing.T) {
+		policy := map[string]interface{}{
+			"allow-only": map[string]interface{}{
+				"repos":          "public",
+				"min-integrity":  "none",
+				"refusal-labels": []interface{}{"unsafe", 99},
+			},
+		}
+
+		_, err := buildStrictLabelAgentPayload(policy)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "refusal-labels")
 		assert.ErrorContains(t, err, "non-empty string")
 	})
 
@@ -1120,6 +1188,21 @@ func TestWasmGuardClose(t *testing.T) {
 		err := guard.Close(context.Background())
 		assert.NoError(t, err)
 	})
+
+	t.Run("close ignores caller cancellation during cleanup", func(t *testing.T) {
+		ctx := context.Background()
+		rt := wazero.NewRuntime(ctx)
+		mod, err := rt.InstantiateWithConfig(ctx, minimalGuardWasm, wazero.NewModuleConfig().WithName("close-guard"))
+		require.NoError(t, err)
+
+		guard := &WasmGuard{runtime: rt, module: mod}
+
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		err = guard.Close(cancelledCtx)
+		assert.NoError(t, err)
+	})
 }
 
 func TestWasmGuardName(t *testing.T) {
@@ -1131,6 +1214,21 @@ func TestWasmGuardName(t *testing.T) {
 	t.Run("returns empty name if not set", func(t *testing.T) {
 		guard := &WasmGuard{}
 		assert.Equal(t, "", guard.Name())
+	})
+}
+
+func TestWasmGuardIsHealthy(t *testing.T) {
+	t.Run("healthy guard reports true", func(t *testing.T) {
+		guard := &WasmGuard{}
+		assert.True(t, guard.IsHealthy())
+	})
+
+	t.Run("failed guard reports false", func(t *testing.T) {
+		guard := &WasmGuard{
+			failed:    true,
+			failedErr: errors.New("trap"),
+		}
+		assert.False(t, guard.IsHealthy())
 	})
 }
 
@@ -1146,7 +1244,7 @@ func TestParsePathLabeledResponse(t *testing.T) {
 	t.Run("valid path labels with nil original data returns collection labeled data", func(t *testing.T) {
 		responseJSON := []byte(`{"labeled_paths":[]}`)
 		result, err := parsePathLabeledResponse(responseJSON, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		require.IsType(t, &difc.CollectionLabeledData{}, result)
 	})
@@ -1464,6 +1562,33 @@ func TestJSONMarshaling(t *testing.T) {
 }
 
 func TestIsWasmTrap(t *testing.T) {
+	t.Run("actual wazero trap still uses wasm error prefix (verified with wazero v1.12.0)", func(t *testing.T) {
+		ctx := context.Background()
+		runtime := wazero.NewRuntime(ctx)
+		t.Cleanup(func() {
+			require.NoError(t, runtime.Close(ctx))
+		})
+
+		trapWasm := []byte{
+			0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+			0x01, 0x04, 0x01, 0x60, 0x00, 0x00,
+			0x03, 0x02, 0x01, 0x00,
+			0x07, 0x08, 0x01, 0x04, 0x74, 0x72, 0x61, 0x70, 0x00, 0x00,
+			0x0a, 0x05, 0x01, 0x03, 0x00, 0x00, 0x0b,
+		}
+
+		mod, err := runtime.InstantiateWithConfig(ctx, trapWasm, wazero.NewModuleConfig().WithName("trap-check"))
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, mod.Close(ctx))
+		})
+
+		_, err = mod.ExportedFunction("trap").Call(ctx)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "wasm error:")
+		assert.True(t, isWasmTrap(err))
+	})
+
 	t.Run("nil error is not a trap", func(t *testing.T) {
 		assert.False(t, isWasmTrap(nil))
 	})
@@ -1472,7 +1597,7 @@ func TestIsWasmTrap(t *testing.T) {
 		assert.False(t, isWasmTrap(errors.New("some error")))
 	})
 
-	t.Run("wrapped error containing wasm error is a trap (verified with wazero v1.11.0)", func(t *testing.T) {
+	t.Run("wrapped error containing wasm error is a trap (verified with wazero v1.12.0)", func(t *testing.T) {
 		err := errors.New("WASM function call failed: wasm error: unreachable")
 		assert.True(t, isWasmTrap(err))
 	})
@@ -1651,5 +1776,39 @@ func TestWasmGuardCompilationCache(t *testing.T) {
 		// Should still work (fail on minimal WASM) but without caching
 		_, err := NewWasmGuardWithOptions(ctx, "no-cache-test", minimalGuardWasm, &mockBackendCaller{}, opts)
 		require.Error(t, err)
+	})
+
+	t.Run("close global compilation cache nils the shared cache and becomes idempotent", func(t *testing.T) {
+		ctx := context.Background()
+		origCache := globalCompilationCache
+		cache := &mockCompilationCache{}
+		globalCompilationCache = cache
+		t.Cleanup(func() {
+			globalCompilationCache = origCache
+		})
+
+		require.NoError(t, CloseGlobalCompilationCache(ctx))
+		assert.Nil(t, globalCompilationCache)
+		assert.True(t, cache.closed)
+		assert.Equal(t, 1, cache.closeCnt)
+
+		require.NoError(t, CloseGlobalCompilationCache(ctx))
+		assert.Equal(t, 1, cache.closeCnt)
+	})
+
+	t.Run("close global compilation cache keeps nil state on close error", func(t *testing.T) {
+		ctx := context.Background()
+		origCache := globalCompilationCache
+		cache := &mockCompilationCache{closeErr: errors.New("close failed")}
+		globalCompilationCache = cache
+		t.Cleanup(func() {
+			globalCompilationCache = origCache
+		})
+
+		err := CloseGlobalCompilationCache(ctx)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "close failed")
+		assert.Nil(t, globalCompilationCache)
+		assert.Equal(t, 1, cache.closeCnt)
 	})
 }

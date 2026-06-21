@@ -1,11 +1,12 @@
 package server
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 var logSys = logger.New("server:system_tools")
@@ -23,80 +24,16 @@ func NewSysServer(serverIDs []string) *SysServer {
 	}
 }
 
-// HandleRequest processes MCP requests for system tools
-func (s *SysServer) HandleRequest(method string, params json.RawMessage) (interface{}, error) {
-	logSys.Printf("Handling request: method=%s", method)
-
-	switch method {
-	case "tools/list":
-		return s.listTools()
-	case "tools/call":
-		var callParams struct {
-			Name      string                 `json:"name"`
-			Arguments map[string]interface{} `json:"arguments"`
-		}
-		if err := json.Unmarshal(params, &callParams); err != nil {
-			logSys.Printf("Failed to unmarshal tool call params: %v", err)
-			return nil, fmt.Errorf("invalid params: %w", err)
-		}
-		if callParams.Name == "" {
-			logSys.Printf("Tool call missing name field")
-			return nil, fmt.Errorf("invalid params: missing tool name")
-		}
-		logSys.Printf("Calling tool: name=%s", callParams.Name)
-		return s.callTool(callParams.Name, callParams.Arguments)
-	default:
-		logSys.Printf("Unsupported method requested: %s", method)
-		return nil, fmt.Errorf("unsupported method: %s", method)
-	}
-}
-
-func (s *SysServer) listTools() (interface{}, error) {
-	logSys.Print("Listing system tools")
-	return map[string]interface{}{
-		"tools": []map[string]interface{}{
-			{
-				"name":        "sys_init",
-				"description": "Initialize the MCPG system and get available MCP servers",
-				"inputSchema": map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-				},
-			},
-			{
-				"name":        "sys_list_servers",
-				"description": "List all configured MCP backend servers",
-				"inputSchema": map[string]interface{}{
-					"type":       "object",
-					"properties": map[string]interface{}{},
-				},
-			},
-		},
-	}, nil
-}
-
-func (s *SysServer) callTool(name string, args map[string]interface{}) (interface{}, error) {
-	logSys.Printf("Executing tool: name=%s", name)
-
-	switch name {
-	case "sys_init":
-		return s.sysInit()
-	case "sys_list_servers":
-		return s.listServers()
-	default:
-		logSys.Printf("Unknown tool requested: %s", name)
-		return nil, fmt.Errorf("unknown tool: %s", name)
-	}
-}
-
-func (s *SysServer) sysInit() (interface{}, error) {
+// SysInit returns the system initialization response used by sys___init.
+func (s *SysServer) SysInit() (interface{}, error) {
 	logSys.Printf("Initializing MCPG system with %d servers", len(s.serverIDs))
 	response := mcp.BuildMCPTextResponse(fmt.Sprintf("MCPG initialized. Available servers: %v", s.serverIDs))
 	logSys.Printf("MCPG system initialized: availableServers=%v", s.serverIDs)
 	return response, nil
 }
 
-func (s *SysServer) listServers() (interface{}, error) {
+// ListServers returns the configured backend server listing used by sys___list_servers.
+func (s *SysServer) ListServers() (interface{}, error) {
 	logSys.Printf("Listing %d configured servers", len(s.serverIDs))
 	serverList := ""
 	for i, id := range s.serverIDs {
@@ -104,4 +41,18 @@ func (s *SysServer) listServers() (interface{}, error) {
 	}
 
 	return mcp.BuildMCPTextResponse(fmt.Sprintf("Configured MCP Servers:\n%s", serverList)), nil
+}
+
+// sysListServersHandler handles sys___list_servers tool calls.
+// It validates that a session exists and delegates to callAndLogSysTool.
+func (us *UnifiedServer) sysListServersHandler(ctx context.Context, _ *sdk.CallToolRequest, _ interface{}) (*sdk.CallToolResult, interface{}, error) {
+	sessionID := us.getSessionID(ctx)
+	logger.LogInfo("client", "MCP sys_list_servers request, session=%s", truncateSessionID(sessionID))
+
+	if err := us.requireSession(ctx); err != nil {
+		logger.LogError("client", "MCP sys_list_servers failed: session not initialized, session=%s", sessionID)
+		return mcp.NewErrorCallToolResult(err)
+	}
+
+	return us.callAndLogSysTool(truncateSessionID(sessionID), "sys_list_servers", "sys_list_servers")
 }

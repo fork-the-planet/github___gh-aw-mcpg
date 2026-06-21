@@ -55,10 +55,37 @@ gh CLI  →  awmg proxy (localhost:8443, TLS)  →  api.github.com
 2. It maps the URL/query to a guard tool name (e.g., `/repos/:owner/:repo/issues` → `list_issues`)
 3. The guard WASM module evaluates access based on the configured policy
 4. If allowed, the request is forwarded to `api.github.com`
-5. The response is filtered per-item based on secrecy/integrity labels
+5. The response is filtered per-item based on secrecy/integrity labels; top-level REST arrays that have no per-item guard schema (for example, issue comment list endpoints) are passed through unchanged after the coarse policy check
 6. The filtered response is returned to the client
 
 Write operations (PUT, POST, DELETE, PATCH) pass through unmodified.
+
+## Reflect Endpoint
+
+Proxy mode exposes an unauthenticated DIFC reflection endpoint:
+
+- `GET /reflect`
+- `GET /api/v3/reflect` (`GH_HOST` style REST base path used by `gh` against GHES/proxy targets; normalized to `/reflect`)
+
+Response schema:
+
+```json
+{
+  "agents": {
+    "<agent-id>": {
+      "secrecy": ["<tag>"],
+      "integrity": ["<tag>"]
+    }
+  },
+  "mode": "strict|filter|propagate",
+  "timestamp": "RFC3339 UTC timestamp"
+}
+```
+
+- `agents`: map of known agent IDs to current DIFC labels.
+- `secrecy`/`integrity`: sorted label arrays in ascending lexicographic order (empty when no labels are present).
+- `mode`: current DIFC enforcement mode.
+- `timestamp`: snapshot creation time in UTC (`time.RFC3339`).
 
 ## Flags
 
@@ -102,8 +129,10 @@ Supported path families include:
 |-------------|-----------|
 | `/repos/:owner/:repo/issues` | `list_issues` |
 | `/repos/:owner/:repo/issues/:number` | `issue_read` |
+| `/repos/:owner/:repo/issues/:number/comments` | `issue_read` (`method=get_comments`) |
 | `/repos/:owner/:repo/pulls` | `list_pull_requests` |
 | `/repos/:owner/:repo/pulls/:number` | `pull_request_read` |
+| `/repos/:owner/:repo/pulls/:number/comments` | `pull_request_read` (`method=get_review_comments`) |
 | `/repos/:owner/:repo/commits` | `list_commits` |
 | `/repos/:owner/:repo/commits/:sha` | `get_commit` |
 | `/repos/:owner/:repo/contents/:path` | `get_file_contents` |

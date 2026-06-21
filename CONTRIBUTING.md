@@ -5,7 +5,7 @@ Thank you for your interest in contributing to MCP Gateway! This document provid
 ## Prerequisites
 
 1. **Docker** installed and running
-2. **Go 1.25.0** (see [installation instructions](https://go.dev/dl/))
+2. **Go 1.25.0 or later** (see [installation instructions](https://go.dev/dl/))
 3. **Make** for running build commands
 
 ## Getting Started
@@ -24,7 +24,7 @@ Thank you for your interest in contributing to MCP Gateway! This document provid
    ```
 
    This will:
-   - Verify Go installation (and warn if version doesn't match 1.25.0)
+   - Verify Go installation (and warn if the version is older than 1.25)
    - Install golangci-lint if not present
    - Download and verify Go module dependencies
 
@@ -58,6 +58,9 @@ make build
 ```
 
 This creates the `awmg` binary in the project root.
+
+> [!NOTE]
+> `make build` runs `go mod tidy` before `go build`. In network-restricted environments, ensure required modules are already cached or use direct `go build -o awmg .` when appropriate.
 
 List all available Make targets:
 ```bash
@@ -192,6 +195,9 @@ echo '{"mcpServers": {...}}' | ./awmg --config-stdin
 
 # Custom payload directory and size threshold (payload dir must be absolute)
 ./awmg --config config.toml --payload-dir /tmp/payloads --payload-size-threshold 1048576
+
+# Enable OTLP tracing with a 25% sample rate
+./awmg --config config.toml --otlp-endpoint http://localhost:4318 --otlp-sample-rate 0.25
 ```
 
 See [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md) for the full list of environment variable overrides.
@@ -283,11 +289,13 @@ gh-aw-mcpg/
     ├── launcher/              # Backend server management
     ├── logger/                # Debug logging framework
     ├── mcp/                   # MCP protocol types & connection
+    ├── mcpresult/             # MCP result text content helpers
     ├── middleware/            # HTTP middleware (jq schema processing)
     ├── oidc/                  # OIDC authentication for HTTP MCP backends
     ├── proxy/                 # HTTP forward proxy for DIFC filtering
+    ├── sanitize/              # Sensitive data redaction utilities for logging
     ├── server/                # HTTP server (routed/unified modes)
-    ├── strutil/               # String and formatting utility helpers
+    ├── strutil/               # String and formatting utility helpers (deduplication, trimming, duration formatting, JSON deep-clone)
     ├── syncutil/              # Concurrency utility helpers
     ├── sys/                   # System utilities
     ├── testutil/              # Test utilities and helpers
@@ -308,11 +316,13 @@ gh-aw-mcpg/
 - **`internal/launcher/`** - Backend process management (Docker, stdio)
 - **`internal/logger/`** - Micro logger for debug output
 - **`internal/mcp/`** - MCP protocol types and JSON-RPC handling
+- **`internal/mcpresult/`** - MCP result text content helpers
 - **`internal/middleware/`** - HTTP middleware (jq schema processing)
 - **`internal/oidc/`** - OIDC authentication for HTTP MCP backends
 - **`internal/proxy/`** - HTTP forward proxy applying DIFC filtering to `gh` CLI and REST/GraphQL requests
+- **`internal/sanitize/`** - Sensitive data redaction utilities (`SanitizeString`, `SanitizeJSON`, `TruncateSecret`) for safe log output
 - **`internal/server/`** - HTTP server with routed and unified modes
-- **`internal/strutil/`** - String and formatting utility helpers (deduplication, trimming, duration formatting)
+- **`internal/strutil/`** - String and formatting utility helpers (deduplication, trimming, duration formatting, JSON deep-clone)
 - **`internal/syncutil/`** - Concurrency utility helpers (get-or-create pattern)
 - **`internal/sys/`** - System utilities
 - **`internal/testutil/`** - Test utilities and helpers
@@ -445,7 +455,6 @@ DEBUG=server:* ./awmg --config config.toml   # Enable specific package
 The project uses:
 
 - `github.com/spf13/cobra` - CLI framework
-- `github.com/spf13/pflag` - POSIX/GNU-style flag parsing used by tracing and CLI integrations
 - `github.com/BurntSushi/toml` - TOML parser
 - `github.com/modelcontextprotocol/go-sdk` - MCP protocol implementation
 - `github.com/itchyny/gojq` - JQ schema processing
@@ -554,7 +563,7 @@ docker build -t awmg .
 docker run --rm -i \
   -e MCP_GATEWAY_PORT=8000 \
   -e MCP_GATEWAY_DOMAIN=localhost \
-  -e MCP_GATEWAY_API_KEY=your-secret-key \
+  -e MCP_GATEWAY_AGENT_ID=your-agent-id \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -p 8000:8000 \
   awmg < config.json
@@ -562,7 +571,7 @@ docker run --rm -i \
 
 The container uses `run_containerized.sh` as the entrypoint, which:
 - Requires the `-i` flag for JSON configuration via stdin
-- Requires `MCP_GATEWAY_PORT`, `MCP_GATEWAY_DOMAIN`, `MCP_GATEWAY_API_KEY` env vars (the API key is a deployment gate; reference it in your JSON config via `"gateway": {"apiKey": "${MCP_GATEWAY_API_KEY}"}` to enable authentication)
+- Requires `MCP_GATEWAY_PORT` and `MCP_GATEWAY_DOMAIN`, plus an agent gate value via `MCP_GATEWAY_AGENT_ID` (`MCP_GATEWAY_API_KEY` is only a deprecated alias that `run_containerized.sh` maps to `MCP_GATEWAY_AGENT_ID`; reference `"gateway": {"agentId": "${MCP_GATEWAY_AGENT_ID}"}` in your JSON config to enable authentication)
 - Queries the Docker daemon API version (falls back to 1.44)
 - Validates Docker socket, port mapping, and environment before starting
 
@@ -576,7 +585,7 @@ To use a different config file or adjust settings:
 docker run --rm -i \
   -e MCP_GATEWAY_PORT=8080 \
   -e MCP_GATEWAY_DOMAIN=example.com \
-  -e MCP_GATEWAY_API_KEY=your-secret-key \
+  -e MCP_GATEWAY_AGENT_ID=your-agent-id \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -p 8080:8080 \
   awmg < custom-config.json
@@ -585,7 +594,7 @@ docker run --rm -i \
 Required environment variables:
 - `MCP_GATEWAY_PORT` - Server port (must match port mapping)
 - `MCP_GATEWAY_DOMAIN` - Domain name for the gateway
-- `MCP_GATEWAY_API_KEY` - Checked by `run_containerized.sh` as a deployment gate; must be referenced in your JSON config via `"gateway": {"apiKey": "${MCP_GATEWAY_API_KEY}"}` to enable authentication
+- `MCP_GATEWAY_AGENT_ID` - Checked by `run_containerized.sh` as a deployment gate; must be referenced in your JSON config via `"gateway": {"agentId": "${MCP_GATEWAY_AGENT_ID}"}` to enable authentication (`MCP_GATEWAY_API_KEY` is only a deprecated alias mapped to this value)
 
 **Note:** The `DOCKER_API_VERSION` is set automatically by `run_containerized.sh` using the Docker daemon's current API version (falls back to `1.44` for all architectures if detection fails).
 
@@ -677,7 +686,7 @@ When the release workflow is triggered, it automatically:
 ### Core Features
 
 - JSON stdin configuration with `${VAR}` variable expansion
-- TOML configuration loaded from file (no `${VAR}` variable expansion)
+- TOML configuration loaded from file (`${VAR}` expansion supported only in `[gateway.opentelemetry]` section fields: `endpoint`, `trace_id`, `span_id`, `headers`)
 - Stdio transport for backend servers (containerized via Docker)
 - Docker container launching
 - Routed mode: Each backend at `/mcp/{serverID}`

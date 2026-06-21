@@ -11,8 +11,11 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
+	"github.com/github/gh-aw-mcpg/internal/tracing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // stubGuard is a configurable test double for guard.Guard.
@@ -535,4 +538,124 @@ func tagsAsStrings(tags []difc.Tag) []string {
 		result[i] = string(t)
 	}
 	return result
+}
+
+// newRecordingProxyHandler creates a proxyHandler with an in-memory recording tracer
+// injected. The returned function flushes and returns all recorded spans.
+func newRecordingProxyHandler(t *testing.T, s *Server) (*proxyHandler, func() []tracetest.SpanStub) {
+	t.Helper()
+	exporter := tracetest.NewInMemoryExporter()
+	sp := sdktrace.NewSimpleSpanProcessor(exporter)
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSpanProcessor(sp),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+	t.Cleanup(func() { _ = tp.Shutdown(t.Context()) })
+	h := &proxyHandler{
+		server:       s,
+		CachedTracer: tracing.CachedTracer{Tracer: tp.Tracer("test")},
+	}
+	return h, func() []tracetest.SpanStub { return exporter.GetSpans() }
+}
+
+// spanByName returns the first recorded span with the given name, or nil.
+func spanByName(spans []tracetest.SpanStub, name string) *tracetest.SpanStub {
+	for i := range spans {
+		if spans[i].Name == name {
+			return &spans[i]
+		}
+	}
+	return nil
+}
+
+// ─── Span error recording: guard not initialized → 503 ───────────────────────
+
+func TestHandleWithDIFC_GuardNotInitialized_SetsSpanError(t *testing.T) {
+	s := &Server{
+		guard: guard.NewNoopGuard(),
+		DIFCComponents: difc.DIFCComponents{
+			Mode:          difc.EnforcementFilter,
+			Evaluator:     difc.NewEvaluatorWithMode(difc.EnforcementFilter),
+			AgentRegistry: difc.NewAgentRegistryWithDefaults(nil, nil),
+			Capabilities:  difc.NewCapabilities(),
+		},
+		githubAPIURL:     "http://unused",
+		httpClient:       &http.Client{},
+		guardInitialized: false,
+	}
+	h, getSpans := newRecordingProxyHandler(t, s)
+
+	req := httptest.NewRequest(http.MethodGet, "/repos/org/repo/issues", nil)
+	w := httptest.NewRecorder()
+	h.handleWithDIFC(w, req, "/repos/org/repo/issues", "list_issues",
+		map[string]interface{}{}, nil)
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	spans := getSpans()
+	difcSpan := spanByName(spans, "proxy.difc_pipeline")
+	require.NotNil(t, difcSpan, "proxy.difc_pipeline span must be recorded")
+	assert.Equal(t, "Error", difcSpan.Status.Code.String(), "difc span status must be Error")
+	assert.Equal(t, "proxy enforcement not configured", difcSpan.Status.Description)
+	require.NotEmpty(t, difcSpan.Events, "difc span must have exception event")
+	assert.Equal(t, "exception", difcSpan.Events[0].Name)
+}
+
+// ─── Span error recording: RunPipelinePrePhases failure → 502 ────────────────
+
+func TestHandleWithDIFC_LabelResourceError_SetsSpanError(t *testing.T) {
+	upstream := mockUpstream(t, http.StatusOK, []interface{}{map[string]interface{}{"id": 1}})
+	defer upstream.Close()
+
+	g := &stubGuard{
+		labelResourceErr: errors.New("guard unavailable"),
+	}
+	s := newTestServerWithStub(t, upstream.URL, g, difc.EnforcementFilter)
+	h, getSpans := newRecordingProxyHandler(t, s)
+
+	req := httptest.NewRequest(http.MethodGet, "/repos/org/repo/issues", nil)
+	w := httptest.NewRecorder()
+	h.handleWithDIFC(w, req, "/repos/org/repo/issues", "list_issues",
+		map[string]interface{}{"owner": "org", "repo": "repo"}, nil)
+
+	assert.Equal(t, http.StatusBadGateway, w.Code)
+
+	spans := getSpans()
+	difcSpan := spanByName(spans, "proxy.difc_pipeline")
+	require.NotNil(t, difcSpan, "proxy.difc_pipeline span must be recorded")
+	assert.Equal(t, "Error", difcSpan.Status.Code.String(), "difc span status must be Error")
+	assert.Equal(t, "resource labeling failed", difcSpan.Status.Description)
+	require.NotEmpty(t, difcSpan.Events, "difc span must have exception event")
+	assert.Equal(t, "exception", difcSpan.Events[0].Name)
+}
+
+// ─── Span error recording: upstream forwarding failure → 502 ─────────────────
+
+func TestHandleWithDIFC_UpstreamFailure_SetsSpanError(t *testing.T) {
+	// Point at a port that refuses connections so forwardAndReadBody returns nil.
+	g := &stubGuard{
+		labelResourceResult: publicResource(),
+		labelResourceOp:     difc.OperationRead,
+	}
+	s := newTestServerWithStub(t, "http://127.0.0.1:1", g, difc.EnforcementFilter)
+	h, getSpans := newRecordingProxyHandler(t, s)
+
+	req := httptest.NewRequest(http.MethodGet, "/repos/org/repo/issues", nil)
+	w := httptest.NewRecorder()
+	h.handleWithDIFC(w, req, "/repos/org/repo/issues", "list_issues",
+		map[string]interface{}{"owner": "org", "repo": "repo"}, nil)
+
+	assert.Equal(t, http.StatusBadGateway, w.Code)
+
+	spans := getSpans()
+
+	difcSpan := spanByName(spans, "proxy.difc_pipeline")
+	require.NotNil(t, difcSpan, "proxy.difc_pipeline span must be recorded")
+	assert.Equal(t, "Error", difcSpan.Status.Code.String(), "difc span status must be Error")
+	assert.Equal(t, "upstream request failed", difcSpan.Status.Description)
+
+	fwdSpan := spanByName(spans, "proxy.backend.forward")
+	require.NotNil(t, fwdSpan, "proxy.backend.forward span must be recorded")
+	assert.Equal(t, "Error", fwdSpan.Status.Code.String(), "fwd span status must be Error")
+	assert.Equal(t, "upstream request failed", fwdSpan.Status.Description)
 }

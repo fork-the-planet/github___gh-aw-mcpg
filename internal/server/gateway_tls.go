@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
@@ -33,10 +34,7 @@ func LoadGatewayTLS(certPath, keyPath, caPath string) (*tls.Config, error) {
 	}
 	logGatewayTLS.Printf("server TLS key pair loaded: certChainLen=%d", len(serverCert.Certificate))
 
-	cfg := &tls.Config{
-		Certificates: []tls.Certificate{serverCert},
-		MinVersion:   tls.VersionTLS12,
-	}
+	cfg := httputil.NewServerTLSConfig(serverCert)
 
 	if caPath != "" {
 		caPEM, err := os.ReadFile(caPath)

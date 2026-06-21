@@ -6,7 +6,7 @@
 // without any scheme prefix (e.g., NOT "Bearer <key>").
 //
 // The package provides both full parsing with error handling (ParseAuthHeader)
-// and convenience methods for specific use cases (ExtractAgentID, ValidateAPIKey).
+// and convenience methods for specific use cases (ExtractAgentID, ValidateAgentID).
 //
 // Usage Guidelines:
 //
@@ -16,7 +16,7 @@
 //   - Use ExtractAgentID() when you only need the agent ID and want automatic
 //     fallback to "default" instead of error handling.
 //
-//   - Use ValidateAPIKey() to check if a provided key matches the expected value.
+//   - Use ValidateAgentID() to check if a provided identifier matches the expected value.
 //     Automatically handles the case where authentication is disabled (no expected key).
 //
 // Example:
@@ -26,8 +26,8 @@
 //	if err != nil {
 //		return err
 //	}
-//	if !auth.ValidateAPIKey(apiKey, expectedKey) {
-//		return errors.New("invalid API key")
+//	if !auth.ValidateAgentID(apiKey, expectedKey) {
+//		return errors.New("invalid agent ID")
 //	}
 //
 //	// Extract agent ID only (for context, not authentication)
@@ -40,7 +40,7 @@ import (
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
@@ -99,23 +99,23 @@ func ParseAuthHeader(authHeader string) (apiKey string, agentID string, error er
 
 	// Per MCP spec 7.1: Authorization header contains API key directly
 	// Use the entire header value as both API key and agent/session ID
-	log.Print("Using plain API key format (MCP spec 7.1)")
+	log.Print("Using plain agent ID format (MCP spec 7.1)")
 	return authHeader, authHeader, nil
 }
 
-// ValidateAPIKey checks if the provided API key matches the expected key.
+// ValidateAgentID checks if the provided agent identifier matches the expected value.
 // Returns true if they match, false otherwise.
-func ValidateAPIKey(provided, expected string) bool {
-	log.Printf("Validating API key: expected_configured=%t", expected != "")
+func ValidateAgentID(provided, expected string) bool {
+	log.Printf("Validating agent ID: expected_configured=%t", expected != "")
 
 	if expected == "" {
-		// No API key configured, authentication is disabled
-		log.Print("No API key configured, authentication disabled")
+		// No agent ID configured, authentication is disabled
+		log.Print("No agent ID configured, authentication disabled")
 		return true
 	}
 
 	matches := provided == expected
-	log.Printf("API key validation result: matches=%t", matches)
+	log.Printf("Agent ID validation result: matches=%t", matches)
 	return matches
 }
 
@@ -169,18 +169,23 @@ func ExtractSessionID(authHeader string) string {
 	}
 
 	// Plain format (per spec 7.1 - API key is session ID)
-	log.Print("Using plain API key as session ID")
+	log.Print("Using plain agent ID as session ID")
 	return authHeader
 }
 
-// TruncateSessionID returns a truncated session ID for safe logging (first 8 chars).
-// Returns "(none)" for empty session IDs, and appends "..." for truncated values.
-// This is useful for logging session IDs without exposing sensitive information.
-func TruncateSessionID(sessionID string) string {
-	if sessionID == "" {
-		return "(none)"
+// ExtractSessionIDFromHeaders extracts session ID from X-Agent-ID and Authorization.
+// X-Agent-ID takes precedence when present, otherwise Authorization is used.
+func ExtractSessionIDFromHeaders(xAgentID, authHeader string) string {
+	if xAgentID != "" {
+		if IsMalformedHeader(xAgentID) {
+			return ""
+		}
+		return xAgentID
 	}
-	return strutil.Truncate(sessionID, 8)
+	if IsMalformedHeader(authHeader) {
+		return ""
+	}
+	return ExtractSessionID(authHeader)
 }
 
 // IsMalformedHeader returns true if the header value contains characters
@@ -196,16 +201,16 @@ func IsMalformedHeader(header string) bool {
 	return false
 }
 
-// GenerateRandomAPIKey generates a cryptographically random API key.
-// Per spec §7.3, the gateway SHOULD generate a random API key on startup
+// GenerateRandomAgentID generates a cryptographically random agent ID.
+// Per spec §7.3, the gateway SHOULD generate a random agent ID on startup
 // if none is provided. Returns a 32-byte hex-encoded string (64 chars).
-func GenerateRandomAPIKey() (string, error) {
-	logAPIKey.Print("Generating random API key")
+func GenerateRandomAgentID() (string, error) {
+	logAPIKey.Print("Generating random agent ID")
 	key, err := strutil.RandomHex(32)
 	if err != nil {
-		logAPIKey.Printf("Random API key generation failed: %v", err)
-		return "", fmt.Errorf("failed to generate random API key: %w", err)
+		logAPIKey.Printf("Random agent ID generation failed: %v", err)
+		return "", fmt.Errorf("failed to generate random agent ID: %w", err)
 	}
-	logAPIKey.Print("Random API key generated successfully")
+	logAPIKey.Print("Random agent ID generated successfully")
 	return key, nil
 }

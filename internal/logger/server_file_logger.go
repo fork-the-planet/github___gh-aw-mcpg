@@ -24,28 +24,26 @@ var (
 	globalServerLoggerMu   sync.RWMutex
 )
 
+func newServerFileLogger(logDir string, useFallback bool) *ServerFileLogger {
+	return &ServerFileLogger{
+		logDir:      logDir,
+		loggers:     make(map[string]*log.Logger),
+		files:       make(map[string]*os.File),
+		useFallback: useFallback,
+	}
+}
+
 // InitServerFileLogger initializes the global server file logger
 func InitServerFileLogger(logDir string) error {
 	// Create log directory if it doesn't exist
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		logFallbackWarnings(err, "Failed to create log directory for server logs", "Falling back to unified logging only")
-		// Create a fallback logger that won't create files
-		sfl := &ServerFileLogger{
-			logDir:      logDir,
-			loggers:     make(map[string]*log.Logger),
-			files:       make(map[string]*os.File),
-			useFallback: true,
-		}
+		sfl := newServerFileLogger(logDir, true)
 		initGlobalLogger(&globalServerLoggerMu, &globalServerFileLogger, sfl)
 		return nil
 	}
 
-	sfl := &ServerFileLogger{
-		logDir:      logDir,
-		loggers:     make(map[string]*log.Logger),
-		files:       make(map[string]*os.File),
-		useFallback: false,
-	}
+	sfl := newServerFileLogger(logDir, false)
 
 	log.Printf("Initialized per-serverID logging in directory: %s", logDir)
 	initGlobalLogger(&globalServerLoggerMu, &globalServerFileLogger, sfl)
@@ -154,35 +152,29 @@ func logWithLevelAndServer(serverID string, level LogLevel, category, format str
 	}
 }
 
-// The var block and exported wrappers below follow the Log-Level Quad-Function Pattern
-// documented in common.go. The four-level set (Info/Warn/Error/Debug) is stable and
-// intentionally repeated across file_logger.go, markdown_logger.go, and
-// server_file_logger.go. See common.go for the rationale and update instructions.
-var (
-	logInfoToServer  = makeServerLevelLogger(logWithLevelAndServer, LogLevelInfo)
-	logWarnToServer  = makeServerLevelLogger(logWithLevelAndServer, LogLevelWarn)
-	logErrorToServer = makeServerLevelLogger(logWithLevelAndServer, LogLevelError)
-	logDebugToServer = makeServerLevelLogger(logWithLevelAndServer, LogLevelDebug)
-)
+// The exported wrappers below follow the Log-Level Quad-Function Pattern
+// documented in common.go, with shared per-level closure registration handled
+// by newServerLevelLoggerFuncs.
+var serverLevelLoggers = newServerLevelLoggerFuncs(logWithLevelAndServer)
 
 // LogInfoToServer logs an informational message to the server-specific log file.
 func LogInfoToServer(serverID, category, format string, args ...interface{}) {
-	logInfoToServer(serverID, category, format, args...)
+	serverLevelLoggers.info(serverID, category, format, args...)
 }
 
 // LogWarnToServer logs a warning message to the server-specific log file.
 func LogWarnToServer(serverID, category, format string, args ...interface{}) {
-	logWarnToServer(serverID, category, format, args...)
+	serverLevelLoggers.warn(serverID, category, format, args...)
 }
 
 // LogErrorToServer logs an error message to the server-specific log file.
 func LogErrorToServer(serverID, category, format string, args ...interface{}) {
-	logErrorToServer(serverID, category, format, args...)
+	serverLevelLoggers.error(serverID, category, format, args...)
 }
 
 // LogDebugToServer logs a debug message to the server-specific log file.
 func LogDebugToServer(serverID, category, format string, args ...interface{}) {
-	logDebugToServer(serverID, category, format, args...)
+	serverLevelLoggers.debug(serverID, category, format, args...)
 }
 
 // CloseServerFileLogger closes the global server file logger

@@ -3,46 +3,61 @@
 
 # Large MCP Payload Access Test
 
-You are an AI agent trying to verify a secret in a file hosted by the filesystem MCP server.
+You are an AI agent testing the MCP Gateway's large payload mechanism.
 
 ## Your Task
 
-Use the filesystem MCP server to access a file called `large-test-file.json`, which contains a field `secret_reference`. Verify that the secret value matches the content of file `secret.txt` which should also be accessed from the filesystem MCP server.
+1. Use the **`filesystem-read_file` MCP tool** to read `/workspace/large-test-file.json`.
+2. The file is ~500KB so the gateway will return a truncated response containing a `payloadPath` field.
+3. Use bash to read the full JSON from `payloadPath` (e.g. `cat <payloadPath>`).
+4. Extract the top-level `secret_reference` field from that JSON.
+5. Use the **`filesystem-read_file` MCP tool** to read `/workspace/secret.txt`.
+6. Verify the two secrets match.
 
-If a payload is too large to return over MCP, the server will return a path in the local filesystem to the payload file instead. Use the path in the local filesystem to access the full payload and extract the secret.
+**Do NOT use bash to read files directly from `/tmp/mcp-test-fs/`. You must use the `filesystem-read_file` tool so the large payload mechanism is exercised.**
 
-## Understanding the Response Format
+## Tool Usage
 
-When a payload is too large, the MCP server returns a JSON object with these fields:
-- `agentInstructions`: Explains what happened and how to access the full data
-- `payloadPath`: Absolute file path to the complete response data (a JSON file)
-- `payloadPreview`: First 500 characters of the response for quick reference
-- `payloadSchema`: Shows the structure and types of fields (e.g., "string", "number") but NOT the actual values
+The filesystem MCP server exposes these tools (prefixed with `filesystem-`):
+- **`filesystem-read_file`** — reads a file; use this for both test files
+- `filesystem-list_directory` — lists directory contents (use `/workspace` as the path)
+
+Files available in the MCP server at `/workspace/`:
+- `/workspace/large-test-file.json` — ~500KB JSON file, triggers the large payload path
+- `/workspace/secret.txt` — contains the expected secret value
+
+## Understanding the Large Payload Response
+
+When a file exceeds the payload size threshold, the `filesystem-read_file` response is a JSON object with:
+- `payloadPath`: Absolute path to the full response data on the local filesystem
+- `payloadPreview`: First 500 characters of the response (preview only)
+- `payloadSchema`: Structure/type info — does NOT contain actual values
 - `originalSize`: Size of the full response in bytes
+- `agentInstructions`: Instructions for accessing the full data
 
-**Important:** The `payload.json` file at `payloadPath` contains the complete original response data in valid JSON format. You can read and parse this file directly to access all values.
+**The `secret_reference` field is at the TOP LEVEL of the full JSON at `payloadPath`.** Read the file at `payloadPath` with bash and parse it as JSON to find `secret_reference`.
 
 ## Important Notes
 
-- **Keep all outputs concise** - Use brief, factual statements
-- **Log all key values** - Secret, paths, sizes
-- **Be explicit about failures** - State exactly what went wrong if any step fails
+- **Use `filesystem-read_file` tool** — do not use bash to read files in `/workspace` or `/tmp/mcp-test-fs/`
+- **Keep all outputs concise** — use brief, factual statements
+- **Log all key values** — secret, paths, sizes
+- **Be explicit about failures** — state exactly what went wrong if any step fails
 
 ## Expected Behavior
 
 **Success scenario:**
-1. Agent requests file `large-test-file.json` from filesystem MCP server.
-2. MCP server response includes path to full payload.
-3. Agent reads full payload from subdirectory of: `/tmp/gh-aw/mcp-payloads`
-4. Agent extracts secret from full payload.
-5. Agent requests file `secret.txt` from filesystem MCP server.
-6. Secrets in `large-test-file.json` and `secret.txt` match.
+1. Agent calls `filesystem-read_file` with path `/workspace/large-test-file.json`.
+2. Gateway returns truncated response with `payloadPath` (e.g. `/tmp/gh-aw/mcp-payloads/...`).
+3. Agent reads the full JSON from `payloadPath` using bash: `cat <payloadPath> | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['secret_reference'])"`.
+4. Agent calls `filesystem-read_file` with path `/workspace/secret.txt`.
+5. Agent compares the two secrets — they must match.
 
 **Failure scenarios to detect:**
-- Agent can't read payload file (permission/mount issues)
-- MCP server does not return a payload path
-- Payload is corrupted or incomplete
-- Secret doesn't match (data integrity issue)
+- `filesystem-read_file` does not return a `payloadPath` (large payload mechanism not triggered)
+- Agent can't read the payload file at `payloadPath` (permission/mount issues)
+- `secret_reference` is missing from the full JSON (data integrity issue)
+- Secrets do not match
 
 ## Output Format
 

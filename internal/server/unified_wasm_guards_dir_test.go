@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +14,7 @@ func TestFindServerWASMGuardFile(t *testing.T) {
 	t.Run("returns not found when env var is unset", func(t *testing.T) {
 		t.Setenv(wasmGuardsDirEnvVar, "")
 
-		path, found, err := findServerWASMGuardFile("github")
+		path, found, err := guard.FindServerWASMGuardFile("github")
 		require.NoError(t, err)
 		assert.False(t, found)
 		assert.Empty(t, path)
@@ -23,7 +24,7 @@ func TestFindServerWASMGuardFile(t *testing.T) {
 		rootDir := t.TempDir()
 		t.Setenv(wasmGuardsDirEnvVar, rootDir)
 
-		path, found, err := findServerWASMGuardFile("github")
+		path, found, err := guard.FindServerWASMGuardFile("github")
 		require.NoError(t, err)
 		assert.False(t, found)
 		assert.Empty(t, path)
@@ -40,7 +41,7 @@ func TestFindServerWASMGuardFile(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(serverDir, "a-first.wasm"), []byte("not-a-valid-wasm"), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(serverDir, "b-second.wasm"), []byte("not-a-valid-wasm"), 0o644))
 
-		path, found, err := findServerWASMGuardFile("github")
+		path, found, err := guard.FindServerWASMGuardFile("github")
 		require.NoError(t, err)
 		assert.True(t, found)
 		assert.Equal(t, filepath.Join(serverDir, "a-first.wasm"), path)
@@ -53,7 +54,7 @@ func TestFindServerWASMGuardFile(t *testing.T) {
 		serverPath := filepath.Join(rootDir, "github")
 		require.NoError(t, os.WriteFile(serverPath, []byte("not-a-directory"), 0o644))
 
-		path, found, err := findServerWASMGuardFile("github")
+		path, found, err := guard.FindServerWASMGuardFile("github")
 		require.Error(t, err)
 		assert.False(t, found)
 		assert.Empty(t, path)

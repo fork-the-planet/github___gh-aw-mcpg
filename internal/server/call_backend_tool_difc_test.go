@@ -820,3 +820,156 @@ func TestCallBackendTool_GuardInitError(t *testing.T) {
 	require.Error(err)
 	assert.ErrorContains(err, "guard session initialization failed")
 }
+
+func TestCallBackendTool_ToolCallLimitEnforcedPerSession(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backendCalls := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		method, _ := req["method"].(string)
+		w.Header().Set("Content-Type", "application/json")
+		switch method {
+		case "initialize":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]interface{}{},
+					"serverInfo":      map[string]interface{}{"name": "test-backend", "version": "1.0"},
+				},
+			})
+		case "tools/list":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"tools": []map[string]interface{}{
+						{
+							"name":        "issue_read",
+							"description": "test tool",
+							"inputSchema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{}},
+						},
+					},
+				},
+			})
+		case "tools/call":
+			backendCalls++
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"content": []map[string]interface{}{{"type": "text", "text": "tool result"}},
+					"isError": false,
+				},
+			})
+		}
+	}))
+	defer backend.Close()
+
+	g := &difcTestGuard{name: "difc-tool-call-limit-guard"}
+	us := makeUnifiedWithGuard(t, "difc-tool-call-limit-type", g, backend, "strict")
+	us.cfg.GuardPolicy.AllowOnly.ToolCallLimits = map[string]int{"issue_read": 2}
+	defer us.Close()
+
+	result, _, err := us.callBackendTool(callCtx("session-limit-a"), "test-server", "issue_read", nil)
+	require.NotNil(result)
+	require.NoError(err)
+	assert.False(result.IsError)
+
+	result, _, err = us.callBackendTool(callCtx("session-limit-a"), "test-server", "issue_read", nil)
+	require.NotNil(result)
+	require.NoError(err)
+	assert.False(result.IsError)
+
+	result, _, err = us.callBackendTool(callCtx("session-limit-a"), "test-server", "issue_read", nil)
+	require.NotNil(result)
+	require.Error(err)
+	assert.True(result.IsError)
+	assert.Contains(result.Content[0].(*sdk.TextContent).Text, `tool call limit reached for "issue_read" (max: 2)`)
+	assert.Equal(2, backendCalls, "over-limit call must not reach the backend")
+
+	result, _, err = us.callBackendTool(callCtx("session-limit-b"), "test-server", "issue_read", nil)
+	require.NotNil(result)
+	require.NoError(err)
+	assert.False(result.IsError)
+	assert.Equal(3, backendCalls, "a new session must get a fresh per-tool budget")
+}
+
+func TestCallBackendTool_ToolCallLimitZeroOrAbsentIsUnlimited(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	backendCalls := 0
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		method, _ := req["method"].(string)
+		w.Header().Set("Content-Type", "application/json")
+		switch method {
+		case "initialize":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]interface{}{},
+					"serverInfo":      map[string]interface{}{"name": "test-backend", "version": "1.0"},
+				},
+			})
+		case "tools/list":
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"tools": []map[string]interface{}{
+						{
+							"name":        "zero_limit_tool",
+							"description": "zero limit tool",
+							"inputSchema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{}},
+						},
+						{
+							"name":        "unlisted_tool",
+							"description": "unlisted tool",
+							"inputSchema": map[string]interface{}{"type": "object", "properties": map[string]interface{}{}},
+						},
+					},
+				},
+			})
+		case "tools/call":
+			backendCalls++
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0", "id": req["id"],
+				"result": map[string]interface{}{
+					"content": []map[string]interface{}{{"type": "text", "text": "tool result"}},
+					"isError": false,
+				},
+			})
+		}
+	}))
+	defer backend.Close()
+
+	g := &difcTestGuard{name: "difc-zero-limit-guard"}
+	us := makeUnifiedWithGuard(t, "difc-zero-limit-type", g, backend, "strict")
+	us.cfg.GuardPolicy.AllowOnly.ToolCallLimits = map[string]int{"zero_limit_tool": 0}
+	defer us.Close()
+
+	for i := 0; i < 3; i++ {
+		result, _, err := us.callBackendTool(callCtx("session-unlimited"), "test-server", "zero_limit_tool", nil)
+		require.NotNil(result)
+		require.NoError(err)
+		assert.False(result.IsError)
+	}
+	for i := 0; i < 2; i++ {
+		result, _, err := us.callBackendTool(callCtx("session-unlimited"), "test-server", "unlisted_tool", nil)
+		require.NotNil(result)
+		require.NoError(err)
+		assert.False(result.IsError)
+	}
+
+	assert.Equal(5, backendCalls, "zero or absent limits must not block tool calls")
+}

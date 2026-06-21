@@ -363,6 +363,30 @@ func TestFindParentField(t *testing.T) {
 			query: `comments { nodes { body } }`,
 			want:  "comments",
 		},
+		{
+			// Exercises the depth-- branch: scanning backward from "nodes"
+			// crosses a balanced { sub { x } } block before reaching the
+			// enclosing { of "field".
+			name:  "sibling closed block before nodes",
+			query: `field { sub { x } nodes { y } }`,
+			want:  "field",
+		},
+		{
+			// Exercises the parenDepth++ branch: parentheses inside a string
+			// literal within the argument list cause nested parenDepth changes
+			// while scanning backward to the field name.
+			name:  "nested parentheses in field arguments",
+			query: `field(arg:"func(x)") { nodes { y } }`,
+			want:  "field",
+		},
+		{
+			// Exercises the "i+1 >= end" guard that returns "" when there is
+			// no identifier before the enclosing brace (top-level anonymous
+			// selection set).
+			name:  "no field name before enclosing brace",
+			query: `{ nodes { y } }`,
+			want:  "",
+		},
 	}
 
 	for _, tt := range tests {

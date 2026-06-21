@@ -4,15 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strconv"
-	"time"
 
-	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
@@ -50,13 +48,19 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Health check endpoint
 	if rawPath == "/health" || rawPath == "/healthz" {
-		httputil.WriteJSONResponse(w, http.StatusOK, map[string]string{"status": "ok"})
+		httputil.WriteSimpleHealthResponse(w)
 		return
 	}
 
-	// gh CLI probes /meta during initialization for feature detection.
-	// Treat it like GraphQL introspection metadata and pass through unfiltered.
-	if r.Method == http.MethodGet && rawPath == "/meta" {
+	// Reflect endpoint exposes a live DIFC label snapshot.
+	if r.Method == http.MethodGet && rawPath == "/reflect" {
+		httputil.WriteReflectResponse(w, h.server.DIFCComponents)
+		return
+	}
+
+	// Safe metadata endpoints carry no user/repo-scoped data and can be passed
+	// through without DIFC labeling.
+	if r.Method == http.MethodGet && isMetadataPassthroughPath(rawPath) {
 		h.passthrough(w, r, fullPath)
 		return
 	}
@@ -115,9 +119,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		match := MatchRoute(rawPath)
 		if match == nil {
-			// Unknown REST endpoint — fail closed: deny rather than risk leaking unfiltered data
-			logHandler.Printf("unknown REST endpoint %s, blocking request", rawPath)
-			httputil.WriteErrorResponse(w, http.StatusForbidden, "forbidden", "access denied: unrecognized endpoint")
+			h.handleUnrecognizedPassthrough(w, r, rawPath, fullPath)
 			return
 		}
 		toolName = match.ToolName
@@ -133,6 +135,30 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.handleWithDIFC(w, r, fullPath, toolName, args, graphQLBody)
 }
 
+func (h *proxyHandler) handleUnrecognizedPassthrough(w http.ResponseWriter, r *http.Request, rawPath, fullPath string) {
+	logger.LogUnrecognizedEndpointPassthrough(r.Method, rawPath)
+	logHandler.Printf("unrecognized REST endpoint %s, forwarding with empty labels", rawPath)
+
+	resp, respBody := h.forwardAndReadBody(w, r.Context(), r.Method, fullPath, nil, "", r.Header.Get("Authorization"))
+	if resp == nil {
+		return
+	}
+
+	pre := &guard.PipelinePreResult{
+		AgentLabels: h.server.AgentRegistry.GetOrCreate(proxyAgentID),
+		Resource:    difc.NewLabeledResource(fmt.Sprintf("unrecognized endpoint %s", rawPath)),
+		Operation:   difc.OperationRead,
+		EvalResult: &difc.EvaluationResult{
+			Decision:        difc.AccessAllow,
+			SecrecyToAdd:    []difc.Tag{},
+			IntegrityToDrop: []difc.Tag{},
+		},
+	}
+	guard.RunPipelinePhase6(pre, nil, h.server.Mode)
+
+	h.writeResponse(w, resp, respBody)
+}
+
 // handleWithDIFC runs the 6-phase DIFC pipeline on a request.
 func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, path, toolName string, args map[string]interface{}, graphQLBody []byte) {
 	ctx := r.Context()
@@ -140,55 +166,43 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	backend := &restBackendCaller{server: s, clientAuth: r.Header.Get("Authorization")}
 
 	// Start a DIFC pipeline span covering all phases for this request
-	ctx, difcSpan := h.GetTracer().Start(ctx, "proxy.difc_pipeline",
-		oteltrace.WithAttributes(
-			tracing.GenAIToolName.String(toolName),
-			semconv.URLPathKey.String(r.URL.Path),
-		),
-		oteltrace.WithSpanKind(oteltrace.SpanKindInternal),
-	)
+	ctx, difcSpan := tracing.StartDIFCPipelineSpan(ctx, h.GetTracer(), toolName, r.URL.Path)
 	defer difcSpan.End()
 
 	if !s.guardInitialized {
 		errMsg := "returning 503: proxy enforcement not configured (no --policy flag provided)"
 		logHandler.Print(errMsg)
 		logger.LogError("proxy", "%s", errMsg)
+		tracing.RecordSpanError(difcSpan, errors.New("proxy enforcement not configured"), "proxy enforcement not configured")
 		httputil.WriteErrorResponse(w, http.StatusServiceUnavailable, "service_unavailable", "proxy enforcement not configured")
 		return
 	}
 
-	// **Phase 0: Get agent labels**
-	agentLabels := s.AgentRegistry.GetOrCreate("proxy")
-	logHandler.Printf("[DIFC] Phase 0: agent secrecy=%v integrity=%v",
-		agentLabels.GetSecrecyTags(), agentLabels.GetIntegrityTags())
-
-	// **Phase 1: Guard labels the resource**
-	resource, operation, err := s.guard.LabelResource(ctx, toolName, args, backend, s.Capabilities)
-	if err != nil {
-		logHandler.Printf("[DIFC] Phase 1 failed: %v", err)
-		// On labeling failure, fail closed to prevent enforcement bypass
-		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "resource labeling failed")
-		return
+	// **Phases 0–2: Get agent labels, label resource, coarse access check**
+	pipelineIn := guard.PipelineInput{
+		AgentID:         proxyAgentID,
+		ToolName:        toolName,
+		Args:            args,
+		Guard:           s.guard,
+		Evaluator:       s.Evaluator,
+		AgentRegistry:   s.AgentRegistry,
+		Capabilities:    s.Capabilities,
+		EnforcementMode: s.Mode,
+		BackendCaller:   backend,
 	}
-
-	logHandler.Printf("[DIFC] Phase 1: resource=%s op=%s secrecy=%v integrity=%v",
-		resource.Description, operation,
-		resource.Secrecy.Label.GetTags(), resource.Integrity.Label.GetTags())
-
-	// **Phase 2: Coarse-grained access check**
-	evalResult := s.Evaluator.Evaluate(agentLabels.Secrecy, agentLabels.Integrity, resource, operation)
-
-	if !evalResult.IsAllowed() {
-		if difc.ShouldBypassCoarseDeny(operation) {
-			// Read in filter mode: skip coarse block, proceed to fine-grained filtering
-			logHandler.Printf("[DIFC] Phase 2: coarse check failed for read, proceeding to Phase 3")
-		} else {
-			// Write blocked
-			logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, evalResult.Reason)
-			difcSpan.SetStatus(codes.Error, "access denied: "+evalResult.Reason)
-			writeDIFCForbidden(w, fmt.Sprintf("DIFC policy violation: %s", evalResult.Reason))
+	ctx, pre, err := guard.RunPipelinePrePhases(ctx, pipelineIn)
+	if err != nil {
+		if denied, _ := guard.HandlePrePhaseError(err); denied != nil {
+			logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, denied.EvalResult.Reason)
+			deniedErr := fmt.Errorf("DIFC policy violation: %s", denied.EvalResult.Reason)
+			tracing.RecordSpanError(difcSpan, deniedErr, "access denied: "+denied.EvalResult.Reason)
+			writeDIFCForbidden(w, deniedErr.Error())
 			return
 		}
+		logHandler.Printf("[DIFC] Phase 1 failed: %v", err)
+		tracing.RecordSpanError(difcSpan, err, "resource labeling failed")
+		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "resource labeling failed")
+		return
 	}
 
 	// **Phase 3: Forward to upstream GitHub API**
@@ -196,13 +210,8 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	var resp *http.Response
 	var respBody []byte
 
-	fwdCtx, fwdSpan := h.GetTracer().Start(ctx, "proxy.backend.forward",
-		oteltrace.WithAttributes(
-			semconv.URLPathKey.String(path),
-			tracing.GenAIToolName.String(toolName),
-		),
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
+	fwdCtx, fwdSpan := tracing.StartProxyForwardSpan(ctx, h.GetTracer(), toolName, r.URL.Path, h.server.upstreamHost())
+	defer fwdSpan.End()
 	if graphQLBody != nil {
 		resp, respBody = h.forwardAndReadBody(w, fwdCtx, http.MethodPost, path, bytes.NewReader(graphQLBody), "application/json", clientAuth)
 	} else {
@@ -211,8 +220,8 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	if resp != nil {
 		fwdSpan.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(resp.StatusCode))
 	}
-	fwdSpan.End()
 	if resp == nil {
+		tracing.RecordSpanErrorOnAll(errors.New("upstream request failed"), "upstream request failed", fwdSpan, difcSpan)
 		return
 	}
 
@@ -232,15 +241,11 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	}
 
 	// **Phase 4: Guard labels the response**
-	// Store tool_args in context so LabelResponse can pass them to the WASM guard
-	ctx = guard.SetRequestStateInContext(ctx, map[string]interface{}{
-		"tool_args": args,
-	})
-	labeledData, err := s.guard.LabelResponse(ctx, toolName, responseData, backend, s.Capabilities)
+	labeledData, err := guard.RunPipelinePhase4(ctx, pipelineIn, pre, responseData)
 	if err != nil {
 		logHandler.Printf("[DIFC] Phase 4 failed: %v", err)
-		// On labeling failure, use coarse-grained result
-		if evalResult.IsAllowed() {
+		// On labeling failure, fall back to coarse-grained result
+		if pre.EvalResult.IsAllowed() {
 			h.writeResponse(w, resp, respBody)
 		} else {
 			h.writeEmptyResponse(w, resp, responseData)
@@ -251,10 +256,22 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	// **Phase 5: Fine-grained filtering**
 	var finalData interface{}
 	var useOriginalBody bool // GraphQL responses need original format preserved
+	filterResult, err := difc.FilterAndConvertLabeledData(
+		s.Evaluator,
+		pre.AgentLabels.Secrecy,
+		pre.AgentLabels.Integrity,
+		pre.Operation,
+		labeledData,
+		s.Mode,
+	)
+	if err != nil {
+		logHandler.Printf("[DIFC] Phase 5 ToResult failed: %v", err)
+		h.writeEmptyResponse(w, resp, responseData)
+		return
+	}
+
 	if labeledData != nil {
-		if collection, ok := labeledData.(*difc.CollectionLabeledData); ok {
-			filtered := s.Evaluator.FilterCollection(
-				agentLabels.Secrecy, agentLabels.Integrity, collection, operation)
+		if filtered := filterResult.Filtered; filtered != nil {
 
 			logHandler.Printf("[DIFC] Phase 5: %d/%d items accessible",
 				filtered.GetAccessibleCount(), filtered.TotalCount)
@@ -267,7 +284,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			}
 
 			// Strict mode: block entire response if any item filtered
-			if difc.ShouldBlockFilteredResponse(s.Mode, filtered.GetFilteredCount()) {
+			if filterResult.Blocked {
 				logHandler.Printf("[DIFC] STRICT: blocking response — %d filtered items", filtered.GetFilteredCount())
 				writeDIFCForbidden(w, fmt.Sprintf("DIFC policy violation: %d of %d items not accessible",
 					filtered.GetFilteredCount(), filtered.TotalCount))
@@ -284,12 +301,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 					filtered.GetFilteredCount(), filtered.TotalCount)
 				finalData = rebuildGraphQLResponse(responseData, filtered)
 			} else {
-				finalData, err = filtered.ToResult()
-				if err != nil {
-					logHandler.Printf("[DIFC] Phase 5 ToResult failed: %v", err)
-					h.writeEmptyResponse(w, resp, responseData)
-					return
-				}
+				finalData = filterResult.FinalResult
 				// Re-wrap search responses to preserve the envelope
 				finalData = rewrapSearchResponse(responseData, finalData)
 				// Unwrap single-object responses (e.g., get_file_contents)
@@ -300,17 +312,12 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			if graphQLBody != nil {
 				useOriginalBody = true
 			} else {
-				finalData, err = labeledData.ToResult()
-				if err != nil {
-					logHandler.Printf("[DIFC] Phase 5 ToResult failed: %v", err)
-					h.writeEmptyResponse(w, resp, responseData)
-					return
-				}
+				finalData = filterResult.FinalResult
 			}
 		}
 	} else {
 		// No fine-grained labels — use coarse result
-		if evalResult.IsAllowed() {
+		if pre.EvalResult.IsAllowed() {
 			finalData = responseData
 		} else {
 			h.writeEmptyResponse(w, resp, responseData)
@@ -319,11 +326,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	}
 
 	// **Phase 6: Label accumulation (propagate mode)**
-	if labeledData != nil && difc.ShouldAccumulateReadLabels(operation, s.Mode) {
-		overall := labeledData.Overall()
-		agentLabels.AccumulateFromRead(overall)
-		logHandler.Printf("[DIFC] Phase 6: accumulated labels")
-	}
+	guard.RunPipelinePhase6(pre, labeledData, s.Mode)
 
 	// Write the filtered response
 	if useOriginalBody {
@@ -390,6 +393,7 @@ func (h *proxyHandler) writeEmptyResponse(w http.ResponseWriter, resp *http.Resp
 	default:
 		empty = "[]" // safe default for nil or unknown types
 	}
+	logHandler.Printf("writeEmptyResponse: shape=%s, status=%d", empty, resp.StatusCode)
 	httputil.WriteJSONResponse(w, resp.StatusCode, json.RawMessage(empty))
 }
 
@@ -400,17 +404,21 @@ func (h *proxyHandler) forwardAndReadBody(
 	w http.ResponseWriter, ctx context.Context,
 	method, path string, body io.Reader, contentType, clientAuth string,
 ) (*http.Response, []byte) {
+	logHandler.Printf("forwardAndReadBody: %s %s", method, path)
 	resp, err := h.server.forwardToGitHub(ctx, method, path, body, contentType, clientAuth)
 	if err != nil {
+		logHandler.Printf("forwardAndReadBody: upstream request failed: method=%s path=%s err=%v", method, path, err)
 		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "upstream request failed")
 		return nil, nil
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		logHandler.Printf("forwardAndReadBody: body read failed: method=%s path=%s status=%d err=%v", method, path, resp.StatusCode, err)
 		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "failed to read upstream response")
 		return nil, nil
 	}
+	logHandler.Printf("forwardAndReadBody: %s %s -> status=%d bodyLen=%d", method, path, resp.StatusCode, len(respBody))
 	return resp, respBody
 }
 
@@ -446,7 +454,7 @@ func injectRetryAfterIfRateLimited(w http.ResponseWriter, resp *http.Response) {
 	}
 
 	resetAt := httputil.ParseRateLimitResetHeader(resetHeader)
-	retryAfter := computeRetryAfter(resetAt)
+	retryAfter := httputil.ComputeRetryAfter(resetAt)
 
 	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 
@@ -455,23 +463,14 @@ func injectRetryAfterIfRateLimited(w http.ResponseWriter, resp *http.Response) {
 		resp.StatusCode, remaining, resetHeader, retryAfter)
 }
 
-// computeRetryAfter returns the number of seconds to wait before retrying.
-// When resetAt is in the future the delay is clamped to [1, 3600] seconds.
-// When resetAt is zero or in the past a default of 60 seconds is returned.
-func computeRetryAfter(resetAt time.Time) int {
-	const (
-		defaultDelay = 60
-		maxDelay     = 3600
-	)
-	if resetAt.IsZero() {
-		return defaultDelay
-	}
-	secs := int(time.Until(resetAt).Seconds()) + 1 // add 1s buffer
-	if secs < 1 {
-		return defaultDelay
-	}
-	if secs > maxDelay {
-		return maxDelay
-	}
-	return secs
+var metadataPassthrough = map[string]bool{
+	"/meta":       true,
+	"/rate_limit": true,
+	"/octocat":    true,
+	"/zen":        true,
+	"/versions":   true,
+}
+
+func isMetadataPassthroughPath(path string) bool {
+	return metadataPassthrough[path]
 }

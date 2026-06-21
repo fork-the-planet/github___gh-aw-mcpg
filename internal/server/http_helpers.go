@@ -2,17 +2,14 @@ package server
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
 )
 
 var logHelpers = logger.New("server:helpers")
@@ -52,18 +49,6 @@ func rejectRequest(w http.ResponseWriter, r *http.Request, status int, code, msg
 	httputil.WriteErrorResponse(w, status, code, msg)
 }
 
-// withResponseLogging wraps an http.Handler to log response bodies
-func withResponseLogging(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		lw := newResponseWriter(w)
-		handler.ServeHTTP(lw, r)
-		if len(lw.Body()) > 0 {
-			sanitizedBody := sanitize.SanitizeString(string(lw.Body()))
-			logHelpers.Printf("[%s] %s %s - Status: %d, Response: %s", r.RemoteAddr, r.Method, r.URL.Path, lw.StatusCode(), sanitizedBody)
-		}
-	})
-}
-
 // peekRequestBody reads all bytes from a POST request body and restores it
 // so downstream handlers can read it again.
 // Returns nil, nil for non-POST requests or requests with no body.
@@ -95,7 +80,7 @@ func peekRequestBody(r *http.Request) ([]byte, error) {
 // It reads the body, logs it, and restores it so it can be read again.
 // The backendID parameter is optional and can be empty for unified mode.
 func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
-	logHelpers.Printf("Checking request body: method=%s, hasBody=%v, sessionID=%s", r.Method, r.Body != nil, auth.TruncateSessionID(sessionID))
+	logHelpers.Printf("Checking request body: method=%s, hasBody=%v, sessionID=%s", r.Method, r.Body != nil, truncateSessionID(sessionID))
 
 	bodyBytes, err := peekRequestBody(r)
 	if err != nil {
@@ -107,23 +92,14 @@ func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
 		return
 	}
 
-	logHelpers.Printf("Request body read: size=%d bytes, sessionID=%s, backendID=%s", len(bodyBytes), auth.TruncateSessionID(sessionID), backendID)
+	logHelpers.Printf("Request body read: size=%d bytes, sessionID=%s, backendID=%s", len(bodyBytes), truncateSessionID(sessionID), backendID)
 
 	sanitizedBody := sanitize.SanitizeString(string(bodyBytes))
 
 	if backendID != "" {
 		logger.LogDebug("client", "MCP client request body, backend=%s, body=%s", backendID, sanitizedBody)
 	} else {
-		logger.LogDebug("client", "MCP request body, session=%s, body=%s", auth.TruncateSessionID(sessionID), sanitizedBody)
+		logger.LogDebug("client", "MCP request body, session=%s, body=%s", truncateSessionID(sessionID), sanitizedBody)
 	}
 	logHelpers.Print("Request body logged for debugging")
-}
-
-func truncateCacheKeyForLog(key string) string {
-	backendID, sessionID, found := strings.Cut(key, "/")
-	if !found {
-		return key
-	}
-
-	return fmt.Sprintf("%s/%s", backendID, auth.TruncateSessionID(sessionID))
 }

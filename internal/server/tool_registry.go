@@ -11,9 +11,9 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/launcher"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/middleware"
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -50,7 +50,7 @@ type launchResult struct {
 // does require that InputSchema is non-nil and has type "object" (enforced since v1.5.0), but
 // it does not validate the argument values — that responsibility belongs to the caller.
 // This distinction relies on internal SDK behaviour and must be re-verified on every SDK upgrade.
-// Verified correct for go-sdk v1.6.0 (see server.go:Server.AddTool vs AddTool[In,Out]).
+// Verified correct for go-sdk v1.6.1 (see server.go:Server.AddTool vs AddTool[In,Out]).
 func registerToolWithoutValidation(server *sdk.Server, tool *sdk.Tool, handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error)) {
 	server.AddTool(tool, func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
 		result, _, err := handler(ctx, req, nil)
@@ -67,6 +67,13 @@ func getToolResponseFilter(cfg *config.Config, serverID, toolName string) string
 		return ""
 	}
 	return strings.TrimSpace(serverCfg.ToolResponseFilters[toolName])
+}
+
+// isSingularReadTool returns true when toolName refers to a tool expected to
+// return a single resource (e.g. get_*, *_read). List/search tools are treated
+// as collection tools even if they happen to return one item.
+func isSingularReadTool(toolName string) bool {
+	return !strings.HasPrefix(toolName, "list_") && !strings.HasPrefix(toolName, "search_")
 }
 
 // registerAllTools fetches and registers tools from all backend servers
@@ -95,24 +102,40 @@ func (us *UnifiedServer) registerAllTools() error {
 	}
 }
 
+// registrationErrors tracks backend servers that failed tool registration and
+// logs a summary when finish is called. Both the sequential and parallel
+// registration strategies use this type so failure-tracking semantics are
+// defined in one place.
+type registrationErrors struct {
+	failed []string
+	total  int
+}
+
+func (e *registrationErrors) record(serverID string) {
+	e.failed = append(e.failed, serverID)
+}
+
+func (e *registrationErrors) finish() {
+	if len(e.failed) > 0 {
+		logger.LogError("backend", "Tool registration incomplete: %d of %d backends failed: %v — agents will not see tools from these servers",
+			len(e.failed), e.total, e.failed)
+	}
+}
+
 // registerAllToolsSequential registers tools from backend servers sequentially
 func (us *UnifiedServer) registerAllToolsSequential(serverIDs []string) error {
 	logUnified.Printf("Registering tools sequentially from %d backends", len(serverIDs))
 
-	var failedServers []string
+	errs := &registrationErrors{total: len(serverIDs)}
 	for _, serverID := range serverIDs {
 		logUnified.Printf("Registering tools from backend: %s", serverID)
 		if err := us.registerToolsFromBackend(serverID); err != nil {
 			logger.LogError("backend", "Failed to register tools from %s: %v", serverID, err)
-			failedServers = append(failedServers, serverID)
+			errs.record(serverID)
 		}
 	}
 
-	if len(failedServers) > 0 {
-		logger.LogError("backend", "Tool registration incomplete: %d of %d backends failed: %v — agents will not see tools from these servers",
-			len(failedServers), len(serverIDs), failedServers)
-	}
-
+	errs.finish()
 	logUnified.Printf("Tool registration complete: total tools=%d", len(us.tools))
 	return nil
 }
@@ -148,13 +171,11 @@ func (us *UnifiedServer) registerAllToolsParallel(serverIDs []string) error {
 
 	// Collect and log results
 	successCount := 0
-	failureCount := 0
-	var failedServers []string
+	errs := &registrationErrors{total: len(serverIDs)}
 	for result := range results {
 		if result.err != nil {
 			logger.LogErrorToServer(result.serverID, "backend", "Failed to register tools from %s (took %v): %v", result.serverID, result.duration, result.err)
-			failureCount++
-			failedServers = append(failedServers, result.serverID)
+			errs.record(result.serverID)
 		} else {
 			logUnified.Printf("Successfully registered tools from %s (took %v)", result.serverID, result.duration)
 			logger.LogInfoToServer(result.serverID, "backend", "Successfully registered tools from %s (took %v)", result.serverID, result.duration)
@@ -162,12 +183,9 @@ func (us *UnifiedServer) registerAllToolsParallel(serverIDs []string) error {
 		}
 	}
 
-	if failureCount > 0 {
-		logger.LogError("backend", "Tool registration incomplete: %d of %d backends failed: %v — agents will not see tools from these servers",
-			failureCount, len(serverIDs), failedServers)
-	}
+	errs.finish()
 
-	logger.LogInfo("backend", "Tool registration complete: %d succeeded, %d failed, total tools=%d", successCount, failureCount, len(us.tools))
+	logger.LogInfo("backend", "Tool registration complete: %d succeeded, %d failed, total tools=%d", successCount, len(errs.failed), len(us.tools))
 	return nil
 }
 
@@ -350,19 +368,16 @@ func (us *UnifiedServer) registerSysTool(name, description string, inputSchema m
 	us.toolsMu.Unlock()
 }
 
-// callSysServer is a helper that calls a sys tool by marshaling the tool name,
-// delegating to sysServer.HandleRequest, and returning the result.
-// This consolidates the common pattern used by sys tool handlers.
+// callSysServer is a helper that directly dispatches sys tools to SysServer.
 func (us *UnifiedServer) callSysServer(toolName string) (interface{}, error) {
-	params, _ := json.Marshal(map[string]interface{}{
-		"name":      toolName,
-		"arguments": map[string]interface{}{},
-	})
-	result, err := us.sysServer.HandleRequest("tools/call", json.RawMessage(params))
-	if err != nil {
-		return nil, err
+	switch toolName {
+	case "sys_init":
+		return us.sysServer.SysInit()
+	case "sys_list_servers":
+		return us.sysServer.ListServers()
+	default:
+		return nil, fmt.Errorf("unknown tool: %s", toolName)
 	}
-	return result, nil
 }
 
 func (us *UnifiedServer) callAndLogSysTool(sessionID, operationName, sysToolName string) (*sdk.CallToolResult, interface{}, error) {
@@ -378,48 +393,6 @@ func (us *UnifiedServer) callAndLogSysTool(sessionID, operationName, sysToolName
 
 // registerSysTools registers built-in sys tools
 func (us *UnifiedServer) registerSysTools() error {
-	// Create sys_init handler
-	sysInitHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
-		// Extract arguments from the request params
-		toolArgs, err := mcp.ParseToolArguments(req)
-		if err != nil {
-			logger.LogError("client", "Failed to unmarshal sys_init arguments, error=%v", err)
-			return mcp.NewErrorCallToolResult(err)
-		}
-
-		// Extract token from args
-		token := ""
-		if t, ok := toolArgs["token"].(string); ok {
-			token = t
-		}
-
-		// Get session ID from context
-		sessionID := us.getSessionID(ctx)
-		if sessionID == "" {
-			logger.LogError("client", "MCP session initialization failed: no session ID provided")
-			return mcp.NewErrorCallToolResult(fmt.Errorf("no session ID provided"))
-		}
-
-		logger.LogInfo("client", "MCP session initialization started, session=%s, has_token=%v", sessionID, token != "")
-
-		// Create session
-		us.sessionMu.Lock()
-		us.sessions[sessionID] = NewSession(sessionID, token)
-		us.sessionMu.Unlock()
-
-		// Ensure session directory exists in payload mount point
-		if err := us.ensureSessionDirectory(sessionID); err != nil {
-			logger.LogWarn("client", "Failed to create session directory for session=%s: %v", sessionID, err)
-			// Don't fail session initialization if directory creation fails
-			// Payloads will attempt to create the directory when needed
-		}
-
-		logger.LogInfo("client", "MCP session initialized successfully, session=%s, available_servers=%v", sessionID, us.launcher.ServerIDs())
-
-		// Call sys_init
-		return us.callAndLogSysTool(sessionID, "session initialization", "sys_init")
-	}
-
 	// Register sys_init tool using helper
 	us.registerSysTool(
 		"sys___init",
@@ -433,22 +406,8 @@ func (us *UnifiedServer) registerSysTools() error {
 				},
 			},
 		},
-		sysInitHandler,
+		us.sysInitHandler,
 	)
-
-	// Create sys_list_servers handler
-	sysListHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
-		sessionID := us.getSessionID(ctx)
-		logger.LogInfo("client", "MCP sys_list_servers request, session=%s", sessionID)
-
-		// Check session is initialized
-		if err := us.requireSession(ctx); err != nil {
-			logger.LogError("client", "MCP sys_list_servers failed: session not initialized, session=%s", sessionID)
-			return mcp.NewErrorCallToolResult(err)
-		}
-
-		return us.callAndLogSysTool(sessionID, "sys_list_servers", "sys_list_servers")
-	}
 
 	// Register sys_list_servers tool using helper
 	us.registerSysTool(
@@ -458,7 +417,7 @@ func (us *UnifiedServer) registerSysTools() error {
 			"type":       "object",
 			"properties": map[string]interface{}{},
 		},
-		sysListHandler,
+		us.sysListServersHandler,
 	)
 
 	logUnified.Printf("Registered 2 sys tools")

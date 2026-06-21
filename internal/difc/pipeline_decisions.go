@@ -4,6 +4,45 @@ import "github.com/github/gh-aw-mcpg/internal/logger"
 
 var logPipeline = logger.New("difc:pipeline_decisions")
 
+// CoarseCheckOutcome is the typed result of a Phase 2 coarse-grained access check.
+type CoarseCheckOutcome int
+
+const (
+	// CoarseAllowed means the access is permitted by the coarse-grained check.
+	CoarseAllowed CoarseCheckOutcome = iota
+	// CoarseBypassForRead means the coarse check would deny, but the operation is
+	// a read so the pipeline should continue to Phase 5 fine-grained filtering.
+	CoarseBypassForRead
+	// CoarseDenied means access is blocked.
+	CoarseDenied
+)
+
+// EvaluateCoarseAccess runs Phase 2 of the DIFC pipeline: it evaluates the
+// coarse-grained access check and classifies the outcome as CoarseAllowed,
+// CoarseBypassForRead, or CoarseDenied. The underlying EvaluationResult is
+// returned so callers can use the Reason field and other details when
+// formulating their denial response (MCP error vs HTTP 403).
+func EvaluateCoarseAccess(
+	evaluator *Evaluator,
+	agentSecrecy *SecrecyLabel,
+	agentIntegrity *IntegrityLabel,
+	resource *LabeledResource,
+	operation OperationType,
+) (CoarseCheckOutcome, *EvaluationResult) {
+	logPipeline.Printf("EvaluateCoarseAccess: operation=%s, resource=%s", operation, resource.Description)
+	result := evaluator.Evaluate(agentSecrecy, agentIntegrity, resource, operation)
+	if result.IsAllowed() {
+		logPipeline.Printf("EvaluateCoarseAccess: outcome=allowed, operation=%s", operation)
+		return CoarseAllowed, result
+	}
+	if ShouldBypassCoarseDeny(operation) {
+		logPipeline.Printf("EvaluateCoarseAccess: outcome=bypass-for-read, operation=%s", operation)
+		return CoarseBypassForRead, result
+	}
+	logPipeline.Printf("EvaluateCoarseAccess: outcome=denied, operation=%s, reason=%s", operation, result.Reason)
+	return CoarseDenied, result
+}
+
 // ShouldBypassCoarseDeny returns true when a coarse-grained deny should still
 // proceed to backend execution so Phase 5 can enforce per-item policy.
 func ShouldBypassCoarseDeny(operation OperationType) bool {
@@ -27,6 +66,58 @@ func ShouldBlockFilteredResponse(enforcementMode EnforcementMode, filteredCount 
 	result := enforcementMode == EnforcementStrict && filteredCount > 0
 	logPipeline.Printf("ShouldBlockFilteredResponse: mode=%s, filteredCount=%d, block=%t", enforcementMode, filteredCount, result)
 	return result
+}
+
+// FilterResult describes the outcome of Phase 5 fine-grained filtering.
+type FilterResult struct {
+	// FinalResult is the converted result from the filtered/labeled data.
+	// It is nil when labeledData is nil or when Blocked is true.
+	FinalResult interface{}
+
+	// Filtered is populated only when labeledData is a collection and collection
+	// filtering was performed.
+	Filtered *FilteredCollectionLabeledData
+
+	// Blocked indicates strict mode blocking due to filtered items.
+	Blocked bool
+}
+
+// FilterAndConvertLabeledData runs Phase 5 fine-grained filtering and converts
+// labeled data to a result while centralizing strict-mode blocking decisions.
+func FilterAndConvertLabeledData(
+	evaluator *Evaluator,
+	agentSecrecy *SecrecyLabel,
+	agentIntegrity *IntegrityLabel,
+	operation OperationType,
+	labeledData LabeledData,
+	enforcementMode EnforcementMode,
+) (*FilterResult, error) {
+	result := &FilterResult{}
+	if labeledData == nil {
+		return result, nil
+	}
+
+	if collection, ok := labeledData.(*CollectionLabeledData); ok {
+		filtered := evaluator.FilterCollection(agentSecrecy, agentIntegrity, collection, operation)
+		result.Filtered = filtered
+		if ShouldBlockFilteredResponse(enforcementMode, filtered.GetFilteredCount()) {
+			result.Blocked = true
+			return result, nil
+		}
+		finalResult, err := filtered.ToResult()
+		if err != nil {
+			return nil, err
+		}
+		result.FinalResult = finalResult
+		return result, nil
+	}
+
+	finalResult, err := labeledData.ToResult()
+	if err != nil {
+		return nil, err
+	}
+	result.FinalResult = finalResult
+	return result, nil
 }
 
 // ShouldAccumulateReadLabels returns true when read labels should be

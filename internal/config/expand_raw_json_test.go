@@ -407,7 +407,7 @@ func TestExpandRawJSONVariables_RealWorldConfig(t *testing.T) {
 			"gateway": {
 				"port": 3000,
 				"domain": "${MCP_GATEWAY_DOMAIN}",
-				"apiKey": "secret-key"
+				"agentId": "secret-key"
 			}
 		}`
 

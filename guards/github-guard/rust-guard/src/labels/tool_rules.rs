@@ -5,17 +5,18 @@
 
 use serde_json::Value;
 
-use std::borrow::Cow;
-use super::constants::{field_names, scope_names, SENSITIVE_FILE_KEYWORDS, SENSITIVE_FILE_PATTERNS};
-use super::helpers::{
-    author_association_floor_from_str,
-    elevate_via_collaborator_permission, ensure_integrity_baseline,
-    extract_number_as_string, extract_repo_info, extract_repo_info_from_search_query,
-    format_repo_id, is_any_trusted_actor, is_default_branch_commit_context,
-    is_default_branch_ref, max_integrity,
-    merged_integrity, policy_private_scope_label, private_user_label, project_github_label,
-    reader_integrity, writer_integrity, PolicyContext,
+use super::constants::{
+    field_names, scope_names, SENSITIVE_FILE_KEYWORDS, SENSITIVE_FILE_PATTERNS,
 };
+use super::helpers::{
+    author_association_floor_from_str, elevate_via_collaborator_permission,
+    ensure_integrity_baseline, extract_number_as_string, extract_repo_info_from_search_query,
+    format_repo_id, get_string_field, is_any_trusted_actor, is_default_branch_commit_context,
+    is_default_branch_ref, max_integrity, merged_integrity, policy_private_scope_label,
+    private_user_label, project_github_label, reader_integrity, short_sha, writer_integrity,
+    PolicyContext,
+};
+use std::borrow::Cow;
 
 fn apply_repo_visibility_secrecy(
     owner: &str,
@@ -59,11 +60,7 @@ fn private_writer_integrity(
 ///
 /// Extracts the repo scope from the search query first; if the query lacks a
 /// `repo:` qualifier, falls back to the `owner`/`repo` fields in `tool_args`.
-fn resolve_search_scope(
-    tool_args: &Value,
-    owner: &str,
-    repo: &str,
-) -> (String, String, String) {
+fn resolve_search_scope(tool_args: &Value, owner: &str, repo: &str) -> (String, String, String) {
     let query = tool_args
         .get("query")
         .and_then(|v| v.as_str())
@@ -72,7 +69,11 @@ fn resolve_search_scope(
     if !q_repo_id.is_empty() {
         (q_owner, q_repo, q_repo_id)
     } else if !owner.is_empty() && !repo.is_empty() {
-        (owner.to_string(), repo.to_string(), format_repo_id(owner, repo))
+        (
+            owner.to_string(),
+            repo.to_string(),
+            format_repo_id(owner, repo),
+        )
     } else {
         (String::new(), String::new(), String::new())
     }
@@ -101,7 +102,12 @@ fn resolve_author_integrity(
         }
         let resource_id = format!("{}/{}#{}", owner, repo, resource_num);
         floor = elevate_via_collaborator_permission(
-            login, repo_id, resource_label, &resource_id, floor, ctx,
+            login,
+            repo_id,
+            resource_label,
+            &resource_id,
+            floor,
+            ctx,
         );
     }
 
@@ -122,7 +128,8 @@ pub fn apply_tool_labels(
     mut desc: String,
     ctx: &PolicyContext,
 ) -> (Vec<String>, Vec<String>, String) {
-    let (owner, repo, _) = extract_repo_info(tool_args);
+    let owner = get_string_field(tool_args, field_names::OWNER);
+    let repo = get_string_field(tool_args, field_names::REPO);
     let mut baseline_scope: Cow<'_, str> = Cow::Borrowed(repo_id);
     let repo_private = if owner.is_empty() || repo.is_empty() {
         None
@@ -291,7 +298,7 @@ pub fn apply_tool_labels(
             // S(commit) = S(repo)
             if !owner.is_empty() && !repo.is_empty() {
                 if let Some(sha) = tool_args.get(field_names::SHA).and_then(|v| v.as_str()) {
-                    let short_sha = if sha.len() > 8 { &sha[..8] } else { sha };
+                    let short_sha = short_sha(sha);
                     desc = format!("commit:{}/{}@{}", owner, repo, short_sha);
                 }
             }
@@ -319,32 +326,26 @@ pub fn apply_tool_labels(
             };
         }
 
-        // === Security: Secret Scanning ===
-        "list_secret_scanning_alerts" | "get_secret_scanning_alert" => {
-            // S(alert) = private:owner/repo - alerts may contain actual secret values
-            // Treated as private regardless of repo visibility (secrets in public repos are still sensitive)
-            // I(alert) = approved - automated detection
-            secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Security: Code Scanning & Dependabot ===
-        "list_code_scanning_alerts"
+        // === Security-sensitive data: always private regardless of repo visibility ===
+        // Covers: secret scanning alerts (may contain actual secret values), code scanning
+        // and Dependabot alerts (security findings), and Actions job logs (may contain
+        // accidentally-printed CI tokens). All are private:repo + writer integrity.
+        "list_secret_scanning_alerts"
+        | "get_secret_scanning_alert"
+        | "list_code_scanning_alerts"
         | "get_code_scanning_alert"
         | "list_dependabot_alerts"
-        | "get_dependabot_alert" => {
-            // S(alert) = private:repo - security findings are sensitive
-            // I(alert) = approved - tool output, not user-controlled
+        | "get_dependabot_alert"
+        | "get_job_logs" => {
             secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
             integrity = writer_integrity(repo_id, ctx);
         }
 
-        // === Actions: Job Logs ===
-        "get_job_logs" => {
-            // Job logs may contain CI secrets (e.g. accidentally printed tokens) even in public repos.
-            // Always treat as private regardless of repository visibility.
-            // S(logs) = private:owner/repo; I(logs) = approved (system-generated output)
-            secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
+        // === Code quality findings (repo-scoped) ===
+        // S = S(repo) — inherits from repository visibility
+        // I = writer (requires repo write access to post/view code quality findings)
+        "get_code_quality_finding" => {
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             integrity = writer_integrity(repo_id, ctx);
         }
 
@@ -360,6 +361,32 @@ pub fn apply_tool_labels(
                 secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             }
             integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === UI metadata dispatch (repo/org-scoped, method-dependent) ===
+        // Mirrors existing rules for list_label, list_branches, list_issue_types,
+        // list_issue_fields, and list_repository_collaborators.
+        "ui_get" => {
+            let method = tool_args.get("method").and_then(|v| v.as_str()).unwrap_or("");
+            match method {
+                // Repo-scoped metadata: labels, milestones, branches
+                // S = S(repo); I = writer
+                "labels" | "milestones" | "branches" => {
+                    secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+                    integrity = writer_integrity(repo_id, ctx);
+                }
+                "issue_types" | "issue_fields" => {
+                    baseline_scope = Cow::Borrowed(scope_names::GITHUB);
+                    integrity = project_github_label(ctx);
+                }
+                // Access-sensitive membership/reviewer data
+                // S = private policy scope; I = reader
+                "assignees" | "reviewers" => {
+                    secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
+                    integrity = reader_integrity(repo_id, ctx);
+                }
+                _ => {}
+            }
         }
 
         // === Repo-scoped resources: visibility-inherited secrecy, approved integrity ===
@@ -394,7 +421,7 @@ pub fn apply_tool_labels(
         }
 
         // === Content Access ===
-        "get_file_contents" => {
+        "get_file_contents" | "get_file_blame" => {
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             // File secrecy based on path patterns
             if let Some(path) = tool_args.get("path").and_then(|v| v.as_str()) {
@@ -408,34 +435,13 @@ pub fn apply_tool_labels(
             };
         }
 
-        // === Code Search ===
-        "search_code" => {
-            // Code search can expose private code
-            // S(code) = inherits from repo secrecy
-            // I(code) = approved - code from repository
+        // === Code / Commit Search ===
+        "search_code" | "search_commits" => {
+            // Repo-scoped search reads. Resolve scope from query repo qualifier first,
+            // then fall back to tool_args owner/repo.
             let (s_owner, s_repo, s_repo_id) = resolve_search_scope(tool_args, &owner, &repo);
             if !s_repo_id.is_empty() {
-                desc = format!("search_code:{}", s_repo_id);
-                secrecy =
-                    apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
-                integrity = writer_integrity(&s_repo_id, ctx);
-                baseline_scope = Cow::Owned(s_repo_id);
-            } else {
-                secrecy =
-                    apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-                integrity = writer_integrity(repo_id, ctx);
-            }
-        }
-
-        // === Commit Search ===
-        "search_commits" => {
-            // Commit search can expose private commit history
-            // S(commits) = inherits from repo secrecy
-            // I(commits) = writer-level integrity for the resolved repository scope,
-            // mirroring other repo-scoped search reads (for example, search_code)
-            let (s_owner, s_repo, s_repo_id) = resolve_search_scope(tool_args, &owner, &repo);
-            if !s_repo_id.is_empty() {
-                desc = format!("search_commits:{}", s_repo_id);
+                desc = format!("{}:{}", tool_name, s_repo_id);
                 secrecy =
                     apply_repo_visibility_secrecy(&s_owner, &s_repo, &s_repo_id, secrecy, ctx);
                 integrity = writer_integrity(&s_repo_id, ctx);
@@ -443,9 +449,6 @@ pub fn apply_tool_labels(
             } else {
                 secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
                 integrity = writer_integrity(repo_id, ctx);
-                if !repo_id.is_empty() {
-                    baseline_scope = Cow::Borrowed(repo_id);
-                }
             }
         }
 
@@ -460,7 +463,13 @@ pub fn apply_tool_labels(
         "list_issue_types" => {
             // Org-level issue types
             // S = inherits from org
-            // I = project:org - maintained by org admins
+            // I = approved:github (GitHub-global approved integrity via project_github_label)
+            integrity = project_github_label(ctx);
+        }
+        "list_issue_fields" => {
+            // Org-level custom issue field definitions (field names/types/allowed values)
+            // S = inherits from org
+            // I = approved:github (GitHub-global approved integrity via project_github_label)
             integrity = project_github_label(ctx);
         }
 
@@ -559,34 +568,27 @@ pub fn apply_tool_labels(
             integrity = writer_integrity(repo_id, ctx);
         }
 
-        // === Issue/PR write operations (repo-scoped) ===
-        "create_issue" | "issue_write" | "sub_issue_write" | "add_issue_comment"
-        | "create_pull_request" | "create_pull_request_with_copilot"
-        | "update_pull_request" | "merge_pull_request"
-        | "pull_request_review_write" | "add_comment_to_pending_review"
-        | "add_reply_to_pull_request_comment" => {
-            // Write operations that return the created/modified resource.
-            // S = S(repo) — response contains repo-scoped content
-            // I = writer (agent-authored content)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Discussion comment write (repo-scoped) ===
-        "discussion_comment_write" => {
-            // Creates or edits GitHub Discussion comments via GraphQL mutations
-            // (addDiscussionComment / updateDiscussionComment).
-            // S = S(repo) — response contains repo-scoped content
-            // I = writer (agent-authored content)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Granular repo-scoped write operations ===
-        // Covers granular issue mutation tools (including custom field mutations),
-        // sub-issue management, granular PR mutation tools, and PR review tools.
-        // All follow: S = S(repo), I = writer.
-        "update_issue_assignees"
+        // === Repo-scoped write operations ===
+        // All listed tools follow: S = S(repo), I = writer.
+        // Issue/PR writes
+        "create_issue"
+        | "issue_write"
+        | "issue_write_ff_remote_mcp_issue_fields"
+        | "sub_issue_write"
+        | "add_issue_comment"
+        | "create_pull_request"
+        | "create_pull_request_with_copilot"
+        | "update_pull_request"
+        | "merge_pull_request"
+        | "pull_request_review_write"
+        | "add_comment_to_pending_review"
+        | "add_reply_to_pull_request_comment"
+        // Discussion
+        | "discussion_comment_write"
+        | "create_discussion" // gh discussion create — creates a discussion in a repository
+        | "edit_discussion" // gh discussion edit   — edits title/body/labels of a discussion
+        // Granular issue mutation
+        | "update_issue_assignees"
         | "update_issue_body"
         | "update_issue_labels"
         | "update_issue_milestone"
@@ -594,30 +596,55 @@ pub fn apply_tool_labels(
         | "update_issue_title"
         | "update_issue_type"
         | "set_issue_fields"
+        // Sub-issues
         | "add_sub_issue"
         | "remove_sub_issue"
         | "reprioritize_sub_issue"
+        // Granular PR mutation
         | "update_pull_request_body"
         | "update_pull_request_draft_state"
         | "update_pull_request_state"
         | "update_pull_request_title"
+        // PR reviews
         | "add_pull_request_review_comment"
         | "create_pull_request_review"
         | "delete_pending_pull_request_review"
         | "request_pull_request_reviewers"
         | "resolve_review_thread"
         | "submit_pending_pull_request_review"
-        | "unresolve_review_thread" => {
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Repo content and structure write operations ===
-        "create_or_update_file" | "push_files" | "delete_file" | "create_branch"
-        | "update_pull_request_branch" => {
-            // Write operations that modify repo content/structure.
-            // S = S(repo) — response references repo-scoped content
-            // I = writer (agent-authored content)
+        | "unresolve_review_thread"
+        // Repo content/structure
+        | "create_or_update_file"
+        | "push_files"
+        | "delete_file"
+        | "create_branch"
+        | "update_pull_request_branch"
+        // Labels, Actions, workflow management ("run_workflow" and "delete_workflow_run_logs" are deprecated aliases for "actions_run_trigger")
+        | "label_write"
+        | "actions_run_trigger"
+        | "run_workflow"
+        | "delete_workflow_run_logs"
+        | "delete_workflow_run"
+        | "cancel_workflow_run"
+        | "force_cancel_workflow_run"
+        | "rerun_workflow_run"
+        | "rerun_failed_jobs"
+        | "rerun_workflow_job"
+        // Copilot / repo settings / revert
+        | "assign_copilot_to_issue"
+        | "request_copilot_review"
+        | "edit_repository"
+        | "revert_pull_request"
+        // Pre-emptive: issue deletion, issue comments, repository deletion, releases
+        | "delete_issue"
+        | "update_issue_comment"
+        | "delete_issue_comment"
+        | "delete_repository"
+        | "create_release"
+        | "edit_release"
+        | "delete_release"
+        | "delete_release_asset"
+        | "upload_release_asset" => {
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             integrity = writer_integrity(repo_id, ctx);
         }
@@ -634,43 +661,21 @@ pub fn apply_tool_labels(
         // === Projects write operations (org-scoped) ===
         "projects_write"
         // Deprecated aliases that map to projects_write
-        | "add_project_item" | "update_project_item" | "delete_project_item" => {
+        | "add_project_item"
+        | "update_project_item"
+        | "delete_project_item"
+        // Synthetic CLI-only coverage for additional Projects v2 mutations
+        | "copy_project"
+        | "delete_project"
+        | "link_project"
+        | "unlink_project"
+        | "update_project" => {
             // Projects are org-scoped; write responses carry the same labels as reads.
             // I = approved:<owner>
             if !owner.is_empty() {
                 baseline_scope = Cow::Borrowed(owner.as_str());
                 integrity = writer_integrity(&baseline_scope, ctx);
             }
-        }
-
-        // === Label write operations (repo-scoped) ===
-        "label_write" => {
-            // Label creates/updates/deletes return repo-scoped content.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Actions: Workflow run triggers ===
-        "actions_run_trigger"
-        // Deprecated aliases that map to actions_run_trigger
-        | "run_workflow" | "delete_workflow_run_logs" => {
-            // Triggering a workflow run returns repo-scoped metadata.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Actions: Workflow run cancel/rerun ===
-        "cancel_workflow_run"
-        | "force_cancel_workflow_run"
-        | "rerun_workflow_run"
-        | "rerun_failed_jobs"
-        | "rerun_workflow_job" => {
-            // These modify workflow run state; repo-scoped write.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
         }
 
         // === Copilot coding-agent task (blocked: unsupported agent operation) ===
@@ -682,30 +687,6 @@ pub fn apply_tool_labels(
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
         }
 
-        // === Copilot agent operations (repo-scoped) ===
-        "assign_copilot_to_issue" | "request_copilot_review" => {
-            // Copilot assignment/review requests return repo-scoped content.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Repository settings edit (can change visibility) ===
-        "edit_repository" => {
-            // Can change repo visibility, security settings, default branch.
-            // S = S(repo); I = writer (requires admin access)
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === PR revert (creates revert branch + PR) ===
-        "revert_pull_request" => {
-            // Creates a new branch + PR reverting a merged PR.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
         // === Deploy key management (SSH key with optional write access) ===
         "add_deploy_key" | "delete_deploy_key" => {
             // Manages SSH deploy keys — `add_deploy_key` may grant persistent write access.
@@ -713,6 +694,21 @@ pub fn apply_tool_labels(
             // I = writer (requires admin access)
             secrecy = policy_private_scope_label(&owner, &repo, repo_id, ctx);
             integrity = writer_integrity(repo_id, ctx);
+        }
+
+        // === User SSH/GPG key management (account-scoped writes) ===
+        // Pre-emptive synthetic guard entries for CLI-only operations:
+        //   `gh ssh-key add`  → POST /user/keys and /user/ssh_signing_keys
+        //   `gh ssh-key delete` → DELETE /user/keys/{id}
+        //   `gh gpg-key add`  → POST /user/gpg_keys
+        //   `gh gpg-key delete` → DELETE /user/gpg_keys/{id}
+        // Managing auth/signing keys is a high-risk account-level write operation.
+        // S = private:user (user-account-scoped sensitive data)
+        // I = writer(user) (requires authenticated account write access)
+        "add_gpg_key" | "add_ssh_key" | "delete_gpg_key" | "delete_ssh_key" => {
+            secrecy = private_user_label();
+            baseline_scope = Cow::Borrowed(scope_names::USER);
+            integrity = writer_integrity(scope_names::USER, ctx);
         }
 
         // === Dynamic toolset enablement (capability expansion) ===
@@ -732,22 +728,6 @@ pub fn apply_tool_labels(
             secrecy = vec![];
             baseline_scope = Cow::Borrowed(scope_names::GITHUB);
             integrity = project_github_label(ctx);
-        }
-
-        // === Issue/PR comment editing/deletion (pre-emptive) ===
-        "update_issue_comment" | "delete_issue_comment" => {
-            // Editing or deleting an issue/PR comment is a repo-scoped write.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        // === Release management (pre-emptive) ===
-        "create_release" | "edit_release" | "delete_release" => {
-            // Release operations are repo-scoped writes.
-            // S = S(repo); I = writer
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
         }
 
         // === Gist deletion (pre-emptive) ===
@@ -787,45 +767,28 @@ fn check_file_secrecy(
     ctx: &PolicyContext,
 ) -> Vec<String> {
     let path_lower = path.to_lowercase();
-
-    // Check for sensitive file extensions/names
-    if SENSITIVE_FILE_PATTERNS
-        .iter()
-        .any(|pattern| path_lower.ends_with(pattern))
-    {
-        return policy_private_scope_label(owner, repo, repo_id, ctx);
-    }
-
-    if path_lower.split('/').any(|seg| {
-        SENSITIVE_FILE_PATTERNS
-            .iter()
-            .any(|pattern| seg.starts_with(*pattern))
-    }) {
-        return policy_private_scope_label(owner, repo, repo_id, ctx);
-    }
-
-    // Get filename
     let filename = path_lower.rsplit('/').next().unwrap_or(&path_lower);
 
-    // Check for sensitive keywords in filename
-    for keyword in SENSITIVE_FILE_KEYWORDS {
-        if filename.contains(keyword) {
-            return policy_private_scope_label(owner, repo, repo_id, ctx);
-        }
-    }
+    let is_sensitive = SENSITIVE_FILE_PATTERNS
+        .iter()
+        .any(|p| path_lower.ends_with(p))
+        || path_lower
+            .split('/')
+            .any(|seg| SENSITIVE_FILE_PATTERNS.iter().any(|p| seg.starts_with(*p)))
+        || SENSITIVE_FILE_KEYWORDS.iter().any(|k| filename.contains(k))
+        || path_lower.starts_with(".github/workflows/");
 
-    // Workflow files may contain secrets
-    if path_lower.starts_with(".github/workflows/") {
-        return policy_private_scope_label(owner, repo, repo_id, ctx);
+    if is_sensitive {
+        policy_private_scope_label(owner, repo, repo_id, ctx)
+    } else {
+        default_secrecy
     }
-
-    default_secrecy
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::helpers::PolicyContext;
+    use super::*;
 
     fn default_ctx() -> PolicyContext {
         PolicyContext::default()
@@ -838,64 +801,151 @@ mod tests {
     #[test]
     fn check_file_secrecy_env_file_triggers_private() {
         let ctx = default_ctx();
-        let result = check_file_secrecy(".env", vec![], "octocat", "hello-world", "octocat/hello-world", &ctx);
-        assert_eq!(result, private_label("octocat", "hello-world", "octocat/hello-world", &ctx));
+        let result = check_file_secrecy(
+            ".env",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx)
+        );
     }
 
     #[test]
     fn check_file_secrecy_dotenv_extension_triggers_private() {
         let ctx = default_ctx();
-        let result = check_file_secrecy("deploy/config.env", vec![], "octocat", "hello-world", "octocat/hello-world", &ctx);
-        assert_eq!(result, private_label("octocat", "hello-world", "octocat/hello-world", &ctx));
+        let result = check_file_secrecy(
+            "deploy/config.env",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx)
+        );
     }
 
     #[test]
     fn check_file_secrecy_pem_file_triggers_private() {
         let ctx = default_ctx();
-        let result = check_file_secrecy("certs/server.pem", vec![], "octocat", "hello-world", "octocat/hello-world", &ctx);
-        assert_eq!(result, private_label("octocat", "hello-world", "octocat/hello-world", &ctx));
+        let result = check_file_secrecy(
+            "certs/server.pem",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx)
+        );
     }
 
     #[test]
     fn check_file_secrecy_rsa_key_triggers_private() {
         let ctx = default_ctx();
-        let result = check_file_secrecy(".ssh/id_rsa", vec![], "octocat", "hello-world", "octocat/hello-world", &ctx);
-        assert_eq!(result, private_label("octocat", "hello-world", "octocat/hello-world", &ctx));
+        let result = check_file_secrecy(
+            ".ssh/id_rsa",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx)
+        );
     }
 
     #[test]
     fn check_file_secrecy_workflow_file_triggers_private() {
         let ctx = default_ctx();
-        let result = check_file_secrecy(".github/workflows/ci.yml", vec![], "octocat", "hello-world", "octocat/hello-world", &ctx);
-        assert_eq!(result, private_label("octocat", "hello-world", "octocat/hello-world", &ctx));
+        let result = check_file_secrecy(
+            ".github/workflows/ci.yml",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx)
+        );
     }
 
     #[test]
     fn check_file_secrecy_secrets_json_triggers_private() {
         let ctx = default_ctx();
-        let result = check_file_secrecy("config/secrets.json", vec![], "octocat", "hello-world", "octocat/hello-world", &ctx);
-        assert_eq!(result, private_label("octocat", "hello-world", "octocat/hello-world", &ctx));
+        let result = check_file_secrecy(
+            "config/secrets.json",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx)
+        );
     }
 
     #[test]
     fn check_file_secrecy_password_file_triggers_private() {
         let ctx = default_ctx();
-        let result = check_file_secrecy("db_password.txt", vec![], "octocat", "hello-world", "octocat/hello-world", &ctx);
-        assert_eq!(result, private_label("octocat", "hello-world", "octocat/hello-world", &ctx));
+        let result = check_file_secrecy(
+            "db_password.txt",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx)
+        );
     }
 
     #[test]
     fn check_file_secrecy_token_file_triggers_private() {
         let ctx = default_ctx();
-        let result = check_file_secrecy("auth_token", vec![], "octocat", "hello-world", "octocat/hello-world", &ctx);
-        assert_eq!(result, private_label("octocat", "hello-world", "octocat/hello-world", &ctx));
+        let result = check_file_secrecy(
+            "auth_token",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx)
+        );
     }
 
     #[test]
     fn check_file_secrecy_normal_source_file_returns_default() {
         let ctx = default_ctx();
         let default = vec!["private:octocat/hello-world".to_string()];
-        let result = check_file_secrecy("src/main.rs", default.clone(), "octocat", "hello-world", "octocat/hello-world", &ctx);
+        let result = check_file_secrecy(
+            "src/main.rs",
+            default.clone(),
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
         assert_eq!(result, default);
     }
 
@@ -903,7 +953,14 @@ mod tests {
     fn check_file_secrecy_readme_returns_default() {
         let ctx = default_ctx();
         let default = vec!["private:octocat/hello-world".to_string()];
-        let result = check_file_secrecy("README.md", default.clone(), "octocat", "hello-world", "octocat/hello-world", &ctx);
+        let result = check_file_secrecy(
+            "README.md",
+            default.clone(),
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
         assert_eq!(result, default);
     }
 
@@ -911,16 +968,36 @@ mod tests {
     fn check_file_secrecy_case_insensitive_env() {
         let ctx = default_ctx();
         // .ENV (uppercase) should still match
-        let result = check_file_secrecy("config/.ENV", vec![], "octocat", "hello-world", "octocat/hello-world", &ctx);
-        assert_eq!(result, private_label("octocat", "hello-world", "octocat/hello-world", &ctx));
+        let result = check_file_secrecy(
+            "config/.ENV",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx)
+        );
     }
 
     #[test]
     fn check_file_secrecy_case_insensitive_keyword() {
         let ctx = default_ctx();
         // SECRET (uppercase) in filename should match keyword check
-        let result = check_file_secrecy("MY_SECRET_KEY", vec![], "octocat", "hello-world", "octocat/hello-world", &ctx);
-        assert_eq!(result, private_label("octocat", "hello-world", "octocat/hello-world", &ctx));
+        let result = check_file_secrecy(
+            "MY_SECRET_KEY",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx)
+        );
     }
 
     #[test]
@@ -939,11 +1016,160 @@ mod tests {
         let _ = secrecy; // secrecy inherits from repo visibility (backend unavailable in tests)
         let expected_writer_integrity = writer_integrity("octocat/hello-world", &ctx);
         // integrity must be writer-level (non-empty)
-        assert!(!integrity.is_empty(), "discussion_comment_write must produce writer-level integrity");
+        assert!(
+            !integrity.is_empty(),
+            "discussion_comment_write must produce writer-level integrity"
+        );
         assert!(
             integrity.iter().any(|l| expected_writer_integrity.contains(l)),
             "discussion_comment_write integrity must contain a writer-level approved label, got: {:?}",
             integrity
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_create_and_edit_discussion_are_repo_scoped_writes() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({"owner": "octocat", "repo": "hello-world"});
+        let repo_id = "octocat/hello-world";
+        let expected_writer_integrity = writer_integrity(repo_id, &ctx);
+        for op in &["create_discussion", "edit_discussion"] {
+            let (secrecy, integrity, _) =
+                super::apply_tool_labels(op, &args, repo_id, vec![], vec![], String::new(), &ctx);
+            let _ = secrecy; // secrecy inherits from repo visibility (backend unavailable in tests)
+            assert!(
+                !integrity.is_empty(),
+                "{op} must produce writer-level integrity"
+            );
+            assert!(
+                integrity
+                    .iter()
+                    .any(|l| expected_writer_integrity.contains(l)),
+                "{op} integrity must contain a writer-level approved label, got: {:?}",
+                integrity
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_issue_comment_edit_delete_is_repo_scoped_write() {
+        let ctx = default_ctx();
+        let tool_args =
+            serde_json::json!({ "owner": "github", "repo": "copilot", "comment_id": 42 });
+        let repo_id = "github/copilot";
+
+        for op in &["update_issue_comment", "delete_issue_comment"] {
+            let (secrecy, integrity, _desc) = super::apply_tool_labels(
+                op,
+                &tool_args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{op} must have writer integrity"
+            );
+            assert!(
+                secrecy.is_empty(),
+                "{op}: public repo should have empty secrecy"
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_issue_write_ff_matches_issue_write() {
+        let ctx = default_ctx();
+        let tool_args =
+            serde_json::json!({ "owner": "github", "repo": "copilot", "issue_number": 42 });
+        let repo_id = "github/copilot";
+
+        let issue_write_labels = super::apply_tool_labels(
+            "issue_write",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        let issue_write_ff_labels = super::apply_tool_labels(
+            "issue_write_ff_remote_mcp_issue_fields",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(
+            issue_write_ff_labels, issue_write_labels,
+            "issue_write FF variant must match issue_write labels and description"
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_release_management_is_repo_scoped_write() {
+        let ctx = default_ctx();
+        let tool_args =
+            serde_json::json!({ "owner": "github", "repo": "copilot", "tag_name": "v1.0.0" });
+        let repo_id = "github/copilot";
+
+        for op in &[
+            "create_release",
+            "edit_release",
+            "delete_release",
+            "delete_release_asset",
+            "upload_release_asset",
+        ] {
+            let (secrecy, integrity, _desc) = super::apply_tool_labels(
+                op,
+                &tool_args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{op} must have writer integrity"
+            );
+            assert!(
+                secrecy.is_empty(),
+                "{op}: public repo should have empty secrecy"
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_delete_workflow_run_is_repo_scoped_write() {
+        let ctx = default_ctx();
+        let tool_args = serde_json::json!({ "owner": "github", "repo": "copilot", "run_id": 42 });
+        let repo_id = "github/copilot";
+
+        let (secrecy, integrity, _desc) = super::apply_tool_labels(
+            "delete_workflow_run",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "delete_workflow_run must have writer integrity"
+        );
+        assert!(
+            secrecy.is_empty(),
+            "delete_workflow_run: public repo should have empty secrecy"
         );
     }
 
@@ -963,8 +1189,7 @@ mod tests {
         let _ = secrecy; // secrecy inherits from repo visibility (backend unavailable in tests)
         let expected_integrity = super::reader_integrity("octocat/hello-world", &ctx);
         assert_eq!(
-            integrity,
-            expected_integrity,
+            integrity, expected_integrity,
             "list_repository_collaborators must produce reader-level integrity"
         );
     }
@@ -978,9 +1203,8 @@ mod tests {
         let expected_integrity = writer_integrity(repo_id, &ctx);
 
         for tool in &["list_secret_scanning_alerts", "get_secret_scanning_alert"] {
-            let (secrecy, integrity, _) = super::apply_tool_labels(
-                tool, &args, repo_id, vec![], vec![], String::new(), &ctx,
-            );
+            let (secrecy, integrity, _) =
+                super::apply_tool_labels(tool, &args, repo_id, vec![], vec![], String::new(), &ctx);
             assert_eq!(
                 secrecy, expected_secrecy,
                 "{tool}: expected private secrecy label",
@@ -1006,9 +1230,8 @@ mod tests {
             "list_dependabot_alerts",
             "get_dependabot_alert",
         ] {
-            let (secrecy, integrity, _) = super::apply_tool_labels(
-                tool, &args, repo_id, vec![], vec![], String::new(), &ctx,
-            );
+            let (secrecy, integrity, _) =
+                super::apply_tool_labels(tool, &args, repo_id, vec![], vec![], String::new(), &ctx);
             assert_eq!(
                 secrecy, expected_secrecy,
                 "{tool}: expected private secrecy label",
@@ -1027,7 +1250,13 @@ mod tests {
         let repo_id = "octocat/hello-world";
 
         let (secrecy, integrity, _) = super::apply_tool_labels(
-            "get_job_logs", &args, repo_id, vec![], vec![], String::new(), &ctx,
+            "get_job_logs",
+            &args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
         );
         assert_eq!(
             secrecy,
@@ -1039,5 +1268,291 @@ mod tests {
             writer_integrity(repo_id, &ctx),
             "get_job_logs: expected writer-level integrity",
         );
+    }
+
+    #[test]
+    fn apply_tool_labels_actions_get_artifact_download_is_always_private() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({
+            "owner": "octocat",
+            "repo": "hello-world",
+            "method": "download_workflow_run_artifact",
+        });
+        let repo_id = "octocat/hello-world";
+
+        let (secrecy, integrity, _) = super::apply_tool_labels(
+            "actions_get",
+            &args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        assert_eq!(
+            secrecy,
+            private_label("octocat", "hello-world", repo_id, &ctx),
+            "actions_get download_workflow_run_artifact must always be private",
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "actions_get must produce writer-level integrity",
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_actions_get_non_artifact_inherits_repo_visibility() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({
+            "owner": "octocat",
+            "repo": "hello-world",
+            "method": "list_workflow_runs",
+        });
+        let repo_id = "octocat/hello-world";
+
+        let (_, integrity, _) = super::apply_tool_labels(
+            "actions_get",
+            &args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "actions_get non-artifact method must produce writer-level integrity",
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_gist_reads_are_user_private() {
+        let ctx = default_ctx();
+        // Gists are user-scoped; no owner/repo args
+        let args = serde_json::json!({});
+        let expected_secrecy = private_user_label();
+        let expected_integrity = reader_integrity(scope_names::USER, &ctx);
+
+        for tool in &["list_gists", "get_gist", "create_gist", "update_gist"] {
+            let (secrecy, integrity, _) =
+                super::apply_tool_labels(tool, &args, "", vec![], vec![], String::new(), &ctx);
+            assert_eq!(
+                secrecy, expected_secrecy,
+                "{tool}: gist operations must be user-private (secrecy = private:user)",
+            );
+            assert_eq!(
+                integrity, expected_integrity,
+                "{tool}: gist operations must have user-scoped reader integrity",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_delete_gist_is_user_private_with_writer_integrity() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({});
+
+        let (secrecy, integrity, _) = super::apply_tool_labels(
+            "delete_gist",
+            &args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        assert_eq!(
+            secrecy,
+            private_user_label(),
+            "delete_gist: must be user-private (secrecy = private:user)",
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(scope_names::USER, &ctx),
+            "delete_gist: destructive operation must require writer-level user integrity",
+        );
+    }
+
+    // === check_file_secrecy: segment-starts-with branch coverage ===
+
+    #[test]
+    fn check_file_secrecy_segment_starting_with_env_pattern_triggers_private() {
+        let ctx = default_ctx();
+        // "configs/.env.local" — ".env.local" segment starts with ".env" pattern
+        // but does NOT end with ".env", so the ends_with check alone misses it.
+        // This exercises the segment-starts-with branch exclusively.
+        let result = check_file_secrecy(
+            "configs/.env.local",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx),
+            "segment starting with sensitive pattern must trigger private secrecy",
+        );
+    }
+
+    #[test]
+    fn check_file_secrecy_id_rsa_with_suffix_triggers_private() {
+        let ctx = default_ctx();
+        // "keys/id_rsa.pub" — "id_rsa.pub" segment starts with "id_rsa" pattern
+        // but does NOT end with "id_rsa", so the ends_with check alone misses it.
+        // This exercises the segment-starts-with branch exclusively.
+        let result = check_file_secrecy(
+            "keys/id_rsa.pub",
+            vec![],
+            "octocat",
+            "hello-world",
+            "octocat/hello-world",
+            &ctx,
+        );
+        assert_eq!(
+            result,
+            private_label("octocat", "hello-world", "octocat/hello-world", &ctx),
+            "segment starting with sensitive key pattern must trigger private secrecy",
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_get_code_quality_finding_inherits_repo_visibility() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({"owner": "octocat", "repo": "hello-world"});
+        let repo_id = "octocat/hello-world";
+
+        let (_, integrity, _) = super::apply_tool_labels(
+            "get_code_quality_finding",
+            &args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "get_code_quality_finding: expected writer-level integrity",
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_ui_get_labels_milestones_branches_are_repo_scoped() {
+        let ctx = default_ctx();
+        let repo_id = "octocat/hello-world";
+        let expected_integrity = writer_integrity(repo_id, &ctx);
+
+        for method in &["labels", "milestones", "branches"] {
+            let args = serde_json::json!({
+                "owner": "octocat",
+                "repo": "hello-world",
+                "method": method,
+            });
+            let (_, integrity, _) = super::apply_tool_labels(
+                "ui_get",
+                &args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            assert_eq!(
+                integrity, expected_integrity,
+                "ui_get method={method}: expected writer-level integrity",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_ui_get_issue_types_and_fields_are_github_approved() {
+        let ctx = default_ctx();
+        let repo_id = "octocat/hello-world";
+
+        for (method, standalone) in &[
+            ("issue_types", "list_issue_types"),
+            ("issue_fields", "list_issue_fields"),
+        ] {
+            let args = serde_json::json!({
+                "owner": "octocat",
+                "repo": "hello-world",
+                "method": method,
+            });
+            let (_, integrity, _) = super::apply_tool_labels(
+                "ui_get",
+                &args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            // Org-level metadata should be treated as GitHub-controlled.
+            let expected_integrity = project_github_label(&ctx);
+            assert_eq!(
+                integrity, expected_integrity,
+                "ui_get method={method}: expected same integrity as {standalone}",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_ui_get_assignees_and_reviewers_are_access_sensitive() {
+        let ctx = default_ctx();
+        let repo_id = "octocat/hello-world";
+        let expected_integrity = reader_integrity(repo_id, &ctx);
+
+        for method in &["assignees", "reviewers"] {
+            let args = serde_json::json!({
+                "owner": "octocat",
+                "repo": "hello-world",
+                "method": method,
+            });
+            let (secrecy, integrity, _) = super::apply_tool_labels(
+                "ui_get",
+                &args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            let _ = secrecy; // secrecy is policy_private_scope_label (backend unavailable in tests)
+            assert_eq!(
+                integrity, expected_integrity,
+                "ui_get method={method}: expected reader-level integrity",
+            );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_user_key_management_is_user_private_write() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({});
+        let expected_secrecy = private_user_label();
+        let expected_integrity = writer_integrity(scope_names::USER, &ctx);
+
+        for tool in &[
+            "add_gpg_key",
+            "add_ssh_key",
+            "delete_gpg_key",
+            "delete_ssh_key",
+        ] {
+            let (secrecy, integrity, _) =
+                super::apply_tool_labels(tool, &args, "", vec![], vec![], String::new(), &ctx);
+            assert_eq!(
+                secrecy, expected_secrecy,
+                "{tool}: must be user-private (secrecy = private:user)",
+            );
+            assert_eq!(
+                integrity, expected_integrity,
+                "{tool}: must require writer-level user integrity",
+            );
+        }
     }
 }

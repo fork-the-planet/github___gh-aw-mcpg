@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/logger/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1020,4 +1020,60 @@ func TestLogDifcFilteredItem_NoLogger(t *testing.T) {
 	assert.NotPanics(t, func() {
 		LogDifcFilteredItem(entry)
 	}, "LogDifcFilteredItem must not panic when no logger is initialised")
+}
+
+// TestLogUnrecognizedEndpointPassthrough_NoLogger verifies that
+// LogUnrecognizedEndpointPassthrough does not panic when no global JSONL logger
+// has been initialised (and no markdown logger is active either).
+func TestLogUnrecognizedEndpointPassthrough_NoLogger(t *testing.T) {
+	CloseJSONLLogger()
+	CloseMarkdownLogger()
+
+	assert.NotPanics(t, func() {
+		LogUnrecognizedEndpointPassthrough("GET", "/v1/unknown")
+	}, "LogUnrecognizedEndpointPassthrough must not panic when no loggers are initialised")
+}
+
+// TestLogUnrecognizedEndpointPassthrough_WritesCorrectFields verifies that
+// LogUnrecognizedEndpointPassthrough writes the expected fields to the JSONL log
+// and emits the UNRECOGNIZED-ENDPOINT warning to the markdown log.
+func TestLogUnrecognizedEndpointPassthrough_WritesCorrectFields(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	require.NoError(t, InitJSONLLogger(logDir, "rpc-messages.jsonl"), "InitJSONLLogger failed")
+	defer CloseJSONLLogger()
+
+	require.NoError(t, InitMarkdownLogger(logDir, "gateway.md"), "InitMarkdownLogger failed")
+	defer CloseMarkdownLogger()
+
+	LogUnrecognizedEndpointPassthrough("POST", "/v1/unknown/endpoint")
+
+	CloseJSONLLogger()
+	CloseMarkdownLogger()
+
+	// Verify JSONL output.
+	jsonlPath := filepath.Join(logDir, "rpc-messages.jsonl")
+	data, err := os.ReadFile(jsonlPath)
+	require.NoError(t, err, "JSONL log file must be readable")
+
+	var got JSONLUnrecognizedEndpointPassthrough
+	require.NoError(t, json.Unmarshal(data, &got), "JSONL log entry must be valid JSON")
+
+	assert.Equal(t, "unrecognized_endpoint_passthrough", got.Event)
+	assert.Equal(t, difcEventSchemaV1, got.Schema)
+	assert.Equal(t, "POST", got.Method)
+	assert.Equal(t, "/v1/unknown/endpoint", got.Path)
+	assert.Equal(t, "passthrough_with_empty_labels", got.Action)
+	assert.NotEmpty(t, got.Note)
+	assert.NotEmpty(t, got.Timestamp)
+	_, tsErr := time.Parse(jsonTimestampLayout, got.Timestamp)
+	assert.NoError(t, tsErr, "Timestamp must be ISO 8601 with milliseconds")
+
+	// Verify markdown output.
+	mdPath := filepath.Join(logDir, "gateway.md")
+	mdData, err := os.ReadFile(mdPath)
+	require.NoError(t, err, "Markdown log file must be readable")
+	assert.Contains(t, string(mdData), "UNRECOGNIZED-ENDPOINT")
+	assert.Contains(t, string(mdData), "passthrough_with_empty_labels")
 }

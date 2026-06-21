@@ -50,9 +50,9 @@ func TestBinaryInvocation_RoutedMode(t *testing.T) {
 			},
 		},
 		"gateway": map[string]interface{}{
-			"port":   13001,
-			"domain": "localhost",
-			"apiKey": "test-token",
+			"port":    13001,
+			"domain":  "localhost",
+			"agentId": "test-token",
 		},
 	}
 	configBytes, _ := json.Marshal(configJSON)
@@ -164,9 +164,9 @@ func TestBinaryInvocation_UnifiedMode(t *testing.T) {
 			},
 		},
 		"gateway": map[string]interface{}{
-			"port":   13002,
-			"domain": "localhost",
-			"apiKey": "test-token",
+			"port":    13002,
+			"domain":  "localhost",
+			"agentId": "test-token",
 		},
 	}
 	configBytes, _ := json.Marshal(configJSON)
@@ -255,9 +255,9 @@ func TestBinaryInvocation_ConfigStdin(t *testing.T) {
 			},
 		},
 		"gateway": map[string]interface{}{
-			"port":   13003,
-			"domain": "localhost",
-			"apiKey": "test-key",
+			"port":    13003,
+			"domain":  "localhost",
+			"agentId": "test-key",
 		},
 	}
 	configBytes, _ := json.Marshal(configJSON)
@@ -327,9 +327,9 @@ func TestBinaryInvocation_PipeOutput(t *testing.T) {
 			},
 		},
 		"gateway": map[string]interface{}{
-			"port":   13004,
-			"domain": "localhost",
-			"apiKey": "test-pipe-key",
+			"port":    13004,
+			"domain":  "localhost",
+			"agentId": "test-pipe-key",
 		},
 	}
 	configBytes, err := json.Marshal(configJSON)
@@ -451,9 +451,9 @@ func TestBinaryInvocation_PipeInputOutput(t *testing.T) {
 			},
 		},
 		"gateway": map[string]interface{}{
-			"port":   13005,
-			"domain": "localhost",
-			"apiKey": "test-key",
+			"port":    13005,
+			"domain":  "localhost",
+			"agentId": "test-key",
 		},
 	}
 	configBytes, err := json.Marshal(configJSON)
@@ -672,6 +672,12 @@ func createTempConfig(t *testing.T, servers map[string]interface{}) string {
 	for name, config := range servers {
 		fmt.Fprintf(tmpFile, "\n[servers.%s]\n", name)
 		if cfg, ok := config.(map[string]interface{}); ok {
+			if serverType, ok := cfg["type"].(string); ok {
+				fmt.Fprintf(tmpFile, "type = %q\n", serverType)
+			}
+			if url, ok := cfg["url"].(string); ok {
+				fmt.Fprintf(tmpFile, "url = %q\n", url)
+			}
 			if cmd, ok := cfg["command"].(string); ok {
 				fmt.Fprintf(tmpFile, "command = %q\n", cmd)
 			}

@@ -101,7 +101,10 @@ type GatewayConfig struct {
 	// Port is the HTTP port to listen on
 	Port int `toml:"port" json:"port,omitempty"`
 
-	// APIKey is the authentication key for the gateway
+	// AgentID is the gateway agent/session identifier.
+	AgentID string `toml:"agent_id" json:"agent_id,omitempty"`
+
+	// APIKey is a deprecated alias for AgentID.
 	APIKey string `toml:"api_key" json:"api_key,omitempty"`
 
 	// Domain is the gateway domain for external access
@@ -152,6 +155,10 @@ type GatewayConfig struct {
 	// This key takes precedence over the legacy tracing key when both are present.
 	// MUST use an HTTPS endpoint when configured.
 	Opentelemetry *TracingConfig `toml:"opentelemetry" json:"opentelemetry,omitempty"`
+
+	// agentIDExplicit tracks whether agent_id/agentId was explicitly provided
+	// (as opposed to being derived from deprecated api_key/apiKey aliases).
+	agentIDExplicit bool `toml:"-" json:"-"`
 }
 
 // HTTPKeepaliveInterval returns the keepalive interval as a time.Duration.
@@ -166,12 +173,44 @@ func (g *GatewayConfig) HTTPKeepaliveInterval() time.Duration {
 	return time.Duration(g.KeepaliveInterval) * time.Second
 }
 
-// GetAPIKey returns the gateway API key, handling a nil Gateway safely.
-func (c *Config) GetAPIKey() string {
+// GetAgentID returns the gateway agent identifier, handling a nil Gateway safely.
+func (c *Config) GetAgentID() string {
 	if c.Gateway == nil {
 		return ""
 	}
-	return c.Gateway.APIKey
+	return c.Gateway.effectiveAgentID()
+}
+
+func (g *GatewayConfig) effectiveAgentID() string {
+	if g == nil {
+		return ""
+	}
+	if g.agentIDExplicit {
+		return g.AgentID
+	}
+	if g.AgentID != "" {
+		return g.AgentID
+	}
+	return g.APIKey
+}
+
+func (g *GatewayConfig) normalizeAgentID(agentIDDefined, legacyAPIKeyDefined bool, source string) {
+	if g == nil {
+		return
+	}
+
+	if legacyAPIKeyDefined {
+		logConfig.Printf("DEPRECATION: gateway.api_key is deprecated in %s config; use gateway.agent_id instead", source)
+	}
+	if legacyAPIKeyDefined && agentIDDefined && g.AgentID != g.APIKey {
+		logConfig.Printf("Both gateway.agent_id and deprecated gateway.api_key are set in %s config; using gateway.agent_id", source)
+	}
+
+	g.agentIDExplicit = agentIDDefined
+	if !agentIDDefined && legacyAPIKeyDefined {
+		g.AgentID = g.APIKey
+	}
+	g.APIKey = g.effectiveAgentID()
 }
 
 // HTTPConnectTimeout returns the per-transport connect timeout as a Duration.
@@ -253,13 +292,13 @@ type ServerConfig struct {
 	// that will trip the circuit breaker (transition CLOSED → OPEN). When OPEN, requests
 	// are immediately rejected until the cooldown period elapses. Default: 3.
 	// Supported in TOML config only; the JSON stdin config does not currently accept this field.
-	RateLimitThreshold int `toml:"rate_limit_threshold" json:"rate_limit_threshold,omitempty"`
+	RateLimitThreshold int `toml:"rate_limit_threshold" json:"-"`
 
 	// RateLimitCooldown is the number of seconds the circuit breaker stays OPEN before
 	// allowing a single probe request (transition OPEN → HALF-OPEN). If the probe
 	// succeeds the circuit closes; if rate-limited again it re-opens. Default: 60.
 	// Supported in TOML config only; the JSON stdin config does not currently accept this field.
-	RateLimitCooldown int `toml:"rate_limit_cooldown" json:"rate_limit_cooldown,omitempty"`
+	RateLimitCooldown int `toml:"rate_limit_cooldown" json:"-"`
 }
 
 // GuardConfig represents a guard configuration for DIFC enforcement.
@@ -437,16 +476,10 @@ func LoadFromFile(path string) (*Config, error) {
 		return nil, err
 	}
 
-	// Validate auth configs (e.g. fail-fast for missing OIDC env vars).
-	// This ensures parity with the JSON stdin path which calls validateServerAuth
-	// via convertStdinServerConfig → validateServerConfigWithCustomSchemas.
-	logConfig.Printf("Validating auth configuration for %d servers", len(cfg.Servers))
+	logConfig.Printf("Validating shared server configuration for %d servers", len(cfg.Servers))
 	for name, serverCfg := range cfg.Servers {
 		jsonPath := fmt.Sprintf("servers.%s", name)
-		if err := validateServerAuth(serverCfg.Auth, serverCfg.Type, name, jsonPath); err != nil {
-			return nil, err
-		}
-		if err := validateToolResponseFilters(serverCfg.ToolResponseFilters, jsonPath+".tool_response_filters"); err != nil {
+		if err := validateCommonServerFields(name, serverCfg.Type, serverCfg.Auth, serverCfg.ToolResponseFilters, jsonPath); err != nil {
 			return nil, err
 		}
 	}
@@ -455,15 +488,34 @@ func LoadFromFile(path string) (*Config, error) {
 	if cfg.Gateway == nil {
 		cfg.Gateway = &GatewayConfig{}
 	}
+	cfg.Gateway.normalizeAgentID(md.IsDefined("gateway", "agent_id"), md.IsDefined("gateway", "api_key"), "TOML")
 
 	// Validate trusted_bots per spec §4.1.3.4: must be non-empty array when present
 	if err := validateTrustedBots(cfg.Gateway.TrustedBots); err != nil {
 		return nil, err
 	}
 
+	// Validate gateway.port when explicitly set in TOML so documented port bounds
+	// are enforced consistently across TOML and JSON config paths.
+	if md.IsDefined("gateway", "port") {
+		if err := PortRange(cfg.Gateway.Port, "gateway.port"); err != nil {
+			return nil, err
+		}
+	}
+
+	// Validate payload_size_threshold per spec §4.1.3.3 when explicitly set in TOML.
+	if md.IsDefined("gateway", "payload_size_threshold") {
+		if err := validateGatewayPayloadSizeThreshold(cfg.Gateway.PayloadSizeThreshold, "payload_size_threshold", "gateway.payload_size_threshold"); err != nil {
+			return nil, err
+		}
+	}
+
 	// Merge opentelemetry key into tracing when present (spec §4.1.3.6).
 	// opentelemetry takes precedence over the legacy tracing key.
 	if cfg.Gateway.Opentelemetry != nil {
+		if cfg.Gateway.Tracing != nil {
+			logConfig.Print("Warning: both [gateway.tracing] and [gateway.opentelemetry] are set; [gateway.opentelemetry] takes precedence")
+		}
 		logConfig.Printf("opentelemetry section found: merging into tracing config (endpoint_set=%t)", cfg.Gateway.Opentelemetry.Endpoint != "")
 		cfg.Gateway.Tracing = cfg.Gateway.Opentelemetry
 		cfg.Gateway.Opentelemetry = nil
@@ -482,12 +534,6 @@ func LoadFromFile(path string) (*Config, error) {
 
 	// Apply feature-specific defaults
 	applyDefaults(&cfg)
-
-	// Validate payload_size_threshold per spec §4.1.3.3: must be positive integer.
-	// applyDefaults replaces 0 with the default, so only negative values remain to catch.
-	if cfg.Gateway.PayloadSizeThreshold < 0 {
-		return nil, fmt.Errorf("gateway.payload_size_threshold must be a positive integer, got %d (spec §4.1.3.3)", cfg.Gateway.PayloadSizeThreshold)
-	}
 
 	if err := validateGuardPolicies(&cfg); err != nil {
 		return nil, err

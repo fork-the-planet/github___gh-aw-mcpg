@@ -4,21 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logGuardInit = logger.New("server:guard_init")
-
-func newNoopGuard() guard.Guard {
-	return guard.NewNoopGuard()
-}
 
 // legacyPolicySource is returned by resolveGuardPolicy when no explicit policy
 // is configured and the caller should fall back to legacy session-label semantics.
@@ -50,7 +45,7 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 
 	// Check if a per-server WASM guard exists in MCP_GATEWAY_WASM_GUARDS_DIR.
 	// If found and loadable, it takes precedence over config-defined guards.
-	if wasmPath, found, err := findServerWASMGuardFile(serverID); err != nil {
+	if wasmPath, found, err := guard.FindServerWASMGuardFile(serverID); err != nil {
 		logger.LogWarnToServer(serverID, "difc", "Failed to discover WASM guard from %s: %v", wasmGuardsDirEnvVar, err)
 	} else if found {
 		ctx := context.Background()
@@ -85,7 +80,7 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 				g, err = us.createGuardFromConfig(guardName, guardCfg)
 				if err != nil {
 					logger.LogWarnToServer(serverID, "difc", "Failed to create guard '%s': %v (falling back to noop)", guardName, err)
-					g = newNoopGuard()
+					g = guard.NewNoopGuard()
 				}
 			} else {
 				// Guard name specified but no config found - try registered guard types
@@ -93,12 +88,12 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 				g, err = guard.CreateGuard(guardName)
 				if err != nil {
 					logger.LogWarnToServer(serverID, "difc", "Guard '%s' not found: %v (falling back to noop)", guardName, err)
-					g = newNoopGuard()
+					g = guard.NewNoopGuard()
 				}
 			}
 		} else {
 			// No guard configured - use noop
-			g = newNoopGuard()
+			g = guard.NewNoopGuard()
 		}
 	}
 
@@ -134,7 +129,7 @@ func (us *UnifiedServer) requireGuardPolicyIfGuardEnabled(serverID string, g gua
 		}
 
 		logger.LogWarnToServer(serverID, "difc", "Guard '%s' is available but no guard policy is set; falling back to noop guard", g.Name())
-		return newNoopGuard(), nil
+		return guard.NewNoopGuard(), nil
 	}
 
 	return g, nil
@@ -161,48 +156,8 @@ func (us *UnifiedServer) logServerGuardPolicies(serverID string) {
 	logger.LogInfoToServer(serverID, "difc", "Guard policy: %s", string(policyJSON))
 }
 
-// getWASMGuardsRootDir returns the trimmed value of the WASM guards root
-// directory environment variable, or an empty string if it is not set.
-func getWASMGuardsRootDir() string {
-	return strings.TrimSpace(os.Getenv(wasmGuardsDirEnvVar))
-}
-
-func findServerWASMGuardFile(serverID string) (string, bool, error) {
-	guardsRootDir := getWASMGuardsRootDir()
-	if guardsRootDir == "" {
-		logGuardInit.Printf("Skipping WASM guard discovery: %s is not set", wasmGuardsDirEnvVar)
-		return "", false, nil
-	}
-
-	serverGuardDir := filepath.Join(guardsRootDir, serverID)
-	logGuardInit.Printf("Searching for WASM guard file: serverID=%s, dir=%s", serverID, serverGuardDir)
-	entries, err := os.ReadDir(serverGuardDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			logGuardInit.Printf("No WASM guard directory found for serverID=%s", serverID)
-			return "", false, nil
-		}
-		return "", false, fmt.Errorf("failed to read server guard directory %q: %w", serverGuardDir, err)
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		if strings.EqualFold(filepath.Ext(entry.Name()), ".wasm") {
-			wasmPath := filepath.Join(serverGuardDir, entry.Name())
-			logGuardInit.Printf("Found WASM guard file: serverID=%s, path=%s", serverID, wasmPath)
-			return wasmPath, true, nil
-		}
-	}
-
-	logGuardInit.Printf("No WASM guard file found in directory: serverID=%s, dir=%s", serverID, serverGuardDir)
-	return "", false, nil
-}
-
 func (us *UnifiedServer) logWASMGuardsDirConfiguration() {
-	guardsRootDir := getWASMGuardsRootDir()
+	guardsRootDir := guard.GetWASMGuardsRootDir()
 	if guardsRootDir == "" {
 		logger.LogInfo("difc", "%s is not set", wasmGuardsDirEnvVar)
 		return
@@ -215,7 +170,7 @@ func (us *UnifiedServer) logWASMGuardsDirConfiguration() {
 func (us *UnifiedServer) createGuardFromConfig(name string, cfg *config.GuardConfig) (guard.Guard, error) {
 	switch cfg.Type {
 	case "noop", "":
-		return newNoopGuard(), nil
+		return guard.NewNoopGuard(), nil
 
 	case "wasm":
 		// WASM guard loading - requires path
@@ -356,20 +311,31 @@ func (us *UnifiedServer) ensureGuardInitialized(
 	// Multiple guards may contribute labels for the same agent; each guard's
 	// label_agent output is additive so that later guards do not overwrite
 	// labels set by earlier ones.
-	agentLabels := us.AgentRegistry.GetOrCreate(agentID)
-	mode, labelAgentResult, err := guard.RunLabelAgent(ctx, g, labelAgentPayload, backendCaller, us.Capabilities, agentLabels, defaultMode)
+	mode, labelAgentResult, err := guard.RunLabelAgentForAgent(
+		ctx,
+		g,
+		labelAgentPayload,
+		backendCaller,
+		us.Capabilities,
+		us.AgentRegistry,
+		agentID,
+		defaultMode,
+	)
 	if err != nil {
 		logger.LogErrorToServer(serverID, "difc", "label_agent failed: session=%s, guard=%s, error=%v", sessionID, g.Name(), err)
 		return defaultMode, err
 	}
-	logger.LogMarshaledForDebug(
+	logger.LogMarshaledForDebugf(
 		labelAgentResult,
-		func(resultJSON string) {
-			logger.LogInfoToServer(serverID, "difc", "label_agent response: session=%s, guard=%s, response=%s", sessionID, g.Name(), resultJSON)
+		func(format string, args ...interface{}) {
+			logger.LogInfoToServer(serverID, "difc", format, args...)
 		},
-		func(marshalErr error) {
-			logger.LogWarnToServer(serverID, "difc", "label_agent response (failed to serialize for logging): session=%s, guard=%s, error=%v", sessionID, g.Name(), marshalErr)
+		"label_agent response: session=%s, guard=%s, response=%s",
+		func(format string, args ...interface{}) {
+			logger.LogWarnToServer(serverID, "difc", format, args...)
 		},
+		"label_agent response (failed to serialize for logging): session=%s, guard=%s, error=%v",
+		sessionID, g.Name(),
 	)
 
 	us.sessionMu.Lock()
@@ -382,12 +348,17 @@ func (us *UnifiedServer) ensureGuardInitialized(
 	if session.GuardInit == nil {
 		session.GuardInit = make(map[string]*GuardSessionState)
 	}
+	var toolCallLimits map[string]int
+	if policy.AllowOnly != nil {
+		toolCallLimits = strutil.CopyTrimmedStringIntMap(policy.AllowOnly.ToolCallLimits)
+	}
 	session.GuardInit[serverID] = &GuardSessionState{
 		Initialized:      true,
 		PolicyHash:       policyHash,
 		PolicySource:     source,
 		DIFCMode:         mode,
 		NormalizedPolicy: normalizedPolicy,
+		ToolCallLimits:   toolCallLimits,
 	}
 	us.sessionMu.Unlock()
 

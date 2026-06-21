@@ -78,6 +78,14 @@ func TestMatchRoute_AdditionalRoutes(t *testing.T) {
 			wantArgs: map[string]interface{}{"owner": "org", "repo": "repo", "pullNumber": "7", "method": "get_review_comments"},
 		},
 
+		// PR commits (get_commits method, added in GitHub MCP Server v1.3.0)
+		{
+			name:     "PR commits",
+			path:     "/repos/github/gh-aw/pulls/42/commits",
+			wantTool: "pull_request_read",
+			wantArgs: map[string]interface{}{"owner": "github", "repo": "gh-aw", "pullNumber": "42", "method": "get_commits"},
+		},
+
 		// Search repositories
 		{
 			name:     "search repositories",

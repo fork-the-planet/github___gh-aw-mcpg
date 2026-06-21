@@ -10,7 +10,8 @@ When running in a container (`run_containerized.sh`), these variables **must** b
 |----------|-------------|---------|
 | `MCP_GATEWAY_PORT` | Port used by `run.sh`/`run_containerized.sh` to build the `--listen` address; also read by `awmg --validate-env` for port-mapping checks | `8000` |
 | `MCP_GATEWAY_DOMAIN` | The domain name for the gateway | `localhost` |
-| `MCP_GATEWAY_API_KEY` | API key checked by `run_containerized.sh` as a deployment gate; must be referenced in your JSON config via `"${MCP_GATEWAY_API_KEY}"` to enable authentication | `your-secret-key` |
+| `MCP_GATEWAY_AGENT_ID` | Agent/session identifier checked by `run_containerized.sh` as a deployment gate; reference it in JSON config via `"${MCP_GATEWAY_AGENT_ID}"` to enable auth matching | `your-agent-id` |
+| `MCP_GATEWAY_API_KEY` | Deprecated alias for `MCP_GATEWAY_AGENT_ID` (still accepted with warning) | (deprecated) |
 
 ## Optional (Non-Containerized Mode)
 
@@ -20,13 +21,15 @@ When running locally (`run.sh`), these variables are optional (warnings shown if
 |----------|-------------|---------|
 | `MCP_GATEWAY_PORT` | Port used by `run.sh` to build the `--listen` address; also read by `awmg --validate-env` for port-mapping checks | `8000` |
 | `MCP_GATEWAY_DOMAIN` | Gateway domain | `localhost` |
-| `MCP_GATEWAY_API_KEY` | Informational only — not read directly by the binary; must be referenced in your config via `"${MCP_GATEWAY_API_KEY}"` to enable authentication | (disabled) |
+| `MCP_GATEWAY_AGENT_ID` | Informational only — not read directly by the binary; must be referenced in your config via `"${MCP_GATEWAY_AGENT_ID}"` to enable auth matching | (disabled) |
+| `MCP_GATEWAY_API_KEY` | Deprecated alias for `MCP_GATEWAY_AGENT_ID` (still accepted with warning) | (deprecated) |
 | `MCP_GATEWAY_LOG_DIR` | Log file directory (sets default for `--log-dir` flag) | `/tmp/gh-aw/mcp-logs` |
-| `MCP_GATEWAY_WASM_CACHE_DIR` | Disk-backed wazero compilation cache directory (sets default for `--wasm-cache-dir`; defaults to `<log-dir>/wazero-cache`) | `/tmp/gh-aw/mcp-logs/wazero-cache` |
+| `MCP_GATEWAY_WASM_CACHE_DIR` | Disk-backed wazero compilation cache directory (sets default for `--wasm-cache-dir`; defaults to `<parent-of-log-dir>/wazero-cache`, a sibling of the log directory) | `/tmp/gh-aw/wazero-cache` |
 | `MCP_GATEWAY_PAYLOAD_DIR` | Large payload storage directory (sets default for `--payload-dir` flag). Must be an absolute path. | `/tmp/jq-payloads` |
 | `MCP_GATEWAY_PAYLOAD_PATH_PREFIX` | Path prefix for remapping payloadPath returned to clients (sets default for `--payload-path-prefix` flag) | (empty - use actual filesystem path) |
 | `MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD` | Size threshold in bytes for payload storage (sets default for `--payload-size-threshold` flag) | `524288` |
 | `MCP_GATEWAY_SESSION_TIMEOUT` | Session timeout for stateful sessions in both unified (`/mcp`) and routed (`/mcp/<server>`) modes. Accepts Go duration strings (e.g., `30m`, `1h`). Default is 6 hours to match the GitHub Actions default timeout. | `6h` |
+| `MCP_GATEWAY_SHUTDOWN_TIMEOUT` | Maximum time to wait for in-flight requests to complete during graceful shutdown (sets default for `--shutdown-timeout` flag). Accepts Go duration strings (e.g., `30s`, `2m`). | `5s` |
 | `MCP_GATEWAY_TOOL_TIMEOUT` | Tool invocation timeout in seconds. Used as fallback when `gateway.toolTimeout` is not set in the stdin JSON config. Accepts any integer ≥ 10 (no upper bound). Priority: stdin `gateway.toolTimeout` > this env var > built-in default. | `60` |
 | `MCP_GATEWAY_WASM_GUARDS_DIR` | Root directory for per-server WASM guards (`<root>/<serverID>/*.wasm`, first match is loaded) | (disabled) |
 | `MCP_GATEWAY_GUARDS_MODE` | Guards enforcement mode: `strict` (deny violations), `filter` (remove denied tools), `propagate` (auto-adjust agent labels) (sets default for `--guards-mode`) | `strict` |
@@ -39,7 +42,7 @@ When running locally (`run.sh`), these variables are optional (warnings shown if
 | `DEBUG_COLORS` | Control colored debug output (0 to disable, auto-disabled when piping) | Auto-detect |
 | `RUNNING_IN_CONTAINER` | Manual override; set to `"true"` to force container detection when `/.dockerenv` and cgroup detection are unavailable | (unset) |
 
-**Note:** `PORT`, `HOST`, and `MODE` are not read by the `awmg` binary directly. `MCP_GATEWAY_PORT` is read by the binary for `--validate-env` port-mapping checks only; it does **not** auto-configure the listen address. `run.sh` uses `HOST` (default: `0.0.0.0`), `MODE` (default: `--routed`), and falls back to `PORT` (when `MCP_GATEWAY_PORT` is unset) to set the bind address and routing mode. Use the `--listen` and `--routed`/`--unified` flags when running `awmg` directly.
+**Note:** `PORT`, `HOST`, and `MODE` are not read by the `awmg` binary directly. `MCP_GATEWAY_PORT` is read by the binary for `--validate-env` port-mapping checks only; it does **not** auto-configure the listen address. `run.sh` uses `HOST` (default: `0.0.0.0`), `MODE` (default: `--routed`), and falls back to `PORT` (when `MCP_GATEWAY_PORT` is unset) to set the bind address and routing mode. `run_containerized.sh` uses the documented `MCP_GATEWAY_HOST` and `MCP_GATEWAY_MODE` overrides for the same purpose. Use the `--listen` and `--routed`/`--unified` flags when running `awmg` directly.
 
 ## Test / Development Overrides
 
@@ -49,15 +52,25 @@ These variables are intended for local testing and development only:
 |----------|-------------|---------|
 | `AWMG_BINARY_PATH` | Override binary path used by integration tests (for example, to test a prebuilt `awmg` binary). | (disabled) |
 | `AWMG_WASM_GUARD_PATH` | Override WASM guard path used by proxy integration tests when default build output paths are unavailable. | (disabled) |
+| `TAVILY_API_KEY` | Tavily API key for integration tests in `test/integration/`. When set, tests that call the real Tavily API are enabled; without it, those tests are skipped. | (disabled) |
 
 ## Containerized Deployment Variables
 
-When using `run_containerized.sh`, these additional variables are available:
+These variables are script-specific controls for bind address and routing mode:
+
+### `run.sh` (non-containerized)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MCP_GATEWAY_HOST` | Bind address for the gateway | `0.0.0.0` |
-| `MCP_GATEWAY_MODE` | Routing mode flag passed to `awmg` (e.g., `--routed`, `--unified`) | `--routed` |
+| `HOST` | Bind address for the gateway in `run.sh`. | `0.0.0.0` |
+| `MODE` | Routing mode flag passed to `awmg` by `run.sh` (e.g., `--routed`, `--unified`). | `--routed` |
+
+### `run_containerized.sh` (containerized)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MCP_GATEWAY_HOST` | Bind address for the gateway in `run_containerized.sh`. | `0.0.0.0` |
+| `MCP_GATEWAY_MODE` | Routing mode flag passed to `awmg` by `run_containerized.sh` (e.g., `--routed`, `--unified`). | `--routed` |
 
 ## Docker Configuration
 
@@ -69,7 +82,7 @@ When using `run_containerized.sh`, these additional variables are available:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DOCKER_API_VERSION` | Docker API version used by helper scripts such as `run.sh`, integration test scripts, and `run_containerized.sh`. The Docker Go client in `awmg` auto-negotiates API version, but an exported `DOCKER_API_VERSION` can still affect `docker` CLI subprocesses launched with the inherited environment. | Set by querying Docker daemon's current API version; falls back to `1.44` if detection fails |
+| `DOCKER_API_VERSION` | Docker API version used by helper scripts such as `run.sh`, integration test scripts, and `run_containerized.sh`. Not read directly by `awmg`; it only affects `docker` CLI subprocesses launched with the inherited environment. | Set by querying Docker daemon's current API version; falls back to `1.44` if detection fails |
 
 ## GitHub Authentication
 
@@ -116,10 +129,11 @@ These environment variables configure guard policies (e.g., AllowOnly policies f
 
 ## OpenTelemetry / Tracing Variables
 
-These standard OpenTelemetry environment variables configure tracing. `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_SERVICE_NAME` set defaults for the corresponding `--otlp-*` CLI flags; `OTEL_EXPORTER_OTLP_HEADERS` is used as a fallback when config headers are unset.
+These OpenTelemetry and gateway-specific environment variables configure tracing. `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_SERVICE_NAME` set defaults for the corresponding `--otlp-*` CLI flags; `OTEL_EXPORTER_OTLP_HEADERS` is used as a fallback when config headers are unset.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP endpoint for trace export (e.g., `http://localhost:4318`). Tracing is disabled when empty. Sets default for `--otlp-endpoint`. | (disabled) |
 | `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated `key=value` HTTP headers for OTLP export requests (W3C Baggage format, e.g., `Authorization=Bearer%20token,X-Custom=value`). Used as fallback when `gateway.opentelemetry.headers` / `gateway.tracing.headers` is not set in config. | (none) |
+| `GH_AW_OTLP_ENDPOINTS` | Comma-separated OTLP endpoint URLs, or a JSON array of `{ "url", "headers?" }` objects, for multi-backend fan-out tracing. When set, spans are exported to all listed endpoints (partial-failure tolerant). Takes precedence over `OTEL_EXPORTER_OTLP_ENDPOINT`. Shared headers from `OTEL_EXPORTER_OTLP_HEADERS` / config apply to all entries; JSON per-endpoint headers override shared headers on key conflicts. | (none) |
 | `OTEL_SERVICE_NAME` | Service name reported in traces. Sets default for `--otlp-service-name`. | `mcp-gateway` |

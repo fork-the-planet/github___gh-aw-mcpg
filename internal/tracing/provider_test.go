@@ -2,6 +2,7 @@ package tracing_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -15,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -23,10 +24,153 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
+// TestInitProvider_IsEnabled_Noop verifies that IsEnabled returns false for a noop provider.
+func TestInitProvider_IsEnabled_Noop(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+	assert.False(t, provider.IsEnabled(), "noop provider should report IsEnabled=false")
+}
+
+// TestInitProvider_IsEnabled_SDK verifies that IsEnabled returns true when a real exporter is active.
+func TestInitProvider_IsEnabled_SDK(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
+	cfg := &config.TracingConfig{
+		Endpoint:    "http://localhost:14318",
+		ServiceName: "test",
+	}
+	provider, err := tracing.InitProvider(ctx, cfg)
+	require.NoError(t, err)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_ = provider.Shutdown(shutdownCtx)
+	}()
+	assert.True(t, provider.IsEnabled(), "SDK provider should report IsEnabled=true")
+}
+
+// TestInitProvider_FanOut_GHAWOTLPEndpoints verifies that when GH_AW_OTLP_ENDPOINTS
+// is set, spans are delivered to every listed endpoint.
+func TestInitProvider_FanOut_GHAWOTLPEndpoints(t *testing.T) {
+	ctx := context.Background()
+
+	// Start two test OTLP collectors.
+	received1 := make(chan struct{}, 10)
+	ts1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case received1 <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts1.Close()
+
+	received2 := make(chan struct{}, 10)
+	ts2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case received2 <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts2.Close()
+
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", ts1.URL+","+ts2.URL)
+
+	// Config with no primary endpoint; GH_AW_OTLP_ENDPOINTS provides them all.
+	provider, err := tracing.InitProvider(ctx, &config.TracingConfig{ServiceName: "test-fanout"})
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+	assert.True(t, provider.IsEnabled(), "provider should be enabled when GH_AW_OTLP_ENDPOINTS is set")
+
+	// Emit a span to trigger export.
+	_, span := provider.Tracer().Start(ctx, "fanout-test-span")
+	span.End()
+
+	// Flush by shutting down.
+	shutdownCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	_ = provider.Shutdown(shutdownCtx)
+
+	// Both collectors must have received at least one export request.
+	select {
+	case <-received1:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for export to first endpoint")
+	}
+	select {
+	case <-received2:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for export to second endpoint")
+	}
+}
+
+// TestInitProvider_FanOut_TakesPrecedenceOverSingleEndpoint verifies that when
+// GH_AW_OTLP_ENDPOINTS is set and a primary endpoint is also configured, the
+// fan-out list is used (not the primary endpoint separately).
+func TestInitProvider_FanOut_TakesPrecedenceOverSingleEndpoint(t *testing.T) {
+	ctx := context.Background()
+
+	fanoutReceived := make(chan struct{}, 10)
+	tsFanout := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case fanoutReceived <- struct{}{}:
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer tsFanout.Close()
+
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", tsFanout.URL)
+
+	// Also configure a primary endpoint — this should be ignored in favour of
+	// GH_AW_OTLP_ENDPOINTS.
+	cfg := &config.TracingConfig{
+		Endpoint:    "http://localhost:19999", // unreachable
+		ServiceName: "test-precedence",
+	}
+
+	provider, err := tracing.InitProvider(ctx, cfg)
+	require.NoError(t, err)
+	assert.True(t, provider.IsEnabled())
+
+	_, span := provider.Tracer().Start(ctx, "precedence-test-span")
+	span.End()
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	_ = provider.Shutdown(shutdownCtx)
+
+	select {
+	case <-fanoutReceived:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for export to fan-out endpoint")
+	}
+}
+
+// TestInitProvider_FanOut_EmptyEnvVar falls back to single-endpoint mode.
+func TestInitProvider_FanOut_EmptyEnvVar(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
+
+	cfg := &config.TracingConfig{Endpoint: "http://localhost:14318"}
+	provider, err := tracing.InitProvider(ctx, cfg)
+	require.NoError(t, err)
+	assert.True(t, provider.IsEnabled(), "single-endpoint mode should still be active")
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	_ = provider.Shutdown(shutdownCtx)
+}
+
 func ptrFloat64(v float64) *float64 { return &v }
 
 func TestInitProvider_NoEndpoint_ReturnsNoopProvider(t *testing.T) {
 	ctx := context.Background()
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "") // prevent ambient CI env from overriding noop path
 
 	// With nil config (no endpoint), should return a noop provider
 	provider, err := tracing.InitProvider(ctx, nil)
@@ -43,6 +187,7 @@ func TestInitProvider_NoEndpoint_ReturnsNoopProvider(t *testing.T) {
 
 func TestInitProvider_EmptyEndpoint_ReturnsNoopProvider(t *testing.T) {
 	ctx := context.Background()
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "") // prevent ambient CI env from overriding noop path
 
 	cfg := &config.TracingConfig{
 		Endpoint:    "", // explicitly empty
@@ -81,6 +226,46 @@ func TestInitProvider_WithEndpoint_ReturnsSdkProvider(t *testing.T) {
 	// Shutdown may fail if it tries to flush to the non-existent endpoint,
 	// but the provider itself should handle it gracefully (no panic)
 	_ = provider.Shutdown(shutdownCtx)
+}
+
+// TestInitProvider_ResourceContainsServiceName verifies that the OTel resource
+// built by InitProvider always includes a non-empty service.name attribute.
+// This guards against the semconv schema-URL conflict that previously caused
+// resource.New to return an error and the old fallback path to use resource.Empty(),
+// stripping all identity attributes.
+func TestInitProvider_ResourceContainsServiceName(t *testing.T) {
+	ctx := context.Background()
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
+
+	const wantServiceName = "mcp-gateway-test"
+	cfg := &config.TracingConfig{
+		Endpoint:    "http://localhost:14318", // non-existent, but valid URL
+		ServiceName: wantServiceName,
+		SampleRate:  ptrFloat64(1.0),
+	}
+
+	provider, err := tracing.InitProvider(ctx, cfg)
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_ = provider.Shutdown(shutdownCtx)
+	}()
+
+	res := provider.Resource()
+	require.NotNil(t, res, "SDK provider must have a non-nil resource")
+
+	// Find service.name in the resource attributes.
+	var gotServiceName string
+	for _, attr := range res.Attributes() {
+		if attr.Key == semconv.ServiceNameKey {
+			gotServiceName = attr.Value.AsString()
+			break
+		}
+	}
+	assert.Equalf(t, wantServiceName, gotServiceName,
+		"resource must contain service.name=%q; got %q", wantServiceName, gotServiceName)
 }
 
 func TestTracer_ReturnsNonNil(t *testing.T) {
@@ -329,6 +514,84 @@ func TestWrapHTTPHandler_GeneratesRootSpan(t *testing.T) {
 	assert.False(t, capturedSpanCtx.IsRemote(), "span should not be marked remote — it is a local root span")
 }
 
+// TestWrapHTTPHandler_UsesHTTPRouteWhenPatternAvailable verifies that handler
+// patterns are recorded as http.route instead of high-cardinality concrete paths.
+func TestWrapHTTPHandler_UsesHTTPRouteWhenPatternAvailable(t *testing.T) {
+	ctx := context.Background()
+
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	_, exporter, cleanup := newInMemoryProvider(t)
+	defer cleanup()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	mux := http.NewServeMux()
+	mux.Handle("GET /mcp/{serverID}", tracing.WrapHTTPHandler(inner, "test.route"))
+
+	req := httptest.NewRequest(http.MethodGet, "/mcp/github", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1, "expected exactly one span")
+
+	var foundRoute, foundPath bool
+	for _, attr := range spans[0].Attributes {
+		if attr.Key == semconv.HTTPRouteKey {
+			assert.Equal(t, "/mcp/{serverID}", attr.Value.AsString())
+			foundRoute = true
+		}
+		if attr.Key == semconv.URLPathKey {
+			assert.Equal(t, "/mcp/github", attr.Value.AsString())
+			foundPath = true
+		}
+	}
+	assert.True(t, foundRoute, "http.route attribute must be present")
+	assert.True(t, foundPath, "url.path attribute must be present")
+}
+
+// TestWrapHTTPHandler_UsesURLPathWhenPatternUnavailable verifies url.path is
+// always captured and http.route is omitted when no route template is available.
+func TestWrapHTTPHandler_UsesURLPathWhenPatternUnavailable(t *testing.T) {
+	ctx := context.Background()
+
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	_, exporter, cleanup := newInMemoryProvider(t)
+	defer cleanup()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/unmatched/path", nil)
+	rr := httptest.NewRecorder()
+	tracing.WrapHTTPHandler(inner, "test.route.fallback").ServeHTTP(rr, req)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1, "expected exactly one span")
+
+	var foundRoute, foundPath bool
+	for _, attr := range spans[0].Attributes {
+		if attr.Key == semconv.HTTPRouteKey {
+			foundRoute = true
+		}
+		if attr.Key == semconv.URLPathKey {
+			assert.Equal(t, "/unmatched/path", attr.Value.AsString())
+			foundPath = true
+		}
+	}
+	assert.False(t, foundRoute, "http.route attribute should be omitted when route template is unavailable")
+	assert.True(t, foundPath, "url.path attribute must be present")
+}
+
 // TestInitProvider_WithHeaders verifies that OTLP export headers are forwarded
 // to the collector. Table-driven sub-tests cover single headers, multiple
 // headers with whitespace trimming, and malformed/empty-key cases that must be
@@ -336,6 +599,9 @@ func TestWrapHTTPHandler_GeneratesRootSpan(t *testing.T) {
 // deterministic rather than timing-dependent.
 func TestInitProvider_WithHeaders(t *testing.T) {
 	ctx := context.Background()
+	// Prevent GH_AW_OTLP_ENDPOINTS set in CI from overriding cfg.Endpoint and routing
+	// spans away from the per-subtest httptest.Server to external garbage URLs.
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
 
 	tests := []struct {
 		name           string
@@ -416,6 +682,48 @@ func TestInitProvider_WithHeaders(t *testing.T) {
 				t.Fatal("timed out waiting for OTLP export request — headers test is non-deterministic")
 			}
 		})
+	}
+}
+
+func TestInitProvider_WithJSONExtraEndpointHeaders(t *testing.T) {
+	ctx := context.Background()
+
+	received := make(chan http.Header, 1)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case received <- r.Header.Clone():
+		default:
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	payload, err := json.Marshal([]map[string]string{
+		{
+			"url":     ts.URL,
+			"headers": "Authorization=******,X-Trace-Id=trace-123",
+		},
+	})
+	require.NoError(t, err)
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", string(payload))
+
+	provider, err := tracing.InitProvider(ctx, &config.TracingConfig{ServiceName: "test-json-headers"})
+	require.NoError(t, err)
+	require.NotNil(t, provider)
+
+	_, span := provider.Tracer().Start(ctx, "json-header-test-span")
+	span.End()
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	_ = provider.Shutdown(shutdownCtx)
+
+	select {
+	case headers := <-received:
+		assert.Equal(t, "******", headers.Get("Authorization"))
+		assert.Equal(t, "trace-123", headers.Get("X-Trace-Id"))
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for OTLP export request for JSON extra endpoint headers")
 	}
 }
 
@@ -556,7 +864,7 @@ func TestInitProvider_InvalidSampleRate(t *testing.T) {
 	}
 }
 
-// TestParentContext_InvalidSpanID verifies that resolveParentContext falls through to
+// TestParentContext_InvalidSpanID verifies that ParentContext falls through to
 // generating a random span ID when the configured spanId is not valid hex, and still
 // returns an enriched context (per spec T-OTEL-008).
 func TestParentContext_InvalidSpanID(t *testing.T) {
@@ -601,7 +909,7 @@ func TestParentContext_InvalidSpanID(t *testing.T) {
 	}
 }
 
-// TestParentContext_AllZerosTraceID verifies that resolveParentContext returns the
+// TestParentContext_AllZerosTraceID verifies that ParentContext returns the
 // original context unchanged when the traceId is all zeros (produces an invalid SpanContext).
 func TestParentContext_AllZerosTraceID(t *testing.T) {
 	ctx := context.Background()
@@ -732,6 +1040,22 @@ func TestWrapHTTPHandler_5xxSetsSpanStatusError(t *testing.T) {
 	assert.Equal(t, codes.Error, span.Status.Code, "5xx must set span status to Error")
 	assert.NotEmpty(t, span.Status.Description, "5xx must provide a non-empty status description")
 
+	var foundException, foundStackTrace bool
+	for _, event := range span.Events {
+		if event.Name != "exception" {
+			continue
+		}
+		foundException = true
+		for _, attr := range event.Attributes {
+			if attr.Key == "exception.stacktrace" {
+				assert.NotEmpty(t, attr.Value.AsString(), "recorded exception should include stacktrace")
+				foundStackTrace = true
+			}
+		}
+	}
+	assert.True(t, foundException, "5xx should record an exception event")
+	assert.True(t, foundStackTrace, "5xx exception event should include stacktrace")
+
 	var found bool
 	for _, attr := range span.Attributes {
 		if attr.Key == semconv.HTTPResponseStatusCodeKey {
@@ -740,4 +1064,32 @@ func TestWrapHTTPHandler_5xxSetsSpanStatusError(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "http.response.status_code attribute must be present on the span")
+}
+
+func TestWrapHTTPHandler_Unknown5xxUsesFallbackStatusDescription(t *testing.T) {
+	ctx := context.Background()
+
+	provider, err := tracing.InitProvider(ctx, nil)
+	require.NoError(t, err)
+	defer provider.Shutdown(ctx)
+
+	_, exporter, cleanup := newInMemoryProvider(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	rr := httptest.NewRecorder()
+
+	const unknown5xx = 599
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(unknown5xx)
+	})
+
+	tracing.WrapHTTPHandler(inner, "test.unknown5xx").ServeHTTP(rr, req)
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1, "expected exactly one span")
+	span := spans[0]
+
+	assert.Equal(t, codes.Error, span.Status.Code, "unknown 5xx must set span status to Error")
+	assert.Equal(t, "HTTP 599", span.Status.Description, "unknown 5xx should use HTTP <code> fallback description")
 }

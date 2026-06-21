@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -560,7 +559,7 @@ func TestBuildAllowOnlyPolicy_InvalidIntegrityErrorListsCanonicalValues(t *testi
 	got, err := BuildAllowOnlyPolicy(true, "", "", "superstrict")
 	require.Nil(t, got)
 	require.EqualError(t, err,
-		fmt.Sprintf("min-integrity must be one of: %s", strings.Join(guard.AllowedIntegrityLevels, ", ")))
+		fmt.Sprintf("min-integrity must be one of: %s", strings.Join(allIntegrityLevels, ", ")))
 }
 
 // TestParsePolicyMap_LegacyMinIntegrityTakesPrecedence verifies that

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -22,10 +23,52 @@ var logWasm = logger.New("guard:wasm")
 
 var globalCompilationCacheMu sync.Mutex
 
+const wasmGuardsDirEnvVar = "MCP_GATEWAY_WASM_GUARDS_DIR"
+
 // globalCompilationCache is a process-level compilation cache shared across all
 // WasmGuard instances. wazero's cache is goroutine-safe and eliminates redundant
 // JIT compilation when multiple guards load the same WASM binary.
 var globalCompilationCache = wazero.NewCompilationCache()
+
+// GetWASMGuardsRootDir returns the trimmed value of MCP_GATEWAY_WASM_GUARDS_DIR.
+func GetWASMGuardsRootDir() string {
+	return strings.TrimSpace(os.Getenv(wasmGuardsDirEnvVar))
+}
+
+// FindServerWASMGuardFile discovers the first .wasm file for a server under
+// $MCP_GATEWAY_WASM_GUARDS_DIR/<serverID>.
+func FindServerWASMGuardFile(serverID string) (string, bool, error) {
+	guardsRootDir := GetWASMGuardsRootDir()
+	if guardsRootDir == "" {
+		logWasm.Printf("Skipping WASM guard discovery: %s is not set", wasmGuardsDirEnvVar)
+		return "", false, nil
+	}
+
+	serverGuardDir := filepath.Join(guardsRootDir, serverID)
+	logWasm.Printf("Searching for WASM guard file: serverID=%s, dir=%s", serverID, serverGuardDir)
+	entries, err := os.ReadDir(serverGuardDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logWasm.Printf("No WASM guard directory found for serverID=%s", serverID)
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("failed to read server guard directory %q: %w", serverGuardDir, err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		if strings.EqualFold(filepath.Ext(entry.Name()), ".wasm") {
+			wasmPath := filepath.Join(serverGuardDir, entry.Name())
+			logWasm.Printf("Found WASM guard file: serverID=%s, path=%s", serverID, wasmPath)
+			return wasmPath, true, nil
+		}
+	}
+
+	logWasm.Printf("No WASM guard file found in directory: serverID=%s, dir=%s", serverID, serverGuardDir)
+	return "", false, nil
+}
 
 func newCompilationCache(dir string) (wazero.CompilationCache, error) {
 	if dir == "" {
@@ -74,14 +117,16 @@ func ConfigureGlobalCompilationCache(ctx context.Context, dir string) error {
 }
 
 // CloseGlobalCompilationCache releases JIT resources held by the shared
-// compilation cache. It must be called once during graceful shutdown, after
-// all WasmGuard runtimes have been closed (i.e., after Registry.Close()).
-// Calling it while guards are still active or calling it more than once leads
-// to undefined behavior. It is not safe to call concurrently.
+// compilation cache. It should be called during graceful shutdown, after all
+// WasmGuard runtimes have been closed (i.e., after Registry.Close()).
+// Calling it while guards are still active leads to undefined behavior.
+// Repeated calls are no-ops once the global cache has been cleared.
+// It is not safe to call concurrently.
 func CloseGlobalCompilationCache(ctx context.Context) error {
 	logWasm.Print("Closing global compilation cache")
 	globalCompilationCacheMu.Lock()
 	cache := globalCompilationCache
+	globalCompilationCache = nil
 	globalCompilationCacheMu.Unlock()
 	if cache == nil {
 		logWasm.Print("Global compilation cache is nil, nothing to close")
@@ -216,6 +261,8 @@ func NewWasmGuardWithOptions(ctx context.Context, name string, wasmBytes []byte,
 			}
 			return name
 		}()).
+		// WithStartFunctions with no args suppresses automatic _start execution
+		// so guard loading cannot block on stdin or perform unexpected I/O.
 		WithStartFunctions().
 		WithStdin(strings.NewReader("")). // Isolate stdin
 		WithStdout(stdoutWriter).         // Keep WASM stdout off gateway stdout (MCP stream)
@@ -426,6 +473,13 @@ func (g *WasmGuard) Name() string {
 	return g.name
 }
 
+// IsHealthy reports whether the guard is still usable after previous WASM calls.
+func (g *WasmGuard) IsHealthy() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return !g.failed
+}
+
 // callWasmGuardFunction serialises WASM access, sets the backend reference, marshals
 // inputData, logs the input, calls the named WASM export, and returns the raw result.
 // All three public dispatch methods (LabelAgent, LabelResource, LabelResponse) share
@@ -458,14 +512,13 @@ func (g *WasmGuard) LabelAgent(ctx context.Context, policy any, backend BackendC
 		logWasm.Printf("LabelAgent normalizePolicyPayload failed: guard=%s, error=%v", g.name, err)
 		return nil, err
 	}
-	logger.LogMarshaledForDebug(
+	logger.LogMarshaledForDebugf(
 		normalizedPolicy,
-		func(policyJSON string) {
-			logWasm.Printf("LabelAgent normalized policy: guard=%s, policy=%s", g.name, policyJSON)
-		},
-		func(marshalErr error) {
-			logWasm.Printf("LabelAgent normalized policy (marshal failed): guard=%s, error=%v", g.name, marshalErr)
-		},
+		logWasm.Printf,
+		"LabelAgent normalized policy: guard=%s, policy=%s",
+		logWasm.Printf,
+		"LabelAgent normalized policy (marshal failed): guard=%s, error=%v",
+		g.name,
 	)
 	_ = caps
 
@@ -493,14 +546,13 @@ func (g *WasmGuard) LabelAgent(ctx context.Context, policy any, backend BackendC
 		return nil, err
 	}
 
-	logger.LogMarshaledForDebug(
+	logger.LogMarshaledForDebugf(
 		result,
-		func(responseJSON string) {
-			logWasm.Printf("LabelAgent parsed response: guard=%s, response=%s", g.name, responseJSON)
-		},
-		func(marshalErr error) {
-			logWasm.Printf("LabelAgent parsed response (marshal failed): guard=%s, error=%v", g.name, marshalErr)
-		},
+		logWasm.Printf,
+		"LabelAgent parsed response: guard=%s, response=%s",
+		logWasm.Printf,
+		"LabelAgent parsed response (marshal failed): guard=%s, error=%v",
+		g.name,
 	)
 
 	return result, nil
@@ -598,12 +650,16 @@ func unmarshalWasmResponse(funcName string, data []byte) (map[string]any, error)
 
 // Close releases WASM runtime resources
 func (g *WasmGuard) Close(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	cleanupCtx := context.WithoutCancel(ctx)
 	var moduleErr, runtimeErr error
 	if g.module != nil {
-		moduleErr = g.module.Close(ctx)
+		moduleErr = g.module.Close(cleanupCtx)
 	}
 	if g.runtime != nil {
-		runtimeErr = g.runtime.Close(ctx)
+		runtimeErr = g.runtime.Close(cleanupCtx)
 	}
 	return errors.Join(moduleErr, runtimeErr)
 }

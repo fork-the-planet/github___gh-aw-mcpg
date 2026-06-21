@@ -6,7 +6,6 @@ package proxy
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,6 +31,8 @@ const (
 
 	// ghHostPathPrefix is the /api/v3/ prefix that gh adds when using GH_HOST.
 	ghHostPathPrefix = "/api/v3"
+
+	proxyAgentID = "proxy"
 )
 
 // Server is a filtering HTTP forward proxy for the GitHub REST/GraphQL API.
@@ -100,7 +101,7 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 	// NewComponents returns any parse error so we can warn without parsing twice.
 	difcComponents, difcParseErr := difc.NewComponents(cfg.DIFCMode, difc.EnforcementFilter)
 	if difcParseErr != nil {
-		logProxy.Printf("WARNING: invalid DIFC mode %q, defaulting to filter", cfg.DIFCMode)
+		logger.LogWarn("startup", "invalid DIFC mode %q, defaulting to filter: %v", cfg.DIFCMode, difcParseErr)
 	}
 	logProxy.Printf("Enforcement mode resolved: %s", difcComponents.Mode)
 
@@ -120,7 +121,7 @@ func New(ctx context.Context, cfg Config) (*Server, error) {
 		httpClient: &http.Client{
 			Timeout: 60 * time.Second,
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+				TLSClientConfig: httputil.NewClientTLSConfig(),
 			},
 		},
 	}
@@ -168,13 +169,20 @@ func (s *Server) initGuardPolicy(ctx context.Context, policyJSON string, trusted
 		}
 	}
 
-	// Build payload with optional trusted bots and trusted users
-	payload := guard.BuildLabelAgentPayload(policy, trustedBots, trustedUsers)
-
 	logProxy.Printf("Calling LabelAgent to initialize agent labels from guard")
 	backend := &restBackendCaller{server: s}
-	agentLabels := s.AgentRegistry.GetOrCreate("proxy")
-	newMode, result, err := guard.RunLabelAgent(ctx, s.guard, payload, backend, s.Capabilities, agentLabels, s.Mode)
+	newMode, result, err := guard.RunLabelAgentInit(
+		ctx,
+		s.guard,
+		policy,
+		trustedBots,
+		trustedUsers,
+		backend,
+		s.Capabilities,
+		s.AgentRegistry,
+		proxyAgentID,
+		s.Mode,
+	)
 	if err != nil {
 		return err
 	}
@@ -223,30 +231,16 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 	)
 	switch toolName {
 	case "pull_request_read":
-		owner, _ := argsMap["owner"].(string)
-		repo, _ := argsMap["repo"].(string)
-		number, _ := argsMap["pullNumber"].(string)
-		if number == "" {
-			if n, ok := argsMap["pullNumber"].(float64); ok {
-				number = fmt.Sprintf("%d", int(n))
-			}
-		}
-		if owner == "" || repo == "" || number == "" {
-			return nil, fmt.Errorf("pull_request_read: missing owner/repo/pullNumber")
+		owner, repo, number, err := extractOwnerRepoNumber(argsMap, "owner", "repo", "pullNumber", toolName)
+		if err != nil {
+			return nil, err
 		}
 		apiPath = fmt.Sprintf("/repos/%s/%s/pulls/%s", owner, repo, number)
 
 	case "issue_read":
-		owner, _ := argsMap["owner"].(string)
-		repo, _ := argsMap["repo"].(string)
-		number, _ := argsMap["issue_number"].(string)
-		if number == "" {
-			if n, ok := argsMap["issue_number"].(float64); ok {
-				number = fmt.Sprintf("%d", int(n))
-			}
-		}
-		if owner == "" || repo == "" || number == "" {
-			return nil, fmt.Errorf("issue_read: missing owner/repo/issue_number")
+		owner, repo, number, err := extractOwnerRepoNumber(argsMap, "owner", "repo", "issue_number", toolName)
+		if err != nil {
+			return nil, err
 		}
 		apiPath = fmt.Sprintf("/repos/%s/%s/issues/%s", owner, repo, number)
 
@@ -329,6 +323,30 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 	return mcp.BuildMCPTextResponse(string(body)), nil
 }
 
+// upstreamHost returns the hostname of the upstream GitHub API URL.
+// It is used to populate the server.address OTel attribute on the
+// proxy.backend.forward span.
+func (s *Server) upstreamHost() string {
+	u, err := url.Parse(s.githubAPIURL)
+	if err == nil && u.Host != "" {
+		return u.Hostname()
+	}
+
+	// Handle scheme-less config values like "api.github.com" or "api.github.com/api/v3".
+	u, err = url.Parse("https://" + strings.TrimLeft(s.githubAPIURL, "/"))
+	if err == nil && u.Host != "" {
+		return u.Hostname()
+	}
+
+	host, _, _ := strings.Cut(strings.TrimLeft(s.githubAPIURL, "/"), "/")
+	return host
+}
+
+func (s *Server) isGHECDataResidencyHost() bool {
+	host := strings.ToLower(s.upstreamHost())
+	return strings.HasPrefix(host, "copilot-api.") && strings.HasSuffix(host, ".ghe.com")
+}
+
 // forwardToGitHub sends a request to the upstream GitHub API.
 // clientAuth is the Authorization header from the inbound client request;
 // if non-empty it is forwarded as-is, otherwise the configured fallback token is used.
@@ -336,9 +354,18 @@ func (s *Server) forwardToGitHub(ctx context.Context, method, path string, body 
 	url := s.githubAPIURL + path
 	pathOnly, query, hasQuery := strings.Cut(path, "?")
 	if IsGraphQLPath(pathOnly) {
-		graphqlURL := s.githubAPIURL + "/graphql"
+		normalizedPath := strings.TrimSuffix(pathOnly, "/")
+		var graphqlURL string
 		if strings.HasSuffix(s.githubAPIURL, "/api/v3") {
+			// GHES: strip /api/v3, GraphQL lives at /api/graphql
 			graphqlURL = strings.TrimSuffix(s.githubAPIURL, "/api/v3") + "/api/graphql"
+		} else if s.isGHECDataResidencyHost() && strings.HasSuffix(normalizedPath, "/api/graphql") {
+			// GHE Cloud data residency (e.g. copilot-api.sj.ghe.com):
+			// the client already sent /api/graphql — use the same path on upstream
+			graphqlURL = s.githubAPIURL + "/api/graphql"
+		} else {
+			// github.com: GraphQL lives at /graphql
+			graphqlURL = s.githubAPIURL + "/graphql"
 		}
 		url = graphqlURL
 		if hasQuery {

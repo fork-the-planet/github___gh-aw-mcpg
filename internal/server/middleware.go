@@ -1,21 +1,15 @@
 package server
 
 import (
-	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	oteltrace "go.opentelemetry.io/otel/trace"
 
-	"github.com/github/gh-aw-mcpg/internal/auth"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
-
-var logSDK = logger.New("server:sdk-frontend")
 
 // mcpHandlerConfig holds the non-factory options for buildMCPHandler.
 // Using a struct instead of positional parameters makes call sites
@@ -28,6 +22,24 @@ type mcpHandlerConfig struct {
 	unifiedServer  *UnifiedServer
 	apiKey         string
 	hmacSecret     string
+}
+
+type defaultHandlerConfigOptions struct {
+	handlerLog *logger.Logger
+	logTag     string
+	apiKey     string
+	hmacSecret string
+}
+
+func buildDefaultHandlerConfig(unifiedServer *UnifiedServer, sessionTimeout time.Duration, opts defaultHandlerConfigOptions) mcpHandlerConfig {
+	return mcpHandlerConfig{
+		handlerLog:     opts.handlerLog,
+		sessionTimeout: sessionTimeout,
+		logTag:         opts.logTag,
+		unifiedServer:  unifiedServer,
+		apiKey:         opts.apiKey,
+		hmacSecret:     opts.hmacSecret,
+	}
 }
 
 // WithOTELTracing wraps an http.Handler with an OpenTelemetry span for each request.
@@ -47,18 +59,9 @@ func WithOTELTracing(next http.Handler, tag string) http.Handler {
 		next.ServeHTTP(w, r)
 		sessionID := SessionIDFromContext(r.Context())
 		span := oteltrace.SpanFromContext(r.Context())
-		span.SetAttributes(tracing.GenAIConversationID.String(auth.TruncateSessionID(sessionID)))
+		span.SetAttributes(tracing.GenAIConversationID.String(truncateSessionID(sessionID)))
 	})
 	return tracing.WrapHTTPHandler(enriched, "gateway.request", tracing.GatewayTag.String(tag))
-}
-
-// applyIfConfigured wraps handler with middleware(key, handler) when key is non-empty.
-// If key is empty the handler is returned unchanged.
-func applyIfConfigured(key string, handler http.HandlerFunc, middleware func(string, http.HandlerFunc) http.HandlerFunc) http.HandlerFunc {
-	if key != "" {
-		return middleware(key, handler)
-	}
-	return handler
 }
 
 // wrapWithMiddleware applies the standard middleware stack to an SDK handler.
@@ -103,11 +106,11 @@ func wrapWithMiddleware(handler http.Handler, logTag string, unifiedServer *Unif
 // unified (transport.go) and routed (routed.go) server modes.
 //
 // The stack (innermost to outermost) is:
-//  1. sdk.NewStreamableHTTPHandler – stateful MCP session management
-//  2. WrapWithSessionAutoInit – transparent auto-init for clients that skip the
+//  1. sdk.NewStreamableHTTPHandler - stateful MCP session management
+//  2. WrapWithSessionAutoInit - transparent auto-init for clients that skip the
 //     MCP initialize handshake (e.g. Gemini CLI v0.37.x)
-//  3. wrapWithMiddleware – standard middleware chain (OTEL → auth → HMAC →
-//     shutdown check → SDK logging)
+//  3. wrapWithMiddleware - standard middleware chain (OTEL -> auth -> HMAC ->
+//     shutdown check -> SDK logging)
 func buildMCPHandler(serverFactory func(*http.Request) *sdk.Server, cfg mcpHandlerConfig) http.Handler {
 	h := sdk.NewStreamableHTTPHandler(serverFactory, &sdk.StreamableHTTPOptions{
 		Stateless:      false,
@@ -115,118 +118,4 @@ func buildMCPHandler(serverFactory func(*http.Request) *sdk.Server, cfg mcpHandl
 		SessionTimeout: cfg.sessionTimeout,
 	})
 	return wrapWithMiddleware(WrapWithSessionAutoInit(h), cfg.logTag, cfg.unifiedServer, cfg.apiKey, cfg.hmacSecret)
-}
-
-// WithSDKLogging wraps an SDK StreamableHTTPHandler to log JSON-RPC translation results.
-// This captures the request/response at the HTTP boundary to understand what the SDK
-// sees and what it returns, particularly for debugging protocol state issues.
-func WithSDKLogging(handler http.Handler, mode string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		startTime := time.Now()
-
-		// Extract session info for logging context
-		authHeader := r.Header.Get("Authorization")
-		sessionID := auth.ExtractSessionID(authHeader)
-		mcpSessionID := r.Header.Get("Mcp-Session-Id")
-
-		// Log incoming request
-		logSDK.Printf(">>> SDK Request [%s] session=%s mcp-session=%s method=%s path=%s",
-			mode, auth.TruncateSessionID(sessionID), auth.TruncateSessionID(mcpSessionID), r.Method, r.URL.Path)
-
-		// Capture and log request body for POST requests
-		requestBody, err := peekRequestBody(r)
-		var jsonrpcReq mcp.Request
-		if err == nil && len(requestBody) > 0 {
-			// Parse JSON-RPC request
-			if err := json.Unmarshal(requestBody, &jsonrpcReq); err == nil {
-				logSDK.Printf("    JSON-RPC Request: method=%s id=%v", jsonrpcReq.Method, jsonrpcReq.ID)
-				logger.LogDebug("sdk-frontend", "JSON-RPC request parsed: mode=%s, method=%s, id=%v, session=%s",
-					mode, jsonrpcReq.Method, jsonrpcReq.ID, auth.TruncateSessionID(sessionID))
-			} else {
-				logSDK.Printf("    Failed to parse JSON-RPC request: %v", err)
-				logSDK.Printf("    Raw body: %s", string(requestBody))
-			}
-		}
-
-		// Wrap response writer to capture output
-		lw := newResponseWriter(w)
-
-		// Call the actual SDK handler
-		handler.ServeHTTP(lw, r)
-
-		duration := time.Since(startTime)
-
-		// Parse and log response
-		responseBody := lw.Body()
-		if len(responseBody) > 0 {
-			// Try to parse as JSON-RPC response
-			var jsonrpcResp mcp.Response
-			if err := json.Unmarshal(responseBody, &jsonrpcResp); err == nil {
-				if jsonrpcResp.Error != nil {
-					// Error response - this is what we're particularly interested in
-					logSDK.Printf("<<< SDK Response [%s] ERROR status=%d duration=%v",
-						mode, lw.StatusCode(), duration)
-					logSDK.Printf("    JSON-RPC Error: code=%d message=%q",
-						jsonrpcResp.Error.Code, jsonrpcResp.Error.Message)
-
-					// Check for specific error types
-					errorCode := jsonrpcResp.Error.Code
-					errorMsg := jsonrpcResp.Error.Message
-
-					// Log tool not found errors specifically for better monitoring
-					// Error code -32602 (Invalid params) is used by the SDK for unknown tools
-					// Error code -32601 (Method not found) could also indicate tool issues
-					// We check the method to ensure this is a tools/call request
-					if (errorCode == -32602 || errorCode == -32601) && jsonrpcReq.Method == "tools/call" {
-						logSDK.Printf("    ⚠️  TOOL NOT FOUND ERROR")
-						logger.LogWarn("client",
-							"Tool not found: mode=%s, method=%s, session=%s, code=%d, message=%q",
-							mode, jsonrpcReq.Method, auth.TruncateSessionID(sessionID), errorCode, errorMsg)
-					}
-
-					// Log detailed error info for protocol state issues
-					if strings.Contains(errorMsg, "session initialization") ||
-						strings.Contains(errorMsg, "invalid during") {
-						logSDK.Printf("    ⚠️  PROTOCOL STATE ERROR DETECTED")
-						logSDK.Printf("    Request method was: %s", jsonrpcReq.Method)
-						logSDK.Printf("    Session ID: %s", auth.TruncateSessionID(sessionID))
-						logSDK.Printf("    MCP-Session-Id header: %s", auth.TruncateSessionID(mcpSessionID))
-						logSDK.Printf("    This error indicates SDK's StreamableHTTPHandler created fresh protocol state")
-
-						logger.LogWarn("sdk-frontend",
-							"Protocol state error: mode=%s, method=%s, session=%s, mcp_session=%s, error=%q",
-							mode, jsonrpcReq.Method, auth.TruncateSessionID(sessionID),
-							auth.TruncateSessionID(mcpSessionID), errorMsg)
-					} else if (errorCode != -32602 && errorCode != -32601) || jsonrpcReq.Method != "tools/call" {
-						// Only log as general error if not already logged above
-						logger.LogError("sdk-frontend",
-							"JSON-RPC error: mode=%s, method=%s, code=%d, message=%q",
-							mode, jsonrpcReq.Method, errorCode, errorMsg)
-					}
-				} else {
-					// Success response
-					logSDK.Printf("<<< SDK Response [%s] SUCCESS status=%d duration=%v",
-						mode, lw.StatusCode(), duration)
-					logSDK.Printf("    JSON-RPC Response id=%v has result=%v",
-						jsonrpcResp.ID, jsonrpcResp.Result != nil)
-
-					logger.LogDebug("sdk-frontend",
-						"JSON-RPC success: mode=%s, method=%s, id=%v, duration=%v",
-						mode, jsonrpcReq.Method, jsonrpcResp.ID, duration)
-				}
-			} else {
-				// Could be SSE stream or other format
-				logSDK.Printf("<<< SDK Response [%s] status=%d duration=%v (non-JSON or stream)",
-					mode, lw.StatusCode(), duration)
-				if len(responseBody) < 500 {
-					logSDK.Printf("    Raw response: %s", string(responseBody))
-				} else {
-					logSDK.Printf("    Raw response (truncated): %s...", string(responseBody[:500]))
-				}
-			}
-		} else {
-			logSDK.Printf("<<< SDK Response [%s] status=%d duration=%v (empty body)",
-				mode, lw.StatusCode(), duration)
-		}
-	})
 }

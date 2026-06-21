@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-
-	"github.com/github/gh-aw-mcpg/internal/config/rules"
 )
 
 // Variable expression pattern: ${VARIABLE_NAME}
@@ -47,7 +45,7 @@ func expandVariables(value, jsonPath string) (string, error) {
 
 	if len(undefinedVars) > 0 {
 		logValidation.Printf("Variable expansion failed: undefined variables=%v", undefinedVars)
-		return "", rules.UndefinedVariable(undefinedVars[0], jsonPath)
+		return "", UndefinedVariable(undefinedVars[0], jsonPath)
 	}
 
 	return string(result), nil
@@ -61,7 +59,7 @@ func ExpandRawJSONVariables(data []byte) ([]byte, error) {
 
 	if len(undefinedVars) > 0 {
 		logValidation.Printf("Variable expansion failed: undefined variables=%v", undefinedVars)
-		return nil, rules.UndefinedVariable(undefinedVars[0], "configuration")
+		return nil, UndefinedVariable(undefinedVars[0], "configuration")
 	}
 
 	return result, nil
@@ -87,4 +85,58 @@ func expandEnvVariables(env map[string]string, serverName string) (map[string]st
 
 	logValidation.Printf("Env variable expansion completed for server: %s", serverName)
 	return result, nil
+}
+
+func expandMapInPlace(m *map[string]string, serverName, fieldDesc string) error {
+	if len(*m) == 0 {
+		return nil
+	}
+
+	logStdin.Printf("Server %q: expanding %d %s", serverName, len(*m), fieldDesc)
+	expanded, err := expandEnvVariables(*m, serverName)
+	if err != nil {
+		return fmt.Errorf("server %q: failed to expand %s: %w", serverName, fieldDesc, err)
+	}
+	*m = expanded
+	return nil
+}
+
+// expandTracingVariables expands ${VAR} expressions in TracingConfig fields.
+// This is called for TOML-loaded configs before validation, mirroring the
+// stdin JSON path where ExpandRawJSONVariables handles expansion.
+func expandTracingVariables(cfg *TracingConfig) error {
+	if cfg == nil {
+		return nil
+	}
+
+	logValidation.Printf("Expanding tracing config variables: hasEndpoint=%v, hasTraceID=%v, hasSpanID=%v, hasHeaders=%v",
+		cfg.Endpoint != "", cfg.TraceID != "", cfg.SpanID != "", cfg.Headers != "")
+
+	fields := []struct {
+		name     string
+		jsonPath string
+		value    *string
+	}{
+		{name: "endpoint", jsonPath: "gateway.opentelemetry.endpoint", value: &cfg.Endpoint},
+		{name: "traceId", jsonPath: "gateway.opentelemetry.traceId", value: &cfg.TraceID},
+		{name: "spanId", jsonPath: "gateway.opentelemetry.spanId", value: &cfg.SpanID},
+		{name: "headers", jsonPath: "gateway.opentelemetry.headers", value: &cfg.Headers},
+	}
+
+	for _, field := range fields {
+		if *field.value == "" {
+			continue
+		}
+
+		expanded, err := expandVariables(*field.value, field.jsonPath)
+		if err != nil {
+			return err
+		}
+
+		logValidation.Printf("Expanded tracing %s variable", field.name)
+		*field.value = expanded
+	}
+
+	logValidation.Print("Tracing config variable expansion completed")
+	return nil
 }

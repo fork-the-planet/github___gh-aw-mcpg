@@ -152,8 +152,12 @@ check_required_env_vars() {
         missing_vars+=("MCP_GATEWAY_DOMAIN")
     fi
 
-    if [ -z "$MCP_GATEWAY_API_KEY" ]; then
-        missing_vars+=("MCP_GATEWAY_API_KEY")
+    # Accept MCP_GATEWAY_AGENT_ID (preferred) or MCP_GATEWAY_API_KEY (deprecated fallback)
+    if [ -z "$MCP_GATEWAY_AGENT_ID" ] && [ -z "$MCP_GATEWAY_API_KEY" ]; then
+        missing_vars+=("MCP_GATEWAY_AGENT_ID")
+    elif [ -z "$MCP_GATEWAY_AGENT_ID" ] && [ -n "$MCP_GATEWAY_API_KEY" ]; then
+        log_warn "MCP_GATEWAY_API_KEY is deprecated; please rename it to MCP_GATEWAY_AGENT_ID"
+        export MCP_GATEWAY_AGENT_ID="$MCP_GATEWAY_API_KEY"
     fi
 
     if [ ${#missing_vars[@]} -ne 0 ]; then
@@ -163,7 +167,7 @@ check_required_env_vars() {
         done
         log_error ""
         log_error "Set these when running the container:"
-        log_error "  docker run -e MCP_GATEWAY_PORT=8080 -e MCP_GATEWAY_DOMAIN=localhost -e MCP_GATEWAY_API_KEY=your-key ..."
+        log_error "  docker run -e MCP_GATEWAY_PORT=8080 -e MCP_GATEWAY_DOMAIN=localhost -e MCP_GATEWAY_AGENT_ID=your-agent-id ..."
         exit 1
     fi
 
@@ -177,6 +181,15 @@ validate_port_mapping() {
 
     if ! validate_container_id "$container_id"; then
         log_warn "Cannot validate port mapping: container ID invalid or unknown"
+        return 0
+    fi
+
+    # Host networking: ports are shared directly with the host; no port-mapping entry
+    # appears in NetworkSettings.Ports for host-networked containers.
+    local network_mode
+    network_mode=$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$container_id" 2>/dev/null || echo "")
+    if [ "$network_mode" = "host" ]; then
+        log_info "Host network mode detected: skipping port-mapping validation for port $port (published ports are discarded in host mode)"
         return 0
     fi
 
@@ -352,7 +365,7 @@ build_command_args() {
 }
 
 # Run proxy mode — lightweight path that skips gateway-specific checks
-# (no Docker socket, no stdin config, no MCP_GATEWAY_PORT/DOMAIN/API_KEY needed)
+# (no Docker socket, no stdin config, no MCP_GATEWAY_PORT/MCP_GATEWAY_DOMAIN/MCP_GATEWAY_AGENT_ID needed)
 run_proxy_mode() {
     log_info "Starting MCP Gateway in proxy mode..."
 

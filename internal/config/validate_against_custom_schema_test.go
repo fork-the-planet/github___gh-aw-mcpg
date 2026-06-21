@@ -324,3 +324,45 @@ func TestValidateCustomServerConfig_UnregisteredType(t *testing.T) {
 	assert.ErrorContains(t, err, "not registered in customSchemas")
 	assert.ErrorContains(t, err, "mytype")
 }
+
+// TestValidateAgainstCustomSchema_CacheHitWrongType covers the branch where the
+// schema URL is found in the cache but the cached value is not a *jsonschema.Schema.
+// In that case the cached value is ignored and the schema is re-fetched.
+// (validation.go lines ~231-237)
+func TestValidateAgainstCustomSchema_CacheHitWrongType(t *testing.T) {
+	// We need a unique URL so it doesn't collide with other tests' cache entries.
+	var requestCount atomic.Int32
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestCount.Add(1)
+		schema := map[string]interface{}{
+			"$schema": "http://json-schema.org/draft-07/schema#",
+			"type":    "object",
+			"properties": map[string]interface{}{
+				"type":      map[string]interface{}{"type": "string"},
+				"container": map[string]interface{}{"type": "string"},
+			},
+			"required": []string{"type", "container"},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(schema)
+	}))
+	defer mockServer.Close()
+
+	// Use a unique URL (including a path) so it doesn't collide with other tests' cache entries.
+	schemaURL := mockServer.URL + "/cache-hit-wrong-type"
+	t.Cleanup(func() { customSchemaCache.Delete(schemaURL) })
+
+	// Seed the cache with a non-*jsonschema.Schema value at this URL.
+	customSchemaCache.Store(schemaURL, "unexpected-string-value")
+
+	server := &StdinServerConfig{
+		Type:      "mytype",
+		Container: "ghcr.io/example/mytype:latest",
+	}
+
+	// The wrong-type cache hit should be ignored; the schema should be re-fetched.
+	err := validateAgainstCustomSchema("test-server", server, schemaURL, "mcpServers.test-server")
+
+	require.NoError(t, err, "validation should succeed after ignoring the wrong-type cache entry")
+	assert.Equal(t, int32(1), requestCount.Load(), "schema should be fetched once after ignoring the bad cache entry")
+}

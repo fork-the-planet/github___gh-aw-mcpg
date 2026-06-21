@@ -26,8 +26,8 @@
 //
 // This keeps the env-var name co-located with the flag declaration.
 //
-// Exception: getDefaultDIFCMode() in flags_difc.go is kept as a named helper
-// because it contains validation logic beyond a simple env lookup.
+// Exception: difc.DefaultEnforcementMode() is kept as a named helper because
+// it contains validation logic beyond a simple env lookup.
 //
 // When adding a new flag with an environment variable override:
 //  1. Use envutil.GetEnv* directly in the RegisterFlag call.
@@ -35,8 +35,8 @@
 package cmd
 
 import (
+	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
-	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/spf13/cobra"
 )
 
@@ -73,9 +73,9 @@ func applyFlagOrEnv[T comparable](cmd *cobra.Command, flagName string, field *T,
 func registerFlagCompletions(cmd *cobra.Command) {
 	debugLog.Print("Registering flag completion functions")
 	// File and directory completions
-	cmd.RegisterFlagCompletionFunc("config", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-		return []string{"toml"}, cobra.ShellCompDirectiveFilterFileExt
-	})
+	if err := cmd.MarkFlagFilename("config", "toml"); err != nil {
+		debugLog.Printf("Failed to register --config filename completion: %v", err)
+	}
 	cmd.RegisterFlagCompletionFunc("log-dir", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveFilterDirs
 	})
@@ -85,9 +85,10 @@ func registerFlagCompletions(cmd *cobra.Command) {
 	cmd.RegisterFlagCompletionFunc("wasm-cache-dir", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveFilterDirs
 	})
-	cmd.RegisterFlagCompletionFunc("env", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-		return []string{"env"}, cobra.ShellCompDirectiveFilterFileExt
-	})
+	// Show all files for --env — the canonical .env file has no extension.
+	if err := cmd.MarkFlagFilename("env"); err != nil {
+		debugLog.Printf("Failed to register --env filename completion: %v", err)
+	}
 
 	// Enum completions for DIFC flags.
 	// Note: the proxy subcommand registers its own guards-mode completion for its
@@ -95,7 +96,7 @@ func registerFlagCompletions(cmd *cobra.Command) {
 	cmd.RegisterFlagCompletionFunc("guards-mode", cobra.FixedCompletions(
 		difc.ValidModes, cobra.ShellCompDirectiveNoFileComp))
 	cmd.RegisterFlagCompletionFunc("allowonly-min-integrity", cobra.FixedCompletions(
-		guard.AllowedIntegrityLevels, cobra.ShellCompDirectiveNoFileComp))
+		config.AllIntegrityLevels(), cobra.ShellCompDirectiveNoFileComp))
 
 	// Add ActiveHelp for --config and --config-stdin flags
 	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

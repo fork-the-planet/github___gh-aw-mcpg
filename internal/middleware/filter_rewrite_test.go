@@ -146,6 +146,48 @@ func TestRewriteEnvelopeTextPayload(t *testing.T) {
 	})
 }
 
+func TestRewriteFirstContentItem(t *testing.T) {
+	t.Run("[]map content rewrites first item text", func(t *testing.T) {
+		content := []map[string]interface{}{
+			{"type": "text", "text": "old"},
+			{"type": "text", "text": "second"},
+		}
+
+		result, ok := rewriteFirstContentItem(content, "new text")
+		require.True(t, ok)
+
+		rewritten, ok := result.([]map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "new text", rewritten[0]["text"])
+		assert.Equal(t, "second", rewritten[1]["text"])
+		assert.Equal(t, "old", content[0]["text"], "original slice should be untouched")
+	})
+
+	t.Run("[]interface content rewrites first item text", func(t *testing.T) {
+		firstItem := map[string]interface{}{"type": "text", "text": "old"}
+		content := []interface{}{
+			firstItem,
+			map[string]interface{}{"type": "text", "text": "second"},
+		}
+
+		result, ok := rewriteFirstContentItem(content, "new text")
+		require.True(t, ok)
+
+		rewritten, ok := result.([]interface{})
+		require.True(t, ok)
+		rewrittenFirst, ok := rewritten[0].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "new text", rewrittenFirst["text"])
+		assert.Equal(t, "old", firstItem["text"], "original map should be untouched")
+	})
+
+	t.Run("[]interface content with non-map first item returns false", func(t *testing.T) {
+		result, ok := rewriteFirstContentItem([]interface{}{"not-a-map"}, "new text")
+		assert.False(t, ok)
+		assert.Nil(t, result)
+	})
+}
+
 // ---------------------------------------------------------------------------
 // rewriteFilteredTextPayload
 // ---------------------------------------------------------------------------

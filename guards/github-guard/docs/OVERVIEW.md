@@ -81,7 +81,7 @@ Rule evaluation and fallback semantics:
 - If DIFC evaluation fails for `write`/`read-write`, backend and `label_response` are both skipped.
 - `read` calls execute and are forwarded to `label_response`.
 - `label_response` returning `0` means skip fine-grained response labeling.
-- When path-based labeling is unavailable, the guard falls back to legacy item labeling (including singleton fallback labeling when needed).
+- When path-based labeling is unavailable, the guard falls back to legacy item labeling; singleton fallback applies to object/singleton responses, while top-level arrays with no fine-grained labels return `0` (coarse-only passthrough).
 
 ## Operating Modes
 

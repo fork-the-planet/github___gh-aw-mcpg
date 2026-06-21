@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -857,7 +858,7 @@ func TestBuildStrictLabelAgentPayload(t *testing.T) {
 
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.Equal(t, "invalid integrity value: expected one of none|unapproved|approved|merged", err.Error())
+		assert.Equal(t, "integrity must be one of: none, unapproved, approved, merged", err.Error())
 	})
 }
 
@@ -975,7 +976,7 @@ func TestBuildStrictLabelAgentPayloadExtendedGuard(t *testing.T) {
 		}
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "invalid integrity value")
+		assert.ErrorContains(t, err, "integrity must be one of")
 	})
 
 	t.Run("blocked-users validation - not an array", func(t *testing.T) {
@@ -1143,7 +1144,7 @@ func TestBuildStrictLabelAgentPayloadExtendedGuard(t *testing.T) {
 		input["allow-only"].(map[string]interface{})["disapproval-integrity"] = 99
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "invalid disapproval-integrity value: expected one of none|unapproved|approved|merged")
+		assert.ErrorContains(t, err, "disapproval-integrity must be one of")
 	})
 
 	t.Run("disapproval-integrity validation - invalid string value", func(t *testing.T) {
@@ -1151,7 +1152,7 @@ func TestBuildStrictLabelAgentPayloadExtendedGuard(t *testing.T) {
 		input["allow-only"].(map[string]interface{})["disapproval-integrity"] = "high"
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "invalid disapproval-integrity value: expected one of none|unapproved|approved|merged")
+		assert.ErrorContains(t, err, "disapproval-integrity must be one of")
 	})
 
 	t.Run("disapproval-integrity validation - valid", func(t *testing.T) {
@@ -1167,7 +1168,7 @@ func TestBuildStrictLabelAgentPayloadExtendedGuard(t *testing.T) {
 		input["allow-only"].(map[string]interface{})["endorser-min-integrity"] = true
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "invalid endorser-min-integrity value: expected one of none|unapproved|approved|merged")
+		assert.ErrorContains(t, err, "endorser-min-integrity must be one of")
 	})
 
 	t.Run("endorser-min-integrity validation - invalid string value", func(t *testing.T) {
@@ -1175,7 +1176,7 @@ func TestBuildStrictLabelAgentPayloadExtendedGuard(t *testing.T) {
 		input["allow-only"].(map[string]interface{})["endorser-min-integrity"] = "critical"
 		_, err := buildStrictLabelAgentPayload(input)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "invalid endorser-min-integrity value: expected one of none|unapproved|approved|merged")
+		assert.ErrorContains(t, err, "endorser-min-integrity must be one of")
 	})
 
 	t.Run("endorser-min-integrity validation - valid", func(t *testing.T) {
@@ -1257,7 +1258,7 @@ func TestIsValidAllowOnlyRepos(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isValidAllowOnlyRepos(tt.input)
+			got := config.IsValidAllowOnlyReposValue(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
 	}

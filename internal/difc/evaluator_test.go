@@ -769,9 +769,31 @@ func TestParseEnforcementMode(t *testing.T) {
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expected, mode)
 			}
+		})
+	}
+}
+
+func TestDefaultEnforcementMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		want     string
+	}{
+		{name: "no env var returns strict", envValue: "", want: "strict"},
+		{name: "env var strict", envValue: "strict", want: "strict"},
+		{name: "env var filter", envValue: "filter", want: "filter"},
+		{name: "env var propagate", envValue: "propagate", want: "propagate"},
+		{name: "env var FILTER uppercase", envValue: "FILTER", want: "filter"},
+		{name: "env var invalid falls back to strict", envValue: "invalid", want: "strict"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("MCP_GATEWAY_GUARDS_MODE", tt.envValue)
+			assert.Equal(t, tt.want, DefaultEnforcementMode())
 		})
 	}
 }
