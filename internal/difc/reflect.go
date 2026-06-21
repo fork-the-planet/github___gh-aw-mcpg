@@ -35,9 +35,13 @@ func BuildReflectResponse(components DIFCComponents) ReflectResponse {
 				logReflect.Printf("Skipping agent %s: not found or nil in registry", agentID)
 				continue
 			}
+			secrecy := TagsToStrings(agent.GetSecrecyTags())
+			sort.Strings(secrecy)
+			integrity := TagsToStrings(agent.GetIntegrityTags())
+			sort.Strings(integrity)
 			agents[agentID] = ReflectedAgentLabels{
-				Secrecy:   tagsToStrings(agent.GetSecrecyTags()),
-				Integrity: tagsToStrings(agent.GetIntegrityTags()),
+				Secrecy:   secrecy,
+				Integrity: integrity,
 			}
 		}
 	} else {
@@ -49,13 +53,4 @@ func BuildReflectResponse(components DIFCComponents) ReflectResponse {
 		Mode:      components.Mode.String(),
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 	}
-}
-
-func tagsToStrings(tags []Tag) []string {
-	out := make([]string, len(tags))
-	for i, tag := range tags {
-		out[i] = string(tag)
-	}
-	sort.Strings(out)
-	return out
 }
