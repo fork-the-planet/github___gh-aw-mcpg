@@ -5554,6 +5554,64 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_cli_projects_write_aliases_match_projects_write() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "projectId": "PVT_123"
+        });
+
+        let expected = apply_tool_labels(
+            "projects_write",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        for op in &[
+            "copy_project",
+            "delete_project",
+            "link_project",
+            "unlink_project",
+            "update_project",
+        ] {
+            let actual = apply_tool_labels(op, &tool_args, "", vec![], vec![], String::new(), &ctx);
+            assert_eq!(
+                actual, expected,
+                "{op} should match projects_write labeling"
+            );
+        }
+    }
+
+    #[test]
+    fn test_apply_tool_labels_delete_issue_and_delete_repository_are_repo_scoped_writes() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot"
+        });
+        let repo_id = "github/copilot";
+
+        for op in &["delete_issue", "delete_repository"] {
+            let (secrecy, integrity, _desc) =
+                apply_tool_labels(op, &tool_args, repo_id, vec![], vec![], String::new(), &ctx);
+
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{op} should have repo-scoped writer integrity"
+            );
+            assert!(
+                secrecy.is_empty(),
+                "{op}: public repo should have empty secrecy"
+            );
+        }
+    }
+
+    #[test]
     fn test_apply_tool_labels_label_write_writer_integrity() {
         let ctx = default_ctx();
         let repo_id = "github/copilot";
