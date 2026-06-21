@@ -635,9 +635,11 @@ pub fn apply_tool_labels(
         | "request_copilot_review"
         | "edit_repository"
         | "revert_pull_request"
-        // Pre-emptive: issue comment, releases
+        // Pre-emptive: issue deletion, issue comments, repository deletion, releases
+        | "delete_issue"
         | "update_issue_comment"
         | "delete_issue_comment"
+        | "delete_repository"
         | "create_release"
         | "edit_release"
         | "delete_release"
@@ -659,7 +661,15 @@ pub fn apply_tool_labels(
         // === Projects write operations (org-scoped) ===
         "projects_write"
         // Deprecated aliases that map to projects_write
-        | "add_project_item" | "update_project_item" | "delete_project_item" => {
+        | "add_project_item"
+        | "update_project_item"
+        | "delete_project_item"
+        // Synthetic CLI-only coverage for additional Projects v2 mutations
+        | "copy_project"
+        | "delete_project"
+        | "link_project"
+        | "unlink_project"
+        | "update_project" => {
             // Projects are org-scoped; write responses carry the same labels as reads.
             // I = approved:<owner>
             if !owner.is_empty() {
@@ -1464,7 +1474,10 @@ mod tests {
         let ctx = default_ctx();
         let repo_id = "octocat/hello-world";
 
-        for (method, standalone) in &[("issue_types", "list_issue_types"), ("issue_fields", "list_issue_fields")] {
+        for (method, standalone) in &[
+            ("issue_types", "list_issue_types"),
+            ("issue_fields", "list_issue_fields"),
+        ] {
             let args = serde_json::json!({
                 "owner": "octocat",
                 "repo": "hello-world",
@@ -1524,16 +1537,14 @@ mod tests {
         let expected_secrecy = private_user_label();
         let expected_integrity = writer_integrity(scope_names::USER, &ctx);
 
-        for tool in &["add_gpg_key", "add_ssh_key", "delete_gpg_key", "delete_ssh_key"] {
-            let (secrecy, integrity, _) = super::apply_tool_labels(
-                tool,
-                &args,
-                "",
-                vec![],
-                vec![],
-                String::new(),
-                &ctx,
-            );
+        for tool in &[
+            "add_gpg_key",
+            "add_ssh_key",
+            "delete_gpg_key",
+            "delete_ssh_key",
+        ] {
+            let (secrecy, integrity, _) =
+                super::apply_tool_labels(tool, &args, "", vec![], vec![], String::new(), &ctx);
             assert_eq!(
                 secrecy, expected_secrecy,
                 "{tool}: must be user-private (secrecy = private:user)",

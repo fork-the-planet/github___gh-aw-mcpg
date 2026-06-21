@@ -13,10 +13,11 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "add_issue_comment",
     "add_project_item", // deprecated alias for projects_write (addProjectV2ItemById)
     "add_reply_to_pull_request_comment",
-    "add_ssh_key",  // gh ssh-key add — adds a user SSH auth/signing key
+    "add_ssh_key",        // gh ssh-key add — adds a user SSH auth/signing key
     "archive_repository", // gh repo archive — blocked: repo settings change unsupported
     "assign_copilot_to_issue",
     "cancel_workflow_run", // gh run cancel       — cancels an in-progress workflow run
+    "copy_project",        // gh project copy — creates a new Projects v2 board from an existing one
     "create_branch",
     "create_discussion", // gh discussion create — creates a discussion in a repository
     "create_gist",
@@ -30,10 +31,13 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "delete_file",
     "delete_gist",              // DELETE /gists/{gist_id}
     "delete_gpg_key",           // gh gpg-key delete — removes a user GPG signing key
+    "delete_issue",             // gh issue delete — deletes an issue via GraphQL deleteIssue
     "delete_issue_comment",     // DELETE /repos/.../issues/comments/{id}
+    "delete_project",           // gh project delete — deletes a Projects v2 project
     "delete_project_item",      // deprecated alias for projects_write (deleteProjectV2Item)
     "delete_release",           // DELETE /repos/.../releases/{id}
     "delete_release_asset",     // gh release delete-asset — deletes a release asset
+    "delete_repository",        // gh repo delete — permanently deletes a repository
     "delete_ssh_key",           // gh ssh-key delete — removes a user SSH auth/signing key
     "delete_workflow_run",      // gh run delete — deletes a workflow run record
     "delete_workflow_run_logs", // deprecated alias for actions_run_trigger (DELETE run logs)
@@ -48,6 +52,7 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "force_cancel_workflow_run", // gh run cancel --force — force-cancels a workflow run
     "fork_repository",
     "label_write",
+    "link_project", // gh project link — links a Projects v2 board to a repository or team
     "manage_notification_subscription",
     "manage_repository_notification_subscription",
     "mark_all_notifications_read",
@@ -68,9 +73,11 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "transfer_issue",       // gh issue transfer
     "transfer_repository",  // gh repo transfer  — blocked: repo ownership transfer is irreversible
     "unarchive_repository", // gh repo unarchive — blocked: symmetric to archive_repository
-    "unpin_issue",          // gh issue unpin
+    "unlink_project", // gh project unlink — unlinks a Projects v2 board from a repository or team
+    "unpin_issue",    // gh issue unpin
     "unstar_repository",
     "update_issue_comment", // PATCH /repos/.../issues/comments/{id}
+    "update_project",       // gh project close/edit/reopen — updates Projects v2 metadata/status
     "upload_release_asset", // gh release upload
 ];
 
@@ -361,12 +368,19 @@ mod tests {
     #[test]
     fn test_preemptive_cli_write_operations() {
         for op in &[
+            "copy_project",
+            "delete_issue",
+            "delete_project",
+            "delete_repository",
+            "link_project",
+            "unlink_project",
             "update_issue_comment",
             "delete_issue_comment",
             "create_release",
             "edit_release",
             "delete_release",
             "delete_release_asset",
+            "update_project",
             "upload_release_asset",
             "delete_gist",
         ] {
