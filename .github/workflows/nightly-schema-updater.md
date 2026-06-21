@@ -34,6 +34,11 @@ tools:
 safe-outputs:
   threat-detection:
     enabled: false
+  create-issue:
+    title-prefix: "🔄 "
+    labels: [maintenance, automation, schema]
+    max: 1
+    expires: 7d
   create-pull-request:
     title-prefix: "🔄 "
     labels: [maintenance, automation, schema]
@@ -153,7 +158,7 @@ go build ./...
 go test ./internal/config/...
 ```
 
-If tests fail, revert the changes and create an issue explaining the failure instead of a PR.
+If tests fail, revert the changes and use the `create-issue` safe output to create an issue explaining the failure instead of a PR.
 
 ## Step 7: Create a Pull Request
 
