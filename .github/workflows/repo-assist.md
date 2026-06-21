@@ -21,6 +21,7 @@ on:
   reaction: "eyes"
 
 timeout-minutes: 60
+max-ai-credits: 1500
 
 permissions: read-all
 
