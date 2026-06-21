@@ -635,7 +635,7 @@ pub fn apply_tool_labels(
         | "request_copilot_review"
         | "edit_repository"
         | "revert_pull_request"
-        // Pre-emptive: issue comment, releases
+        // Pre-emptive: issue deletion, issue comments, repository deletion, releases
         | "delete_issue"
         | "update_issue_comment"
         | "delete_issue_comment"
