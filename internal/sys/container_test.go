@@ -1,6 +1,7 @@
 package sys
 
 import (
+	"bufio"
 	"os"
 	"strings"
 	"testing"
@@ -273,6 +274,8 @@ func TestDetectContainerID_ConsistentWithIsRunningInContainer(t *testing.T) {
 }
 
 func TestExtractContainerIDFromContent(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		content  string
@@ -348,10 +351,18 @@ func TestExtractContainerIDFromContent(t *testing.T) {
 			content:  "0::/system.slice/docker.service",
 			expected: "",
 		},
+		{
+			// A line that exceeds bufio.MaxScanTokenSize (64 KiB) causes the scanner
+			// to fail with bufio.ErrTooLong. The function logs the error and returns "".
+			name:     "single line exceeding scanner buffer limit returns empty string",
+			content:  strings.Repeat("x", bufio.MaxScanTokenSize+1),
+			expected: "",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := extractContainerIDFromContent(tt.content)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -423,6 +434,8 @@ func containsAny(s string, substrings []string) bool {
 }
 
 func TestContainsAny_Helper(t *testing.T) {
+	t.Parallel()
+
 	// Test the helper function itself
 	tests := []struct {
 		name       string
@@ -482,6 +495,7 @@ func TestContainsAny_Helper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := containsAny(tt.input, tt.substrings)
 			assert.Equal(t, tt.want, result)
 		})
