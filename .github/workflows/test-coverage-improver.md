@@ -11,6 +11,7 @@ permissions:
   pull-requests: read
 
 engine: copilot
+max-daily-ai-credits: 10K
 
 network:
   allowed:
