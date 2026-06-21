@@ -1,10 +1,12 @@
 package proxy
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logRouter = logger.New("proxy:router")
@@ -65,6 +67,34 @@ func emptyExtractArgs(_ []string) map[string]interface{} {
 // repoArgsExtractor is a shared extractArgs for owner+repo-only routes.
 func repoArgsExtractor(m []string) map[string]interface{} {
 	return repoArgs(m[1], m[2])
+}
+
+// extractOwnerRepoNumber reads owner, repo, and a numeric resource identifier
+// from tool arguments, accepting either string or float64 JSON number inputs for
+// the identifier.
+func extractOwnerRepoNumber(argsMap map[string]interface{}, ownerKey, repoKey, numberKey, toolName string) (owner, repo, number string, err error) {
+	owner = strutil.GetStringFromMap(argsMap, ownerKey)
+	repo = strutil.GetStringFromMap(argsMap, repoKey)
+	number = strutil.GetStringFromMap(argsMap, numberKey)
+	if number == "" {
+		if n, ok := argsMap[numberKey].(float64); ok {
+			const maxInt64AsFloat = float64(int64(^uint64(0) >> 1))
+			if n < 0 || n > maxInt64AsFloat {
+				err = fmt.Errorf("%s: invalid %s (out of range)", toolName, numberKey)
+				return
+			}
+			i := int64(n)
+			if n != float64(i) {
+				err = fmt.Errorf("%s: invalid %s (expected integer)", toolName, numberKey)
+				return
+			}
+			number = fmt.Sprintf("%d", i)
+		}
+	}
+	if owner == "" || repo == "" || number == "" {
+		err = fmt.Errorf("%s: missing %s/%s/%s", toolName, ownerKey, repoKey, numberKey)
+	}
+	return
 }
 
 // routes is the ordered list of REST URL patterns mapped to guard tool names.

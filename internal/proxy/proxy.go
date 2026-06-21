@@ -20,7 +20,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
@@ -218,24 +217,6 @@ func (s *Server) Handler() http.Handler {
 type restBackendCaller struct {
 	server     *Server
 	clientAuth string
-}
-
-// extractOwnerRepoNumber reads owner, repo, and a numeric resource identifier
-// from tool arguments, accepting either string or float64 JSON number inputs for
-// the identifier.
-func extractOwnerRepoNumber(argsMap map[string]interface{}, ownerKey, repoKey, numberKey, toolName string) (owner, repo, number string, err error) {
-	owner = strutil.GetStringFromMap(argsMap, ownerKey)
-	repo = strutil.GetStringFromMap(argsMap, repoKey)
-	number = strutil.GetStringFromMap(argsMap, numberKey)
-	if number == "" {
-		if n, ok := argsMap[numberKey].(float64); ok {
-			number = fmt.Sprintf("%d", int(n))
-		}
-	}
-	if owner == "" || repo == "" || number == "" {
-		err = fmt.Errorf("%s: missing %s/%s/%s", toolName, ownerKey, repoKey, numberKey)
-	}
-	return
 }
 
 func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args interface{}) (interface{}, error) {

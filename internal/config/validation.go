@@ -72,10 +72,6 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 			}
 		}
 
-		// auth is only valid on HTTP servers
-		if err := validateServerAuth(server.Auth, server.Type, name, jsonPath); err != nil {
-			return err
-		}
 	}
 
 	// For HTTP servers, url is required and mounts are not allowed
@@ -89,10 +85,6 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 			return UnsupportedField("mounts", "mounts are only supported for stdio (containerized) servers", jsonPath, "Remove the 'mounts' field from HTTP server configuration; mounts only apply to stdio servers")
 		}
 
-		// Validate auth config if present
-		if err := validateServerAuth(server.Auth, server.Type, name, jsonPath); err != nil {
-			return err
-		}
 	}
 
 	// Validate per-server toolTimeout if provided and non-zero.
@@ -105,13 +97,21 @@ func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPa
 		}
 	}
 
-	if err := validateToolResponseFilters(server.ToolResponseFilters, jsonPath+".tool_response_filters"); err != nil {
-		logValidation.Printf("Validation failed: %s, name=%s, type=%s", fmt.Sprintf("tool_response_filters invalid: %v", err), name, server.Type)
+	if err := validateCommonServerFields(name, server.Type, server.Auth, server.ToolResponseFilters, jsonPath); err != nil {
 		return err
 	}
 
 	logValidation.Printf("Server config validation passed: name=%s, type=%s", name, server.Type)
 	return nil
+}
+
+// validateCommonServerFields validates shared per-server fields used by both the
+// TOML and JSON stdin configuration paths.
+func validateCommonServerFields(name, serverType string, auth *AuthConfig, toolResponseFilters map[string]string, jsonPath string) error {
+	if err := validateServerAuth(auth, serverType, name, jsonPath); err != nil {
+		return err
+	}
+	return validateToolResponseFilters(toolResponseFilters, jsonPath+".tool_response_filters")
 }
 
 // validateToolResponseFilters validates tool response filters without permitting jq
@@ -423,7 +423,7 @@ func validateGatewayConfig(gateway *StdinGatewayConfig) error {
 
 	// Validate payloadSizeThreshold per spec §4.1.3.3: must be a positive integer when present.
 	if gateway.PayloadSizeThreshold != nil {
-		if err := PositiveInteger(*gateway.PayloadSizeThreshold, "payloadSizeThreshold", "gateway.payloadSizeThreshold"); err != nil {
+		if err := validateGatewayPayloadSizeThreshold(*gateway.PayloadSizeThreshold, "payloadSizeThreshold", "gateway.payloadSizeThreshold"); err != nil {
 			return err
 		}
 	}
@@ -448,6 +448,13 @@ func validateGatewayConfig(gateway *StdinGatewayConfig) error {
 	}
 
 	logValidation.Print("Gateway config validation passed")
+	return nil
+}
+
+func validateGatewayPayloadSizeThreshold(value int, fieldName, jsonPath string) error {
+	if ve := PositiveInteger(value, fieldName, jsonPath); ve != nil {
+		return ve
+	}
 	return nil
 }
 

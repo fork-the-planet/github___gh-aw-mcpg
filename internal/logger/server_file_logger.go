@@ -24,28 +24,26 @@ var (
 	globalServerLoggerMu   sync.RWMutex
 )
 
+func newServerFileLogger(logDir string, useFallback bool) *ServerFileLogger {
+	return &ServerFileLogger{
+		logDir:      logDir,
+		loggers:     make(map[string]*log.Logger),
+		files:       make(map[string]*os.File),
+		useFallback: useFallback,
+	}
+}
+
 // InitServerFileLogger initializes the global server file logger
 func InitServerFileLogger(logDir string) error {
 	// Create log directory if it doesn't exist
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		logFallbackWarnings(err, "Failed to create log directory for server logs", "Falling back to unified logging only")
-		// Create a fallback logger that won't create files
-		sfl := &ServerFileLogger{
-			logDir:      logDir,
-			loggers:     make(map[string]*log.Logger),
-			files:       make(map[string]*os.File),
-			useFallback: true,
-		}
+		sfl := newServerFileLogger(logDir, true)
 		initGlobalLogger(&globalServerLoggerMu, &globalServerFileLogger, sfl)
 		return nil
 	}
 
-	sfl := &ServerFileLogger{
-		logDir:      logDir,
-		loggers:     make(map[string]*log.Logger),
-		files:       make(map[string]*os.File),
-		useFallback: false,
-	}
+	sfl := newServerFileLogger(logDir, false)
 
 	log.Printf("Initialized per-serverID logging in directory: %s", logDir)
 	initGlobalLogger(&globalServerLoggerMu, &globalServerFileLogger, sfl)

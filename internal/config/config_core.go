@@ -476,16 +476,10 @@ func LoadFromFile(path string) (*Config, error) {
 		return nil, err
 	}
 
-	// Validate auth configs (e.g. fail-fast for missing OIDC env vars).
-	// This ensures parity with the JSON stdin path which calls validateServerAuth
-	// via convertStdinServerConfig → validateServerConfigWithCustomSchemas.
-	logConfig.Printf("Validating auth configuration for %d servers", len(cfg.Servers))
+	logConfig.Printf("Validating shared server configuration for %d servers", len(cfg.Servers))
 	for name, serverCfg := range cfg.Servers {
 		jsonPath := fmt.Sprintf("servers.%s", name)
-		if err := validateServerAuth(serverCfg.Auth, serverCfg.Type, name, jsonPath); err != nil {
-			return nil, err
-		}
-		if err := validateToolResponseFilters(serverCfg.ToolResponseFilters, jsonPath+".tool_response_filters"); err != nil {
+		if err := validateCommonServerFields(name, serverCfg.Type, serverCfg.Auth, serverCfg.ToolResponseFilters, jsonPath); err != nil {
 			return nil, err
 		}
 	}
@@ -511,7 +505,7 @@ func LoadFromFile(path string) (*Config, error) {
 
 	// Validate payload_size_threshold per spec §4.1.3.3 when explicitly set in TOML.
 	if md.IsDefined("gateway", "payload_size_threshold") {
-		if err := PositiveInteger(cfg.Gateway.PayloadSizeThreshold, "payload_size_threshold", "gateway.payload_size_threshold"); err != nil {
+		if err := validateGatewayPayloadSizeThreshold(cfg.Gateway.PayloadSizeThreshold, "payload_size_threshold", "gateway.payload_size_threshold"); err != nil {
 			return nil, err
 		}
 	}
