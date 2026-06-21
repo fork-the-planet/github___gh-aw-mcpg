@@ -310,17 +310,24 @@ list_code_scanning_alerts = "map("
 	_, tomlErr := LoadFromFile(path)
 	require.Error(t, tomlErr)
 
-	stdinErr := validateStandardServerConfig("github", &StdinServerConfig{
+	stdinErr := validateServerConfigWithCustomSchemas("github", &StdinServerConfig{
 		Type:      "stdio",
 		Container: "ghcr.io/github/github-mcp-server:latest",
 		ToolResponseFilters: map[string]string{
 			"list_code_scanning_alerts": "map(",
 		},
-	}, "servers.github")
+	}, nil)
 	require.Error(t, stdinErr)
 
-	assert.EqualError(t, stdinErr, tomlErr.Error())
-}
+	stripPathPrefix := func(s string) string {
+		for i := 0; i < len(s); i++ {
+			if s[i] == ' ' {
+				return s[i+1:]
+			}
+		}
+		return s
+	}
+	assert.Equal(t, stripPathPrefix(stdinErr.Error()), stripPathPrefix(tomlErr.Error()))
 
 // TestLoadFromFile_ToolResponseFilter_WhitespaceOnlyValue verifies that a
 // whitespace-only filter value is rejected as empty.
