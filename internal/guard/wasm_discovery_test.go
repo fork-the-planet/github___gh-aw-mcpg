@@ -16,7 +16,7 @@ func TestGetWASMGuardsRootDir(t *testing.T) {
 		want   string
 	}{
 		{
-			name:   "not set returns empty string",
+			name:   "empty env var returns empty string",
 			envVal: "",
 			want:   "",
 		},
