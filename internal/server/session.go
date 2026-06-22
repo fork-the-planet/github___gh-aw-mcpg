@@ -15,7 +15,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/syncutil"
-	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 var logSession = logger.New("server:session")
@@ -131,38 +130,6 @@ func (us *UnifiedServer) requireSession(ctx context.Context) error {
 
 	logSession.Printf("Session validated for ID: %s", truncateSessionID(sessionID))
 	return nil
-}
-
-func (us *UnifiedServer) sysInitHandler(ctx context.Context, req *sdk.CallToolRequest, _ interface{}) (*sdk.CallToolResult, interface{}, error) {
-	toolArgs, err := mcp.ParseToolArguments(req)
-	if err != nil {
-		logger.LogError("client", "Failed to unmarshal sys_init arguments, error=%v", err)
-		return mcp.NewErrorCallToolResult(err)
-	}
-
-	token := ""
-	if t, ok := toolArgs["token"].(string); ok {
-		token = t
-	}
-
-	sessionID := us.getSessionID(ctx)
-	if sessionID == "" {
-		logger.LogError("client", "MCP session initialization failed: no session ID provided")
-		return mcp.NewErrorCallToolResult(fmt.Errorf("no session ID provided"))
-	}
-
-	logger.LogInfo("client", "MCP session initialization started, session=%s, has_token=%v", truncateSessionID(sessionID), token != "")
-
-	us.sessionMu.Lock()
-	us.sessions[sessionID] = NewSession(sessionID, token)
-	us.sessionMu.Unlock()
-
-	if err := us.ensureSessionDirectory(sessionID); err != nil {
-		logger.LogWarn("client", "Failed to create session directory for session=%s: %v", sessionID, err)
-	}
-
-	logger.LogInfo("client", "MCP session initialized successfully, session=%s, available_servers=%v", truncateSessionID(sessionID), us.launcher.ServerIDs())
-	return us.callAndLogSysTool(sessionID, "session initialization", "sys_init")
 }
 
 // getSessionKeys returns a list of active session IDs for debugging
