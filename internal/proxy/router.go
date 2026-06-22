@@ -78,13 +78,16 @@ func extractOwnerRepoNumber(argsMap map[string]interface{}, ownerKey, repoKey, n
 	number = strutil.GetStringFromMap(argsMap, numberKey)
 	if number == "" {
 		if n, ok := argsMap[numberKey].(float64); ok {
+			logRouter.Printf("extractOwnerRepoNumber: %s provided as float64=%v, parsing as integer for tool=%s", numberKey, n, toolName)
 			const maxInt64AsFloat = float64(int64(^uint64(0) >> 1))
 			if n < 0 || n > maxInt64AsFloat {
+				logRouter.Printf("extractOwnerRepoNumber: %s float64=%v out of int64 range [0,%v] for tool=%s", numberKey, n, maxInt64AsFloat, toolName)
 				err = fmt.Errorf("%s: invalid %s (out of range)", toolName, numberKey)
 				return
 			}
 			i := int64(n)
 			if n != float64(i) {
+				logRouter.Printf("extractOwnerRepoNumber: %s float64=%v is not a whole number for tool=%s", numberKey, n, toolName)
 				err = fmt.Errorf("%s: invalid %s (expected integer)", toolName, numberKey)
 				return
 			}
@@ -92,6 +95,7 @@ func extractOwnerRepoNumber(argsMap map[string]interface{}, ownerKey, repoKey, n
 		}
 	}
 	if owner == "" || repo == "" || number == "" {
+		logRouter.Printf("extractOwnerRepoNumber: missing required field(s) for tool=%s: owner=%q repo=%q %s=%q", toolName, owner, repo, numberKey, number)
 		err = fmt.Errorf("%s: missing %s/%s/%s", toolName, ownerKey, repoKey, numberKey)
 	}
 	return
@@ -477,7 +481,9 @@ func MatchRoute(path string) *RouteMatch {
 // StripGHHostPrefix removes the /api/v3 prefix that gh adds when using GH_HOST.
 func StripGHHostPrefix(path string) string {
 	if strings.HasPrefix(path, ghHostPathPrefix) {
-		return strings.TrimPrefix(path, ghHostPathPrefix)
+		trimmedPath := strings.TrimPrefix(path, ghHostPathPrefix)
+		logRouter.Printf("StripGHHostPrefix: stripping %s prefix from %q -> %q", ghHostPathPrefix, path, trimmedPath)
+		return trimmedPath
 	}
 	return path
 }
