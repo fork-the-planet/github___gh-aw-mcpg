@@ -52,7 +52,13 @@ func TestGetWASMGuardsRootDir(t *testing.T) {
 
 func TestFindServerWASMGuardFile(t *testing.T) {
 	t.Run("returns empty when env var is not set", func(t *testing.T) {
-		t.Setenv(wasmGuardsDirEnvVar, "")
+		old, ok := os.LookupEnv(wasmGuardsDirEnvVar)
+		require.NoError(t, os.Unsetenv(wasmGuardsDirEnvVar))
+		t.Cleanup(func() {
+			if ok {
+				_ = os.Setenv(wasmGuardsDirEnvVar, old)
+			}
+		})
 		path, found, err := FindServerWASMGuardFile("myserver")
 		require.NoError(t, err)
 		assert.False(t, found)
