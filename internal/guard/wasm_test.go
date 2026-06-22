@@ -1286,10 +1286,14 @@ func TestHostCallBackendCallLimit(t *testing.T) {
 			name:             "test-guard",
 			backendCallCount: maxBackendCallsPerInvocation,
 		}
+		// hostCallBackend takes 6 uint64 values: toolNamePtr, toolNameLen,
+		// argsPtr, argsLen, resultPtr, resultSize. stack[0] receives the return value.
 		stack := make([]uint64, 6)
 		// nil module is safe because the limit check fires before any memory access.
 		g.hostCallBackend(context.Background(), nil, stack)
-		assert.Equal(t, uint64(0xFFFFFFFF), stack[0], "expected error sentinel (-1) when call limit is exceeded")
+		// setError() encodes -1 as uint64(uint32(-1)) == 0xFFFFFFFF.
+		const errorSentinel = uint64(0xFFFFFFFF)
+		assert.Equal(t, errorSentinel, stack[0], "expected error sentinel (-1) when call limit is exceeded")
 	})
 
 	t.Run("counter resets between callWasmGuardFunction invocations", func(t *testing.T) {
