@@ -60,20 +60,27 @@ func TestConnectionPoolGetNonExistent(t *testing.T) {
 // This covers the early-exit branch in connection_pool.go Get().
 func TestConnectionPoolGet_ClosedState(t *testing.T) {
 	ctx := context.Background()
-	pool := NewSessionConnectionPool(ctx)
+	pool := NewSessionConnectionPoolWithConfig(ctx, PoolConfig{
+		IdleTimeout:     1 * time.Hour,
+		CleanupInterval: 24 * time.Hour,
+		MaxErrorCount:   DefaultMaxErrorCount,
+	})
 	defer pool.Stop()
 
 	// Directly insert a closed connection to exercise the branch that
 	// is normally only reached via internal state transitions.
 	key := ConnectionKey{BackendID: "backend1", SessionID: "session1"}
-	pool.mu.Lock()
-	pool.connections[key] = &ConnectionMetadata{
-		Connection: &mcp.Connection{},
-		CreatedAt:  time.Now(),
-		LastUsedAt: time.Now(),
-		State:      ConnectionStateClosed,
-	}
-	pool.mu.Unlock()
+	now := time.Now()
+	func() {
+		pool.mu.Lock()
+		defer pool.mu.Unlock()
+		pool.connections[key] = &ConnectionMetadata{
+			Connection: &mcp.Connection{},
+			CreatedAt:  now,
+			LastUsedAt: now,
+			State:      ConnectionStateClosed,
+		}
+	}()
 
 	require.Equal(t, 1, pool.Size(), "connection should be in pool before Get")
 
