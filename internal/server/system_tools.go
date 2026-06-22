@@ -87,7 +87,7 @@ func (us *UnifiedServer) sysInitHandler(ctx context.Context, req *sdk.CallToolRe
 	us.sessionMu.Unlock()
 
 	if err := us.ensureSessionDirectory(sessionID); err != nil {
-		logger.LogWarn("client", "Failed to create session directory for session=%s: %v", sessionID, err)
+		logger.LogWarn("client", "Failed to create session directory for session=%s: %v", truncateSessionID(sessionID), err)
 	}
 
 	logger.LogInfo("client", "MCP session initialized successfully, session=%s, available_servers=%v", truncateSessionID(sessionID), us.launcher.ServerIDs())
