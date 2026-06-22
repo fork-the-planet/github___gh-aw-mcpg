@@ -15,7 +15,8 @@ func InterfaceToIntString(v interface{}) (string, bool) {
 		// Explicitly guard against out-of-range values before conversion, since
 		// converting an out-of-range float64 to int64 is implementation-defined in Go.
 		// float64(math.MaxInt64) rounds up to 9.223372036854776e18, so use >=
-		// for the upper bound; float64(math.MinInt64) is exact (-(2^63)).
+		// for the upper bound. float64(math.MinInt64) = -(2^63) is exactly
+		// representable, so < is appropriate for the lower bound.
 		if n < float64(math.MinInt64) || n >= float64(math.MaxInt64) {
 			return "", false // out of int64 range
 		}

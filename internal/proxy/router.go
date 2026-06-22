@@ -78,7 +78,7 @@ func extractOwnerRepoNumber(argsMap map[string]interface{}, ownerKey, repoKey, n
 	number = strutil.GetStringFromMap(argsMap, numberKey)
 	if number == "" {
 		if s, ok := strutil.InterfaceToIntString(argsMap[numberKey]); ok {
-			logRouter.Printf("extractOwnerRepoNumber: %s provided as numeric, parsing as integer for tool=%s", numberKey, toolName)
+			logRouter.Printf("extractOwnerRepoNumber: %s provided as numeric=%v, parsing as integer for tool=%s", numberKey, argsMap[numberKey], toolName)
 			number = s
 		}
 	}
