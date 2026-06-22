@@ -55,6 +55,36 @@ func TestConnectionPoolGetNonExistent(t *testing.T) {
 	assert.Nil(t, conn)
 }
 
+// TestConnectionPoolGet_ClosedState verifies that Get returns (nil, false) for a
+// connection that is present in the pool map but has been marked ConnectionStateClosed.
+// This covers the early-exit branch in connection_pool.go Get().
+func TestConnectionPoolGet_ClosedState(t *testing.T) {
+	ctx := context.Background()
+	pool := NewSessionConnectionPool(ctx)
+	defer pool.Stop()
+
+	// Directly insert a closed connection to exercise the branch that
+	// is normally only reached via internal state transitions.
+	key := ConnectionKey{BackendID: "backend1", SessionID: "session1"}
+	pool.mu.Lock()
+	pool.connections[key] = &ConnectionMetadata{
+		Connection: &mcp.Connection{},
+		CreatedAt:  time.Now(),
+		LastUsedAt: time.Now(),
+		State:      ConnectionStateClosed,
+	}
+	pool.mu.Unlock()
+
+	require.Equal(t, 1, pool.Size(), "connection should be in pool before Get")
+
+	conn, exists := pool.Get("backend1", "session1")
+
+	assert.Nil(t, conn, "Get should return nil connection for a closed entry")
+	assert.False(t, exists, "Get should return false for a closed entry")
+	// Get does not remove the entry — cleanup is handled by cleanupIdleConnections.
+	assert.Equal(t, 1, pool.Size(), "Get should not remove the closed entry from the pool")
+}
+
 func TestConnectionPoolDelete(t *testing.T) {
 	ctx := context.Background()
 	pool := NewSessionConnectionPool(ctx)
