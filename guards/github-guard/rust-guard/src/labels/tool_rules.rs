@@ -618,6 +618,7 @@ pub fn apply_tool_labels(
         | "push_files"
         | "delete_file"
         | "create_branch"
+        | "create_linked_branch"  // gh issue develop — GraphQL createLinkedBranch
         | "update_pull_request_branch"
         // Labels, Actions, workflow management ("run_workflow" and "delete_workflow_run_logs" are deprecated aliases for "actions_run_trigger")
         | "label_write"
@@ -634,6 +635,8 @@ pub fn apply_tool_labels(
         | "assign_copilot_to_issue"
         | "request_copilot_review"
         | "edit_repository"
+        | "create_repository_autolink" // gh repo autolink create — POST /repos/.../autolinks
+        | "delete_repository_autolink" // gh repo autolink delete — DELETE /repos/.../autolinks/{id}
         | "revert_pull_request"
         // Pre-emptive: issue deletion, issue comments, repository deletion, releases
         | "delete_issue"
@@ -669,7 +672,16 @@ pub fn apply_tool_labels(
         | "delete_project"
         | "link_project"
         | "unlink_project"
-        | "update_project" => {
+        | "update_project"
+        // Additional CLI-only Projects v2 mutations (field, draft-item, archive, template)
+        | "archive_project_item"
+        | "create_project_draft_item"
+        | "create_project_field"
+        | "delete_project_field"
+        | "mark_project_template"
+        | "unarchive_project_item"
+        | "unmark_project_template"
+        | "update_project_draft_issue" => {
             // Projects are org-scoped; write responses carry the same labels as reads.
             // I = approved:<owner>
             if !owner.is_empty() {

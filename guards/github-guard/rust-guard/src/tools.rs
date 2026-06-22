@@ -13,8 +13,9 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "add_issue_comment",
     "add_project_item", // deprecated alias for projects_write (addProjectV2ItemById)
     "add_reply_to_pull_request_comment",
-    "add_ssh_key",        // gh ssh-key add — adds a user SSH auth/signing key
-    "archive_repository", // gh repo archive — blocked: repo settings change unsupported
+    "add_ssh_key",           // gh ssh-key add — adds a user SSH auth/signing key
+    "archive_project_item",  // gh project item-archive — archives a Projects v2 item
+    "archive_repository",    // gh repo archive — blocked: repo settings change unsupported
     "assign_copilot_to_issue",
     "cancel_workflow_run", // gh run cancel       — cancels an in-progress workflow run
     "copy_project",        // gh project copy — creates a new Projects v2 board from an existing one
@@ -22,11 +23,15 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "create_discussion", // gh discussion create — creates a discussion in a repository
     "create_gist",
     "create_issue",
+    "create_linked_branch",  // gh issue develop — creates a linked branch via GraphQL createLinkedBranch
     "create_or_update_file",
+    "create_project_draft_item", // gh project item-create — adds a draft issue via GraphQL addProjectV2DraftIssue
+    "create_project_field",      // gh project field-create — creates a Projects v2 field
     "create_pull_request",
     "create_pull_request_with_copilot",
     "create_release", // POST /repos/.../releases
     "create_repository",
+    "create_repository_autolink", // gh repo autolink create — POST /repos/.../autolinks
     "delete_deploy_key",
     "delete_file",
     "delete_gist",              // DELETE /gists/{gist_id}
@@ -34,11 +39,13 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "delete_issue",             // gh issue delete — deletes an issue via GraphQL deleteIssue
     "delete_issue_comment",     // DELETE /repos/.../issues/comments/{id}
     "delete_project",           // gh project delete — deletes a Projects v2 project
+    "delete_project_field",     // gh project field-delete — deletes a Projects v2 field
     "delete_project_item",      // deprecated alias for projects_write (deleteProjectV2Item)
     "delete_release",           // DELETE /repos/.../releases/{id}
     "delete_release_asset",     // gh release delete-asset — deletes a release asset
-    "delete_repository",        // gh repo delete — permanently deletes a repository
-    "delete_ssh_key",           // gh ssh-key delete — removes a user SSH auth/signing key
+    "delete_repository",           // gh repo delete — permanently deletes a repository
+    "delete_repository_autolink",  // gh repo autolink delete — DELETE /repos/.../autolinks/{id}
+    "delete_ssh_key",              // gh ssh-key delete — removes a user SSH auth/signing key
     "delete_workflow_run",      // gh run delete — deletes a workflow run record
     "delete_workflow_run_logs", // deprecated alias for actions_run_trigger (DELETE run logs)
     "disable_workflow",         // gh workflow disable
@@ -56,7 +63,8 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "manage_notification_subscription",
     "manage_repository_notification_subscription",
     "mark_all_notifications_read",
-    "pin_issue", // gh issue pin
+    "mark_project_template", // gh project mark-template — GraphQL markProjectV2AsTemplate
+    "pin_issue",             // gh issue pin
     "projects_write",
     "push_files",
     "rename_repository", // gh repo rename    — blocked: breaks clone URLs and integrations
@@ -71,10 +79,12 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "star_repository",
     "sync_fork",            // gh repo sync
     "transfer_issue",       // gh issue transfer
-    "transfer_repository",  // gh repo transfer  — blocked: repo ownership transfer is irreversible
-    "unarchive_repository", // gh repo unarchive — blocked: symmetric to archive_repository
-    "unlink_project", // gh project unlink — unlinks a Projects v2 board from a repository or team
-    "unpin_issue",    // gh issue unpin
+    "transfer_repository",   // gh repo transfer  — blocked: repo ownership transfer is irreversible
+    "unarchive_project_item", // gh project item-archive --undo — unarchives a Projects v2 item
+    "unarchive_repository",  // gh repo unarchive — blocked: symmetric to archive_repository
+    "unlink_project",        // gh project unlink — unlinks a Projects v2 board from a repository or team
+    "unmark_project_template", // gh project mark-template --undo — GraphQL unmarkProjectV2AsTemplate
+    "unpin_issue",             // gh issue unpin
     "unstar_repository",
     "update_issue_comment", // PATCH /repos/.../issues/comments/{id}
     "update_project",       // gh project close/edit/reopen — updates Projects v2 metadata/status
@@ -109,6 +119,7 @@ pub const READ_WRITE_OPERATIONS: &[&str] = &[
     "update_issue_state",     // PATCH — opens or closes an issue
     "update_issue_title",     // PATCH — modifies issue title
     "update_issue_type",      // PATCH — modifies issue type
+    "update_project_draft_issue", // gh project item-edit --title/--body — GraphQL updateProjectV2DraftIssue
     "update_project_item",    // deprecated alias for projects_write (updateProjectV2ItemFieldValue)
     "update_pull_request",
     "update_pull_request_body", // PATCH — modifies PR body
