@@ -16,6 +16,7 @@ var (
 	payloadDir           string
 	payloadPathPrefix    string
 	payloadSizeThreshold int
+	urlDomainAudit       bool
 	wasmCacheDir         string
 )
 
@@ -26,5 +27,6 @@ func init() {
 		cmd.Flags().StringVar(&wasmCacheDir, "wasm-cache-dir", resolveWasmCacheDir(false, "", envutil.GetEnvString("MCP_GATEWAY_LOG_DIR", config.DefaultLogDir)), "Directory for disk-backed wazero compilation cache (default: sibling of <log-dir>, named wazero-cache)")
 		cmd.Flags().StringVar(&payloadPathPrefix, "payload-path-prefix", envutil.GetEnvString("MCP_GATEWAY_PAYLOAD_PATH_PREFIX", ""), "Path prefix to use when returning payloadPath to clients (allows remapping host paths to client/agent container paths)")
 		cmd.Flags().IntVar(&payloadSizeThreshold, "payload-size-threshold", envutil.GetEnvInt("MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD", config.DefaultPayloadSizeThreshold), "Size threshold (in bytes) for storing payloads to disk. Payloads larger than this are stored, smaller ones returned inline")
+		cmd.Flags().BoolVar(&urlDomainAudit, "url-domain-audit", envutil.GetEnvBool("MCP_GATEWAY_URL_DOMAIN_AUDIT", false), "Observe and persist URL domains seen in tool responses and safe-output writes")
 	})
 }

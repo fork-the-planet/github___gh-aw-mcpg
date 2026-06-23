@@ -42,6 +42,7 @@ func TestRegisterAllFlags(t *testing.T) {
 		assert.NotNil(t, cmd.Flags().Lookup("log-dir"), "log-dir flag should be registered")
 		assert.NotNil(t, cmd.Flags().Lookup("payload-dir"), "payload-dir flag should be registered")
 		assert.NotNil(t, cmd.Flags().Lookup("wasm-cache-dir"), "wasm-cache-dir flag should be registered")
+		assert.NotNil(t, cmd.Flags().Lookup("url-domain-audit"), "url-domain-audit flag should be registered")
 
 		// Tracing flags
 		assert.NotNil(t, cmd.Flags().Lookup("otlp-endpoint"), "otlp-endpoint flag should be registered")

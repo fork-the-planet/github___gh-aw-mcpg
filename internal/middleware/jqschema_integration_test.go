@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/logger"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -262,4 +263,36 @@ func TestMiddlewareDirectoryCreation(t *testing.T) {
 
 	payloadPath := pm.PayloadPath
 	assert.Equal(t, filepath.Join(expectedDir, "payload.json"), payloadPath, "Payload path should match expected structure")
+}
+
+func TestMiddleware_URLDomainAudit_WritesObservedDomainsFile(t *testing.T) {
+	logDir := t.TempDir()
+	payloadDir := t.TempDir()
+
+	logger.InitGatewayLoggers(logDir)
+	t.Cleanup(func() {
+		logger.SetURLDomainAuditEnabled(false)
+		require.NoError(t, logger.CloseAllLoggers())
+	})
+	logger.SetURLDomainAuditEnabled(true)
+
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, args interface{}) (*sdk.CallToolResult, interface{}, error) {
+		return &sdk.CallToolResult{IsError: false}, map[string]any{
+			"summary": "See https://example.com/a and https://example.com/b",
+			"items": []any{
+				map[string]any{"url": "https://docs.github.com/en"},
+			},
+		}, nil
+	}
+
+	wrapped := WrapToolHandler(mockHandler, "web___search", payloadDir, "", 1_000_000, testGetSessionID)
+	_, _, err := wrapped(context.Background(), &sdk.CallToolRequest{}, map[string]any{"q": "urls"})
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(filepath.Join(logDir, "observed-url-domains.json"))
+	require.NoError(t, err)
+
+	var observed map[string][]string
+	require.NoError(t, json.Unmarshal(data, &observed))
+	assert.Equal(t, []string{"docs.github.com", "example.com"}, observed["web"])
 }

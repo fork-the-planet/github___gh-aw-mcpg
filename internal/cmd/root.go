@@ -266,6 +266,8 @@ func run(cmd *cobra.Command, args []string) error {
 	applyFlagOrEnv(cmd, "payload-dir", &cfg.Gateway.PayloadDir, payloadDir, config.DefaultPayloadDir)
 	applyFlagOrEnv(cmd, "payload-path-prefix", &cfg.Gateway.PayloadPathPrefix, payloadPathPrefix, "")
 	applyFlagOrEnv(cmd, "payload-size-threshold", &cfg.Gateway.PayloadSizeThreshold, payloadSizeThreshold, config.DefaultPayloadSizeThreshold)
+	applyFlagOrEnv(cmd, "url-domain-audit", &cfg.Gateway.URLDomainAudit, urlDomainAudit, false)
+	logger.SetURLDomainAuditEnabled(cfg.Gateway.URLDomainAudit)
 
 	if sequentialLaunch {
 		log.Println("Sequential server launching enabled")

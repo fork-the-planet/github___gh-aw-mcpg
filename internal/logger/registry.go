@@ -39,6 +39,12 @@ var gatewayLoggerInitializers = []loggerInitEntry{
 			return InitToolsLogger(logDir, "tools.json")
 		},
 	},
+	{
+		name: "observed URL domains logger",
+		init: func(logDir string) error {
+			return InitObservedURLDomainsLogger(logDir, observedURLDomainsFileName)
+		},
+	},
 }
 
 var proxyLoggerInitializers = []loggerInitEntry{
@@ -82,6 +88,10 @@ var globalLoggerClosers = []loggerCloseEntry{
 	{
 		name:  "server file logger",
 		close: CloseServerFileLogger,
+	},
+	{
+		name:  "observed URL domains logger",
+		close: CloseObservedURLDomainsLogger,
 	},
 }
 

@@ -2,9 +2,13 @@ package guard
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -77,6 +81,41 @@ func TestWriteSinkGuard_LabelResponse(t *testing.T) {
 	data, err := g.LabelResponse(context.Background(), "create_issue", nil, nil, nil)
 	assert.NoError(t, err)
 	assert.Nil(t, data, "write-sink should not label responses")
+}
+
+func TestWriteSinkExtractURLDomainsFromValue(t *testing.T) {
+	args := map[string]any{
+		"body": "See https://example.com/path and https://EXAMPLE.com/other",
+		"references": []any{
+			map[string]any{"url": "http://docs.github.com/en"},
+		},
+	}
+
+	assert.Equal(t, []string{"docs.github.com", "example.com"}, extractURLDomainsFromValue(args))
+}
+
+func TestWriteSinkGuard_LabelResource_AuditsURLs(t *testing.T) {
+	logDir := t.TempDir()
+	logger.InitGatewayLoggers(logDir)
+	t.Cleanup(func() {
+		logger.SetURLDomainAuditEnabled(false)
+		require.NoError(t, logger.CloseAllLoggers())
+	})
+	logger.SetURLDomainAuditEnabled(true)
+
+	g := NewWriteSinkGuard([]string{"*"})
+	resource, operation, err := g.LabelResource(context.Background(), "create_issue", map[string]any{
+		"body": "Refs: https://example.com/a https://golang.org/doc",
+	}, nil, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resource)
+	assert.Equal(t, difc.OperationWrite, operation)
+
+	content, err := os.ReadFile(filepath.Join(logDir, "observed-url-domains.json"))
+	require.NoError(t, err)
+	var observed map[string][]string
+	require.NoError(t, json.Unmarshal(content, &observed))
+	assert.Equal(t, []string{"example.com", "golang.org"}, observed["write-sink"])
 }
 
 func TestWriteSinkGuard_WriteEvaluation_Passes(t *testing.T) {

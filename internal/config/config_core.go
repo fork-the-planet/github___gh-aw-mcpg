@@ -138,6 +138,10 @@ type GatewayConfig struct {
 	// Default: 524288 bytes (512KB)
 	PayloadSizeThreshold int `toml:"payload_size_threshold" json:"payload_size_threshold,omitempty"`
 
+	// URLDomainAudit enables URL domain observation in middleware/guard logging.
+	// This is currently toggled via CLI/environment and not loaded from config files.
+	URLDomainAudit bool `toml:"-" json:"-"`
+
 	// TrustedBots is an optional list of additional bot usernames that should be treated
 	// as trusted. Objects authored by these bots receive "approved" integrity regardless
 	// of their author_association. This list is merged with the guard's built-in trusted

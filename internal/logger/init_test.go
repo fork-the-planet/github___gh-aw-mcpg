@@ -24,6 +24,7 @@ func TestLoggerRegistries(t *testing.T) {
 			"markdown logger",
 			"JSONL logger",
 			"tools logger",
+			"observed URL domains logger",
 		}, names)
 	})
 
@@ -52,6 +53,7 @@ func TestLoggerRegistries(t *testing.T) {
 			"markdown logger",
 			"tools logger",
 			"server file logger",
+			"observed URL domains logger",
 		}, names)
 	})
 }
@@ -114,6 +116,7 @@ func TestInitGatewayLoggers(t *testing.T) {
 			"gateway.md",
 			"rpc-messages.jsonl",
 			"tools.json",
+			"observed-url-domains.json",
 		}
 		for _, f := range expectedFiles {
 			path := filepath.Join(logDir, f)
