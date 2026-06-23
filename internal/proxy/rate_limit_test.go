@@ -117,3 +117,38 @@ func TestComputeRetryAfter(t *testing.T) {
 		assert.Equal(t, 3600, httputil.ComputeRetryAfter(farFuture))
 	})
 }
+
+func TestRateLimitSignal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("429 status is rate limited", func(t *testing.T) {
+		t.Parallel()
+		resp := &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Header:     http.Header{"X-Ratelimit-Reset": []string{"12345"}},
+		}
+		limited, reset := rateLimitSignal(resp)
+		assert.True(t, limited)
+		assert.Equal(t, "12345", reset)
+	})
+
+	t.Run("remaining zero is rate limited", func(t *testing.T) {
+		t.Parallel()
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"X-Ratelimit-Remaining": []string{"0"}},
+		}
+		limited, _ := rateLimitSignal(resp)
+		assert.True(t, limited)
+	})
+
+	t.Run("non-rate-limited response", func(t *testing.T) {
+		t.Parallel()
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"X-Ratelimit-Remaining": []string{"100"}},
+		}
+		limited, _ := rateLimitSignal(resp)
+		assert.False(t, limited)
+	})
+}

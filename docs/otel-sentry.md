@@ -46,6 +46,8 @@ In Sentry's trace detail view, expand a span and look under **Tags & Attributes*
 | Attribute | Type | Description | Appears On |
 |-----------|------|-------------|------------|
 | `gen_ai.tool.name` | string | Tool name (e.g., `search_code`, `get_file_contents`) | `mcp.tool_call`, `gateway.backend.execute`, `proxy.difc_pipeline`, `proxy.backend.forward` |
+| `gen_ai.operation.name` | string | GenAI operation name (`execute_tool`) | `mcp.tool_call` |
+| `gen_ai.agent.name` | string | Gateway GenAI agent name (`mcp-gateway`) | `mcp.tool_call` |
 | `gen_ai.agent.id` | string | Backend MCP server ID (e.g., `github`, `slack`) | `mcp.tool_call`, `gateway.backend.execute` |
 | `gen_ai.conversation.id` | string | Truncated session ID for correlation | `gateway.request` |
 
@@ -73,11 +75,11 @@ In Sentry's trace detail view, expand a span and look under **Tags & Attributes*
 
 | Attribute | Type | Description | Appears On |
 |-----------|------|-------------|------------|
-| `rate_limit.hit` | boolean | Whether a rate limit was triggered | `gateway.backend.execute` |
+| `rate_limit.hit` | boolean | Whether a rate limit was triggered | `mcp.tool_call`, `gateway.backend.execute`, `proxy.backend.forward` |
 
 ### Span Events
 
-For `gateway.backend.execute`, backend transport errors are recorded via `span.RecordError()` with a generic message (`"tool execution failed"`) to avoid leaking internal details to trace backends. Other spans, including `mcp.tool_call`, may record more specific error details (for example, access-denied or guard-failure conditions).
+`mcp.tool_call` and `proxy.difc_pipeline` include milestone events such as `difc.pre_phases_complete`, `difc.access_denied`, and `rate_limit.detected`. For `gateway.backend.execute`, backend transport errors are recorded via `span.RecordError()` with a generic message (`"tool execution failed"`) to avoid leaking internal details to trace backends.
 
 ## Important Sentry Behavior
 

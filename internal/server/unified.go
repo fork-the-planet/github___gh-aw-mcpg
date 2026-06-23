@@ -19,6 +19,8 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 var logUnified = logger.New("server:unified")
@@ -431,6 +433,9 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		if denied, detailedErr := guard.HandlePrePhaseError(err); denied != nil {
 			logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s",
 				agentID, denied.Resource.Description, denied.EvalResult.Reason)
+			toolSpan.AddEvent("difc.access_denied", oteltrace.WithAttributes(
+				attribute.String("reason", denied.EvalResult.Reason),
+			))
 			tracing.RecordSpanError(toolSpan, detailedErr, "access denied: "+denied.EvalResult.Reason)
 			httpStatusCode = 403
 			return mcp.NewErrorCallToolResult(detailedErr)
@@ -439,6 +444,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		httpStatusCode = 500
 		return mcp.NewErrorCallToolResult(fmt.Errorf("guard labeling failed: %w", err))
 	}
+	toolSpan.AddEvent("difc.pre_phases_complete")
 
 	// Add agent tags snapshot to context for enriched MCP backend logging (Phase 3).
 	ctx = context.WithValue(ctx, mcp.AgentTagsSnapshotContextKey, &mcp.AgentTagsSnapshot{
@@ -475,6 +481,11 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		cb.RecordRateLimit(resetAt)
 		execSpan.SetAttributes(tracing.RateLimitHit.Bool(true))
 		toolSpan.SetAttributes(tracing.RateLimitHit.Bool(true))
+		eventAttrs := []attribute.KeyValue{}
+		if !resetAt.IsZero() {
+			eventAttrs = append(eventAttrs, attribute.String("reset_at", resetAt.UTC().Format(time.RFC3339)))
+		}
+		toolSpan.AddEvent("rate_limit.detected", oteltrace.WithAttributes(eventAttrs...))
 		tracing.RecordSpanErrorOnAll(errRateLimitExceeded, rateLimitExceededStatus, execSpan, toolSpan)
 		httpStatusCode = 429
 		// Preserve the original backend error text so the agent sees the actual upstream

@@ -47,7 +47,9 @@ func StartToolCallSpan(ctx context.Context, tracer oteltrace.Tracer, serverID, t
 	logTracing.Printf("Starting tool call span: serverID=%s, toolName=%s", serverID, toolName)
 	return startSpan(ctx, tracer, "mcp.tool_call", oteltrace.SpanKindInternal,
 		GenAISystem.String("mcp"),
+		GenAIAgentName.String("mcp-gateway"),
 		GenAIAgentID.String(serverID),
+		GenAIOperationName.String("execute_tool"),
 		MCPMethod.String("tools/call"),
 		GenAIToolName.String(toolName),
 	)

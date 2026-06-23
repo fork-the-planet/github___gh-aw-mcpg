@@ -9,8 +9,11 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
@@ -195,6 +198,9 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		if denied, _ := guard.HandlePrePhaseError(err); denied != nil {
 			logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, denied.EvalResult.Reason)
 			deniedErr := fmt.Errorf("DIFC policy violation: %s", denied.EvalResult.Reason)
+			difcSpan.AddEvent("difc.access_denied", oteltrace.WithAttributes(
+				attribute.String("reason", denied.EvalResult.Reason),
+			))
 			tracing.RecordSpanError(difcSpan, deniedErr, "access denied: "+denied.EvalResult.Reason)
 			writeDIFCForbidden(w, deniedErr.Error())
 			return
@@ -204,6 +210,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "resource labeling failed")
 		return
 	}
+	difcSpan.AddEvent("difc.pre_phases_complete")
 
 	// **Phase 3: Forward to upstream GitHub API**
 	clientAuth := r.Header.Get("Authorization")
@@ -219,6 +226,14 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	}
 	if resp != nil {
 		fwdSpan.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(resp.StatusCode))
+		if rateLimited, resetHeader := rateLimitSignal(resp); rateLimited {
+			fwdSpan.SetAttributes(tracing.RateLimitHit.Bool(true))
+			eventAttrs := []attribute.KeyValue{}
+			if resetAt := httputil.ParseRateLimitResetHeader(resetHeader); !resetAt.IsZero() {
+				eventAttrs = append(eventAttrs, attribute.String("reset_at", resetAt.UTC().Format(time.RFC3339)))
+			}
+			difcSpan.AddEvent("rate_limit.detected", oteltrace.WithAttributes(eventAttrs...))
+		}
 	}
 	if resp == nil {
 		tracing.RecordSpanErrorOnAll(errors.New("upstream request failed"), "upstream request failed", fwdSpan, difcSpan)
@@ -442,16 +457,11 @@ func copyResponseHeaders(w http.ResponseWriter, resp *http.Response) {
 //  1. Injects a Retry-After header so the client knows when to retry.
 //  2. Logs the event at ERROR level so operators can monitor rate-limit incidents.
 func injectRetryAfterIfRateLimited(w http.ResponseWriter, resp *http.Response) {
-	is429 := resp.StatusCode == http.StatusTooManyRequests
-	// Use Go's canonical header key form (textproto.CanonicalMIMEHeaderKey produces
-	// "X-Ratelimit-Remaining", matching GitHub's actual response headers).
-	remaining := resp.Header.Get("X-Ratelimit-Remaining")
-	resetHeader := resp.Header.Get("X-Ratelimit-Reset")
-
-	isRateLimited := is429 || remaining == "0"
+	isRateLimited, resetHeader := rateLimitSignal(resp)
 	if !isRateLimited {
 		return
 	}
+	remaining := resp.Header.Get("X-Ratelimit-Remaining")
 
 	resetAt := httputil.ParseRateLimitResetHeader(resetHeader)
 	retryAfter := httputil.ComputeRetryAfter(resetAt)
@@ -461,6 +471,14 @@ func injectRetryAfterIfRateLimited(w http.ResponseWriter, resp *http.Response) {
 	logger.LogError("client",
 		"upstream rate limit hit: status=%d X-Ratelimit-Remaining=%s X-Ratelimit-Reset=%s retry-after=%ds",
 		resp.StatusCode, remaining, resetHeader, retryAfter)
+}
+
+func rateLimitSignal(resp *http.Response) (bool, string) {
+	is429 := resp.StatusCode == http.StatusTooManyRequests
+	// Use Go's canonical header key form (textproto.CanonicalMIMEHeaderKey produces
+	// "X-Ratelimit-Remaining", matching GitHub's actual response headers).
+	remaining := resp.Header.Get("X-Ratelimit-Remaining")
+	return is429 || remaining == "0", resp.Header.Get("X-Ratelimit-Reset")
 }
 
 var metadataPassthrough = map[string]bool{
