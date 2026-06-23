@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
@@ -91,6 +93,9 @@ func TestInitTracingProviderWithFallback(t *testing.T) {
 		// HTTP OTLP exporters are lazily connected: otlptracehttp.New succeeds even
 		// for unreachable endpoints, so InitProvider does not return an error and the
 		// warn callback is never invoked. The provider is a real SDK (non-noop) instance.
+		// Reset the global OTel provider to noop after the subtest to avoid leaking
+		// background batcher goroutines and making other tests order-dependent.
+		t.Cleanup(func() { otel.SetTracerProvider(noop.NewTracerProvider()) })
 		var warnCalled bool
 		cfg := &config.TracingConfig{
 			Endpoint: "https://127.0.0.1:1/does-not-exist",
@@ -129,6 +134,9 @@ func TestShutdownTracingProviderWithTimeout(t *testing.T) {
 
 	t.Run("sdk provider shuts down cleanly", func(t *testing.T) {
 		// HTTP OTLP exporters are lazy; construction succeeds even for unreachable endpoints.
+		// Reset the global OTel provider to noop after the subtest so that a shut-down
+		// provider is not left as the global, which would make later tests order-dependent.
+		t.Cleanup(func() { otel.SetTracerProvider(noop.NewTracerProvider()) })
 		provider, err := tracing.InitProvider(context.Background(), &config.TracingConfig{
 			Endpoint: "http://127.0.0.1:14318",
 		})
