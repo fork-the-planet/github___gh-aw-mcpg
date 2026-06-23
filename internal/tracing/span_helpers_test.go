@@ -140,6 +140,8 @@ func TestStartToolCallSpan(t *testing.T) {
 	assert.Equal(t, "mcp.tool_call", s.Name)
 	assert.Equal(t, oteltrace.SpanKindInternal, s.SpanKind)
 	assert.True(t, hasAttr(s.Attributes, GenAISystem, "mcp"))
+	assert.True(t, hasAttr(s.Attributes, GenAIOperationName, "execute_tool"))
+	assert.True(t, hasAttr(s.Attributes, GenAIAgentName, "mcp-gateway"))
 	assert.True(t, hasAttr(s.Attributes, GenAIAgentID, "srv1"))
 	assert.True(t, hasAttr(s.Attributes, MCPMethod, "tools/call"))
 	assert.True(t, hasAttr(s.Attributes, GenAIToolName, "my_tool"))
