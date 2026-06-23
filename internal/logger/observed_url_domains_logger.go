@@ -132,11 +132,13 @@ func (l *ObservedURLDomainsLogger) writeToFile() error {
 
 	filePath := filepath.Join(l.logDir, l.fileName)
 	tempPath := filePath + ".tmp"
-	if err := os.WriteFile(tempPath, jsonData, 0644); err != nil {
+	if err := os.WriteFile(tempPath, jsonData, 0600); err != nil {
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 	if err := os.Rename(tempPath, filePath); err != nil {
-		os.Remove(tempPath)
+		if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			log.Printf("WARNING: Failed to cleanup temp observed URL domains file %s: %v", tempPath, removeErr)
+		}
 		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 	return nil

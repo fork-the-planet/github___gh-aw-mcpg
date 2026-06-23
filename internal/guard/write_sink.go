@@ -106,7 +106,7 @@ func (g *WriteSinkGuard) auditURLsInBody(toolName string, args interface{}) {
 	if len(domains) == 0 {
 		return
 	}
-	logger.LogDebug("safe-outputs", "URL domains in write body: tool=%s domains=%v", toolName, domains)
+	logger.LogDebug("write-sink", "URL domains in write body: tool=%s domains=%v", toolName, domains)
 	logger.LogObservedURLDomains("write-sink", domains)
 }
 

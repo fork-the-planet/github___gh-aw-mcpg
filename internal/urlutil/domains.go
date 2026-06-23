@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+// urlPattern is intentionally permissive; each match is validated with url.Parse
+// before hostname extraction so malformed or punctuated candidates are discarded.
 var urlPattern = regexp.MustCompile(`https?://[^\s"'<>]+`)
 
 // ExtractURLDomainsFromValue recursively extracts unique URL hostnames from string leaves.
