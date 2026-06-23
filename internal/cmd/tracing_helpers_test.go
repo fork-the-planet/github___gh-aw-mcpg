@@ -1,14 +1,19 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"log"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
+	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
 func TestRegisterTracingFlags_DefaultsFromEnv(t *testing.T) {
@@ -84,29 +89,26 @@ func TestInitTracingProviderWithFallback(t *testing.T) {
 		assert.False(t, warnCalled, "No warning expected when no endpoint is configured")
 	})
 
-	t.Run("unreachable endpoint falls back to noop provider and emits warning", func(t *testing.T) {
-		var warnMsg string
+	t.Run("configured endpoint creates SDK provider without warning", func(t *testing.T) {
+		// HTTP OTLP exporters are lazily connected: otlptracehttp.New succeeds even
+		// for unreachable endpoints, so InitProvider does not return an error and the
+		// warn callback is never invoked. The provider is a real SDK (non-noop) instance.
+		// Reset the global OTel provider to noop after the subtest to avoid leaking
+		// background batcher goroutines and making other tests order-dependent.
+		t.Cleanup(func() { otel.SetTracerProvider(noop.NewTracerProvider()) })
+		var warnCalled bool
 		cfg := &config.TracingConfig{
-			// Use a bogus address that will immediately fail during startup.
-			// InitProvider performs a dial during provider creation when an
-			// endpoint is set, so this exercises the error-fallback branch.
 			Endpoint: "https://127.0.0.1:1/does-not-exist",
 		}
 		provider := initTracingProviderWithFallback(
 			context.Background(),
 			cfg,
 			"tracing init failed: %v",
-			func(format string, args ...any) {
-				warnMsg = format
-			},
+			func(format string, args ...any) { warnCalled = true },
 		)
-		// Regardless of whether the provider initialisation fails,
-		// the fallback must always return a non-nil provider.
-		require.NotNil(t, provider, "Fallback provider must not be nil")
-		// If the init failed, the warning callback must have been called.
-		if warnMsg != "" {
-			assert.Contains(t, warnMsg, "tracing init failed")
-		}
+		require.NotNil(t, provider, "Provider must not be nil")
+		assert.False(t, warnCalled, "OTLP exporter construction is lazy; no warning expected")
+		assert.True(t, provider.IsEnabled(), "Configured endpoint should produce an SDK (non-noop) provider")
 	})
 }
 
@@ -128,6 +130,24 @@ func TestShutdownTracingProviderWithTimeout(t *testing.T) {
 			warnCalled = true
 		})
 		assert.False(t, warnCalled, "Shutdown of noop provider should not produce a warning")
+	})
+
+	t.Run("sdk provider shuts down cleanly", func(t *testing.T) {
+		// HTTP OTLP exporters are lazy; construction succeeds even for unreachable endpoints.
+		// Reset the global OTel provider to noop after the subtest so that a shut-down
+		// provider is not left as the global, which would make later tests order-dependent.
+		t.Cleanup(func() { otel.SetTracerProvider(noop.NewTracerProvider()) })
+		provider, err := tracing.InitProvider(context.Background(), &config.TracingConfig{
+			Endpoint: "http://127.0.0.1:14318",
+		})
+		require.NoError(t, err)
+		require.True(t, provider.IsEnabled(), "Expected a real SDK provider with a configured endpoint")
+
+		var warnCalled bool
+		shutdownTracingProviderWithTimeout(provider, func(format string, args ...any) {
+			warnCalled = true
+		})
+		assert.False(t, warnCalled, "SDK provider with no pending spans should shut down without error")
 	})
 }
 
@@ -155,4 +175,17 @@ func TestSetupCommandTracing(t *testing.T) {
 		assert.NotPanics(t, cleanup)
 		assert.False(t, shutdownWarnCalled)
 	})
+}
+
+// TestLogTracingWarnf verifies that logTracingWarnf prefixes the message with
+// "Warning: " and writes the formatted string to the default log output.
+func TestLogTracingWarnf(t *testing.T) {
+	var buf bytes.Buffer
+	oldOutput := log.Writer()
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(oldOutput) })
+
+	logTracingWarnf("disk cache failed: %s", "permission denied")
+
+	assert.Contains(t, buf.String(), "Warning: disk cache failed: permission denied")
 }
