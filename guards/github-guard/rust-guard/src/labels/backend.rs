@@ -1504,16 +1504,10 @@ fn repo_visibility_from_items(value: &Value, repo_id: &str) -> Option<bool> {
 }
 
 fn private_flag_from_repo_object(item: &Value) -> Option<bool> {
-    if let Some(is_private) = item.get("private").and_then(|v| v.as_bool()) {
-        return Some(is_private);
-    }
-
-    if let Some(is_private) = item.get("is_private").and_then(|v| v.as_bool()) {
-        return Some(is_private);
-    }
-
-    if let Some(is_private) = item.get("isPrivate").and_then(|v| v.as_bool()) {
-        return Some(is_private);
+    for field in &["private", "is_private", "isPrivate"] {
+        if let Some(is_private) = item.get(*field).and_then(|v| v.as_bool()) {
+            return Some(is_private);
+        }
     }
 
     if let Some(visibility) = item.get("visibility").and_then(|v| v.as_str()) {

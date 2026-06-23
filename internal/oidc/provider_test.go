@@ -393,3 +393,55 @@ func TestProvider_AudiencePassedAsQueryParam(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "https://my-mcp-server.example.com", capturedAudience, "Audience should be passed as query parameter")
 }
+
+// TestProvider_NilContext tests that a nil context triggers the
+// "failed to create OIDC token request" error path inside fetchToken.
+func TestProvider_NilContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	provider := oidc.NewProvider(server.URL, "test-token")
+	//nolint:staticcheck // Intentionally passing nil context to exercise the error path.
+	_, err := provider.Token(nil, "https://example.com")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to create OIDC token request")
+}
+
+// TestProvider_BodyReadError tests that a connection dropped after response headers
+// are sent triggers the "failed to read OIDC token response" error path in fetchToken.
+func TestProvider_BodyReadError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hijacker, ok := w.(http.Hijacker)
+		if !ok {
+			t.Error("ResponseWriter does not support Hijacker interface")
+			return
+		}
+		conn, brw, err := hijacker.Hijack()
+		if err != nil {
+			t.Errorf("Hijack failed: %v", err)
+			return
+		}
+		defer conn.Close()
+		// Send a valid 200 status with Content-Length larger than the body we will
+		// actually deliver, then close the connection.  The HTTP client will receive
+		// the status line + headers successfully (so httpClient.Do returns a 200
+		// response), but the subsequent io.ReadAll call will get io.ErrUnexpectedEOF
+		// because the connection is closed before the declared bytes arrive.
+		if _, err := brw.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 1000\r\nContent-Type: application/json\r\n\r\n"); err != nil {
+			t.Errorf("failed to write response headers: %v", err)
+			return
+		}
+		if err := brw.Flush(); err != nil {
+			t.Errorf("failed to flush response: %v", err)
+			return
+		}
+	}))
+	defer server.Close()
+
+	provider := oidc.NewProvider(server.URL, "test-token")
+	_, err := provider.Token(context.Background(), "https://example.com")
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to read OIDC token response")
+}

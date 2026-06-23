@@ -28,6 +28,13 @@ pub struct PathLabelResult {
     pub items_path: Option<&'static str>,
 }
 
+fn default_repo_for_items(arg_repo_full: String, items: &[Value]) -> String {
+    if !arg_repo_full.is_empty() {
+        return arg_repo_full;
+    }
+    items.first().map(extract_repo_from_item).unwrap_or_default()
+}
+
 /// Generate path-based labels for collection responses (preferred format per GUARD_RESPONSE_LABELING.md)
 /// Returns None if the response is not a collection or should use resource labels
 /// Returns Some(PathLabelResult) with JSON Pointer paths for collection items
@@ -145,13 +152,7 @@ pub fn label_response_paths(
                     } else {
                         false
                     };
-                    let default_repo = if !arg_repo_full.is_empty() {
-                        arg_repo_full
-                    } else if let Some(first) = items.first() {
-                        extract_repo_from_item(first)
-                    } else {
-                        String::new()
-                    };
+                    let default_repo = default_repo_for_items(arg_repo_full, items);
                     let default_secrecy = if tool_name != "search_pull_requests" {
                         repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx)
                     } else {
@@ -257,13 +258,7 @@ pub fn label_response_paths(
                     } else {
                         false
                     };
-                    let default_repo = if !arg_repo_full.is_empty() {
-                        arg_repo_full
-                    } else if let Some(first) = items.first() {
-                        extract_repo_from_item(first)
-                    } else {
-                        String::new()
-                    };
+                    let default_repo = default_repo_for_items(arg_repo_full, items);
                     let default_secrecy = if tool_name != "search_issues" {
                         repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx)
                     } else {
@@ -332,13 +327,7 @@ pub fn label_response_paths(
                 // Try tool_args first, fall back to extracting from first item
                 let (arg_owner, arg_repo, arg_repo_full) = extract_repo_info(tool_args);
                 let sha = tool_args.get("sha").and_then(|v| v.as_str()).unwrap_or("");
-                let default_repo = if !arg_repo_full.is_empty() {
-                    arg_repo_full
-                } else if let Some(first) = items.first() {
-                    extract_repo_from_item(first)
-                } else {
-                    String::new()
-                };
+                let default_repo = default_repo_for_items(arg_repo_full, items);
                 let default_secrecy: crate::SharedLabels =
                     repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx).into();
                 let repo_private = if !arg_owner.is_empty() && !arg_repo.is_empty() {
@@ -452,13 +441,7 @@ pub fn label_response_paths(
             if let Some(items) = items {
                 // Try tool_args first, fall back to extracting from first item
                 let (arg_owner, arg_repo, arg_repo_full) = extract_repo_info(tool_args);
-                let default_repo = if !arg_repo_full.is_empty() {
-                    arg_repo_full
-                } else if let Some(first) = items.first() {
-                    extract_repo_from_item(first)
-                } else {
-                    String::new()
-                };
+                let default_repo = default_repo_for_items(arg_repo_full, items);
                 let default_secrecy =
                     repo_visibility_secrecy(&arg_owner, &arg_repo, &default_repo, ctx);
                 // Convert to SharedLabels (Arc<Vec<_>>) first — O(1) Arc clones in the loop.
