@@ -74,7 +74,11 @@ func ExtractURLDomains(text string) []string {
 		match = strings.TrimRight(match, ".,;:!?)]}\"'")
 		parsed, err := url.Parse(match)
 		if err != nil {
-			logDomains.Printf("ExtractURLDomains: skipping unparseable URL candidate: %v", err)
+			if uerr, ok := err.(*url.Error); ok {
+				logDomains.Printf("ExtractURLDomains: skipping unparseable URL candidate: %v", uerr.Err)
+			} else {
+				logDomains.Printf("ExtractURLDomains: skipping unparseable URL candidate (%T)", err)
+			}
 			continue
 		}
 		host := strings.ToLower(parsed.Hostname())
