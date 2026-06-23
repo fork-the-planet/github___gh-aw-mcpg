@@ -429,8 +429,14 @@ func TestProvider_BodyReadError(t *testing.T) {
 		// the status line + headers successfully (so httpClient.Do returns a 200
 		// response), but the subsequent io.ReadAll call will get io.ErrUnexpectedEOF
 		// because the connection is closed before the declared bytes arrive.
-		brw.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 1000\r\nContent-Type: application/json\r\n\r\n")
-		brw.Flush()
+		if _, err := brw.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 1000\r\nContent-Type: application/json\r\n\r\n"); err != nil {
+			t.Errorf("failed to write response headers: %v", err)
+			return
+		}
+		if err := brw.Flush(); err != nil {
+			t.Errorf("failed to flush response: %v", err)
+			return
+		}
 	}))
 	defer server.Close()
 
