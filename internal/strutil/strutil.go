@@ -28,6 +28,15 @@ func DeduplicateStrings(input []string, sorted bool) []string {
 	return out
 }
 
+// StringsToAny converts a []string to []interface{}.
+func StringsToAny(input []string) []interface{} {
+	out := make([]interface{}, len(input))
+	for i, value := range input {
+		out[i] = value
+	}
+	return out
+}
+
 // GetStringFromMap returns the first non-empty string value found for any of
 // the given keys in m.  For each key, the value must be present, typed as
 // string, and non-empty to be returned.  Returns an empty string when no
