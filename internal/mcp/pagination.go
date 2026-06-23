@@ -1,6 +1,12 @@
 package mcp
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/github/gh-aw-mcpg/internal/logger"
+)
+
+var logPagination = logger.New("mcp:pagination")
 
 // paginatedPage holds a single page of results from a paginated SDK list call.
 type paginatedPage[T any] struct {
@@ -25,27 +31,32 @@ const paginateAllMaxPages = 100
 // which should only be used in tests or when the caller enforces its own limit.
 // Returns an error if the cap is reached or if the same cursor is returned twice (cycle).
 func PaginateAll[T any](maxPages int, fetch func(cursor string) ([]T, string, error)) ([]T, error) {
+	logPagination.Printf("PaginateAll: starting pagination, maxPages=%d", maxPages)
 	var all []T
 	cursor := ""
 	seenCursors := make(map[string]struct{})
 	for pageCount := 0; ; pageCount++ {
 		if maxPages > 0 && pageCount >= maxPages {
+			logPagination.Printf("PaginateAll: page limit reached, maxPages=%d, totalItems=%d", maxPages, len(all))
 			return nil, fmt.Errorf("pagination exceeded %d-page limit", maxPages)
 		}
 		items, nextCursor, err := fetch(cursor)
 		if err != nil {
 			return nil, err
 		}
+		logPagination.Printf("PaginateAll: fetched page=%d, items=%d, hasNext=%v", pageCount+1, len(items), nextCursor != "")
 		all = append(all, items...)
 		if nextCursor == "" {
 			break
 		}
 		if _, seen := seenCursors[nextCursor]; seen {
+			logPagination.Printf("PaginateAll: cyclical cursor detected, page=%d, cursor=%q", pageCount+1, nextCursor)
 			return nil, fmt.Errorf("pagination detected cyclical cursor %q", nextCursor)
 		}
 		seenCursors[nextCursor] = struct{}{}
 		cursor = nextCursor
 	}
+	logPagination.Printf("PaginateAll: completed, totalItems=%d, pages=%d", len(all), len(seenCursors)+1)
 	return all, nil
 }
 
