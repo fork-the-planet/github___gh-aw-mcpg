@@ -5,7 +5,11 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/github/gh-aw-mcpg/internal/logger"
 )
+
+var logDomains = logger.New("urlutil:domains")
 
 // urlPattern requires a non-empty hostname candidate and then captures the rest
 // of the URL until common delimiter characters. The (?i) flag makes the scheme
@@ -18,6 +22,7 @@ func ExtractURLDomainsFromValue(value any) []string {
 	domainSet := make(map[string]struct{})
 	collectURLDomains(value, domainSet)
 	if len(domainSet) == 0 {
+		logDomains.Print("ExtractURLDomainsFromValue: no domains found in value tree")
 		return nil
 	}
 
@@ -26,6 +31,7 @@ func ExtractURLDomainsFromValue(value any) []string {
 		domains = append(domains, domain)
 	}
 	sort.Strings(domains)
+	logDomains.Printf("ExtractURLDomainsFromValue: extracted %d unique domain(s)", len(domains))
 	return domains
 }
 
@@ -56,6 +62,7 @@ func ExtractURLDomains(text string) []string {
 	if len(matches) == 0 {
 		return nil
 	}
+	logDomains.Printf("ExtractURLDomains: found %d URL candidate(s) in text", len(matches))
 
 	domainSet := make(map[string]struct{})
 	for _, match := range matches {
@@ -67,6 +74,7 @@ func ExtractURLDomains(text string) []string {
 		match = strings.TrimRight(match, ".,;:!?)]}\"'")
 		parsed, err := url.Parse(match)
 		if err != nil {
+			logDomains.Printf("ExtractURLDomains: skipping unparseable URL candidate: %v", err)
 			continue
 		}
 		host := strings.ToLower(parsed.Hostname())
@@ -84,5 +92,6 @@ func ExtractURLDomains(text string) []string {
 		domains = append(domains, domain)
 	}
 	sort.Strings(domains)
+	logDomains.Printf("ExtractURLDomains: resolved %d unique domain(s) from %d candidate(s)", len(domains), len(matches))
 	return domains
 }
