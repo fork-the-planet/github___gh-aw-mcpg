@@ -301,6 +301,7 @@ gh-aw-mcpg/
     ├── testutil/              # Test utilities and helpers
     ├── tracing/               # OpenTelemetry OTLP tracing helpers
     ├── tty/                   # Terminal detection utilities
+    ├── urlutil/               # URL hostname extraction utilities for domain audit logging
     └── version/               # Version management
 ```
 
@@ -328,6 +329,7 @@ gh-aw-mcpg/
 - **`internal/testutil/`** - Test utilities and helpers
 - **`internal/tracing/`** - OpenTelemetry OTLP trace export helpers (HTTP handler wrapping, provider management)
 - **`internal/tty/`** - Terminal detection utilities
+- **`internal/urlutil/`** - URL hostname extraction utilities (used by guard and middleware for domain audit logging)
 - **`internal/version/`** - Version management
 
 ## Coding Conventions
