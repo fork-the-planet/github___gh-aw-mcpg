@@ -81,10 +81,10 @@ func TestInitObservedURLDomainsLogger_FallbackOnBadDir(t *testing.T) {
 	// Providing a path that cannot be created (a file used as a directory) should
 	// trigger the fallback path. Like ToolsLogger, ObservedURLDomainsLogger uses a
 	// silent fallback: it returns nil error and a degraded logger with useFallback=true.
-	tmpFile := t.TempDir() + "/not-a-dir"
+	tmpFile := filepath.Join(t.TempDir(), "not-a-dir")
 	require.NoError(t, os.WriteFile(tmpFile, []byte("x"), 0600))
 
-	err := InitObservedURLDomainsLogger(tmpFile+"/subdir", observedURLDomainsFileName)
+	err := InitObservedURLDomainsLogger(filepath.Join(tmpFile, "subdir"), observedURLDomainsFileName)
 	// No error is returned — the fallback handler absorbs it.
 	assert.NoError(t, err, "InitObservedURLDomainsLogger uses silent fallback, should not return error")
 
