@@ -61,43 +61,30 @@ func PaginateAll[T any](maxPages int, fetch func(cursor string) ([]T, string, er
 }
 
 // paginateAll collects all items across paginated SDK list calls.
-// It returns an error if the backend returns more than paginateAllMaxPages pages,
-// protecting against runaway backends.
-// The canonical shared algorithm is PaginateAll; paginateAll adds server-specific
-// logging and richer error context on top of it.
+// It delegates to PaginateAll for the core pagination algorithm (cursor cycle
+// detection and page-limit enforcement) and adds server-specific logging and
+// richer error context on top of it.
 func paginateAll[T any](
 	serverID string,
 	itemKind string,
 	fetch func(cursor string) (paginatedPage[T], error),
 ) ([]T, error) {
-	first, err := fetch("")
-	if err != nil {
-		return nil, err
-	}
-	all := make([]T, len(first.Items), max(len(first.Items), 1))
-	copy(all, first.Items)
-	logConn.Printf("list%s: received page of %d %s from serverID=%s", itemKind, len(first.Items), itemKind, serverID)
-
-	cursor := first.NextCursor
-	seenCursors := make(map[string]struct{})
-	for pageCount := 1; cursor != ""; pageCount++ {
-		if pageCount >= paginateAllMaxPages {
-			return nil, fmt.Errorf("list%s: backend serverID=%s returned more than %d pages; aborting to prevent unbounded memory growth", itemKind, serverID, paginateAllMaxPages)
-		}
-		if _, seen := seenCursors[cursor]; seen {
-			return nil, fmt.Errorf("list%s: backend serverID=%s returned cyclical cursor %q", itemKind, serverID, cursor)
-		}
-		seenCursors[cursor] = struct{}{}
+	result, err := PaginateAll(paginateAllMaxPages, func(cursor string) ([]T, string, error) {
 		page, err := fetch(cursor)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		all = append(all, page.Items...)
-		logConn.Printf("list%s: received page of %d %s (total so far: %d) from serverID=%s", itemKind, len(page.Items), itemKind, len(all), serverID)
-		cursor = page.NextCursor
+		logConn.Printf("list%s: received page of %d %s from serverID=%s", itemKind, len(page.Items), itemKind, serverID)
+		return page.Items, page.NextCursor, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list%s: backend serverID=%s: %w", itemKind, serverID, err)
 	}
-	logConn.Printf("list%s: received %d %s total from serverID=%s", itemKind, len(all), itemKind, serverID)
-	return all, nil
+	if result == nil {
+		result = []T{}
+	}
+	logConn.Printf("list%s: received %d %s total from serverID=%s", itemKind, len(result), itemKind, serverID)
+	return result, nil
 }
 
 // listMCPItems is a generic helper for the list* family of MCP operations.

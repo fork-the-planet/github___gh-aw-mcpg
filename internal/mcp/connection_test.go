@@ -990,8 +990,8 @@ func TestPaginateAll(t *testing.T) {
 			return paginatedPage[string]{Items: []string{"x"}, NextCursor: nextCursor}, nil
 		})
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "more than")
-		assert.ErrorContains(t, err, "pages")
+		assert.ErrorContains(t, err, "exceeded")
+		assert.ErrorContains(t, err, "page limit")
 		// Must stop at the page limit, not run forever.
 		assert.Equal(t, paginateAllMaxPages, callCount)
 	})
