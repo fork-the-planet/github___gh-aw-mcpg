@@ -37,9 +37,8 @@ func readObservedURLDomainsFile(t *testing.T, logDir, fileName string) map[strin
 // ---- SetURLDomainAuditEnabled / URLDomainAuditEnabled ----
 
 func TestURLDomainAuditEnabled_DefaultFalse(t *testing.T) {
-	// The default state is false (atomic.Bool zero value)
-	// Reset to false both before and after so other tests are unaffected.
-	SetURLDomainAuditEnabled(false)
+	// The default state is false (atomic.Bool zero value).
+	// Reset after so other tests are unaffected.
 	t.Cleanup(func() { SetURLDomainAuditEnabled(false) })
 
 	assert.False(t, URLDomainAuditEnabled(), "audit should be disabled by default")
