@@ -4,19 +4,21 @@ import (
 	"strings"
 	"testing"
 
-	jsonschema "github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // compileSchemaForTest compiles a JSON schema string using the package's own
-// draft-7 compiler.  Tests call this helper to produce a *jsonschema.Schema
-// without any network access.
+// compiler. Tests call this helper to produce a *jsonschema.Schema without any
+// network access.
 func compileSchemaForTest(t *testing.T, schemaJSON string) *jsonschema.Schema {
 	t.Helper()
 	const schemaURL = "https://test.example.com/schema.json"
-	compiler := newDraft7Compiler()
-	err := compiler.AddResource(schemaURL, strings.NewReader(schemaJSON))
+	compiler := newCompiler()
+	schemaDoc, err := jsonschema.UnmarshalJSON(strings.NewReader(schemaJSON))
+	require.NoError(t, err, "UnmarshalJSON should succeed for valid JSON schema")
+	err = compiler.AddResource(schemaURL, schemaDoc)
 	require.NoError(t, err, "AddResource should succeed for valid JSON schema")
 	schema, err := compiler.Compile(schemaURL)
 	require.NoError(t, err, "Compile should succeed for valid JSON schema")

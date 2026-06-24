@@ -1,5 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://docs.github.com/gh-aw/schemas/mcp-gateway-config.schema.json",
   "title": "MCP Gateway Configuration",
   "description": "Configuration schema for the Model Context Protocol (MCP) Gateway as defined in the MCP Gateway Specification v1.0.0. The gateway provides transparent HTTP access to multiple MCP servers with protocol translation, server isolation, and authentication capabilities.",
@@ -19,8 +19,14 @@
     "customSchemas": {
       "type": "object",
       "description": "Map of custom server type names to JSON Schema URLs for validation. Custom types enable extensibility for specialized MCP server implementations. Keys are type names (must not be 'stdio' or 'http'), values are HTTPS URLs pointing to JSON Schema definitions, or empty strings to skip validation.",
+      "propertyNames": {
+        "allOf": [
+          { "pattern": "^[a-z][a-z0-9-]*$" },
+          { "not": { "enum": ["stdio", "http"] } }
+        ]
+      },
       "patternProperties": {
-        "^(?!stdio$|http$)[a-z][a-z0-9-]*$": {
+        "^[a-z][a-z0-9-]*$": {
           "oneOf": [
             {
               "type": "string",
@@ -149,6 +155,15 @@
               "minimum": 10
             }
           ]
+        },
+        "registry": {
+          "type": "string",
+          "description": "URI to the installation location when MCP is installed from a registry. This is an informational field used for documentation and tooling discovery."
+        },
+        "guard-policies": {
+          "type": "object",
+          "description": "Guard policies for access control at the MCP gateway level. The structure of guard policies is server-specific.",
+          "additionalProperties": true
         }
       },
       "required": [
@@ -260,6 +275,10 @@
               "minimum": 10
             }
           ]
+        },
+        "registry": {
+          "type": "string",
+          "description": "URI to the installation location when MCP is installed from a registry. This is an informational field used for documentation and tooling discovery."
         }
       },
       "required": [
@@ -274,7 +293,8 @@
       "properties": {
         "type": {
           "type": "string",
-          "pattern": "^(?!stdio$|http$)[a-z][a-z0-9-]*$",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "not": {"enum": ["stdio", "http"]},
           "description": "Custom server type name. Must not be 'stdio' or 'http'. Must be registered in customSchemas."
         }
       },
@@ -436,6 +456,11 @@
           "description": "Logical service name reported in the 'service.name' resource attribute of all emitted spans. Identifies the gateway in the tracing backend. Defaults to 'mcp-gateway' when not specified.",
           "minLength": 1,
           "default": "mcp-gateway"
+        },
+        "headers": {
+          "type": "string",
+          "description": "Comma-separated key=value HTTP headers for OTLP export requests. Supports ${VAR} expansion.",
+          "minLength": 1
         }
       },
       "required": [

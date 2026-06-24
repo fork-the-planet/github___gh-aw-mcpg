@@ -22,8 +22,8 @@ func init() {
 	schemaHTTPClientTimeout = 200 * time.Millisecond
 }
 
-// TestFetchAndFixSchema_SuccessfulFetch tests the happy path where schema is fetched successfully
-func TestFetchAndFixSchema_SuccessfulFetch(t *testing.T) {
+// TestFetchSchema_SuccessfulFetch tests the happy path where schema is fetched successfully
+func TestFetchSchema_SuccessfulFetch(t *testing.T) {
 	// Create a minimal valid schema for testing
 	validSchema := map[string]interface{}{
 		"$schema": "http://json-schema.org/draft-07/schema#",
@@ -47,7 +47,7 @@ func TestFetchAndFixSchema_SuccessfulFetch(t *testing.T) {
 	defer server.Close()
 
 	// Test fetching from the server
-	result, err := fetchAndFixSchema(server.URL)
+	result, err := fetchSchema(server.URL)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
@@ -58,8 +58,8 @@ func TestFetchAndFixSchema_SuccessfulFetch(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestFetchAndFixSchema_HTTPError tests handling of HTTP error responses
-func TestFetchAndFixSchema_HTTPError(t *testing.T) {
+// TestFetchSchema_HTTPError tests handling of HTTP error responses
+func TestFetchSchema_HTTPError(t *testing.T) {
 	tests := []struct {
 		name         string
 		statusCode   int
@@ -107,7 +107,7 @@ func TestFetchAndFixSchema_HTTPError(t *testing.T) {
 			}))
 			defer server.Close()
 
-			result, err := fetchAndFixSchema(server.URL)
+			result, err := fetchSchema(server.URL)
 
 			assert.Error(t, err)
 			assert.Nil(t, result)
@@ -118,23 +118,23 @@ func TestFetchAndFixSchema_HTTPError(t *testing.T) {
 	}
 }
 
-// TestFetchAndFixSchema_NetworkError tests handling of network failures
-func TestFetchAndFixSchema_NetworkError(t *testing.T) {
+// TestFetchSchema_NetworkError tests handling of network failures
+func TestFetchSchema_NetworkError(t *testing.T) {
 	// Start a server and immediately close it so connections are refused,
 	// guaranteeing a network error without relying on external DNS resolution.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	closedURL := server.URL + "/schema.json"
 	server.Close()
 
-	result, err := fetchAndFixSchema(closedURL)
+	result, err := fetchSchema(closedURL)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "failed to fetch schema from")
 }
 
-// TestFetchAndFixSchema_Timeout tests handling of request timeouts
-func TestFetchAndFixSchema_Timeout(t *testing.T) {
+// TestFetchSchema_Timeout tests handling of request timeouts
+func TestFetchSchema_Timeout(t *testing.T) {
 	// Create a server that delays longer than the configured client timeout.
 	// The init() in this test file sets schemaHTTPClientTimeout = 200ms, so any
 	// delay > 200ms will trigger a timeout on each attempt.
@@ -144,7 +144,7 @@ func TestFetchAndFixSchema_Timeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFixSchema(server.URL)
+	result, err := fetchSchema(server.URL)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -152,256 +152,41 @@ func TestFetchAndFixSchema_Timeout(t *testing.T) {
 	assert.ErrorContains(t, err, "failed to fetch schema from")
 }
 
-// TestFetchAndFixSchema_InvalidJSON tests handling of invalid JSON in response
-func TestFetchAndFixSchema_InvalidJSON(t *testing.T) {
+// TestFetchSchema_InvalidJSON tests that invalid JSON response bytes are returned as-is.
+// JSON parsing is the caller's responsibility: validateAgainstCustomSchema calls
+// jsonschema.UnmarshalJSON on the result, and validateJSONSchema does the same via
+// getOrCompileSchema. Those callers will produce an appropriate error for bad JSON.
+func TestFetchSchema_InvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("not valid json {{{"))
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFixSchema(server.URL)
+	result, err := fetchSchema(server.URL)
 
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.ErrorContains(t, err, "failed to parse schema")
+	// fetchSchema returns raw bytes; JSON validation is the caller's responsibility
+	assert.NoError(t, err)
+	assert.Equal(t, []byte("not valid json {{{"), result)
 }
 
-// TestFetchAndFixSchema_EmptyResponse tests handling of empty response body
-func TestFetchAndFixSchema_EmptyResponse(t *testing.T) {
+// TestFetchSchema_EmptyResponse tests that an empty response body is returned as-is
+func TestFetchSchema_EmptyResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		// Send empty body
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFixSchema(server.URL)
+	result, err := fetchSchema(server.URL)
 
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.ErrorContains(t, err, "failed to parse schema")
+	// fetchSchema returns raw bytes; an empty response is returned without error
+	assert.NoError(t, err)
+	assert.Equal(t, []byte{}, result)
 }
 
-// TestFetchAndFixSchema_CustomServerConfigPatternFix tests the negative lookahead fix for customServerConfig.type
-func TestFetchAndFixSchema_CustomServerConfigPatternFix(t *testing.T) {
-	// Schema with negative lookahead pattern in customServerConfig
-	schemaWithNegativeLookahead := map[string]interface{}{
-		"$schema": "http://json-schema.org/draft-07/schema#",
-		"definitions": map[string]interface{}{
-			"customServerConfig": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"type": map[string]interface{}{
-						"type":    "string",
-						"pattern": "^(?!stdio$|http$).*",
-					},
-				},
-			},
-		},
-	}
-
-	schemaJSON, err := json.Marshal(schemaWithNegativeLookahead)
-	require.NoError(t, err)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write(schemaJSON)
-	}))
-	defer server.Close()
-
-	result, err := fetchAndFixSchema(server.URL)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// Parse the result and verify the fix was applied
-	var fixed map[string]interface{}
-	err = json.Unmarshal(result, &fixed)
-	require.NoError(t, err)
-
-	// Navigate to customServerConfig.properties.type
-	definitions, ok := fixed["definitions"].(map[string]interface{})
-	require.True(t, ok, "definitions should exist")
-
-	customServerConfig, ok := definitions["customServerConfig"].(map[string]interface{})
-	require.True(t, ok, "customServerConfig should exist")
-
-	properties, ok := customServerConfig["properties"].(map[string]interface{})
-	require.True(t, ok, "properties should exist")
-
-	typeField, ok := properties["type"].(map[string]interface{})
-	require.True(t, ok, "type field should exist")
-
-	// Verify pattern was removed
-	_, hasPattern := typeField["pattern"]
-	assert.False(t, hasPattern, "pattern should be removed")
-
-	// Verify type constraint was removed
-	_, hasType := typeField["type"]
-	assert.False(t, hasType, "type constraint should be removed")
-
-	// Verify not constraint was added with enum
-	notConstraint, hasNot := typeField["not"]
-	assert.True(t, hasNot, "not constraint should be added")
-
-	notMap, ok := notConstraint.(map[string]interface{})
-	require.True(t, ok, "not should be a map")
-
-	enumValues, hasEnum := notMap["enum"]
-	assert.True(t, hasEnum, "enum should exist in not constraint")
-
-	// JSON unmarshal creates []interface{} not []string
-	enumSlice, ok := enumValues.([]interface{})
-	require.True(t, ok, "enum should be a slice")
-	require.Len(t, enumSlice, 2, "enum should have 2 values")
-
-	// Convert to strings for comparison
-	enumStrings := make([]string, len(enumSlice))
-	for i, v := range enumSlice {
-		enumStrings[i], ok = v.(string)
-		require.True(t, ok, "enum value should be a string")
-	}
-
-	assert.ElementsMatch(t, []string{"stdio", "http"}, enumStrings, "enum should exclude stdio and http")
-}
-
-// TestFetchAndFixSchema_CustomSchemasPatternPropertiesFix tests the negative lookahead fix for customSchemas
-func TestFetchAndFixSchema_CustomSchemasPatternPropertiesFix(t *testing.T) {
-	// Schema with negative lookahead in patternProperties
-	schemaWithNegativeLookahead := map[string]interface{}{
-		"$schema": "http://json-schema.org/draft-07/schema#",
-		"properties": map[string]interface{}{
-			"customSchemas": map[string]interface{}{
-				"type": "object",
-				"patternProperties": map[string]interface{}{
-					"^(?!stdio$|http$)[a-z][a-z0-9-]*$": map[string]interface{}{
-						"type": "object",
-					},
-				},
-			},
-		},
-	}
-
-	schemaJSON, err := json.Marshal(schemaWithNegativeLookahead)
-	require.NoError(t, err)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write(schemaJSON)
-	}))
-	defer server.Close()
-
-	result, err := fetchAndFixSchema(server.URL)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// Parse the result and verify the fix was applied
-	var fixed map[string]interface{}
-	err = json.Unmarshal(result, &fixed)
-	require.NoError(t, err)
-
-	// Navigate to customSchemas.patternProperties
-	properties, ok := fixed["properties"].(map[string]interface{})
-	require.True(t, ok, "properties should exist")
-
-	customSchemas, ok := properties["customSchemas"].(map[string]interface{})
-	require.True(t, ok, "customSchemas should exist")
-
-	patternProps, ok := customSchemas["patternProperties"].(map[string]interface{})
-	require.True(t, ok, "patternProperties should exist")
-
-	// Verify the old pattern with negative lookahead is gone
-	for key := range patternProps {
-		assert.False(t, strings.Contains(key, "(?!"), "pattern should not contain negative lookahead")
-	}
-
-	// Verify the new simple pattern exists
-	_, hasSimplePattern := patternProps["^[a-z][a-z0-9-]*$"]
-	assert.True(t, hasSimplePattern, "should have simple pattern without negative lookahead")
-}
-
-// TestFetchAndFixSchema_BothFixesApplied tests that both fixes are applied in a single call
-func TestFetchAndFixSchema_BothFixesApplied(t *testing.T) {
-	// Schema with both negative lookahead patterns
-	schemaWithBothPatterns := map[string]interface{}{
-		"$schema": "http://json-schema.org/draft-07/schema#",
-		"definitions": map[string]interface{}{
-			"customServerConfig": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"type": map[string]interface{}{
-						"type":    "string",
-						"pattern": "^(?!stdio$|http$).*",
-					},
-				},
-			},
-		},
-		"properties": map[string]interface{}{
-			"customSchemas": map[string]interface{}{
-				"type": "object",
-				"patternProperties": map[string]interface{}{
-					"^(?!stdio$|http$)[a-z][a-z0-9-]*$": map[string]interface{}{
-						"type": "object",
-					},
-				},
-			},
-		},
-	}
-
-	schemaJSON, err := json.Marshal(schemaWithBothPatterns)
-	require.NoError(t, err)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write(schemaJSON)
-	}))
-	defer server.Close()
-
-	result, err := fetchAndFixSchema(server.URL)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	// Parse and verify both fixes were applied
-	var fixed map[string]interface{}
-	err = json.Unmarshal(result, &fixed)
-	require.NoError(t, err)
-
-	// Check fix 1: customServerConfig
-	definitions, ok := fixed["definitions"].(map[string]interface{})
-	require.True(t, ok)
-	customServerConfig, ok := definitions["customServerConfig"].(map[string]interface{})
-	require.True(t, ok)
-	props1, ok := customServerConfig["properties"].(map[string]interface{})
-	require.True(t, ok)
-	typeField, ok := props1["type"].(map[string]interface{})
-	require.True(t, ok)
-
-	_, hasPattern := typeField["pattern"]
-	assert.False(t, hasPattern, "customServerConfig pattern should be removed")
-
-	_, hasNot := typeField["not"]
-	assert.True(t, hasNot, "customServerConfig not constraint should be added")
-
-	// Check fix 2: customSchemas patternProperties
-	properties, ok := fixed["properties"].(map[string]interface{})
-	require.True(t, ok)
-	customSchemas, ok := properties["customSchemas"].(map[string]interface{})
-	require.True(t, ok)
-	patternProps, ok := customSchemas["patternProperties"].(map[string]interface{})
-	require.True(t, ok)
-
-	for key := range patternProps {
-		assert.False(t, strings.Contains(key, "(?!"), "patternProperties should not contain negative lookahead")
-	}
-
-	_, hasSimplePattern := patternProps["^[a-z][a-z0-9-]*$"]
-	assert.True(t, hasSimplePattern, "should have simple pattern")
-}
-
-// TestFetchAndFixSchema_NoFixesNeeded tests that schemas without problematic patterns are unchanged
-func TestFetchAndFixSchema_NoFixesNeeded(t *testing.T) {
+// TestFetchSchema_NoFixesNeeded tests that schemas without problematic patterns are unchanged
+func TestFetchSchema_NoFixesNeeded(t *testing.T) {
 	// Schema without negative lookahead patterns
 	cleanSchema := map[string]interface{}{
 		"$schema": "http://json-schema.org/draft-07/schema#",
@@ -425,7 +210,7 @@ func TestFetchAndFixSchema_NoFixesNeeded(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFixSchema(server.URL)
+	result, err := fetchSchema(server.URL)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -445,8 +230,8 @@ func TestFetchAndFixSchema_NoFixesNeeded(t *testing.T) {
 	assert.Contains(t, properties, "age")
 }
 
-// TestFetchAndFixSchema_NestedStructurePreserved tests that nested schema structures are preserved
-func TestFetchAndFixSchema_NestedStructurePreserved(t *testing.T) {
+// TestFetchSchema_NestedStructurePreserved tests that nested schema structures are preserved
+func TestFetchSchema_NestedStructurePreserved(t *testing.T) {
 	// Complex nested schema
 	complexSchema := map[string]interface{}{
 		"$schema": "http://json-schema.org/draft-07/schema#",
@@ -481,7 +266,7 @@ func TestFetchAndFixSchema_NestedStructurePreserved(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFixSchema(server.URL)
+	result, err := fetchSchema(server.URL)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -510,8 +295,8 @@ func TestFetchAndFixSchema_NestedStructurePreserved(t *testing.T) {
 	assert.Contains(t, personProps, "address")
 }
 
-// TestFetchAndFixSchema_MarshalError tests handling of marshal failures
-func TestFetchAndFixSchema_MarshalError(t *testing.T) {
+// TestFetchSchema_MarshalError tests handling of marshal failures
+func TestFetchSchema_MarshalError(t *testing.T) {
 	// This test verifies that if we somehow get an unmarshalable schema,
 	// we handle it gracefully. In practice, this is hard to trigger since
 	// we're marshaling a map[string]interface{}, but it's good to test the error path.
@@ -531,14 +316,14 @@ func TestFetchAndFixSchema_MarshalError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFixSchema(server.URL)
+	result, err := fetchSchema(server.URL)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 }
 
-// TestFetchAndFixSchema_HTTPMethodUsed tests that GET method is used
-func TestFetchAndFixSchema_HTTPMethodUsed(t *testing.T) {
+// TestFetchSchema_HTTPMethodUsed tests that GET method is used
+func TestFetchSchema_HTTPMethodUsed(t *testing.T) {
 	var requestMethod string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -549,14 +334,14 @@ func TestFetchAndFixSchema_HTTPMethodUsed(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchAndFixSchema(server.URL)
+	_, err := fetchSchema(server.URL)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "GET", requestMethod, "Should use GET method")
 }
 
-// TestFetchAndFixSchema_UserAgentAndHeaders tests HTTP request headers
-func TestFetchAndFixSchema_UserAgentAndHeaders(t *testing.T) {
+// TestFetchSchema_UserAgentAndHeaders tests HTTP request headers
+func TestFetchSchema_UserAgentAndHeaders(t *testing.T) {
 	var headers http.Header
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -567,7 +352,7 @@ func TestFetchAndFixSchema_UserAgentAndHeaders(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchAndFixSchema(server.URL)
+	_, err := fetchSchema(server.URL)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, headers, "Should have captured request headers")
@@ -577,8 +362,8 @@ func TestFetchAndFixSchema_UserAgentAndHeaders(t *testing.T) {
 	assert.Contains(t, userAgent, "Go-http-client", "Should use Go HTTP client")
 }
 
-// TestFetchAndFixSchema_LargeSchema tests handling of large schema documents
-func TestFetchAndFixSchema_LargeSchema(t *testing.T) {
+// TestFetchSchema_LargeSchema tests handling of large schema documents
+func TestFetchSchema_LargeSchema(t *testing.T) {
 	// Create a large schema with many properties
 	largeSchema := map[string]interface{}{
 		"$schema":    "http://json-schema.org/draft-07/schema#",
@@ -604,7 +389,7 @@ func TestFetchAndFixSchema_LargeSchema(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFixSchema(server.URL)
+	result, err := fetchSchema(server.URL)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -619,7 +404,7 @@ func TestFetchAndFixSchema_LargeSchema(t *testing.T) {
 	assert.Len(t, properties, 100, "Should preserve all 100 properties")
 }
 
-func TestFetchAndFixSchema_TooLargeSchema(t *testing.T) {
+func TestFetchSchema_TooLargeSchema(t *testing.T) {
 	originalTimeout := schemaHTTPClientTimeout
 	schemaHTTPClientTimeout = 5 * time.Second
 	t.Cleanup(func() {
@@ -633,16 +418,16 @@ func TestFetchAndFixSchema_TooLargeSchema(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFixSchema(server.URL)
+	result, err := fetchSchema(server.URL)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "schema response too large")
 }
 
-// TestFetchAndFixSchema_RetrySucceedsAfterTransientError verifies that a transient
+// TestFetchSchema_RetrySucceedsAfterTransientError verifies that a transient
 // error on the first attempt is retried and the eventual success is returned.
-func TestFetchAndFixSchema_RetrySucceedsAfterTransientError(t *testing.T) {
+func TestFetchSchema_RetrySucceedsAfterTransientError(t *testing.T) {
 	validSchema := map[string]interface{}{
 		"$schema": "http://json-schema.org/draft-07/schema#",
 		"type":    "object",
@@ -663,17 +448,17 @@ func TestFetchAndFixSchema_RetrySucceedsAfterTransientError(t *testing.T) {
 	}))
 	defer server.Close()
 
-	result, err := fetchAndFixSchema(server.URL)
+	result, err := fetchSchema(server.URL)
 
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, int32(3), requestCount.Load(), "should have made 3 requests (2 failures + 1 success)")
 }
 
-// TestFetchAndFixSchema_ExponentialBackoffDelays verifies that all retries are attempted
+// TestFetchSchema_ExponentialBackoffDelays verifies that all retries are attempted
 // when transient errors occur, and that the function eventually gives up after
 // maxSchemaFetchRetries attempts.
-func TestFetchAndFixSchema_ExponentialBackoffDelays(t *testing.T) {
+func TestFetchSchema_ExponentialBackoffDelays(t *testing.T) {
 	var requestCount atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -682,7 +467,7 @@ func TestFetchAndFixSchema_ExponentialBackoffDelays(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchAndFixSchema(server.URL)
+	_, err := fetchSchema(server.URL)
 
 	require.Error(t, err)
 	assert.Equal(t, int32(maxSchemaFetchRetries), requestCount.Load(),

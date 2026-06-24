@@ -7,231 +7,130 @@ import (
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/version"
-	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/santhosh-tekuri/jsonschema/v6"
+	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // TestFormatErrorContext tests the formatErrorContext helper function.
 // This function provides additional diagnostic context for JSON Schema validation errors
-// based on the error message content.
+// based on the ErrorKind type.
 func TestFormatErrorContext(t *testing.T) {
 	tests := []struct {
 		name           string
-		message        string
-		keywordLoc     string
-		instanceLoc    string
+		errorKind      jsonschema.ErrorKind
 		prefix         string
 		wantContains   []string
 		wantNotContain []string
 	}{
 		{
-			name:         "additionalProperties error",
-			message:      "additionalProperties 'foo' not allowed",
+			name:         "additionalProperties error kind",
+			errorKind:    &kind.AdditionalProperties{Properties: []string{"foo"}},
 			prefix:       "  ",
 			wantContains: []string{"Configuration contains field(s)", "typos", "  Details:"},
 		},
 		{
-			name:         "additional property error (alternate wording)",
-			message:      "additional property 'bar' not allowed",
+			name:         "additionalItems error kind",
+			errorKind:    &kind.AdditionalItems{Count: 1},
 			prefix:       "",
 			wantContains: []string{"Configuration contains field(s)", "typos"},
 		},
 		{
-			name:         "type mismatch with expected and but got",
-			message:      "expected integer but got string",
+			name:         "type mismatch error kind",
+			errorKind:    &kind.Type{Got: "string", Want: []string{"integer"}},
 			prefix:       "  ",
 			wantContains: []string{"Type mismatch", "correct type", "  Details:"},
 		},
 		{
-			name:         "type mismatch inferred from keyword location",
-			message:      "validation failed",
-			keywordLoc:   "/properties/mcpServers/additionalProperties/properties/type/type",
-			prefix:       "  ",
-			wantContains: []string{"Type mismatch", "correct type", "  Details:"},
-		},
-		{
-			name:         "type mismatch with expected and type",
-			message:      "expected string, got 'null' type",
-			prefix:       "",
-			wantContains: []string{"Type mismatch", "correct type"},
-		},
-		{
-			name:         "enum validation error with value must be one of",
-			message:      "value must be one of 'a', 'b', 'c'",
+			name:         "enum validation error kind",
+			errorKind:    &kind.Enum{Got: "bad", Want: []any{"a", "b", "c"}},
 			prefix:       "",
 			wantContains: []string{"Invalid value", "restricted set", "allowed values"},
 		},
 		{
-			name:         "enum validation error with must be",
-			message:      "must be one of the allowed values",
-			prefix:       "    ",
+			name:         "const error kind",
+			errorKind:    &kind.Const{Got: "bad", Want: "expected"},
+			prefix:       "",
 			wantContains: []string{"Invalid value", "restricted set"},
 		},
 		{
-			name:         "missing required properties",
-			message:      "missing properties 'container'",
-			prefix:       "",
-			wantContains: []string{"Required field(s) are missing", "Add the required"},
-		},
-		{
-			name:         "required field error",
-			message:      "required: apiKey not found",
+			name:         "required field error kind",
+			errorKind:    &kind.Required{Missing: []string{"container"}},
 			prefix:       "  ",
 			wantContains: []string{"Required field(s) are missing", "  Details:"},
 		},
 		{
-			name:         "pattern validation failure - does not match pattern",
-			message:      "value does not match pattern '^[a-z]+$'",
+			name:         "dependentRequired error kind",
+			errorKind:    &kind.DependentRequired{Prop: "x", Missing: []string{"y"}},
+			prefix:       "",
+			wantContains: []string{"Required field(s) are missing", "Add the required"},
+		},
+		{
+			name:         "pattern validation error kind",
+			errorKind:    &kind.Pattern{Got: "BAD", Want: "^[a-z]+$"},
 			prefix:       "",
 			wantContains: []string{"Value format is incorrect", "specific format or pattern"},
 		},
 		{
-			name:         "pattern validation failure - pattern keyword",
-			message:      "pattern validation failed",
-			prefix:       "  ",
-			wantContains: []string{"Value format is incorrect", "  Details:"},
-		},
-		{
-			name:         "range inferred from keyword location minimum",
-			message:      "validation failed",
-			keywordLoc:   "/properties/mcpServers/additionalProperties/properties/retries/minimum",
+			name:         "minProperties error kind triggers range detail",
+			errorKind:    &kind.MinProperties{Got: 0, Want: 1},
 			prefix:       "  ",
 			wantContains: []string{"outside the allowed range", "Adjust the value", "  Details:"},
 		},
 		{
-			name:         "minimum constraint violation",
-			message:      "value must be >= 1",
-			prefix:       "",
-			wantContains: []string{"outside the allowed range", "Adjust the value"},
-		},
-		{
-			name:         "maximum constraint violation",
-			message:      "value must be <= 65535",
+			name:         "maxProperties error kind triggers range detail",
+			errorKind:    &kind.MaxProperties{Got: 100000, Want: 65535},
 			prefix:       "  ",
 			wantContains: []string{"outside the allowed range", "  Details:"},
 		},
 		{
-			name:         "minimum keyword in message",
-			message:      "minimum: got 0, want 1",
+			name:         "minLength error kind triggers range detail",
+			errorKind:    &kind.MinLength{Got: 0, Want: 1},
 			prefix:       "",
 			wantContains: []string{"outside the allowed range"},
 		},
 		{
-			name:         "maximum keyword in message",
-			message:      "maximum: got 100000, want 65535",
+			name:         "maxLength error kind triggers range detail",
+			errorKind:    &kind.MaxLength{Got: 200, Want: 100},
 			prefix:       "",
 			wantContains: []string{"outside the allowed range"},
 		},
 		{
-			name:         "oneOf validation error - doesn't validate with any of",
-			message:      "doesn't validate with any of the oneOf schemas",
+			name:         "minItems error kind triggers range detail",
+			errorKind:    &kind.MinItems{Got: 0, Want: 1},
+			prefix:       "",
+			wantContains: []string{"outside the allowed range"},
+		},
+		{
+			name:         "maxItems error kind triggers range detail",
+			errorKind:    &kind.MaxItems{Got: 10, Want: 5},
+			prefix:       "",
+			wantContains: []string{"outside the allowed range"},
+		},
+		{
+			name:         "oneOf validation error kind",
+			errorKind:    &kind.OneOf{},
 			prefix:       "",
 			wantContains: []string{"doesn't match any of the expected formats", "valid configuration types"},
 		},
 		{
-			name:         "oneOf keyword in message",
-			message:      "oneOf failed: no schema matches",
+			name:         "anyOf validation error kind",
+			errorKind:    &kind.AnyOf{},
 			prefix:       "  ",
 			wantContains: []string{"doesn't match any of the expected formats"},
 		},
 		{
-			name:         "maximum keyword location triggers range detail",
-			message:      "validation failed",
-			keywordLoc:   "/properties/port/maximum",
-			prefix:       "",
-			wantContains: []string{"outside the allowed range", "Adjust the value"},
-		},
-		{
-			name:         "exclusiveMinimum keyword location triggers range detail",
-			message:      "validation failed",
-			keywordLoc:   "/properties/timeout/exclusiveMinimum",
-			prefix:       "",
-			wantContains: []string{"outside the allowed range", "Adjust the value"},
-		},
-		{
-			name:         "exclusiveMaximum keyword location triggers range detail",
-			message:      "validation failed",
-			keywordLoc:   "/properties/timeout/exclusiveMaximum",
-			prefix:       "",
-			wantContains: []string{"outside the allowed range", "Adjust the value"},
-		},
-		{
-			name:         "type keyword location triggers type mismatch detail",
-			message:      "validation failed",
-			keywordLoc:   "/properties/port/type",
-			prefix:       "",
-			wantContains: []string{"Type mismatch", "Verify the value is the correct type"},
-		},
-		{
-			name:         "enum keyword location triggers invalid value detail",
-			message:      "validation failed",
-			keywordLoc:   "/properties/guardMode/enum",
-			prefix:       "",
-			wantContains: []string{"Invalid value", "list of valid values"},
-		},
-		{
-			name:         "required keyword location triggers missing fields detail",
-			message:      "validation failed",
-			keywordLoc:   "/properties/server/required",
-			prefix:       "",
-			wantContains: []string{"Required field(s) are missing", "Add the required field"},
-		},
-		{
-			name:         "pattern keyword location triggers value format detail",
-			message:      "validation failed",
-			keywordLoc:   "/properties/apiKey/pattern",
-			prefix:       "",
-			wantContains: []string{"Value format is incorrect", "specific format or pattern"},
-		},
-		{
-			name:         "oneOf keyword location triggers no-matching-format detail",
-			message:      "validation failed",
-			keywordLoc:   "/properties/server/oneOf",
-			prefix:       "",
-			wantContains: []string{"doesn't match any of the expected formats", "valid configuration types"},
-		},
-		{
-			name:         "keyword and message both match same category - detail appears only once",
-			message:      "additionalProperties 'foo' not allowed",
-			keywordLoc:   "/additionalProperties",
-			prefix:       "",
-			wantContains: []string{"Configuration contains field(s)"},
-			// The "Configuration contains field(s)" line must not appear twice; check via count elsewhere.
-		},
-		{
-			name:         "keyword location different from instance location adds schema location",
-			message:      "some error",
-			keywordLoc:   "properties/type",
-			instanceLoc:  "mcpServers/github/type",
-			prefix:       "",
-			wantContains: []string{"Schema location: properties/type"},
-		},
-		{
-			name:           "keyword location same as instance location - no schema location line",
-			message:        "some error",
-			keywordLoc:     "mcpServers/github/type",
-			instanceLoc:    "mcpServers/github/type",
+			name: "unrecognized error kind returns empty string",
+			// kind.Not is a real ErrorKind not handled by the formatErrorContext switch,
+			// so it represents the "no context hint" path.
+			errorKind:      &kind.Not{},
 			prefix:         "",
-			wantNotContain: []string{"Schema location:"},
-		},
-		{
-			name:           "empty keyword location - no schema location line",
-			message:        "some error",
-			keywordLoc:     "",
-			instanceLoc:    "mcpServers/github",
-			prefix:         "",
-			wantNotContain: []string{"Schema location:"},
-		},
-		{
-			name:           "unrecognized message returns empty string",
-			message:        "some unrelated error message",
-			prefix:         "",
-			wantNotContain: []string{"Details:", "Schema location:"},
+			wantNotContain: []string{"Details:"},
 		},
 		{
 			name:         "prefix is prepended to output lines",
-			message:      "additionalProperties 'foo' not allowed",
+			errorKind:    &kind.AdditionalProperties{Properties: []string{"foo"}},
 			prefix:       ">>",
 			wantContains: []string{">>Details:", ">>  →"},
 		},
@@ -240,9 +139,8 @@ func TestFormatErrorContext(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ve := &jsonschema.ValidationError{
-				Message:          tt.message,
-				KeywordLocation:  tt.keywordLoc,
-				InstanceLocation: tt.instanceLoc,
+				ErrorKind:        tt.errorKind,
+				InstanceLocation: []string{},
 			}
 
 			result := formatErrorContext(ve, tt.prefix)
@@ -258,26 +156,6 @@ func TestFormatErrorContext(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestFormatErrorContextDeduplication verifies the addDetail deduplication logic:
-// when both the keyword-location switch and the message-content fallback would add
-// the same detail category, the lines appear exactly once in the output.
-func TestFormatErrorContextDeduplication(t *testing.T) {
-	// Construct an error where the keyword location is "additionalProperties" AND
-	// the message also contains "additionalProperties", so both paths fire.
-	ve := &jsonschema.ValidationError{
-		Message:          "additionalProperties 'unknownField' not allowed",
-		KeywordLocation:  "/additionalProperties",
-		InstanceLocation: "/mcpServers/github",
-	}
-
-	result := formatErrorContext(ve, "")
-
-	// The "Configuration contains field(s)" detail line must appear exactly once.
-	occurrences := strings.Count(result, "Configuration contains field(s)")
-	assert.Equal(t, 1, occurrences,
-		"deduplication: 'Configuration contains field(s)' should appear exactly once even when matched by both keyword and message fallback")
 }
 
 func TestDetailForKeyword(t *testing.T) {
@@ -371,15 +249,18 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 	t.Run("root level error with location", func(t *testing.T) {
 		var sb strings.Builder
 		ve := &jsonschema.ValidationError{
-			InstanceLocation: "mcpServers.github",
-			Message:          "missing properties 'container'",
+			InstanceLocation: []string{"mcpServers.github"},
+			ErrorKind:        &kind.Required{Missing: []string{"container"}},
 		}
 
 		formatValidationErrorRecursive(ve, &sb, 0)
 
 		result := sb.String()
 		assert.Contains(t, result, "Location: mcpServers.github")
-		assert.Contains(t, result, "Error: missing properties 'container'")
+		assert.Contains(t, result, "Error:")
+		// Verify the Required kind is localized correctly (English: includes the missing property name).
+		// schemaErrPrinter uses language.English, so "container" will appear in the output.
+		assert.Contains(t, result, "container", "Error should include the missing property name")
 		// Root level (depth=0) adds a trailing newline
 		assert.True(t, strings.HasSuffix(result, "\n"), "Root level error should end with newline")
 	})
@@ -387,8 +268,8 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 	t.Run("empty location shows root placeholder", func(t *testing.T) {
 		var sb strings.Builder
 		ve := &jsonschema.ValidationError{
-			InstanceLocation: "",
-			Message:          "root error",
+			InstanceLocation: []string{},
+			ErrorKind:        &kind.Group{},
 		}
 
 		formatValidationErrorRecursive(ve, &sb, 0)
@@ -401,8 +282,8 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 	t.Run("depth 0 adds trailing newline", func(t *testing.T) {
 		var sb strings.Builder
 		ve := &jsonschema.ValidationError{
-			InstanceLocation: "foo",
-			Message:          "bar",
+			InstanceLocation: []string{"foo"},
+			ErrorKind:        &kind.Group{},
 		}
 
 		formatValidationErrorRecursive(ve, &sb, 0)
@@ -414,8 +295,8 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 	t.Run("depth > 0 does not add trailing newline", func(t *testing.T) {
 		var sb strings.Builder
 		ve := &jsonschema.ValidationError{
-			InstanceLocation: "foo",
-			Message:          "bar",
+			InstanceLocation: []string{"foo"},
+			ErrorKind:        &kind.Group{},
 		}
 
 		formatValidationErrorRecursive(ve, &sb, 1)
@@ -434,12 +315,12 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 	t.Run("error with causes triggers recursion", func(t *testing.T) {
 		var sb strings.Builder
 		child := &jsonschema.ValidationError{
-			InstanceLocation: "child.location",
-			Message:          "child error message",
+			InstanceLocation: []string{"child.location"},
+			ErrorKind:        &kind.Group{},
 		}
 		parent := &jsonschema.ValidationError{
-			InstanceLocation: "parent.location",
-			Message:          "parent error message",
+			InstanceLocation: []string{"parent.location"},
+			ErrorKind:        &kind.Group{},
 			Causes:           []*jsonschema.ValidationError{child},
 		}
 
@@ -447,25 +328,23 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 
 		result := sb.String()
 		assert.Contains(t, result, "parent.location", "Should contain parent location")
-		assert.Contains(t, result, "parent error message", "Should contain parent message")
 		assert.Contains(t, result, "child.location", "Should contain child location from recursive call")
-		assert.Contains(t, result, "child error message", "Should contain child message from recursive call")
 	})
 
 	t.Run("nested causes have increased indentation", func(t *testing.T) {
 		var sb strings.Builder
 		grandchild := &jsonschema.ValidationError{
-			InstanceLocation: "gc",
-			Message:          "grandchild error",
+			InstanceLocation: []string{"gc"},
+			ErrorKind:        &kind.Group{},
 		}
 		child := &jsonschema.ValidationError{
-			InstanceLocation: "child",
-			Message:          "child error",
+			InstanceLocation: []string{"child"},
+			ErrorKind:        &kind.Group{},
 			Causes:           []*jsonschema.ValidationError{grandchild},
 		}
 		parent := &jsonschema.ValidationError{
-			InstanceLocation: "parent",
-			Message:          "parent error",
+			InstanceLocation: []string{"parent"},
+			ErrorKind:        &kind.Group{},
 			Causes:           []*jsonschema.ValidationError{child},
 		}
 
@@ -496,16 +375,16 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 	t.Run("multiple root-level causes each get trailing newline behavior from parent", func(t *testing.T) {
 		var sb strings.Builder
 		child1 := &jsonschema.ValidationError{
-			InstanceLocation: "loc1",
-			Message:          "error1",
+			InstanceLocation: []string{"loc1"},
+			ErrorKind:        &kind.Group{},
 		}
 		child2 := &jsonschema.ValidationError{
-			InstanceLocation: "loc2",
-			Message:          "error2",
+			InstanceLocation: []string{"loc2"},
+			ErrorKind:        &kind.Group{},
 		}
 		parent := &jsonschema.ValidationError{
-			InstanceLocation: "root",
-			Message:          "root",
+			InstanceLocation: []string{"root"},
+			ErrorKind:        &kind.Group{},
 			Causes:           []*jsonschema.ValidationError{child1, child2},
 		}
 
@@ -514,15 +393,13 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 		result := sb.String()
 		assert.Contains(t, result, "loc1")
 		assert.Contains(t, result, "loc2")
-		assert.Contains(t, result, "error1")
-		assert.Contains(t, result, "error2")
 	})
 
 	t.Run("context details are included in output", func(t *testing.T) {
 		var sb strings.Builder
 		ve := &jsonschema.ValidationError{
-			InstanceLocation: "gateway.port",
-			Message:          "value must be <= 65535",
+			InstanceLocation: []string{"gateway.port"},
+			ErrorKind:        &kind.MaxProperties{Got: 100000, Want: 65535},
 		}
 
 		formatValidationErrorRecursive(ve, &sb, 0)
@@ -532,69 +409,20 @@ func TestFormatValidationErrorRecursive(t *testing.T) {
 		assert.Contains(t, result, "outside the allowed range",
 			"formatValidationErrorRecursive should include context from formatErrorContext")
 	})
-}
 
-// TestKeywordFromLocation tests the keywordFromLocation helper function which
-// extracts the terminal JSON Schema keyword from a slash-separated keyword-location path.
-func TestKeywordFromLocation(t *testing.T) {
-	tests := []struct {
-		name            string
-		keywordLocation string
-		want            string
-	}{
-		{
-			name:            "empty string returns empty",
-			keywordLocation: "",
-			want:            "",
-		},
-		{
-			name:            "whitespace-only returns empty",
-			keywordLocation: "   ",
-			want:            "",
-		},
-		{
-			name:            "trailing slash is stripped before extraction",
-			keywordLocation: "/properties/foo/type/",
-			want:            "type",
-		},
-		{
-			name:            "single keyword with no slash returns full string",
-			keywordLocation: "type",
-			want:            "type",
-		},
-		{
-			name:            "slash-prefixed single keyword returns keyword",
-			keywordLocation: "/type",
-			want:            "type",
-		},
-		{
-			name:            "standard nested path returns terminal keyword",
-			keywordLocation: "/properties/mcpServers/additionalProperties/properties/type/type",
-			want:            "type",
-		},
-		{
-			name:            "minimum keyword at end of path",
-			keywordLocation: "/properties/port/minimum",
-			want:            "minimum",
-		},
-		{
-			name:            "maximum keyword at end of path",
-			keywordLocation: "/properties/port/maximum",
-			want:            "maximum",
-		},
-		{
-			name:            "single slash returns empty string",
-			keywordLocation: "/",
-			want:            "",
-		},
-	}
+	t.Run("multi-segment instance location joined by slash", func(t *testing.T) {
+		var sb strings.Builder
+		ve := &jsonschema.ValidationError{
+			InstanceLocation: []string{"mcpServers", "github", "container"},
+			ErrorKind:        &kind.Group{},
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := keywordFromLocation(tt.keywordLocation)
-			assert.Equal(t, tt.want, got)
-		})
-	}
+		formatValidationErrorRecursive(ve, &sb, 0)
+
+		result := sb.String()
+		assert.Contains(t, result, "Location: mcpServers/github/container",
+			"Multi-segment instance location should be joined with /")
+	})
 }
 
 // TestFormatSchemaError tests the formatSchemaError function which formats
@@ -609,8 +437,8 @@ func TestFormatSchemaError(t *testing.T) {
 		version.Set("v1.0.0-test")
 
 		ve := &jsonschema.ValidationError{
-			InstanceLocation: "mcpServers.github",
-			Message:          "missing properties 'container'",
+			InstanceLocation: []string{"mcpServers.github"},
+			ErrorKind:        &kind.Required{Missing: []string{"container"}},
 		}
 
 		result := formatSchemaError(ve)
@@ -630,8 +458,8 @@ func TestFormatSchemaError(t *testing.T) {
 		version.Set("v2.0.0-test")
 
 		ve := &jsonschema.ValidationError{
-			InstanceLocation: "gateway.port",
-			Message:          "some port error",
+			InstanceLocation: []string{"gateway.port"},
+			ErrorKind:        &kind.Group{},
 		}
 
 		result := formatSchemaError(ve)
@@ -645,8 +473,8 @@ func TestFormatSchemaError(t *testing.T) {
 		version.Set("v2.1.0-test")
 
 		wrappedErr := fmt.Errorf("wrapped: %w", &jsonschema.ValidationError{
-			InstanceLocation: "gateway.port",
-			Message:          "must be >= 1 and <= 65535",
+			InstanceLocation: []string{"gateway.port"},
+			ErrorKind:        &kind.Group{},
 		})
 
 		result := formatSchemaError(wrappedErr)
@@ -654,7 +482,6 @@ func TestFormatSchemaError(t *testing.T) {
 		errStr := result.Error()
 		assert.Contains(t, errStr, "Configuration validation error")
 		assert.Contains(t, errStr, "gateway.port")
-		assert.Contains(t, errStr, "must be >= 1 and <= 65535")
 		assert.Contains(t, errStr, "mcp-gateway")
 	})
 
@@ -688,8 +515,8 @@ func TestFormatSchemaError(t *testing.T) {
 		version.Set("v1.0.0-test")
 
 		ve := &jsonschema.ValidationError{
-			InstanceLocation: "mcpServers.github",
-			Message:          "additionalProperties 'unknownField' not allowed",
+			InstanceLocation: []string{"mcpServers.github"},
+			ErrorKind:        &kind.AdditionalProperties{Properties: []string{"unknownField"}},
 		}
 
 		result := formatSchemaError(ve)
@@ -704,12 +531,12 @@ func TestFormatSchemaError(t *testing.T) {
 		version.Set("v1.0.0-test")
 
 		child := &jsonschema.ValidationError{
-			InstanceLocation: "mcpServers.github.container",
-			Message:          "missing required field",
+			InstanceLocation: []string{"mcpServers.github.container"},
+			ErrorKind:        &kind.Required{Missing: []string{"container"}},
 		}
 		parent := &jsonschema.ValidationError{
-			InstanceLocation: "mcpServers.github",
-			Message:          "parent validation failed",
+			InstanceLocation: []string{"mcpServers.github"},
+			ErrorKind:        &kind.Group{},
 			Causes:           []*jsonschema.ValidationError{child},
 		}
 
@@ -719,7 +546,5 @@ func TestFormatSchemaError(t *testing.T) {
 		assert.Contains(t, errStr, "mcpServers.github")
 		assert.Contains(t, errStr, "mcpServers.github.container",
 			"Should include child error location from recursive formatting")
-		assert.Contains(t, errStr, "missing required field",
-			"Should include child error message")
 	})
 }

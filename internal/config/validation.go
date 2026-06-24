@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,7 +11,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/oidc"
 	"github.com/itchyny/gojq"
-	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 var logValidation = logger.New("config:validation")
@@ -252,7 +253,7 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 	logValidation.Printf("Fetching custom schema for validation: name=%s, url=%s", name, schemaURL)
 
 	// Fetch the custom schema using the existing helper
-	schemaJSON, err := fetchAndFixSchema(schemaURL)
+	schemaJSON, err := fetchSchema(schemaURL)
 	if err != nil {
 		logValidation.Printf("Failed to fetch custom schema: name=%s, url=%s, error=%v", name, schemaURL, err)
 		return SchemaValidationError(server.Type,
@@ -263,32 +264,35 @@ func validateAgainstCustomSchema(name string, server *StdinServerConfig, schemaU
 
 	logValidation.Printf("Custom schema fetched successfully: name=%s, size=%d bytes", name, len(schemaJSON))
 
-	// Parse the schema to extract its $id
-	var schemaObj map[string]interface{}
-	if err := json.Unmarshal(schemaJSON, &schemaObj); err != nil {
+	// Parse the schema JSON into a document
+	schemaDoc, parseErr := jsonschema.UnmarshalJSON(bytes.NewReader(schemaJSON))
+	if parseErr != nil {
 		return SchemaValidationError(server.Type,
-			fmt.Sprintf("failed to parse custom schema: %v", err),
+			fmt.Sprintf("failed to parse custom schema: %v", parseErr),
 			jsonPath,
 			fmt.Sprintf("The schema at '%s' must be valid JSON", schemaURL))
 	}
 
-	schemaID, ok := schemaObj["$id"].(string)
-	if !ok || schemaID == "" {
-		schemaID = schemaURL
+	// Extract $id from the parsed document
+	schemaID := schemaURL
+	if schemaObj, ok := schemaDoc.(map[string]any); ok {
+		if id, ok := schemaObj["$id"].(string); ok && id != "" {
+			schemaID = id
+		}
 	}
 
 	// Compile the custom schema
-	compiler := newDraft7Compiler()
+	compiler := newCompiler()
 
-	// Add the schema with both URLs (the fetch URL and the $id URL)
-	if err := compiler.AddResource(schemaURL, strings.NewReader(string(schemaJSON))); err != nil {
+	// Add the schema with the fetch URL
+	if err := compiler.AddResource(schemaURL, schemaDoc); err != nil {
 		return SchemaValidationError(server.Type,
 			fmt.Sprintf("failed to compile custom schema: %v", err),
 			jsonPath,
-			fmt.Sprintf("The schema at '%s' must be a valid JSON Schema Draft 7 document", schemaURL))
+			fmt.Sprintf("The schema at '%s' must be a valid JSON Schema document", schemaURL))
 	}
 	if schemaID != schemaURL {
-		if err := compiler.AddResource(schemaID, strings.NewReader(string(schemaJSON))); err != nil {
+		if err := compiler.AddResource(schemaID, schemaDoc); err != nil {
 			return SchemaValidationError(server.Type,
 				fmt.Sprintf("failed to compile custom schema with $id: %v", err),
 				jsonPath,
