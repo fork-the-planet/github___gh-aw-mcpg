@@ -317,7 +317,7 @@ func TestExtractURLDomainsFromValue(t *testing.T) {
 			want: []string{"first.com", "second.com"},
 		},
 		{
-			name: "cross-type deduplication: same domain in string and map",
+			name: "deduplication: same domain in multiple map values",
 			value: map[string]any{
 				"link1": "https://example.com/a",
 				"link2": "https://example.com/b",
