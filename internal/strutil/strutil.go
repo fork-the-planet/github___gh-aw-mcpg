@@ -5,6 +5,17 @@ import (
 	"strings"
 )
 
+// SortedSetKeys returns the keys of a string set (map[string]struct{}) as a sorted slice.
+// Returns an empty (non-nil) slice when the set is empty.
+func SortedSetKeys(set map[string]struct{}) []string {
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 // DeduplicateStrings returns a new slice with whitespace-trimmed, empty, and duplicate
 // entries removed from input. When sorted is true the result is sorted in ascending order.
 // The relative order of first-seen entries is preserved when sorted is false.

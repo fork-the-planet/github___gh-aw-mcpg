@@ -112,19 +112,7 @@ func (tl *ToolsLogger) writeToFile() error {
 		return fmt.Errorf("failed to marshal tools data: %w", err)
 	}
 
-	// Write to file atomically using a temp file + rename
-	tempPath := filePath + ".tmp"
-	if err := os.WriteFile(tempPath, jsonData, 0644); err != nil {
-		return fmt.Errorf("failed to write temp file: %w", err)
-	}
-
-	if err := os.Rename(tempPath, filePath); err != nil {
-		// Clean up temp file on error
-		os.Remove(tempPath)
-		return fmt.Errorf("failed to rename temp file: %w", err)
-	}
-
-	return nil
+	return atomicWriteFile(filePath, jsonData, 0644)
 }
 
 // Close is a no-op for ToolsLogger (implements closableLogger interface)

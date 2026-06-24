@@ -3,10 +3,10 @@ package urlutil
 import (
 	"net/url"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 var logDomains = logger.New("urlutil:domains")
@@ -26,11 +26,7 @@ func ExtractURLDomainsFromValue(value any) []string {
 		return nil
 	}
 
-	domains := make([]string, 0, len(domainSet))
-	for domain := range domainSet {
-		domains = append(domains, domain)
-	}
-	sort.Strings(domains)
+	domains := strutil.SortedSetKeys(domainSet)
 	logDomains.Printf("ExtractURLDomainsFromValue: extracted %d unique domain(s)", len(domains))
 	return domains
 }
@@ -91,11 +87,7 @@ func ExtractURLDomains(text string) []string {
 	if len(domainSet) == 0 {
 		return nil
 	}
-	domains := make([]string, 0, len(domainSet))
-	for domain := range domainSet {
-		domains = append(domains, domain)
-	}
-	sort.Strings(domains)
+	domains := strutil.SortedSetKeys(domainSet)
 	logDomains.Printf("ExtractURLDomains: resolved %d unique domain(s) from %d candidate(s)", len(domains), len(matches))
 	return domains
 }

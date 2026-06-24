@@ -6,6 +6,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSortedSetKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns sorted keys", func(t *testing.T) {
+		t.Parallel()
+		set := map[string]struct{}{"banana": {}, "apple": {}, "cherry": {}}
+		assert.Equal(t, []string{"apple", "banana", "cherry"}, SortedSetKeys(set))
+	})
+
+	t.Run("returns empty slice for empty set", func(t *testing.T) {
+		t.Parallel()
+		assert.Empty(t, SortedSetKeys(map[string]struct{}{}))
+	})
+
+	t.Run("returns single element slice", func(t *testing.T) {
+		t.Parallel()
+		set := map[string]struct{}{"only": {}}
+		assert.Equal(t, []string{"only"}, SortedSetKeys(set))
+	})
+
+	t.Run("handles nil map", func(t *testing.T) {
+		t.Parallel()
+		assert.Empty(t, SortedSetKeys(nil))
+	})
+}
+
 func TestGetStringFromMap(t *testing.T) {
 	t.Parallel()
 

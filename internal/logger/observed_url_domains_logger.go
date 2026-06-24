@@ -6,9 +6,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 	"sync/atomic"
+
+	"github.com/github/gh-aw-mcpg/internal/strutil"
 )
 
 const observedURLDomainsFileName = "observed-url-domains.json"
@@ -117,12 +118,7 @@ func (l *ObservedURLDomainsLogger) LogDomains(serverID string, domains []string)
 func (l *ObservedURLDomainsLogger) writeToFile() error {
 	serialized := make(map[string][]string, len(l.data))
 	for serverID, domains := range l.data {
-		items := make([]string, 0, len(domains))
-		for domain := range domains {
-			items = append(items, domain)
-		}
-		sort.Strings(items)
-		serialized[serverID] = items
+		serialized[serverID] = strutil.SortedSetKeys(domains)
 	}
 
 	jsonData, err := json.MarshalIndent(serialized, "", "  ")
@@ -131,17 +127,7 @@ func (l *ObservedURLDomainsLogger) writeToFile() error {
 	}
 
 	filePath := filepath.Join(l.logDir, l.fileName)
-	tempPath := filePath + ".tmp"
-	if err := os.WriteFile(tempPath, jsonData, 0600); err != nil {
-		return fmt.Errorf("failed to write temp file: %w", err)
-	}
-	if err := os.Rename(tempPath, filePath); err != nil {
-		if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
-			log.Printf("WARNING: Failed to cleanup temp observed URL domains file %s: %v", tempPath, removeErr)
-		}
-		return fmt.Errorf("failed to rename temp file: %w", err)
-	}
-	return nil
+	return atomicWriteFile(filePath, jsonData, 0600)
 }
 
 func (l *ObservedURLDomainsLogger) Close() error { return nil }

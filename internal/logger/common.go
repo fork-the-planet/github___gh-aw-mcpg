@@ -393,6 +393,23 @@ func initLogFile(logDir, fileName string, flags int) (*os.File, error) {
 	return file, nil
 }
 
+// atomicWriteFile writes data to filePath atomically using a temp-file + rename strategy.
+// On rename failure the temp file is removed; a removal error that is not os.IsNotExist
+// is logged as a warning but does not mask the primary rename error.
+func atomicWriteFile(filePath string, data []byte, perm os.FileMode) error {
+	tempPath := filePath + ".tmp"
+	if err := os.WriteFile(tempPath, data, perm); err != nil {
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+	if err := os.Rename(tempPath, filePath); err != nil {
+		if removeErr := os.Remove(tempPath); removeErr != nil && !os.IsNotExist(removeErr) {
+			log.Printf("WARNING: Failed to cleanup temp file %s: %v", tempPath, removeErr)
+		}
+		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+	return nil
+}
+
 // loggerSetupFunc is a function type that sets up a logger instance after the log file is opened.
 // It receives the opened file, logDir, and fileName, and returns the configured logger.
 type loggerSetupFunc[T closableLogger] func(file *os.File, logDir, fileName string) (T, error)
