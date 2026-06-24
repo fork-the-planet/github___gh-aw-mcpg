@@ -74,6 +74,22 @@ func TestValidateJSONSchema(t *testing.T) {
 			shouldErr: false,
 		},
 		{
+			name: "valid topology hostname domain (network-isolation)",
+			config: `{
+				"mcpServers": {
+					"github": {
+						"container": "ghcr.io/github/github-mcp-server:latest"
+					}
+				},
+				"gateway": {
+					"port": 8080,
+					"domain": "awmg-mcpg",
+					"agentId": "test-key"
+				}
+			}`,
+			shouldErr: false,
+		},
+		{
 			name: "missing required field - mcpServers",
 			config: `{
 				"gateway": {
@@ -496,6 +512,16 @@ func TestValidateStringPatterns(t *testing.T) {
 			shouldErr: false,
 		},
 		{
+			name: "valid domain - topology hostname (network-isolation)",
+			config: &StdinConfig{
+				Gateway: &StdinGatewayConfig{
+					Port:   intPtr(8080),
+					Domain: "awmg-mcpg",
+				},
+			},
+			shouldErr: false,
+		},
+		{
 			name: "invalid domain - other string",
 			config: &StdinConfig{
 				Gateway: &StdinGatewayConfig{
@@ -504,7 +530,7 @@ func TestValidateStringPatterns(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			errorMsg:  "must be 'localhost', 'host.docker.internal', or a variable expression",
+			errorMsg:  "must be 'localhost', 'host.docker.internal', an RFC-1123 hostname label",
 		},
 		{
 			name: "valid timeout values",

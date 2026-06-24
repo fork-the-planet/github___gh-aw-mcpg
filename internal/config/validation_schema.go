@@ -59,6 +59,10 @@ var (
 	urlPattern       = regexp.MustCompile(`^https?://.+`)
 	mountPattern     = regexp.MustCompile(`^[^:]+:[^:]+:(ro|rw)$`)
 	domainVarPattern = regexp.MustCompile(`^\$\{[A-Z_][A-Z0-9_]*\}$`)
+	// domainHostnamePattern matches a single RFC-1123 hostname label (no dots), e.g.
+	// "awmg-mcpg" or "localhost". This allows network-isolation topology hostnames
+	// that resolve from ${MCP_GATEWAY_DOMAIN} or are passed directly.
+	domainHostnamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
 	// logSchema is the debug logger for schema validation
 	logSchema = logger.New("config:validation_schema")
@@ -667,14 +671,18 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 			return err
 		}
 
-		// Validate domain: must be "localhost", "host.docker.internal", or variable expression
+		// Validate domain: must be "localhost", "host.docker.internal", an RFC-1123
+		// single-label hostname (e.g. "awmg-mcpg" for network-isolation topology), or
+		// a variable expression like "${MCP_GATEWAY_DOMAIN}".
+		// Note: this validation runs post-expansion, so resolved env values must also pass.
 		if stdinCfg.Gateway.Domain != "" {
 			domain := stdinCfg.Gateway.Domain
-			if domain != "localhost" && domain != "host.docker.internal" && !domainVarPattern.MatchString(domain) {
+			if domain != "localhost" && domain != "host.docker.internal" &&
+				!domainVarPattern.MatchString(domain) && !domainHostnamePattern.MatchString(domain) {
 				return InvalidValue("domain",
-					fmt.Sprintf("domain '%s' must be 'localhost', 'host.docker.internal', or a variable expression", domain),
+					fmt.Sprintf("domain '%s' must be 'localhost', 'host.docker.internal', an RFC-1123 hostname label (e.g. 'awmg-mcpg'), or a variable expression", domain),
 					"gateway.domain",
-					"Use 'localhost', 'host.docker.internal', or a variable like '${MCP_GATEWAY_DOMAIN}'")
+					"Use 'localhost', 'host.docker.internal', a topology hostname like 'awmg-mcpg', or a variable like '${MCP_GATEWAY_DOMAIN}'")
 			}
 		}
 	}

@@ -489,6 +489,22 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 				domain:      "",
 				shouldError: false,
 			},
+			// Valid topology hostname labels (RFC-1123 single labels, e.g. network-isolation mode)
+			{
+				name:        "valid topology hostname awmg-mcpg",
+				domain:      "awmg-mcpg",
+				shouldError: false,
+			},
+			{
+				name:        "valid topology hostname single label",
+				domain:      "my-service",
+				shouldError: false,
+			},
+			{
+				name:        "valid topology hostname alphanumeric only",
+				domain:      "mcpgateway1",
+				shouldError: false,
+			},
 			// Invalid domains
 			{
 				name:        "invalid domain regular hostname",
