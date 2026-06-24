@@ -313,7 +313,8 @@
           "deprecated": true
         },
         "domain": {
-          "oneOf": [
+          "description": "Gateway domain for constructing URLs. Use 'localhost' for local development, 'host.docker.internal' when the gateway runs in a container and needs to access the host, a single RFC-1123 hostname label (e.g. 'awmg-mcpg') for network-isolation topology, or a variable expression like '${MCP_GATEWAY_DOMAIN}'.",
+          "anyOf": [
             {
               "type": "string",
               "enum": [
@@ -324,9 +325,12 @@
             {
               "type": "string",
               "pattern": "^\\$\\{[A-Z_][A-Z0-9_]*\\}$"
+            },
+            {
+              "type": "string",
+              "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
             }
-          ],
-          "description": "Gateway domain for constructing URLs. Use 'localhost' for local development or 'host.docker.internal' when the gateway runs in a container and needs to access the host. Can also be a variable expression like '${MCP_GATEWAY_DOMAIN}'."
+          ]
         },
         "startupTimeout": {
           "type": "integer",
