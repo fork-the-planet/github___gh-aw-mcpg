@@ -243,36 +243,38 @@ pub fn label_response_items(
             if tool_name == "issue_read" && !method.is_empty() && method != "get" {
                 // Fall through — use resource-level labels from tool_rules
             } else {
-                // Handle single issue, array of issues, {issues: [...]}, GraphQL nested, or GraphQL single object
-                let all_items: Vec<&Value> = if actual_response.is_array() {
-                    actual_response
-                        .as_array()
-                        .map(|arr| arr.iter().collect())
-                        .unwrap_or_default()
+                // Handle single issue, array of issues, {issues: [...]}, GraphQL nested, or GraphQL single object.
+                // Work directly with &[Value] slices to avoid allocating a Vec<&Value>.
+                let single_item_buf;
+                let graphql_single_buf;
+                let items: &[Value] = if let Some(arr) = actual_response.as_array() {
+                    arr.as_slice()
                 } else if let Some(items_arr) =
                     actual_response.get("items").and_then(|v| v.as_array())
                 {
-                    items_arr.iter().collect()
+                    items_arr.as_slice()
                 } else if let Some(items_arr) =
                     actual_response.get("issues").and_then(|v| v.as_array())
                 {
-                    items_arr.iter().collect()
+                    items_arr.as_slice()
                 } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
-                    nodes.iter().collect()
+                    nodes.as_slice()
                 } else if let Some(obj) = extract_graphql_single_object(&actual_response) {
-                    vec![obj]
+                    graphql_single_buf = [obj.clone()];
+                    &graphql_single_buf
                 } else if actual_response.is_object()
                     && !is_graphql_wrapper(&actual_response)
                     && !is_search_result_wrapper(&actual_response)
                     && !is_mcp_text_wrapper(&actual_response)
                 {
-                    vec![actual_response.as_ref()]
+                    single_item_buf = [actual_response.as_ref().clone()];
+                    &single_item_buf
                 } else {
-                    Vec::new()
+                    &[]
                 };
 
                 // Limit items to prevent WASM memory exhaustion
-                let items_limited = limit_items_with_log(all_items.as_slice(), "list_issues");
+                let items_limited = limit_items_with_log(items, "list_issues");
 
                 // Get owner/repo from tool_args for contributor verification
                 let (arg_owner, arg_repo, default_repo_full_name) =
@@ -292,7 +294,7 @@ pub fn label_response_items(
                 };
                 let secrecy_shared: SharedLabels = secrecy.into();
 
-                for item in items_limited.iter().copied() {
+                for item in items_limited.iter() {
                     let item_repo = extract_repo_from_item(item);
                     let repo_full_name: Cow<'_, str> = if item_repo.is_empty() {
                         Cow::Borrowed(default_repo_full_name.as_str())
