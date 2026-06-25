@@ -97,7 +97,7 @@ func TestCallSDKMethod_UnsupportedMethod(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := newTestConnection(t)
-			result, err := conn.callSDKMethod(tt.method, nil)
+			result, err := conn.callSDKMethod(context.Background(), tt.method, nil)
 			require.Error(t, err)
 			assert.Nil(t, result)
 			assert.ErrorContains(t, err, "unsupported method")
@@ -110,7 +110,7 @@ func TestCallSDKMethod_UnsupportedMethod(t *testing.T) {
 // switch case is reached and returns a session error when no session is configured.
 func TestCallSDKMethod_ResourcesList_NilSession(t *testing.T) {
 	conn := newTestConnection(t)
-	result, err := conn.callSDKMethod("resources/list", nil)
+	result, err := conn.callSDKMethod(context.Background(), "resources/list", nil)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "SDK session not available")
@@ -120,7 +120,7 @@ func TestCallSDKMethod_ResourcesList_NilSession(t *testing.T) {
 // and returns a session error when no session is configured.
 func TestCallSDKMethod_ResourcesRead_NilSession(t *testing.T) {
 	conn := newTestConnection(t)
-	result, err := conn.callSDKMethod("resources/read", map[string]interface{}{"uri": "file:///test"})
+	result, err := conn.callSDKMethod(context.Background(), "resources/read", map[string]interface{}{"uri": "file:///test"})
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "SDK session not available")
@@ -130,7 +130,7 @@ func TestCallSDKMethod_ResourcesRead_NilSession(t *testing.T) {
 // and returns a session error when no session is configured.
 func TestCallSDKMethod_PromptsList_NilSession(t *testing.T) {
 	conn := newTestConnection(t)
-	result, err := conn.callSDKMethod("prompts/list", nil)
+	result, err := conn.callSDKMethod(context.Background(), "prompts/list", nil)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "SDK session not available")
@@ -140,7 +140,7 @@ func TestCallSDKMethod_PromptsList_NilSession(t *testing.T) {
 // and returns a session error when no session is configured.
 func TestCallSDKMethod_PromptsGet_NilSession(t *testing.T) {
 	conn := newTestConnection(t)
-	result, err := conn.callSDKMethod("prompts/get", map[string]interface{}{"name": "my-prompt"})
+	result, err := conn.callSDKMethod(context.Background(), "prompts/get", map[string]interface{}{"name": "my-prompt"})
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "SDK session not available")
@@ -151,7 +151,7 @@ func TestCallSDKMethod_PromptsGet_NilSession(t *testing.T) {
 // existing HTTP plain-JSON tests that never reach callSDKMethod).
 func TestCallSDKMethod_ToolsList_NilSession(t *testing.T) {
 	conn := newTestConnection(t)
-	result, err := conn.callSDKMethod("tools/list", nil)
+	result, err := conn.callSDKMethod(context.Background(), "tools/list", nil)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "SDK session not available")
@@ -161,7 +161,7 @@ func TestCallSDKMethod_ToolsList_NilSession(t *testing.T) {
 // and returns a session error when no session is configured.
 func TestCallSDKMethod_ToolsCall_NilSession(t *testing.T) {
 	conn := newTestConnection(t)
-	result, err := conn.callSDKMethod("tools/call", map[string]interface{}{"name": "my-tool"})
+	result, err := conn.callSDKMethod(context.Background(), "tools/call", map[string]interface{}{"name": "my-tool"})
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "SDK session not available")

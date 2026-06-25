@@ -340,13 +340,111 @@ func (us *UnifiedServer) registerToolsFromBackend(serverID string) error {
 	}
 
 	logUnified.Printf("Registered %d tools from %s: %s", len(listResult.Tools), serverID, strings.Join(toolNames, ", "))
+
+	// Register prompts from this backend. Prompt support is optional; failures are
+	// logged but do not cause tool registration to fail.
+	if err := us.registerPromptsFromBackend(context.Background(), serverID, conn); err != nil {
+		logger.LogWarn("backend", "Failed to register prompts from %s (non-fatal): %v", serverID, err)
+	}
+
 	return nil
 }
 
-// registerSysTool is a helper function that registers a sys tool by storing its metadata
-// in the internal tools map. Sys tools are deprecated: agent labels are set when a guard
-// is initialized via label_agent, so sys tools no longer need to be exposed to agents.
-// The handler implementations are kept for potential future use.
+// registerPromptsFromBackend registers prompts from a specific backend with <server>___<prompt>
+// naming, mirroring the tool registration convention. Prompt capability is optional in the MCP
+// spec; backends that do not support prompts/list will return an error that is treated as a
+// graceful skip rather than a hard failure.
+func (us *UnifiedServer) registerPromptsFromBackend(ctx context.Context, serverID string, conn *mcp.Connection) error {
+	// Only call prompts/list on backends that explicitly declared prompt support in
+	// their initialize response. For SDK-based connections (streamable, SSE, stdio),
+	// an unsupported prompts/list request can return EOF which the SDK interprets as
+	// a session close, breaking subsequent tool calls on the same connection.
+	// Plain JSON-RPC connections return false here too; their initialize response is
+	// not parsed into typed capabilities, so we cannot safely detect support.
+	if !conn.BackendHasPromptsCapability() {
+		logUnified.Printf("Backend %s does not declare prompts capability (skipping)", serverID)
+		return nil
+	}
+
+	// List prompts from backend
+	result, err := conn.SendRequestWithServerID(ctx, "prompts/list", nil, serverID)
+	if err != nil {
+		// Many backends do not implement prompts — treat as a graceful skip.
+		logUnified.Printf("Backend %s does not support prompts/list (skipping): %v", serverID, err)
+		return nil
+	}
+
+	// A JSON-RPC error from the backend also means prompts are unavailable.
+	if result.Error != nil {
+		logUnified.Printf("Backend %s returned error for prompts/list (skipping): code=%d, message=%s",
+			serverID, result.Error.Code, result.Error.Message)
+		return nil
+	}
+
+	// Parse the prompt list.
+	var listResult struct {
+		Prompts []*sdk.Prompt `json:"prompts"`
+	}
+	if err := json.Unmarshal(result.Result, &listResult); err != nil {
+		return fmt.Errorf("failed to parse prompts from %s: %w", serverID, err)
+	}
+
+	if len(listResult.Prompts) == 0 {
+		logUnified.Printf("Backend %s has no prompts to register", serverID)
+		return nil
+	}
+
+	// Register each prompt with a prefixed name so front-end clients can
+	// distinguish prompts from different backends.
+	promptNames := make([]string, 0, len(listResult.Prompts))
+	for _, prompt := range listResult.Prompts {
+		prefixedName := fmt.Sprintf("%s___%s", serverID, prompt.Name)
+		promptDesc := fmt.Sprintf("[%s] %s", serverID, prompt.Description)
+		promptNames = append(promptNames, prompt.Name)
+
+		serverIDCopy := serverID
+		promptNameCopy := prompt.Name
+
+		sdkPrompt := &sdk.Prompt{
+			Name:        prefixedName,
+			Description: promptDesc,
+			Arguments:   prompt.Arguments,
+		}
+
+		us.server.AddPrompt(sdkPrompt, func(ctx context.Context, req *sdk.GetPromptRequest) (*sdk.GetPromptResult, error) {
+			sessionID := us.getSessionID(ctx)
+			backendConn, connErr := launcher.GetOrLaunchForSession(us.launcher, serverIDCopy, sessionID)
+			if connErr != nil {
+				return nil, fmt.Errorf("failed to connect to backend %s: %w", serverIDCopy, connErr)
+			}
+
+			params := map[string]interface{}{
+				"name":      promptNameCopy,
+				"arguments": req.Params.Arguments,
+			}
+
+			response, reqErr := backendConn.SendRequestWithServerID(ctx, "prompts/get", params, serverIDCopy)
+			if reqErr != nil {
+				return nil, reqErr
+			}
+			if response.Error != nil {
+				return nil, fmt.Errorf("backend error for prompts/get %s/%s: code=%d, message=%s",
+					serverIDCopy, promptNameCopy, response.Error.Code, response.Error.Message)
+			}
+
+			var promptResult sdk.GetPromptResult
+			if unmarshErr := json.Unmarshal(response.Result, &promptResult); unmarshErr != nil {
+				return nil, fmt.Errorf("failed to parse prompt result: %w", unmarshErr)
+			}
+			return &promptResult, nil
+		})
+
+		logUnified.Printf("Registered prompt: %s___%s", serverID, promptNameCopy)
+	}
+
+	logUnified.Printf("Registered %d prompts from %s: %s", len(listResult.Prompts), serverID, strings.Join(promptNames, ", "))
+	return nil
+}
 func (us *UnifiedServer) registerSysTool(name, description string, inputSchema map[string]interface{}, handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error)) {
 	// Store tool info internally only -- sys tools are intentionally NOT registered
 	// with the MCP SDK server and therefore never appear in tools/list.

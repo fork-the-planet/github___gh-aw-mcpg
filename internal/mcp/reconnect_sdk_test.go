@@ -188,7 +188,7 @@ func TestCallSDKMethodWithReconnect_NoReconnectOnNonSessionError(t *testing.T) {
 	require.Equal(t, HTTPTransportStreamable, conn.httpTransportType)
 	require.Equal(t, int32(1), initCount.Load(), "expected one initialize during initial connect")
 
-	result, err := conn.callSDKMethodWithReconnect("tools/list", nil)
+	result, err := conn.callSDKMethodWithReconnect(context.Background(), "tools/list", nil)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -228,7 +228,7 @@ func TestCallSDKMethodWithReconnect_SessionNotFound_ReconnectFails(t *testing.T)
 	// returns an error immediately without making network calls.
 	conn.httpTransportType = HTTPTransportType("none")
 
-	result, err := conn.callSDKMethodWithReconnect("tools/list", nil)
+	result, err := conn.callSDKMethodWithReconnect(context.Background(), "tools/list", nil)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -290,7 +290,7 @@ func TestCallSDKMethodWithReconnect_SessionNotFound_ReconnectSucceeds(t *testing
 	require.Equal(t, HTTPTransportStreamable, conn.httpTransportType)
 	require.Equal(t, int32(1), initCount.Load(), "should have had exactly one initialize during NewHTTPConnection")
 
-	result, err := conn.callSDKMethodWithReconnect("tools/list", nil)
+	result, err := conn.callSDKMethodWithReconnect(context.Background(), "tools/list", nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -333,7 +333,7 @@ func TestCallSDKMethodWithReconnect_Success_NoReconnect(t *testing.T) {
 	conn := newStreamableConn(t, srv.URL)
 	require.Equal(t, int32(1), initCount.Load(), "expected one initialize during initial connect")
 
-	result, err := conn.callSDKMethodWithReconnect("tools/list", nil)
+	result, err := conn.callSDKMethodWithReconnect(context.Background(), "tools/list", nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -378,7 +378,7 @@ func TestListResources_WithSession(t *testing.T) {
 
 	conn := newStreamableConn(t, srv.URL)
 
-	result, err := conn.callSDKMethod("resources/list", nil)
+	result, err := conn.callSDKMethod(context.Background(), "resources/list", nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -426,7 +426,7 @@ func TestListPrompts_WithSession(t *testing.T) {
 
 	conn := newStreamableConn(t, srv.URL)
 
-	result, err := conn.callSDKMethod("prompts/list", nil)
+	result, err := conn.callSDKMethod(context.Background(), "prompts/list", nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -466,7 +466,7 @@ func TestReadResource_WithSession(t *testing.T) {
 
 	conn := newStreamableConn(t, srv.URL)
 
-	result, err := conn.callSDKMethod("resources/read", map[string]interface{}{"uri": "file:///test.txt"})
+	result, err := conn.callSDKMethod(context.Background(), "resources/read", map[string]interface{}{"uri": "file:///test.txt"})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -497,7 +497,7 @@ func TestGetPrompt_WithSession(t *testing.T) {
 
 	conn := newStreamableConn(t, srv.URL)
 
-	result, err := conn.callSDKMethod("prompts/get", map[string]interface{}{
+	result, err := conn.callSDKMethod(context.Background(), "prompts/get", map[string]interface{}{
 		"name":      "summarise",
 		"arguments": map[string]string{},
 	})
@@ -583,7 +583,7 @@ func TestListResources_Empty(t *testing.T) {
 	defer srv.Close()
 
 	conn := newStreamableConn(t, srv.URL)
-	result, err := conn.callSDKMethod("resources/list", nil)
+	result, err := conn.callSDKMethod(context.Background(), "resources/list", nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -617,7 +617,7 @@ func TestListPrompts_Empty(t *testing.T) {
 	defer srv.Close()
 
 	conn := newStreamableConn(t, srv.URL)
-	result, err := conn.callSDKMethod("prompts/list", nil)
+	result, err := conn.callSDKMethod(context.Background(), "prompts/list", nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
