@@ -206,6 +206,43 @@ unsafe fn write_bytes_to_output(output_ptr: u32, bytes: &[u8]) {
     dest.copy_from_slice(bytes);
 }
 
+/// Write pre-serialized JSON to the output buffer.
+/// Returns the number of bytes written on success, or -1 if the buffer is too small
+/// or if the length cannot be safely represented in the WASM ABI types.
+fn try_write_json_output(
+    output_json: &str,
+    output_ptr: u32,
+    output_size: u32,
+    fn_name: &str,
+) -> i32 {
+    let len = match u32::try_from(output_json.len()) {
+        Ok(n) => n,
+        Err(_) => {
+            log_error(&format!(
+                "    FAILED: output too large ({} bytes)",
+                output_json.len()
+            ));
+            return -1;
+        }
+    };
+    if len > output_size {
+        log_error(&format!(
+            "    FAILED: output buffer too small ({} > {})",
+            len, output_size
+        ));
+        return -1;
+    }
+    unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
+    log_info(&format!("<<< {} returning {} bytes", fn_name, len));
+    match i32::try_from(len) {
+        Ok(n) => n,
+        Err(_) => {
+            log_error(&format!("    FAILED: byte count {} overflows i32", len));
+            -1
+        }
+    }
+}
+
 // ============================================================================
 // Input/Output Types
 // ============================================================================
@@ -723,22 +760,7 @@ pub extern "C" fn label_agent(
         }
     };
 
-    if output_json.len() as u32 > output_size {
-        log_error(&format!(
-            "    FAILED: output buffer too small ({} > {})",
-            output_json.len(),
-            output_size
-        ));
-        return -1;
-    }
-
-    unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
-
-    log_info(&format!(
-        "<<< label_agent returning {} bytes",
-        output_json.len()
-    ));
-    output_json.len() as i32
+    try_write_json_output(&output_json, output_ptr, output_size, "label_agent")
 }
 
 /// label_resource is called by the gateway to label a resource before access
@@ -866,23 +888,7 @@ pub extern "C" fn label_resource(
         }
     };
 
-    if output_json.len() as u32 > output_size {
-        log_error(&format!(
-            "    FAILED: output buffer too small ({} > {})",
-            output_json.len(),
-            output_size
-        ));
-        return -1;
-    }
-
-    // Write output
-    unsafe { write_bytes_to_output(output_ptr, output_json.as_bytes()) };
-
-    log_info(&format!(
-        "<<< label_resource returning {} bytes",
-        output_json.len()
-    ));
-    output_json.len() as i32
+    try_write_json_output(&output_json, output_ptr, output_size, "label_resource")
 }
 
 /// label_response is called by the gateway to label response data
