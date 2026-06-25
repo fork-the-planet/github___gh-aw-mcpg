@@ -351,6 +351,34 @@ func TestLogObservedURLDomains_WriteError_WarningLogged(t *testing.T) {
 	})
 }
 
+// ---- setupObservedURLDomainsLogger ----
+
+// TestSetupObservedURLDomainsLogger_WriteToFileFails exercises the return nil, err
+// branch inside setupObservedURLDomainsLogger.
+//
+// The branch is not reachable through the normal InitObservedURLDomainsLogger path:
+// when the log directory is unwritable, initLogFile fails first and the fallback
+// handler (handleObservedURLDomainsLoggerError) is called instead of setup.
+//
+// To cover the branch we call setupObservedURLDomainsLogger directly with a logDir
+// where the target file name already exists as a directory.  atomicWriteFile can
+// still create the temp file (filePath+".tmp") in the parent dir, but os.Rename will
+// return EISDIR on Linux, causing writeToFile to fail.
+func TestSetupObservedURLDomainsLogger_WriteToFileFails(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a directory at the target file path so atomicWriteFile's Rename fails.
+	targetDir := filepath.Join(tmpDir, observedURLDomainsFileName)
+	require.NoError(t, os.MkdirAll(targetDir, 0755))
+
+	l, err := setupObservedURLDomainsLogger(nil, tmpDir, observedURLDomainsFileName)
+
+	require.Error(t, err, "setupObservedURLDomainsLogger should return an error when writeToFile fails")
+	assert.Nil(t, l, "logger should be nil on setup failure")
+	assert.Contains(t, err.Error(), "failed to rename temp file",
+		"error should originate from the atomic rename step")
+}
+
 // ---- ObservedURLDomainsLogger.Close ----
 
 func TestObservedURLDomainsLogger_Close_ReturnsNil(t *testing.T) {
