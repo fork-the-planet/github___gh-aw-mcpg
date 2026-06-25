@@ -490,13 +490,7 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 	}
 
 	// Normalize type: "local" is an alias for "stdio" (backward compatibility)
-	serverType := server.Type
-	if serverType == "" {
-		serverType = "stdio"
-	}
-	if serverType == "local" {
-		serverType = "stdio"
-	}
+	serverType := NormalizeServerType(server.Type)
 
 	logStdin.Printf("Converting server %q: type=%s", name, serverType)
 

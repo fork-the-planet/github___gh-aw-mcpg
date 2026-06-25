@@ -35,16 +35,10 @@ func validateServerConfigWithCustomSchemas(name string, server *StdinServerConfi
 	logValidation.Printf("Validating server config: name=%s, type=%s", name, server.Type)
 	jsonPath := fmt.Sprintf("mcpServers.%s", name)
 
-	// Validate type (empty defaults to stdio)
-	if server.Type == "" {
-		server.Type = "stdio"
-		logValidation.Printf("Server type empty, defaulting to stdio: name=%s", name)
-	}
-
-	// Normalize "local" to "stdio"
-	if server.Type == "local" {
-		server.Type = "stdio"
-		logValidation.Printf("Server type normalized from 'local' to 'stdio': name=%s", name)
+	// Normalize empty/"local" to "stdio"
+	if normalized := NormalizeServerType(server.Type); normalized != server.Type {
+		logValidation.Printf("Server type normalized from %q to %q: name=%s", server.Type, normalized, name)
+		server.Type = normalized
 	}
 
 	// Check if it's a standard type
@@ -59,7 +53,7 @@ func validateServerConfigWithCustomSchemas(name string, server *StdinServerConfi
 // validateStandardServerConfig validates stdio or http server configurations
 func validateStandardServerConfig(name string, server *StdinServerConfig, jsonPath string) error {
 	// For stdio servers, container is required
-	if server.Type == "stdio" || server.Type == "local" {
+	if IsStdioServerType(server.Type) {
 		if server.Container == "" {
 			logValidation.Printf("Validation failed: %s, name=%s, type=%s", "stdio server missing container field", name, server.Type)
 			return MissingRequired("container", "stdio", jsonPath, "Add a 'container' field (e.g., \"ghcr.io/owner/image:tag\")")
@@ -486,7 +480,7 @@ func validateTOMLStdioContainerization(servers map[string]*ServerConfig) error {
 
 	for name, cfg := range servers {
 		// Only validate stdio servers (or empty type which defaults to stdio)
-		if cfg.Type == "" || cfg.Type == "stdio" || cfg.Type == "local" {
+		if IsStdioServerType(cfg.Type) {
 			logValidation.Printf("Checking stdio server: name=%s, command=%s", name, cfg.Command)
 
 			// Check if command is Docker

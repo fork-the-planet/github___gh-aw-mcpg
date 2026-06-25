@@ -399,7 +399,7 @@ func validateStringPatterns(stdinCfg *StdinConfig) error {
 		logSchema.Printf("Validating server: name=%s, type=%s", name, server.Type)
 
 		// Validate container pattern for stdio servers
-		if server.Type == "" || server.Type == "stdio" || server.Type == "local" {
+		if IsStdioServerType(server.Type) {
 			if server.Container != "" && !containerPattern.MatchString(server.Container) {
 				return InvalidPattern("container", server.Container,
 					fmt.Sprintf("%s.container", jsonPath),
