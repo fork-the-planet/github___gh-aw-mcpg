@@ -489,14 +489,8 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 		return nil, err
 	}
 
-	// Normalize type: "local" is an alias for "stdio" (backward compatibility)
+	// server.Type has been normalized (empty and "local" -> "stdio") by validateServerConfigWithCustomSchemas above.
 	serverType := server.Type
-	if serverType == "" {
-		serverType = "stdio"
-	}
-	if serverType == "local" {
-		serverType = "stdio"
-	}
 
 	logStdin.Printf("Converting server %q: type=%s", name, serverType)
 
