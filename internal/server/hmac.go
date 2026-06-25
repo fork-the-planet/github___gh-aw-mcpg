@@ -41,35 +41,49 @@ type nonceCache struct {
 }
 
 func newNonceCache() *nonceCache {
+	logHMAC.Printf("Creating nonce cache: maxAgeSecs=%d, nonceTTL=%s", hmacMaxAgeSecs, nonceTTL)
 	return &nonceCache{entries: make(map[string]time.Time)}
 }
 
 // evictExpired removes entries whose deadline has passed.
 // Caller must hold c.mu.
-func (c *nonceCache) evictExpired(now time.Time) {
+// Returns the count of evicted entries and the count of remaining entries.
+func (c *nonceCache) evictExpired(now time.Time) (evicted, remaining int) {
 	for n, deadline := range c.entries {
 		if now.After(deadline) {
 			delete(c.entries, n)
+			evicted++
 		}
 	}
+	return evicted, len(c.entries)
 }
 
 // checkAndSet returns true (and records the nonce) when the nonce has not been
 // seen before.  Returns false if the nonce is a duplicate.
 func (c *nonceCache) checkAndSet(nonce string) bool {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	now := time.Now()
 
 	// Evict expired nonces on every call.  The nonce set is bounded by
 	// requests within the hmacMaxAgeSecs window, so this stays small.
-	c.evictExpired(now)
+	evicted, remaining := c.evictExpired(now)
 
 	if _, seen := c.entries[nonce]; seen {
+		c.mu.Unlock()
+		if evicted > 0 {
+			logHMAC.Printf("Nonce cache eviction: evicted=%d, remaining=%d", evicted, remaining)
+		}
 		return false
 	}
 	c.entries[nonce] = now.Add(nonceTTL)
+	cacheSize := len(c.entries)
+	c.mu.Unlock()
+
+	if evicted > 0 {
+		logHMAC.Printf("Nonce cache eviction: evicted=%d, remaining=%d", evicted, remaining)
+	}
+	logHMAC.Printf("Nonce registered: cacheSize=%d", cacheSize)
 	return true
 }
 
@@ -78,11 +92,15 @@ func (c *nonceCache) checkAndSet(nonce string) bool {
 // so that obvious replays are rejected without consuming I/O resources.
 func (c *nonceCache) seenNonce(nonce string) bool {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	now := time.Now()
 	// Evict expired entries so the map doesn't grow unboundedly.
-	c.evictExpired(now)
+	evicted, remaining := c.evictExpired(now)
 	_, seen := c.entries[nonce]
+	c.mu.Unlock()
+
+	if evicted > 0 {
+		logHMAC.Printf("Nonce cache eviction: evicted=%d, remaining=%d", evicted, remaining)
+	}
 	return seen
 }
 
