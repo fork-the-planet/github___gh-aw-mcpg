@@ -66,14 +66,11 @@ func MissingRequired(fieldName, serverType, jsonPath, suggestion string) *Valida
 	}
 }
 
-// UnsupportedField creates a ValidationError for unsupported fields
+// UnsupportedField creates a ValidationError for unsupported or unrecognized fields.
+// It is an alias for InvalidValue retained for semantic clarity at call sites where
+// the issue is structural (field shouldn't exist) rather than a value constraint.
 func UnsupportedField(fieldName, message, jsonPath, suggestion string) *ValidationError {
-	return &ValidationError{
-		Field:      fieldName,
-		Message:    message,
-		JSONPath:   jsonPath,
-		Suggestion: suggestion,
-	}
+	return InvalidValue(fieldName, message, jsonPath, suggestion)
 }
 
 // AppendConfigDocsFooter appends standard documentation links to an error message
