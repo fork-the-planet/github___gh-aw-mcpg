@@ -109,7 +109,7 @@ func InvalidValue(fieldName, message, jsonPath, suggestion string) *ValidationEr
 // SchemaValidationError creates a ValidationError for custom schema validation failures.
 // Used by validation.go for the various stages of custom schema fetching, parsing, and validation.
 func SchemaValidationError(serverType, message, jsonPath, suggestion string) *ValidationError {
-	logValidation.Printf("Validation error: schema validation failure at %s, serverType=%s, message=%s", jsonPath, serverType, message)
+	logValidation.Printf("Validation error: schema validation failure at %s, serverType=%s, message=%q", jsonPath, serverType, message)
 	return &ValidationError{
 		Field:      "type",
 		Message:    fmt.Sprintf("%s for server type '%s'", message, serverType),
