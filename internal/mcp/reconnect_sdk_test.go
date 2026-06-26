@@ -721,3 +721,128 @@ func TestReconnectSDKTransport_ExistingSessionClosed(t *testing.T) {
 	assert.Equal(t, int32(2), initCount.Load(), "reconnect should have issued a second initialize")
 	require.NotNil(t, conn.session, "session should be non-nil after successful reconnect")
 }
+
+// TestBackendHasPromptsCapability exercises BackendHasPromptsCapability for:
+// nil session, prompts capability present, prompts capability absent, and nil capabilities.
+func TestBackendHasPromptsCapability(t *testing.T) {
+	t.Run("nil session returns false", func(t *testing.T) {
+		conn := newTestConnection(t)
+		assert.False(t, conn.BackendHasPromptsCapability(),
+			"should return false when no SDK session is available")
+	})
+
+	t.Run("session with prompts capability returns true", func(t *testing.T) {
+		srv := newStreamableMCPTestServer(t, func(w http.ResponseWriter, method string, req map[string]interface{}) {
+			switch method {
+			case "initialize":
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Mcp-Session-Id", "session-prompts")
+				json.NewEncoder(w).Encode(map[string]interface{}{ //nolint:errcheck
+					"jsonrpc": "2.0",
+					"id":      req["id"],
+					"result": map[string]interface{}{
+						"protocolVersion": "2024-11-05",
+						"capabilities": map[string]interface{}{
+							"prompts": map[string]interface{}{},
+						},
+					},
+				})
+			case "notifications/initialized":
+				w.WriteHeader(http.StatusAccepted)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})
+		defer srv.Close()
+
+		conn := newStreamableConn(t, srv.URL)
+		assert.True(t, conn.BackendHasPromptsCapability(),
+			"should return true when server declares prompts capability")
+	})
+
+	t.Run("session without prompts capability returns false", func(t *testing.T) {
+		srv := newStreamableMCPTestServer(t, func(w http.ResponseWriter, method string, req map[string]interface{}) {
+			switch method {
+			case "initialize":
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Mcp-Session-Id", "session-no-prompts")
+				json.NewEncoder(w).Encode(map[string]interface{}{ //nolint:errcheck
+					"jsonrpc": "2.0",
+					"id":      req["id"],
+					"result": map[string]interface{}{
+						"protocolVersion": "2024-11-05",
+						"capabilities":    map[string]interface{}{},
+					},
+				})
+			case "notifications/initialized":
+				w.WriteHeader(http.StatusAccepted)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})
+		defer srv.Close()
+
+		conn := newStreamableConn(t, srv.URL)
+		assert.False(t, conn.BackendHasPromptsCapability(),
+			"should return false when server does not declare prompts capability")
+	})
+
+	t.Run("session with nil capabilities returns false", func(t *testing.T) {
+		srv := newStreamableMCPTestServer(t, func(w http.ResponseWriter, method string, req map[string]interface{}) {
+			switch method {
+			case "initialize":
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("Mcp-Session-Id", "session-nil-caps")
+				json.NewEncoder(w).Encode(map[string]interface{}{ //nolint:errcheck
+					"jsonrpc": "2.0",
+					"id":      req["id"],
+					"result": map[string]interface{}{
+						"protocolVersion": "2024-11-05",
+						// capabilities key omitted — Capabilities field will be nil
+					},
+				})
+			case "notifications/initialized":
+				w.WriteHeader(http.StatusAccepted)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		})
+		defer srv.Close()
+
+		conn := newStreamableConn(t, srv.URL)
+		assert.False(t, conn.BackendHasPromptsCapability(),
+			"should return false when server returns nil capabilities")
+	})
+}
+
+// TestServerInfo_NilServerInfoInResult verifies that ServerInfo returns empty strings
+// when the server's initialize response omits the serverInfo field, exercising the
+// initResult.ServerInfo == nil branch.
+func TestServerInfo_NilServerInfoInResult(t *testing.T) {
+	srv := newStreamableMCPTestServer(t, func(w http.ResponseWriter, method string, req map[string]interface{}) {
+		switch method {
+		case "initialize":
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Mcp-Session-Id", "session-no-serverinfo")
+			json.NewEncoder(w).Encode(map[string]interface{}{ //nolint:errcheck
+				"jsonrpc": "2.0",
+				"id":      req["id"],
+				"result": map[string]interface{}{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]interface{}{},
+					// serverInfo deliberately omitted
+				},
+			})
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	conn := newStreamableConn(t, srv.URL)
+	name, version := conn.ServerInfo()
+	assert.Empty(t, name, "name should be empty when serverInfo is absent from initialize result")
+	assert.Empty(t, version, "version should be empty when serverInfo is absent from initialize result")
+}
