@@ -60,10 +60,6 @@ var schemaHTTPClientTimeout = 10 * time.Second
 var schemaErrPrinter = message.NewPrinter(language.English)
 
 var (
-	// Compile regex patterns from schema for additional validation
-	containerPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9./_-]*(:([a-zA-Z0-9._-]+|latest))?(@sha256:[a-fA-F0-9]{64})?$`)
-	urlPattern       = regexp.MustCompile(`^https?://.+`)
-	mountPattern     = regexp.MustCompile(`^[^:]+:[^:]+:(ro|rw)$`)
 	domainVarPattern = regexp.MustCompile(`^\$\{[A-Z_][A-Z0-9_]*\}$`)
 	// domainHostnamePattern matches a single RFC-1123 hostname label (no dots), e.g.
 	// "awmg-mcpg" or "localhost". This allows network-isolation topology hostnames
@@ -386,76 +382,4 @@ func formatErrorContext(ve *jsonschema.ValidationError, prefix string) string {
 	}
 
 	return sb.String()
-}
-
-// validateStringPatterns validates string fields against regex patterns from the schema
-// This provides additional validation beyond the JSON schema validation
-func validateStringPatterns(stdinCfg *StdinConfig) error {
-	logSchema.Printf("Validating string patterns: server_count=%d", len(stdinCfg.MCPServers))
-
-	// Validate server configurations
-	for name, server := range stdinCfg.MCPServers {
-		jsonPath := fmt.Sprintf("mcpServers.%s", name)
-		logSchema.Printf("Validating server: name=%s, type=%s", name, server.Type)
-
-		// Validate container pattern for stdio servers
-		if IsStdioServerType(server.Type) {
-			if server.Container != "" && !containerPattern.MatchString(server.Container) {
-				return InvalidPattern("container", server.Container,
-					fmt.Sprintf("%s.container", jsonPath),
-					"Use a valid container image format (e.g., 'ghcr.io/owner/image:tag', 'owner/image:latest', or 'ghcr.io/owner/image:tag@sha256:<digest>')")
-			}
-
-			// Validate mount patterns
-			for i, mount := range server.Mounts {
-				if !mountPattern.MatchString(mount) {
-					return InvalidPattern("mounts", mount,
-						fmt.Sprintf("%s.mounts[%d]", jsonPath, i),
-						"Use format 'source:dest:mode' where mode is 'ro' or 'rw'")
-				}
-			}
-
-			// Validate entrypoint is not empty if provided
-			if server.Entrypoint != "" && len(strings.TrimSpace(server.Entrypoint)) == 0 {
-				return InvalidValue("entrypoint", "entrypoint cannot be empty or whitespace only",
-					fmt.Sprintf("%s.entrypoint", jsonPath),
-					"Provide a valid entrypoint path or remove the field")
-			}
-		}
-
-		// Validate URL pattern for HTTP servers
-		if server.Type == "http" {
-			if server.URL != "" && !urlPattern.MatchString(server.URL) {
-				return InvalidPattern("url", server.URL,
-					fmt.Sprintf("%s.url", jsonPath),
-					"Use a valid HTTP or HTTPS URL (e.g., 'https://api.example.com/mcp')")
-			}
-		}
-	}
-
-	// Validate gateway configuration patterns
-	if stdinCfg.Gateway != nil {
-		// Delegate port, timeout, and payloadDir validation to validateGatewayConfig
-		// to avoid duplicating those checks here.
-		if err := validateGatewayConfig(stdinCfg.Gateway); err != nil {
-			return err
-		}
-
-		// Validate domain: must be "localhost", "host.docker.internal", an RFC-1123
-		// single-label hostname (e.g. "awmg-mcpg" for network-isolation topology), or
-		// a variable expression like "${MCP_GATEWAY_DOMAIN}".
-		// Note: this validation runs post-expansion, so resolved env values must also pass.
-		if stdinCfg.Gateway.Domain != "" {
-			domain := stdinCfg.Gateway.Domain
-			if domain != "localhost" && domain != "host.docker.internal" &&
-				!domainVarPattern.MatchString(domain) && !domainHostnamePattern.MatchString(domain) {
-				return InvalidValue("domain",
-					fmt.Sprintf("domain '%s' must be 'localhost', 'host.docker.internal', an RFC-1123 hostname label (e.g. 'awmg-mcpg'), or a variable expression", domain),
-					"gateway.domain",
-					"Use 'localhost', 'host.docker.internal', a topology hostname like 'awmg-mcpg', or a variable like '${MCP_GATEWAY_DOMAIN}'")
-			}
-		}
-	}
-
-	return nil
 }

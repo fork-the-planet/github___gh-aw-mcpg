@@ -58,13 +58,12 @@ func setupObservedURLDomainsLogger(file *os.File, logDir, fileName string) (*Obs
 }
 
 func handleObservedURLDomainsLoggerError(err error, logDir, fileName string) (*ObservedURLDomainsLogger, error) {
-	logFallbackWarnings(err, "Failed to initialize observed URL domains log file", "Observed URL domains logging disabled")
-	return &ObservedURLDomainsLogger{
+	return fallbackLoggerOnInitError(err, "Failed to initialize observed URL domains log file", "Observed URL domains logging disabled", &ObservedURLDomainsLogger{
 		logDir:      logDir,
 		fileName:    fileName,
 		data:        make(map[string]map[string]struct{}),
 		useFallback: true,
-	}, nil
+	})
 }
 
 var observedURLDomainsLoggerFactory = loggerFactory[*ObservedURLDomainsLogger]{

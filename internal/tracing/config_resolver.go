@@ -74,14 +74,6 @@ func resolveSampleRate(cfg *config.TracingConfig) float64 {
 	return config.DefaultTracingSampleRate
 }
 
-// parseOTLPHeaders parses a comma-separated "key=value" string into a map.
-// Empty pairs, pairs without "=", and pairs with an empty key are logged as
-// warnings and skipped to avoid invalid HTTP header field names.
-// Leading/trailing whitespace around keys and values is trimmed.
-func parseOTLPHeaders(raw string) map[string]string {
-	return parseOTLPHeadersWithDecoder(raw, false)
-}
-
 func parseOTLPHeadersWithDecoder(raw string, decodeValues bool) map[string]string {
 	headers := make(map[string]string)
 	for _, pair := range strings.Split(raw, ",") {
@@ -134,7 +126,7 @@ func resolveHeaders(cfg *config.TracingConfig) map[string]string {
 	if cfg == nil || cfg.Headers == "" {
 		return parseOTLPHeadersWithDecoder(raw, true)
 	}
-	return parseOTLPHeaders(raw)
+	return parseOTLPHeadersWithDecoder(raw, false)
 }
 
 // resolveExtraEndpoints returns the additional OTLP endpoints from the

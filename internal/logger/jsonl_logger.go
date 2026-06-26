@@ -58,7 +58,7 @@ func setupJSONLLogger(file *os.File, logDir, fileName string) (*JSONLLogger, err
 
 // handleJSONLLoggerError returns the error immediately — JSONLLogger has no fallback mode.
 func handleJSONLLoggerError(err error, _ string, _ string) (*JSONLLogger, error) {
-	return nil, err
+	return strictLoggerOnInitError[*JSONLLogger](err)
 }
 
 // jsonlLoggerFactory bundles the setup and error-handler for JSONLLogger.

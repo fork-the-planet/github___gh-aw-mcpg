@@ -37,12 +37,11 @@ func setupMarkdownLogger(file *os.File, logDir, fileName string) (*MarkdownLogge
 
 // handleMarkdownLoggerError sets fallback mode (no stdout redirect) when the file cannot be opened.
 func handleMarkdownLoggerError(_ error, logDir, fileName string) (*MarkdownLogger, error) {
-	ml := &MarkdownLogger{
+	return silentFallbackLoggerOnInitError(&MarkdownLogger{
 		logDir:      logDir,
 		fileName:    fileName,
 		useFallback: true,
-	}
-	return ml, nil
+	})
 }
 
 // markdownLoggerFactory bundles the setup and error-handler for MarkdownLogger.

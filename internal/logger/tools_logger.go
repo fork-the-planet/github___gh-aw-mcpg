@@ -60,16 +60,14 @@ func setupToolsLogger(file *os.File, logDir, fileName string) (*ToolsLogger, err
 
 // handleToolsLoggerError falls back to a no-op logger when the file cannot be opened.
 func handleToolsLoggerError(err error, logDir, fileName string) (*ToolsLogger, error) {
-	logFallbackWarnings(err, "Failed to initialize tools log file", "Tools logging disabled")
-	tl := &ToolsLogger{
+	return fallbackLoggerOnInitError(err, "Failed to initialize tools log file", "Tools logging disabled", &ToolsLogger{
 		logDir:      logDir,
 		fileName:    fileName,
 		useFallback: true,
 		data: &ToolsData{
 			Servers: make(map[string][]ToolInfo),
 		},
-	}
-	return tl, nil
+	})
 }
 
 // toolsLoggerFactory bundles the setup and error-handler for ToolsLogger.

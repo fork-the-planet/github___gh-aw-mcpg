@@ -187,3 +187,23 @@ func logFallbackWarnings(err error, errMsg, fallbackMsg string) {
 	log.Printf("WARNING: %s: %v", errMsg, err)
 	log.Printf("WARNING: %s", fallbackMsg)
 }
+
+// fallbackLoggerOnInitError logs the initialization error and returns the provided
+// fallback logger instance so callers can continue in degraded mode.
+func fallbackLoggerOnInitError[T any](err error, errMsg, fallbackMsg string, fallback T) (T, error) {
+	logFallbackWarnings(err, errMsg, fallbackMsg)
+	return fallback, nil
+}
+
+// silentFallbackLoggerOnInitError returns the provided fallback logger instance
+// without emitting warning logs.
+func silentFallbackLoggerOnInitError[T any](fallback T) (T, error) {
+	return fallback, nil
+}
+
+// strictLoggerOnInitError returns the original initialization error with the zero
+// logger value, for logger types that do not support degraded fallback.
+func strictLoggerOnInitError[T any](err error) (T, error) {
+	var zero T
+	return zero, err
+}

@@ -39,14 +39,12 @@ func setupFileLogger(file *os.File, logDir, fileName string) (*FileLogger, error
 // Stderr is used (not stdout) to avoid corrupting the stdout JSON channel that
 // callers use to receive the gateway configuration output.
 func handleFileLoggerError(err error, logDir, fileName string) (*FileLogger, error) {
-	logFallbackWarnings(err, "Failed to initialize log file", "Falling back to stderr for logging")
-	fl := &FileLogger{
+	return fallbackLoggerOnInitError(err, "Failed to initialize log file", "Falling back to stderr for logging", &FileLogger{
 		logDir:      logDir,
 		fileName:    fileName,
 		useFallback: true,
 		logger:      log.New(os.Stderr, "", 0),
-	}
-	return fl, nil
+	})
 }
 
 // fileLoggerFactory bundles the setup and error-handler for FileLogger.

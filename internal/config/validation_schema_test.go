@@ -432,7 +432,7 @@ func TestValidateStringPatterns(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name: "invalid mount without mode",
+			name: "mount validation is deferred",
 			config: &StdinConfig{
 				MCPServers: map[string]*StdinServerConfig{
 					"test": {
@@ -442,7 +442,7 @@ func TestValidateStringPatterns(t *testing.T) {
 					},
 				},
 			},
-			shouldErr: true,
+			shouldErr: false,
 		},
 		{
 			name: "valid http url pattern",

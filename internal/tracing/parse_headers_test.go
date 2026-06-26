@@ -9,7 +9,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 )
 
-// TestParseOTLPHeaders covers the parseOTLPHeaders helper with a range of inputs.
+// TestParseOTLPHeaders covers OTLP header parsing without percent-decoding.
 func TestParseOTLPHeaders(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -85,7 +85,7 @@ func TestParseOTLPHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := parseOTLPHeaders(tt.input)
+			result := parseOTLPHeadersWithDecoder(tt.input, false)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

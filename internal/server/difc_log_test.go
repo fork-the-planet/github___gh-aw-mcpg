@@ -642,8 +642,8 @@ func TestIsSingularReadTool(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.toolName, func(t *testing.T) {
-			assert.Equal(t, tc.singular, isSingularReadTool(tc.toolName),
-				"isSingularReadTool(%q) should be %v", tc.toolName, tc.singular)
+			assert.Equal(t, tc.singular, difc.IsSingularReadTool(tc.toolName),
+				"difc.IsSingularReadTool(%q) should be %v", tc.toolName, tc.singular)
 		})
 	}
 }

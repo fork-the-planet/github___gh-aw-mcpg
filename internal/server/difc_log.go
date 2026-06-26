@@ -12,15 +12,6 @@ import (
 
 var logDifcLog = logger.New("server:difc_log")
 
-// isSingularReadTool returns true when toolName refers to a tool expected to
-// return a single resource (e.g. get_*, *_read). List/search tools are treated
-// as collection tools even if they happen to return one item.
-func isSingularReadTool(toolName string) bool {
-	singular := !strings.HasPrefix(toolName, "list_") && !strings.HasPrefix(toolName, "search_")
-	logDifcLog.Printf("isSingularReadTool: toolName=%s, singular=%v", toolName, singular)
-	return singular
-}
-
 // logFilteredItems logs structured details for every item removed by DIFC filtering.
 // Each item is written as a [DIFC-FILTERED] JSON entry to both the unified and
 // per-server text log files (via LogInfoToServer), and as a difc_filtered event

@@ -546,7 +546,7 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 			// (list_*, search_*) may legitimately return exactly one item that gets filtered
 			// and should still receive the notice-only behavior so agents see an empty list
 			// rather than an unexpected error.
-			if isSingularReadTool(toolName) && difcFiltered.GetAccessibleCount() == 0 && difcFiltered.GetFilteredCount() == 1 {
+			if difc.IsSingularReadTool(toolName) && difcFiltered.GetAccessibleCount() == 0 && difcFiltered.GetFilteredCount() == 1 {
 				filteredErr := buildDIFCSingleItemFilteredError(difcFiltered.Filtered[0])
 				logger.LogWarn("difc", "Single item filtered — returning MCP error: %v", filteredErr)
 				httpStatusCode = 403

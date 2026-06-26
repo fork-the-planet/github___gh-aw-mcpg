@@ -144,58 +144,42 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 		}
 	})
 
-	t.Run("stdio server mount validation", func(t *testing.T) {
+	t.Run("stdio server mount validation is deferred", func(t *testing.T) {
 		tests := []struct {
-			name        string
-			mounts      []string
-			shouldError bool
-			errorField  string
+			name   string
+			mounts []string
 		}{
-			// Valid mount patterns
 			{
-				name:        "valid mount with ro mode",
-				mounts:      []string{"/host/path:/container/path:ro"},
-				shouldError: false,
+				name:   "valid mount with ro mode",
+				mounts: []string{"/host/path:/container/path:ro"},
 			},
 			{
-				name:        "valid mount with rw mode",
-				mounts:      []string{"/host/path:/container/path:rw"},
-				shouldError: false,
+				name:   "valid mount with rw mode",
+				mounts: []string{"/host/path:/container/path:rw"},
 			},
 			{
-				name:        "invalid mount without mode",
-				mounts:      []string{"/host/path:/container/path"},
-				shouldError: true,
+				name:   "invalid mount without mode",
+				mounts: []string{"/host/path:/container/path"},
 			},
 			{
-				name:        "valid multiple mounts",
-				mounts:      []string{"/host1:/container1:ro", "/host2:/container2:rw"},
-				shouldError: false,
-			},
-			// Invalid mount patterns
-			{
-				name:        "invalid mount missing destination",
-				mounts:      []string{"/host/path"},
-				shouldError: true,
-				errorField:  "mounts",
+				name:   "valid multiple mounts",
+				mounts: []string{"/host1:/container1:ro", "/host2:/container2:rw"},
 			},
 			{
-				name:        "invalid mount with wrong mode",
-				mounts:      []string{"/host:/container:invalid"},
-				shouldError: true,
-				errorField:  "mounts",
+				name:   "invalid mount missing destination",
+				mounts: []string{"/host/path"},
 			},
 			{
-				name:        "invalid mount empty string",
-				mounts:      []string{""},
-				shouldError: true,
-				errorField:  "mounts",
+				name:   "invalid mount with wrong mode",
+				mounts: []string{"/host:/container:invalid"},
 			},
 			{
-				name:        "invalid mount in array with valid ones",
-				mounts:      []string{"/host1:/container1:ro", "invalid"},
-				shouldError: true,
-				errorField:  "mounts",
+				name:   "invalid mount empty string",
+				mounts: []string{""},
+			},
+			{
+				name:   "invalid mount in array with valid ones",
+				mounts: []string{"/host1:/container1:ro", "invalid"},
 			},
 		}
 
@@ -212,13 +196,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 				}
 
 				err := validateStringPatterns(config)
-
-				if tt.shouldError {
-					require.Error(t, err, "Expected validation error but got none")
-					assert.ErrorContains(t, err, tt.errorField, "Error should mention the problematic field")
-				} else {
-					assert.NoError(t, err, "Expected no error for valid mount pattern")
-				}
+				assert.NoError(t, err, "Mount validation should be deferred to MountFormat/validateMounts")
 			})
 		}
 	})
@@ -802,7 +780,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 			assert.ErrorContains(t, err, "Suggestion", "Error should include suggestion")
 		})
 
-		t.Run("mount error includes array index", func(t *testing.T) {
+		t.Run("mount validation is deferred to rule validators", func(t *testing.T) {
 			config := &StdinConfig{
 				MCPServers: map[string]*StdinServerConfig{
 					"test-server": {
@@ -814,8 +792,7 @@ func TestValidateStringPatternsComprehensive(t *testing.T) {
 			}
 
 			err := validateStringPatterns(config)
-			require.Error(t, err)
-			assert.ErrorContains(t, err, "mounts[1]", "Error should include array index")
+			assert.NoError(t, err, "validateStringPatterns should not duplicate mount validation")
 		})
 
 		t.Run("domain error includes suggestion", func(t *testing.T) {
