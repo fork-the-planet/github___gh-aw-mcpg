@@ -722,8 +722,8 @@ func TestReconnectSDKTransport_ExistingSessionClosed(t *testing.T) {
 	require.NotNil(t, conn.session, "session should be non-nil after successful reconnect")
 }
 
-// TestBackendHasPromptsCapability verifies all branches of BackendHasPromptsCapability:
-// nil session, session with prompts capability, and session without prompts capability.
+// TestBackendHasPromptsCapability exercises BackendHasPromptsCapability for:
+// nil session, prompts capability present, prompts capability absent, and nil capabilities.
 func TestBackendHasPromptsCapability(t *testing.T) {
 	t.Run("nil session returns false", func(t *testing.T) {
 		conn := newTestConnection(t)
