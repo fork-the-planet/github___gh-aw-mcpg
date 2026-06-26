@@ -460,7 +460,7 @@ The project uses:
 - `github.com/BurntSushi/toml` - TOML parser
 - `github.com/modelcontextprotocol/go-sdk` - MCP protocol implementation
 - `github.com/itchyny/gojq` - JQ schema processing
-- `github.com/santhosh-tekuri/jsonschema/v5` - JSON schema validation
+- `github.com/santhosh-tekuri/jsonschema/v6` - JSON schema validation
 - `github.com/stretchr/testify` - Test assertions
 - `github.com/tetratelabs/wazero` - WASM runtime for executing WASM-based security guards
 - `go.opentelemetry.io/otel` - OpenTelemetry tracing API and span/trace management
