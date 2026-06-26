@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -87,6 +88,18 @@ func newBackendListTestConnection(t *testing.T, serverID string, backend http.Ha
 	}, conn
 }
 
+func failOnUnexpectedRequestError(err error) error {
+	return fmt.Errorf("unexpected request error: %w", err)
+}
+
+func failOnUnexpectedResponseError(code int, message string) error {
+	return fmt.Errorf("unexpected response error: code=%d message=%s", code, message)
+}
+
+func failOnUnexpectedParseError(err error) error {
+	return fmt.Errorf("unexpected parse error: %w", err)
+}
+
 func TestFetchBackendList_Success(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
@@ -144,18 +157,9 @@ func TestFetchBackendList_Success(t *testing.T) {
 		"test-backend",
 		"tools/list",
 		&listResult,
-		func(err error) error {
-			t.Fatalf("unexpected request error: %v", err)
-			return nil
-		},
-		func(code int, message string) error {
-			t.Fatalf("unexpected response error: code=%d message=%s", code, message)
-			return nil
-		},
-		func(err error) error {
-			t.Fatalf("unexpected parse error: %v", err)
-			return nil
-		},
+		failOnUnexpectedRequestError,
+		failOnUnexpectedResponseError,
+		failOnUnexpectedParseError,
 	)
 	require.NoError(err)
 	require.Len(listResult.Tools, 1)
@@ -220,23 +224,89 @@ func TestFetchBackendList_BackendErrorCanGracefullySkip(t *testing.T) {
 		"prompt-backend",
 		"prompts/list",
 		&listResult,
-		func(err error) error {
-			t.Fatalf("unexpected request error: %v", err)
-			return nil
-		},
+		failOnUnexpectedRequestError,
 		func(code int, message string) error {
 			handledCode = code
 			handledMessage = message
 			return nil
 		},
-		func(err error) error {
-			t.Fatalf("unexpected parse error: %v", err)
-			return nil
-		},
+		failOnUnexpectedParseError,
 	)
 	require.NoError(err)
 	assert.Equal(-32601, handledCode)
 	assert.Equal("method not found", handledMessage)
+	assert.Empty(listResult.Prompts)
+}
+
+func TestFetchBackendList_RequestErrorCanGracefullySkip(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	serverID := "request-error-backend"
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if req["method"] == "initialize" {
+			require.NoError(json.NewEncoder(w).Encode(map[string]interface{}{
+				"jsonrpc": "2.0",
+				"id":      req["id"],
+				"result": map[string]interface{}{
+					"protocolVersion": "2024-11-05",
+					"capabilities":    map[string]interface{}{},
+					"serverInfo": map[string]interface{}{
+						"name":    serverID,
+						"version": "1.0.0",
+					},
+				},
+			}))
+			return
+		}
+
+		w.WriteHeader(http.StatusBadRequest)
+	}))
+
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			serverID: {
+				Type: "http",
+				URL:  backend.URL,
+			},
+		},
+	}
+
+	l := launcher.New(context.Background(), cfg)
+	conn, err := launcher.GetOrLaunch(l, serverID)
+	require.NoError(err)
+
+	backend.Close()
+	defer l.Close()
+
+	var listResult struct {
+		Prompts []struct {
+			Name string `json:"name"`
+		} `json:"prompts"`
+	}
+
+	handledRequestError := false
+	err = fetchBackendList(
+		context.Background(),
+		conn,
+		serverID,
+		"prompts/list",
+		&listResult,
+		func(err error) error {
+			handledRequestError = true
+			return nil
+		},
+		failOnUnexpectedResponseError,
+		failOnUnexpectedParseError,
+	)
+	require.NoError(err)
+	assert.True(handledRequestError)
 	assert.Empty(listResult.Prompts)
 }
 
@@ -292,14 +362,8 @@ func TestFetchBackendList_ParseError(t *testing.T) {
 		"invalid-backend",
 		"tools/list",
 		&listResult,
-		func(err error) error {
-			t.Fatalf("unexpected request error: %v", err)
-			return nil
-		},
-		func(code int, message string) error {
-			t.Fatalf("unexpected response error: code=%d message=%s", code, message)
-			return nil
-		},
+		failOnUnexpectedRequestError,
+		failOnUnexpectedResponseError,
 		func(err error) error {
 			return err
 		},
