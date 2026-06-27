@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/logger"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -510,4 +511,112 @@ func TestCompileToolResponseFilter_CacheHit(t *testing.T) {
 
 	// Pointer equality proves the same compiled object was returned from the cache.
 	assert.Same(t, code1, code2, "CompileToolResponseFilter should return cached code for identical filters")
+}
+
+// ---------------------------------------------------------------------------
+// parseServerIDFromToolName
+// ---------------------------------------------------------------------------
+
+// TestParseServerIDFromToolName exercises all three branches of the unexported
+// parseServerIDFromToolName helper:
+//
+//   - No "___" separator present          → !ok, returns the full toolName
+//   - "___" separator with empty serverID → serverID=="", returns the full toolName
+//   - "___" separator with non-empty serverID → returns the serverID prefix
+func TestParseServerIDFromToolName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		toolName string
+		want     string
+	}{
+		{
+			name:     "no separator returns full tool name",
+			toolName: "list_repos",
+			want:     "list_repos",
+		},
+		{
+			name:     "normal prefixed tool name returns server ID",
+			toolName: "github___list_repos",
+			want:     "github",
+		},
+		{
+			// strings.Cut("___list_repos", "___") → ("", "list_repos", true)
+			// serverID=="" so the function falls into the !ok||serverID=="" branch
+			// and returns the original toolName unchanged.
+			name:     "tool name starting with separator returns full name",
+			toolName: "___list_repos",
+			want:     "___list_repos",
+		},
+		{
+			name:     "empty tool name returns empty string",
+			toolName: "",
+			want:     "",
+		},
+		{
+			// strings.Cut("___", "___") → ("", "", true); serverID=="" → returns "___"
+			name:     "separator only returns full name",
+			toolName: "___",
+			want:     "___",
+		},
+		{
+			// strings.Cut splits on the FIRST occurrence only.
+			name:     "multiple separators returns portion before first",
+			toolName: "github___owner___list_repos",
+			want:     "github",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := parseServerIDFromToolName(tt.toolName)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// auditObservedURLDomains
+// ---------------------------------------------------------------------------
+
+// TestAuditObservedURLDomains exercises all early-exit and domain-logging
+// branches of the unexported auditObservedURLDomains helper.
+//
+// These sub-tests are intentionally NOT run in parallel because they mutate
+// the global URL-domain audit flag.
+func TestAuditObservedURLDomains(t *testing.T) {
+	// Safety net: restore the global flag after all sub-tests finish.
+	t.Cleanup(func() { logger.SetURLDomainAuditEnabled(false) })
+
+	t.Run("no-op when audit is disabled", func(t *testing.T) {
+		logger.SetURLDomainAuditEnabled(false)
+		// Must not panic; returns without extracting domains or logging.
+		auditObservedURLDomains("github___list_repos", map[string]any{"url": "https://example.com"})
+	})
+
+	t.Run("no-op when data is nil", func(t *testing.T) {
+		logger.SetURLDomainAuditEnabled(true)
+		t.Cleanup(func() { logger.SetURLDomainAuditEnabled(false) })
+		// Nil data triggers the `data == nil` short-circuit.
+		auditObservedURLDomains("github___list_repos", nil)
+	})
+
+	t.Run("returns without logging when no URLs found in data", func(t *testing.T) {
+		logger.SetURLDomainAuditEnabled(true)
+		t.Cleanup(func() { logger.SetURLDomainAuditEnabled(false) })
+		// Data contains no URLs so ExtractURLDomainsFromValue returns nil;
+		// len(domains)==0 triggers the early return before LogObservedURLDomains.
+		auditObservedURLDomains("github___list_repos", map[string]any{"key": "no url here"})
+	})
+
+	t.Run("calls LogObservedURLDomains when URLs are present in data", func(t *testing.T) {
+		logger.SetURLDomainAuditEnabled(true)
+		t.Cleanup(func() { logger.SetURLDomainAuditEnabled(false) })
+		// Data contains a URL; LogObservedURLDomains is invoked (it is a no-op
+		// when the global ObservedURLDomainsLogger is uninitialized, but the
+		// call site is exercised for coverage).
+		auditObservedURLDomains("github___list_repos", map[string]any{"url": "https://example.com/api"})
+	})
 }
