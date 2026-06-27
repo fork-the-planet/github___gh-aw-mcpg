@@ -182,6 +182,28 @@ pub fn apply_tool_labels(
             }
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             integrity = private_writer_integrity(repo_id, repo_private, ctx);
+
+            if !owner.is_empty() && !repo.is_empty() {
+                if let Some(issue_num) =
+                    extract_number_as_string(tool_args, field_names::ISSUE_NUMBER)
+                {
+                    if let Some(info) =
+                        super::backend::get_issue_author_info(&owner, &repo, &issue_num)
+                    {
+                        integrity = resolve_author_integrity(
+                            &owner,
+                            &repo,
+                            repo_id,
+                            info.author_login.as_deref(),
+                            info.author_association.as_deref(),
+                            "issue_read",
+                            &issue_num,
+                            integrity,
+                            ctx,
+                        );
+                    }
+                }
+            }
         }
 
         "issue_dependency_write" => {
