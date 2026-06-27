@@ -7,7 +7,7 @@ package config
 //   - LoadFromStdin lines 298-300: io.ReadAll error (broken stdin)
 //   - LoadFromStdin lines 338-340: validateStringPatterns error after schema passes
 //   - LoadFromStdin lines 343-345: validateCustomSchemas error after schema passes
-//   - LoadFromStdin lines 348-350: validateGatewayConfig error after schema passes
+//   - LoadFromStdin lines 348-350: gateway validation error after schema passes
 //   - normalizeLocalType line 616-617: continue when server value is not a map
 
 import (
@@ -150,10 +150,10 @@ func TestLoadFromStdin_ValidateCustomSchemasError_ReservedHttpKey(t *testing.T) 
 	assert.ErrorContains(t, loadErr, "http")
 }
 
-// TestLoadFromStdin_ValidateGatewayConfigError covers the validateGatewayConfig error
+// TestLoadFromStdin_ValidateGatewayConfigError covers the gateway validation error
 // path for invalid OpenTelemetry configuration. An all-zero W3C traceId is a valid
 // 32-character lowercase hex string that passes JSON schema validation but is rejected
-// by validateOpenTelemetryConfig because W3C Trace Context forbids an all-zero trace-id.
+// during gateway validation because W3C Trace Context forbids an all-zero trace-id.
 func TestLoadFromStdin_ValidateGatewayConfigError_AllZeroTraceId(t *testing.T) {
 	jsonConfig := `{
 		"mcpServers": {

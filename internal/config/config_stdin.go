@@ -364,18 +364,14 @@ func LoadFromStdin() (*Config, error) {
 
 	logConfig.Printf("Parsed stdin config with %d servers", len(stdinCfg.MCPServers))
 
-	// Validate string patterns from schema (regex constraints)
+	// Validate additional rule-based constraints that are not fully covered by
+	// schema validation alone.
 	if err := validateRuleBasedPatterns(&stdinCfg); err != nil {
 		return nil, err
 	}
 
 	// Validate customSchemas field (reserved type names check)
 	if err := validateCustomSchemas(stdinCfg.CustomSchemas); err != nil {
-		return nil, err
-	}
-
-	// Validate gateway configuration (additional checks)
-	if err := validateGatewayConfig(stdinCfg.Gateway); err != nil {
 		return nil, err
 	}
 

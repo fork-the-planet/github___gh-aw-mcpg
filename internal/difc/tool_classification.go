@@ -1,4 +1,4 @@
-// Package difc tool classification utilities classify MCP tools for DIFC policy handling.
+// Package difc provides tool classification utilities for DIFC policy handling.
 package difc
 
 import "strings"
