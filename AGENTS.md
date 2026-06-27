@@ -38,9 +38,11 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 - `internal/launcher/` - Backend process management
 - `internal/logger/` - Debug logging framework (micro logger)
 - `internal/mcp/` - MCP protocol types with enhanced error logging
+- `internal/mcpresult/` - MCP result text content helpers
 - `internal/middleware/` - HTTP middleware (jq schema processing)
 - `internal/oidc/` - GitHub Actions OIDC token provider and caching
 - `internal/proxy/` - Filtering HTTP proxy for the GitHub API with DIFC enforcement
+- `internal/sanitize/` - Sensitive data redaction utilities (`SanitizeString`, `SanitizeJSON`, `TruncateSecret`) for safe log output
 - `internal/server/` - HTTP server (routed/unified modes)
 - `internal/strutil/` - String and formatting utilities
 - `internal/syncutil/` - Concurrency utilities
@@ -48,6 +50,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 - `internal/testutil/` - Test utilities and helpers
 - `internal/tracing/` - OpenTelemetry tracing setup and OTLP export
 - `internal/tty/` - Terminal detection utilities
+- `internal/urlutil/` - URL hostname extraction utilities (used by guard and middleware for domain audit logging)
 - `internal/version/` - Version management
 
 ## Key Tech
