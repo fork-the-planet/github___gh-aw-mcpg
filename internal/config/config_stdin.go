@@ -437,6 +437,9 @@ func convertStdinConfig(stdinCfg *StdinConfig) (*Config, error) {
 		cfg.Gateway.ToolTimeout = toolTimeoutEnvOrDefault()
 	}
 
+	logStdin.Printf("Gateway configured: port=%d, toolTimeout=%d, startupTimeout=%d",
+		cfg.Gateway.Port, cfg.Gateway.ToolTimeout, cfg.Gateway.StartupTimeout)
+
 	// Apply feature-specific defaults
 	applyDefaults(cfg)
 
@@ -527,6 +530,7 @@ func convertStdinServerConfig(name string, server *StdinServerConfig, customSche
 			if serverCfg.Auth.Audience == "" {
 				serverCfg.Auth.Audience = server.URL
 			}
+			logStdin.Printf("HTTP server %q: authentication configured: type=%s, audience=%s", name, serverCfg.Auth.Type, serverCfg.Auth.Audience)
 		}
 		return serverCfg, nil
 	}
@@ -578,12 +582,18 @@ func buildStdioServerConfig(name string, server *StdinServerConfig) *ServerConfi
 
 	// Add additional Docker runtime arguments (passed before container image)
 	// e.g., "--network", "host"
+	if len(server.Args) > 0 {
+		logStdin.Printf("Server %q: adding %d extra Docker runtime arg(s)", name, len(server.Args))
+	}
 	args = append(args, server.Args...)
 
 	// Add container name
 	args = append(args, server.Container)
 
 	// Add entrypoint args
+	if len(server.EntrypointArgs) > 0 {
+		logStdin.Printf("Server %q: adding %d entrypoint arg(s)", name, len(server.EntrypointArgs))
+	}
 	args = append(args, server.EntrypointArgs...)
 
 	logStdin.Printf("Server %q: configured stdio container=%s, env_vars=%d, mounts=%d", name, server.Container, len(server.Env), len(server.Mounts))
@@ -630,6 +640,8 @@ func normalizeLocalType(data []byte) ([]byte, error) {
 	if !ok {
 		return data, nil // mcpServers is not a map, return as is
 	}
+
+	logStdin.Printf("Checking %d server(s) for 'local' type normalization", len(servers))
 
 	// Iterate through servers and normalize "local" to "stdio"
 	modified := false
