@@ -99,6 +99,7 @@ pub const READ_WRITE_OPERATIONS: &[&str] = &[
     "create_agent_task", // gh agent-task create — creates a Copilot coding-agent job (branch + PR); blocked as unsupported
     "create_pull_request_review", // POST /repos/.../pulls/{number}/reviews
     "delete_pending_pull_request_review", // DELETE /repos/.../pulls/{number}/reviews/{id}
+    "issue_dependency_write", // GraphQL addBlockedBy/removeBlockedBy after resolving issue IDs
     "issue_write",
     "issue_write_ff_remote_mcp_issue_fields", // feature-flag variant of issue_write
     "merge_pull_request",
@@ -445,6 +446,21 @@ mod tests {
     #[test]
     fn test_issue_write_ff_remote_mcp_issue_fields_is_read_write_operation() {
         let op = "issue_write_ff_remote_mcp_issue_fields";
+        assert!(
+            is_read_write_operation(op),
+            "{} must be classified as a read-write operation",
+            op
+        );
+        assert!(
+            !is_write_operation(op),
+            "{} should not be in WRITE_OPERATIONS (it is in READ_WRITE_OPERATIONS)",
+            op
+        );
+    }
+
+    #[test]
+    fn test_issue_dependency_write_is_read_write_operation() {
+        let op = "issue_dependency_write";
         assert!(
             is_read_write_operation(op),
             "{} must be classified as a read-write operation",

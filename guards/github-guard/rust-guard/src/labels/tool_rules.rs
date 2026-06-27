@@ -172,6 +172,30 @@ pub fn apply_tool_labels(
             }
         }
 
+        "issue_dependency_read" => {
+            if !owner.is_empty() && !repo.is_empty() {
+                if let Some(issue_num) =
+                    extract_number_as_string(tool_args, field_names::ISSUE_NUMBER)
+                {
+                    desc = format!("issue:{}/{}#{}", owner, repo, issue_num);
+                }
+            }
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = private_writer_integrity(repo_id, repo_private, ctx);
+        }
+
+        "issue_dependency_write" => {
+            if !owner.is_empty() && !repo.is_empty() {
+                if let Some(issue_num) =
+                    extract_number_as_string(tool_args, field_names::ISSUE_NUMBER)
+                {
+                    desc = format!("issue:{}/{}#{}", owner, repo, issue_num);
+                }
+            }
+            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
+            integrity = writer_integrity(repo_id, ctx);
+        }
+
         // === Issue Pin/Unpin (repo-scoped write) ===
         "pin_issue" | "unpin_issue" => {
             // Pinning/unpinning an issue is a repo-level cosmetic write operation.
@@ -1121,6 +1145,67 @@ mod tests {
         assert_eq!(
             issue_write_ff_labels, issue_write_labels,
             "issue_write FF variant must match issue_write labels and description"
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_issue_dependency_read_matches_issue_read() {
+        let ctx = default_ctx();
+        let tool_args =
+            serde_json::json!({ "owner": "github", "repo": "copilot", "issue_number": 42 });
+        let repo_id = "github/copilot";
+
+        let issue_read_labels = super::apply_tool_labels(
+            "issue_read",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+        let issue_dependency_read_labels = super::apply_tool_labels(
+            "issue_dependency_read",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(
+            issue_dependency_read_labels, issue_read_labels,
+            "issue_dependency_read must match issue_read labels and description"
+        );
+    }
+
+    #[test]
+    fn apply_tool_labels_issue_dependency_write_is_repo_scoped_write() {
+        let ctx = default_ctx();
+        let tool_args =
+            serde_json::json!({ "owner": "github", "repo": "copilot", "issue_number": 42 });
+        let repo_id = "github/copilot";
+
+        let (secrecy, integrity, desc) = super::apply_tool_labels(
+            "issue_dependency_write",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert_eq!(
+            integrity,
+            writer_integrity(repo_id, &ctx),
+            "issue_dependency_write must have writer integrity"
+        );
+        assert_eq!(desc, "issue:github/copilot#42");
+        assert!(
+            secrecy.is_empty(),
+            "issue_dependency_write: public repo should have empty secrecy"
         );
     }
 
