@@ -388,14 +388,7 @@ func (c *Connection) reconnectSDKTransport() error {
 		var transport sdk.Transport
 		switch c.httpTransportType {
 		case HTTPTransportStreamable:
-			transport = &sdk.StreamableClientTransport{
-				Endpoint:   c.httpURL,
-				HTTPClient: headerClient,
-				// See streamableMaxRetries for rationale. The gateway handles reconnection
-				// itself to prevent double-retry behaviour.
-				MaxRetries:           streamableMaxRetries,
-				DisableStandaloneSSE: true,
-			}
+			transport = newStreamableTransport(c.httpURL, headerClient)
 		case HTTPTransportSSE:
 			transport = &sdk.SSEClientTransport{
 				Endpoint:   c.httpURL,

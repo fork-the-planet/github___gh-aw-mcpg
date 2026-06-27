@@ -1296,6 +1296,10 @@ func TestOIDCRoundTripper_ErrorPropagation(t *testing.T) {
 // gateway's reconnect logic would silently permit extra retries and this test
 // would fail to alert.
 //
+// Upgrade gate: this canary and server.TestArgumentValidationBypassCanary must
+// both pass before accepting a go-sdk upgrade, because the gateway relies on
+// both the streamable retry sentinel and the AddTool validation bypass.
+//
 // SDK source: streamable.go:1547-1552 (verified against go-sdk v1.6.1):
 //
 //	maxRetries := t.MaxRetries
@@ -1415,6 +1419,15 @@ func TestMaxRetriesSentinelCanary(t *testing.T) {
 		"MaxRetries: -1 must result in 0 SSE reconnects (exactly 1 SSE GET total); "+
 			"if this fails after an SDK upgrade, re-verify streamable.go MaxRetries handling "+
 			"and update tryStreamableHTTPTransport / reconnectSDKTransport")
+}
+
+func TestNewStreamableTransport(t *testing.T) {
+	transport := newStreamableTransport("https://example.test/mcp", &http.Client{})
+
+	require.Equal(t, "https://example.test/mcp", transport.Endpoint)
+	require.NotNil(t, transport.HTTPClient)
+	require.Equal(t, streamableMaxRetries, transport.MaxRetries)
+	require.True(t, transport.DisableStandaloneSSE)
 }
 
 // TestDisableStandaloneSSECanary is a canary test for SDK upgrades.

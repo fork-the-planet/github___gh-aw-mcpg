@@ -65,6 +65,29 @@ type httpRequestResult struct {
 // callers must not close it directly — it is cleaned up when the session is closed.
 type transportConnector func(url string, httpClient *http.Client) sdk.Transport
 
+// newStreamableTransport constructs the SDK streamable HTTP transport with the
+// gateway's required reconnect settings. Keep this aligned with
+// reconnectSDKTransport and the SDK upgrade canaries:
+// TestMaxRetriesSentinelCanary and server.TestArgumentValidationBypassCanary
+// must both continue to pass after go-sdk upgrades.
+func newStreamableTransport(url string, httpClient *http.Client) *sdk.StreamableClientTransport {
+	return &sdk.StreamableClientTransport{
+		Endpoint:   url,
+		HTTPClient: httpClient,
+		// See streamableMaxRetries for rationale. We fall through to SSE or plain
+		// JSON-RPC on failure.
+		MaxRetries: streamableMaxRetries,
+		// DisableStandaloneSSE prevents the SDK from issuing a GET request for a
+		// persistent server-sent events stream immediately after initialization.
+		// Some HTTP MCP servers (e.g. cloud APIs) return 5xx or keep the GET
+		// request open indefinitely, which causes the SDK to call c.fail() and
+		// break the connection before the gateway can send the initialized
+		// notification. The gateway operates in request-response mode only and
+		// does not need server-initiated messages, so this stream is unnecessary.
+		DisableStandaloneSSE: true,
+	}
+}
+
 // isHTTPConnectionError checks if an error is a network connection error.
 // It uses errors.As to inspect the underlying *net.OpError for dial operations,
 // which covers connection refused, no such host, and network unreachable errors.
@@ -93,8 +116,9 @@ func isSessionNotFoundError(err error) bool {
 	// Plain JSON-RPC fallback requests bypass SDK session types, so they cannot
 	// return sdk.ErrSessionMissing and are matched by backend error text instead.
 	// TODO(tech-debt): remove this string-matching fallback once the plain JSON-RPC
-	// transport (HTTPTransportPlainJSON) is retired. The plain JSON-RPC path exists
-	// only for compatibility with backends that predate the 2024-11-05 MCP spec.
+	// transport (HTTPTransportPlainJSON) is retired. Retirement criteria:
+	// confirm no active backends still require the pre-2024-11-05 compatibility
+	// path, then delete the fallback together with the plain JSON-RPC transport.
 	return strings.Contains(strings.ToLower(err.Error()), sessionNotFoundMessage)
 }
 
@@ -369,21 +393,7 @@ func tryStreamableHTTPTransport(ctx context.Context, cancel context.CancelFunc, 
 		HTTPTransportStreamable,
 		"streamable HTTP",
 		func(url string, httpClient *http.Client) sdk.Transport {
-			return &sdk.StreamableClientTransport{
-				Endpoint:   url,
-				HTTPClient: httpClient,
-				// See streamableMaxRetries for rationale. We fall through to SSE or plain
-				// JSON-RPC on failure.
-				MaxRetries: streamableMaxRetries,
-				// DisableStandaloneSSE prevents the SDK from issuing a GET request for a
-				// persistent server-sent events stream immediately after initialization.
-				// Some HTTP MCP servers (e.g. cloud APIs) return 5xx or keep the GET
-				// request open indefinitely, which causes the SDK to call c.fail() and
-				// break the connection before the gateway can send the initialized
-				// notification. The gateway operates in request-response mode only and
-				// does not need server-initiated messages, so this stream is unnecessary.
-				DisableStandaloneSSE: true,
-			}
+			return newStreamableTransport(url, httpClient)
 		},
 		keepAlive,
 		connectTimeout,

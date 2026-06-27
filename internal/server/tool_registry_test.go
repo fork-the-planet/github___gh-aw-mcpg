@@ -709,6 +709,10 @@ func TestSchemaBypassCanary(t *testing.T) {
 // If it starts failing after an SDK upgrade, registerToolWithoutValidation needs to
 // be re-evaluated — it may need a different registration path or schema normalisation.
 //
+// Upgrade gate: this canary and mcp.TestMaxRetriesSentinelCanary must both pass
+// before accepting a go-sdk upgrade, because the gateway relies on both the
+// AddTool validation bypass and the streamable retry sentinel.
+//
 // See also: TestSchemaBypassCanary, registerToolWithoutValidation in tool_registry.go.
 func TestArgumentValidationBypassCanary(t *testing.T) {
 	assert := assert.New(t)
