@@ -139,7 +139,9 @@ func TestFetchBackendList_Success(t *testing.T) {
 					},
 				},
 			}); err != nil {
-				t.Fatalf("encode tools response: %v", err)
+				t.Errorf("encode tools response: %v", err)
+				http.Error(w, "encode tools response: "+err.Error(), http.StatusInternalServerError)
+				return
 			}
 		default:
 			w.WriteHeader(http.StatusBadRequest)
