@@ -31,6 +31,7 @@ func AllIntegrityLevels() []string {
 // is allowed and returns an empty string.
 func NormalizeIntegrityLevel(raw string, optional bool) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(raw))
+	logGuardPolicy.Printf("NormalizeIntegrityLevel: input=%q, normalized=%q, optional=%v", raw, normalized, optional)
 	if normalized == "" && optional {
 		return "", nil
 	}
@@ -176,6 +177,7 @@ func GuardPolicyToMap(policy interface{}) (map[string]interface{}, error) {
 		return nil, fmt.Errorf("policy must decode to a JSON object")
 	}
 
+	logGuardPolicy.Printf("GuardPolicyToMap: policy converted to map with %d keys", len(payload))
 	return payload, nil
 }
 
@@ -281,6 +283,7 @@ func (p AllowOnlyPolicy) MarshalJSON() ([]byte, error) {
 func unmarshalStringListOrExpression(raw json.RawMessage) ([]string, error) {
 	var values []string
 	if err := json.Unmarshal(raw, &values); err == nil {
+		logGuardPolicy.Printf("unmarshalStringListOrExpression: parsed as array with %d items", len(values))
 		return values, nil
 	}
 
@@ -308,6 +311,7 @@ func unmarshalStringListOrExpression(raw json.RawMessage) ([]string, error) {
 		return nil, fmt.Errorf("must include at least one label")
 	}
 
+	logGuardPolicy.Printf("unmarshalStringListOrExpression: parsed as comma/newline expression with %d items", len(result))
 	return result, nil
 }
 
