@@ -355,7 +355,9 @@ func TestFetchBackendList_ParseError(t *testing.T) {
 				"id":      req["id"],
 				"result":  "not a tool list",
 			}); err != nil {
-				t.Fatalf("encode tools response: %v", err)
+				t.Errorf("encode tools response: %v", err)
+				http.Error(w, "encode tools response: "+err.Error(), http.StatusInternalServerError)
+				return
 			}
 		default:
 			w.WriteHeader(http.StatusBadRequest)
