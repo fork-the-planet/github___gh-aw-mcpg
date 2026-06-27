@@ -195,7 +195,9 @@ func TestFetchBackendList_BackendErrorCanGracefullySkip(t *testing.T) {
 					},
 				},
 			}); err != nil {
-				t.Fatalf("encode initialize response: %v", err)
+				t.Errorf("encode initialize response: %v", err)
+				http.Error(w, "encode initialize response: "+err.Error(), http.StatusInternalServerError)
+				return
 			}
 		case "prompts/list":
 			if err := json.NewEncoder(w).Encode(map[string]interface{}{
