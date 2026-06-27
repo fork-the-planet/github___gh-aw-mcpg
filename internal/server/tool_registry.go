@@ -419,7 +419,7 @@ func (us *UnifiedServer) registerPromptsFromBackend(ctx context.Context, serverI
 			}
 			result, err := executeBackendRequest[sdk.GetPromptResult](ctx, us.launcher, serverIDCopy, sessionID, "prompts/get", params)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to get prompt %s from backend %s: %w", promptNameCopy, serverIDCopy, err)
 			}
 			return &result, nil
 		})

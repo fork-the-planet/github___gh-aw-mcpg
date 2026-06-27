@@ -219,7 +219,7 @@ func executeBackendRequest[T any](ctx context.Context, l *launcher.Launcher, ser
 
 	if response.Error != nil {
 		logUnified.Printf("executeBackendRequest: backend error: serverID=%s, method=%s, code=%d", serverID, method, response.Error.Code)
-		return zero, fmt.Errorf("backend error %s: code=%d, message=%s", method, response.Error.Code, response.Error.Message)
+		return zero, fmt.Errorf("backend error server=%s method=%s: code=%d, message=%s", serverID, method, response.Error.Code, response.Error.Message)
 	}
 
 	var result T
