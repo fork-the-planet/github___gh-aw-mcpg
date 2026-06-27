@@ -30,16 +30,16 @@ func TestDeriveAPIFromServerURL_HTTPSchemeAndEdgeCases(t *testing.T) {
 		{
 			// http scheme is explicitly allowed; schemes other than "http" and
 			// "https" are rejected.
-			// GHEC tenant: prepend "copilot-api." subdomain.
-			name:      "http scheme GHEC tenant derives copilot-api subdomain",
+			// GHEC data-residency tenant: prepend "api." subdomain.
+			name:      "http scheme GHEC tenant derives api subdomain",
 			serverURL: "http://mycompany.ghe.com",
-			expected:  "http://copilot-api.mycompany.ghe.com",
+			expected:  "http://api.mycompany.ghe.com",
 		},
 		{
 			// GHEC tenant with both http scheme and a port number.
 			name:      "http scheme GHEC tenant with port",
 			serverURL: "http://mycompany.ghe.com:8080",
-			expected:  "http://copilot-api.mycompany.ghe.com:8080",
+			expected:  "http://api.mycompany.ghe.com:8080",
 		},
 		{
 			// http scheme is allowed for GHES hosts as well.

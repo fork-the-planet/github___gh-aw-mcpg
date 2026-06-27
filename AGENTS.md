@@ -389,8 +389,8 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - `GITHUB_TOKEN` - Second-priority GitHub auth token fallback after `GITHUB_MCP_SERVER_TOKEN`
 - `GITHUB_PERSONAL_ACCESS_TOKEN` - Third-priority GitHub auth fallback
 - `GH_TOKEN` - Lowest-priority GitHub auth fallback (set by GitHub CLI)
-- `GITHUB_API_URL` - Explicit GitHub API endpoint (e.g., `https://copilot-api.mycompany.ghe.com`); used by proxy to set upstream target
-- `GITHUB_SERVER_URL` - GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `copilot-api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com`
+- `GITHUB_API_URL` - Explicit GitHub API endpoint (e.g., `https://api.mycompany.ghe.com`); used by proxy to set upstream target
+- `GITHUB_SERVER_URL` - GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com`
 - `ACTIONS_ID_TOKEN_REQUEST_URL` - GitHub Actions OIDC token endpoint URL; required for `github-oidc` auth type
 - `ACTIONS_ID_TOKEN_REQUEST_TOKEN` - GitHub Actions OIDC request token; required for `github-oidc` auth type
 - `MCP_GATEWAY_PORT` - Used by environment validation (`--validate-env`) for container port-mapping checks (validated 1-65535); does not override the gateway listen address

@@ -342,11 +342,6 @@ func (s *Server) upstreamHost() string {
 	return host
 }
 
-func (s *Server) isGHECDataResidencyHost() bool {
-	host := strings.ToLower(s.upstreamHost())
-	return strings.HasPrefix(host, "copilot-api.") && strings.HasSuffix(host, ".ghe.com")
-}
-
 // forwardToGitHub sends a request to the upstream GitHub API.
 // clientAuth is the Authorization header from the inbound client request;
 // if non-empty it is forwarded as-is, otherwise the configured fallback token is used.
@@ -354,17 +349,13 @@ func (s *Server) forwardToGitHub(ctx context.Context, method, path string, body 
 	url := s.githubAPIURL + path
 	pathOnly, query, hasQuery := strings.Cut(path, "?")
 	if IsGraphQLPath(pathOnly) {
-		normalizedPath := strings.TrimSuffix(pathOnly, "/")
 		var graphqlURL string
 		if strings.HasSuffix(s.githubAPIURL, "/api/v3") {
 			// GHES: strip /api/v3, GraphQL lives at /api/graphql
 			graphqlURL = strings.TrimSuffix(s.githubAPIURL, "/api/v3") + "/api/graphql"
-		} else if s.isGHECDataResidencyHost() && strings.HasSuffix(normalizedPath, "/api/graphql") {
-			// GHE Cloud data residency (e.g. copilot-api.sj.ghe.com):
-			// the client already sent /api/graphql — use the same path on upstream
-			graphqlURL = s.githubAPIURL + "/api/graphql"
 		} else {
-			// github.com: GraphQL lives at /graphql
+			// github.com and GHEC data residency (api.<tenant>.ghe.com):
+			// GraphQL lives at /graphql
 			graphqlURL = s.githubAPIURL + "/graphql"
 		}
 		url = graphqlURL

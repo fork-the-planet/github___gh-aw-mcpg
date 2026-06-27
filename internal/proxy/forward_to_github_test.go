@@ -189,21 +189,22 @@ func TestForwardToGitHub_GraphQLPathRouting(t *testing.T) {
 			wantServerPath: "/api/graphql?ref=main&query=foo",
 		},
 		{
-			// GHE Cloud data residency (e.g. copilot-api.sj.ghe.com) has no /api/v3
-			// suffix but the gh CLI sends GraphQL requests to /api/graphql.
-			// forwardToGitHub must forward to base/api/graphql, not base/graphql.
-			name:                "GHE Cloud data residency api/graphql path routes to base/api/graphql",
-			githubAPIURL:        "http://copilot-api.sj.ghe.com",
+			// GHE Cloud data residency exposes its REST/GraphQL API at
+			// api.<tenant>.ghe.com (not copilot-api), so GraphQL lives at /graphql
+			// just like github.com. The gh CLI sends GraphQL requests to /api/graphql
+			// (rewritten GITHUB_GRAPHQL_URL); forwardToGitHub must normalise to base/graphql.
+			name:                "GHE Cloud data residency api/graphql path routes to base/graphql",
+			githubAPIURL:        "http://api.sj.ghe.com",
 			routeToUpstreamHost: true,
 			requestPath:         "/api/graphql",
-			wantServerPath:      "/api/graphql",
+			wantServerPath:      "/graphql",
 		},
 		{
 			name:                "GHE Cloud data residency api/graphql with query string preserves query",
-			githubAPIURL:        "http://copilot-api.sj.ghe.com",
+			githubAPIURL:        "http://api.sj.ghe.com",
 			routeToUpstreamHost: true,
 			requestPath:         "/api/graphql?foo=bar",
-			wantServerPath:      "/api/graphql?foo=bar",
+			wantServerPath:      "/graphql?foo=bar",
 		},
 		{
 			name:           "dotcom-style api graphql path normalises to graphql",

@@ -136,7 +136,7 @@ The `deriveCopilotApiTarget()` function in the API proxy sidecar (`server.js`) r
 | `https://company.ghe.com` | GHEC | `copilot-api.company.ghe.com` |
 | `https://github.company.com` | GHES | `api.enterprise.githubcopilot.com` |
 
-> **Important**: GHEC uses `copilot-api.<slug>.ghe.com`, **not** `api.<slug>.ghe.com` (the REST API endpoint).
+> **Important**: The Copilot inference sidecar uses `copilot-api.<slug>.ghe.com`, **not** `api.<slug>.ghe.com`. This is distinct from the **mcpg DIFC proxy**, which forwards REST/GraphQL `gh api` calls and therefore targets the REST API host `api.<slug>.ghe.com` (derived from `GITHUB_SERVER_URL`). Do not point the DIFC proxy at `copilot-api.*` — that endpoint does not serve the REST API (e.g. `/rate_limit`).
 
 ---
 

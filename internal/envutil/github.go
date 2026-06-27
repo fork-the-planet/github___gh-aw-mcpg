@@ -77,9 +77,13 @@ func DeriveGitHubAPIURL(defaultURL string) string {
 }
 
 // deriveAPIFromServerURL converts a GITHUB_SERVER_URL to the corresponding API endpoint.
-// GHEC tenants (*.ghe.com): https://tenant.ghe.com → https://copilot-api.tenant.ghe.com
+// GHEC data-residency tenants (*.ghe.com): https://tenant.ghe.com → https://api.tenant.ghe.com
 // GitHub.com: https://github.com → https://api.github.com
 // GHES (all others): https://github.example.com → https://github.example.com/api/v3
+//
+// Note: GHEC data residency exposes its REST/GraphQL API at api.<tenant>.ghe.com.
+// This is distinct from copilot-api.<tenant>.ghe.com, which is the Copilot inference
+// endpoint and does not serve the REST API (e.g. /rate_limit) that the DIFC proxy forwards.
 func deriveAPIFromServerURL(serverURL string) string {
 	logGitHub.Printf("Deriving API URL from server URL: %s", sanitize.RedactURL(serverURL))
 
@@ -100,13 +104,18 @@ func deriveAPIFromServerURL(serverURL string) string {
 		logGitHub.Printf("GitHub.com detected, using default API URL: %s", DefaultGitHubAPIBaseURL)
 		return DefaultGitHubAPIBaseURL
 	case strings.HasSuffix(hostname, ".ghe.com"):
+		// If the hostname already starts with "api." (e.g. GITHUB_SERVER_URL was
+		// set to the API base directly), return it as-is to avoid producing
+		// "api.api.<tenant>.ghe.com".
 		var apiURL string
-		if port := parsed.Port(); port != "" {
-			apiURL = fmt.Sprintf("%s://copilot-api.%s:%s", parsed.Scheme, hostname, port)
+		if strings.HasPrefix(hostname, "api.") {
+			apiURL = fmt.Sprintf("%s://%s", parsed.Scheme, parsed.Host)
+		} else if port := parsed.Port(); port != "" {
+			apiURL = fmt.Sprintf("%s://api.%s:%s", parsed.Scheme, hostname, port)
 		} else {
-			apiURL = fmt.Sprintf("%s://copilot-api.%s", parsed.Scheme, hostname)
+			apiURL = fmt.Sprintf("%s://api.%s", parsed.Scheme, hostname)
 		}
-		logGitHub.Printf("GHEC tenant detected, using copilot-api subdomain: hostname=%s, apiURL=%s", hostname, apiURL)
+		logGitHub.Printf("GHEC data-residency tenant detected, using api subdomain: hostname=%s, apiURL=%s", hostname, apiURL)
 		return apiURL
 	default:
 		apiURL := fmt.Sprintf("%s://%s/api/v3", parsed.Scheme, parsed.Host)

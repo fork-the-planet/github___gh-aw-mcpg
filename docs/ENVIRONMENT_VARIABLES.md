@@ -104,8 +104,8 @@ When running `awmg proxy`, these variables configure the upstream GitHub API:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `GITHUB_API_URL` | Explicit GitHub API endpoint (e.g., `https://copilot-api.mycompany.ghe.com`); used by proxy to set upstream target | (auto-derived) |
-| `GITHUB_SERVER_URL` | GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `copilot-api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com` | (falls back to `api.github.com`) |
+| `GITHUB_API_URL` | Explicit GitHub API endpoint (e.g., `https://api.mycompany.ghe.com`); used by proxy to set upstream target | (auto-derived) |
+| `GITHUB_SERVER_URL` | GitHub server URL; proxy auto-derives API endpoint: `*.ghe.com` → `api.*.ghe.com`, GHES → `<host>/api/v3`, `github.com` → `api.github.com` | (falls back to `api.github.com`) |
 
 ## GitHub Actions OIDC Variables
 
