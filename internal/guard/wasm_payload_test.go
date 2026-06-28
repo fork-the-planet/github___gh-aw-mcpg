@@ -78,3 +78,125 @@ func TestCheckBoolFailure(t *testing.T) {
 		})
 	}
 }
+
+// TestNormalizeLabelListField covers all branches of the unexported
+// normalizeLabelListField helper used when validating refusal-labels in guard policies.
+func TestNormalizeLabelListField(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     interface{}
+		want    []interface{}
+		wantErr string
+	}{
+		// --- []interface{} path: valid inputs ---
+		{
+			name: "valid array returns trimmed labels",
+			raw:  []interface{}{"unsafe", " needs-triage "},
+			want: []interface{}{"unsafe", "needs-triage"},
+		},
+		{
+			name: "empty array returns empty slice",
+			raw:  []interface{}{},
+			want: []interface{}{},
+		},
+		// --- []interface{} path: invalid inputs ---
+		{
+			name:    "array with empty string entry returns error",
+			raw:     []interface{}{"valid", ""},
+			wantErr: "each entry must be a non-empty string",
+		},
+		{
+			name:    "array with non-string entry returns error",
+			raw:     []interface{}{"valid", 99},
+			wantErr: "each entry must be a non-empty string",
+		},
+		// --- neither []interface{} nor string: uncovered branch ---
+		{
+			name:    "integer value is not array or string",
+			raw:     42,
+			wantErr: "expected array of strings or comma/newline-delimited string",
+		},
+		{
+			name:    "bool value is not array or string",
+			raw:     true,
+			wantErr: "expected array of strings or comma/newline-delimited string",
+		},
+		// --- string path: valid inputs ---
+		{
+			name: "comma-delimited string returns split labels",
+			raw:  "unsafe,needs-triage",
+			want: []interface{}{"unsafe", "needs-triage"},
+		},
+		{
+			name: "newline-delimited string returns split labels",
+			raw:  "unsafe\nneeds-triage",
+			want: []interface{}{"unsafe", "needs-triage"},
+		},
+		{
+			name: "mixed comma and newline delimiters",
+			raw:  "unsafe,blocked\nneeds-review",
+			want: []interface{}{"unsafe", "blocked", "needs-review"},
+		},
+		{
+			name: "leading and trailing whitespace trimmed from each label",
+			raw:  "  unsafe  ,  needs-triage  ",
+			want: []interface{}{"unsafe", "needs-triage"},
+		},
+		{
+			name: "single label string",
+			raw:  "unsafe",
+			want: []interface{}{"unsafe"},
+		},
+		// --- string path: empty/no-content inputs (len(parts)==0 branch) ---
+		{
+			name:    "empty string returns error",
+			raw:     "",
+			wantErr: "must include at least one non-empty label",
+		},
+		{
+			name:    "string with only a comma delimiter returns error",
+			raw:     ",",
+			wantErr: "must include at least one non-empty label",
+		},
+		{
+			name:    "string with only newline delimiter returns error",
+			raw:     "\n",
+			wantErr: "must include at least one non-empty label",
+		},
+		// --- string path: whitespace-only parts (continue and len(out)==0 branches) ---
+		{
+			// All FieldsFunc parts are whitespace-only: hits both continue and len(out)==0.
+			name:    "whitespace-only string returns error",
+			raw:     "  ",
+			wantErr: "must include at least one non-empty label",
+		},
+		{
+			// Parts separated by commas are all whitespace: hits continue for each then len(out)==0.
+			name:    "comma-delimited whitespace-only parts returns error",
+			raw:     "  ,  ,  ",
+			wantErr: "must include at least one non-empty label",
+		},
+		{
+			// One whitespace-only part among valid parts: hits continue, result is non-empty.
+			name: "whitespace-only part among valid parts is skipped",
+			raw:  "unsafe,  ,needs-triage",
+			want: []interface{}{"unsafe", "needs-triage"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := normalizeLabelListField("refusal-labels", tt.raw)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				assert.Nil(t, got)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
