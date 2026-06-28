@@ -646,6 +646,10 @@ pub fn apply_tool_labels(
         | "add_sub_issue"
         | "remove_sub_issue"
         | "reprioritize_sub_issue"
+        // Reactions (issue, issue comment, PR review comment)
+        | "add_issue_reaction"
+        | "add_issue_comment_reaction"
+        | "add_pull_request_review_comment_reaction"
         // Granular PR mutation
         | "update_pull_request_body"
         | "update_pull_request_draft_state"
@@ -1672,6 +1676,36 @@ mod tests {
                 integrity, expected_integrity,
                 "{tool}: must require writer-level user integrity",
             );
+        }
+    }
+
+    #[test]
+    fn apply_tool_labels_reaction_operations_are_repo_scoped_write() {
+        let ctx = default_ctx();
+        let tool_args =
+            serde_json::json!({ "owner": "github", "repo": "copilot", "issue_number": 1 });
+        let repo_id = "github/copilot";
+
+        for op in &[
+            "add_issue_reaction",
+            "add_issue_comment_reaction",
+            "add_pull_request_review_comment_reaction",
+        ] {
+            let (secrecy, integrity, _desc) = super::apply_tool_labels(
+                op,
+                &tool_args,
+                repo_id,
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            assert_eq!(
+                integrity,
+                writer_integrity(repo_id, &ctx),
+                "{op} must have writer integrity"
+            );
+            assert!(secrecy.is_empty(), "{op}: public repo should have empty secrecy");
         }
     }
 }

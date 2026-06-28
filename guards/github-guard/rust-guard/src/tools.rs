@@ -11,7 +11,10 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "add_deploy_key",
     "add_gpg_key", // gh gpg-key add — adds a user GPG signing key
     "add_issue_comment",
+    "add_issue_comment_reaction",        // POST /repos/.../issues/comments/{id}/reactions
+    "add_issue_reaction",                // POST /repos/.../issues/{number}/reactions
     "add_project_item", // deprecated alias for projects_write (addProjectV2ItemById)
+    "add_pull_request_review_comment_reaction", // POST /repos/.../pulls/comments/{id}/reactions
     "add_reply_to_pull_request_comment",
     "add_ssh_key",           // gh ssh-key add — adds a user SSH auth/signing key
     "archive_project_item",  // gh project item-archive — archives a Projects v2 item
@@ -604,6 +607,24 @@ mod tests {
                 !is_write_operation(op),
                 "{} should not be in WRITE_OPERATIONS (it is in READ_WRITE_OPERATIONS)",
                 op
+            );
+        }
+    }
+
+    #[test]
+    fn test_reaction_operations_are_write_operations() {
+        for op in &[
+            "add_issue_reaction",
+            "add_issue_comment_reaction",
+            "add_pull_request_review_comment_reaction",
+        ] {
+            assert!(
+                is_write_operation(op),
+                "{op} must be classified as a write operation"
+            );
+            assert!(
+                !is_read_write_operation(op),
+                "{op} should not be in READ_WRITE_OPERATIONS"
             );
         }
     }
