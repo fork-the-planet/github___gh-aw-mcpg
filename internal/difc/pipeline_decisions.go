@@ -92,18 +92,23 @@ func FilterAndConvertLabeledData(
 	labeledData LabeledData,
 	enforcementMode EnforcementMode,
 ) (*FilterResult, error) {
+	logPipeline.Printf("FilterAndConvertLabeledData: operation=%s, mode=%s, hasData=%v", operation, enforcementMode, labeledData != nil)
 	result := &FilterResult{}
 	if labeledData == nil {
+		logPipeline.Print("FilterAndConvertLabeledData: labeledData is nil, returning empty result")
 		return result, nil
 	}
 
 	if collection, ok := labeledData.(*CollectionLabeledData); ok {
+		logPipeline.Printf("FilterAndConvertLabeledData: processing collection, itemCount=%d", len(collection.Items))
 		filtered := evaluator.FilterCollection(agentSecrecy, agentIntegrity, collection, operation)
 		result.Filtered = filtered
 		if ShouldBlockFilteredResponse(enforcementMode, filtered.GetFilteredCount()) {
+			logPipeline.Printf("FilterAndConvertLabeledData: blocking response, filteredCount=%d, mode=%s", filtered.GetFilteredCount(), enforcementMode)
 			result.Blocked = true
 			return result, nil
 		}
+		logPipeline.Printf("FilterAndConvertLabeledData: collection filtered, accessible=%d, filtered=%d", filtered.GetAccessibleCount(), filtered.GetFilteredCount())
 		finalResult, err := filtered.ToResult()
 		if err != nil {
 			return nil, err
@@ -112,6 +117,7 @@ func FilterAndConvertLabeledData(
 		return result, nil
 	}
 
+	logPipeline.Print("FilterAndConvertLabeledData: processing single labeled item")
 	finalResult, err := labeledData.ToResult()
 	if err != nil {
 		return nil, err
