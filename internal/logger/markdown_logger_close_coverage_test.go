@@ -10,6 +10,45 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestMarkdownLogger_Log_InitializeFileError covers the early-return branch in
+// Log() when initializeFile() returns an error.  Unlike
+// TestMarkdownLogger_Log_WriteError (which tests a write failure after the header
+// has already been written), this test exercises the case where the file is closed
+// before the very first Log() call — so ml.initialized is still false when Log()
+// runs, causing initializeFile() to attempt the header write and fail.
+//
+// Expected behaviour: Log() returns early without panicking, ml.initialized
+// stays false, and the log file remains empty.
+func TestMarkdownLogger_Log_InitializeFileError(t *testing.T) {
+	tmpDir := t.TempDir()
+	f, err := os.CreateTemp(tmpDir, "test-*.md")
+	require.NoError(t, err)
+
+	ml, err := setupMarkdownLogger(f, tmpDir, filepath.Base(f.Name()))
+	require.NoError(t, err)
+	require.NotNil(t, ml)
+
+	// Close the file before any write so that the WriteString call inside
+	// initializeFile() returns an os.ErrClosed error.
+	require.NoError(t, f.Close())
+
+	// ml.initialized must be false — we haven't called initializeFile() yet.
+	require.False(t, ml.initialized, "pre-condition: initialized must be false")
+
+	// Log() must not panic and must not change the initialized flag.
+	assert.NotPanics(t, func() {
+		ml.Log(LogLevelInfo, "test-category", "this message should be dropped")
+	}, "Log() must not panic when initializeFile() fails")
+
+	assert.False(t, ml.initialized,
+		"initialized must remain false after initializeFile() error")
+
+	// The file should still be empty — no header was written.
+	content, readErr := os.ReadFile(f.Name())
+	require.NoError(t, readErr)
+	assert.Empty(t, content, "log file must be empty after a failed Log() call")
+}
+
 // TestMarkdownLogger_Close_FooterWriteError covers the branch in Close() where
 // WriteString(footer) fails (e.g. because the underlying file is already closed).
 // Per the implementation, Close should still attempt to close the file even if
