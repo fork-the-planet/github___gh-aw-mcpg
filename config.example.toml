@@ -120,22 +120,22 @@ GITHUB_PERSONAL_ACCESS_TOKEN = ""  # Pass through from host
 #
 # For repos="all" or repos="public" (agent has no secrecy tags):
 # [servers.safeoutputs.guard_policies.write-sink]
-# Accept = ["*"]
+# accept = ["*"]
 #
 # For scoped repos (agent has secrecy tags matching the scope):
 # [servers.safeoutputs.guard_policies.write-sink]
-# Accept = ["private:myorg/api-*", "private:myorg/web-*"]
+# accept = ["private:myorg/api-*", "private:myorg/web-*"]
 #
 # Accept pattern format: "visibility:owner/repo-pattern"
 # Visibility prefixes: private, public, internal
 # Special value: "*" (wildcard) accepts writes from any agent (must be sole entry)
 #
 # Quick reference (see README for full table):
-#   repos = "all"           → Accept = ["*"]
-#   repos = "public"        → Accept = ["*"]
-#   repos = ["org/*"]       → Accept = ["private:org"]
-#   repos = ["org/repo"]    → Accept = ["private:org/repo"]
-#   repos = ["org/prefix*"] → Accept = ["private:org/prefix*"]
+#   repos = "all"           → accept = ["*"]
+#   repos = "public"        → accept = ["*"]
+#   repos = ["org/*"]       → accept = ["private:org"]
+#   repos = ["org/repo"]    → accept = ["private:org/repo"]
+#   repos = ["org/prefix*"] → accept = ["private:org/prefix*"]
 
 # Example 3: Memory MCP Server (stdio via Docker)
 [servers.memory]

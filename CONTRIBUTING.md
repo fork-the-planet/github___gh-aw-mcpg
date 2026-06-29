@@ -284,6 +284,7 @@ gh-aw-mcpg/
     ├── config/                # Configuration loading (TOML/JSON)
     ├── difc/                  # Decentralized Information Flow Control
     ├── envutil/               # Environment variable utilities
+    ├── githubhttp/            # GitHub API-specific HTTP helpers (auth headers, collaborator permission, rate-limit parsing)
     ├── guard/                 # Security guards (NoopGuard, WasmGuard, WriteSinkGuard)
     ├── httputil/              # Shared HTTP helper utilities (server responses, proxy transport)
     ├── launcher/              # Backend server management
@@ -312,6 +313,7 @@ gh-aw-mcpg/
 - **`internal/config/`** - Configuration parsing for TOML and JSON formats
 - **`internal/difc/`** - Decentralized Information Flow Control
 - **`internal/envutil/`** - Environment variable utilities
+- **`internal/githubhttp/`** - GitHub API-specific HTTP helpers (auth headers, collaborator permission, rate-limit parsing)
 - **`internal/guard/`** - Guard framework for resource labeling
 - **`internal/httputil/`** - Shared HTTP helper utilities (server responses, proxy transport)
 - **`internal/launcher/`** - Backend process management (Docker, stdio)

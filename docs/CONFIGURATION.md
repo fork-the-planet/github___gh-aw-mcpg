@@ -37,7 +37,7 @@ command = "docker"
 args = ["run", "--rm", "-i", "ghcr.io/github/safe-outputs:latest"]
 
 [servers.safeoutputs.guard_policies.write-sink]
-Accept = ["private:github/gh-aw-mcpg", "private:github/gh-aw"]
+accept = ["private:github/gh-aw-mcpg", "private:github/gh-aw"]
 ```
 
 **Important**: Per [MCP Gateway Specification Section 3.2.1](https://github.com/github/gh-aw/blob/main/docs/src/content/docs/reference/mcp-gateway.md#321-containerization-requirement), all stdio-based MCP servers MUST be containerized. The gateway rejects configurations where `command` is not `"docker"`.
@@ -328,15 +328,15 @@ TOML equivalents:
 ```toml
 # Exact repos
 [servers.safeoutputs.guard_policies.write-sink]
-Accept = ["private:owner/repo1", "private:owner/repo2"]
+accept = ["private:owner/repo1", "private:owner/repo2"]
 
 # Prefix wildcard repos
 [servers.safeoutputs.guard_policies.write-sink]
-Accept = ["private:owner/prefix*"]
+accept = ["private:owner/prefix*"]
 
 # Broad access (repos="all" or repos="public")
 [servers.safeoutputs.guard_policies.write-sink]
-Accept = ["*"]
+accept = ["*"]
 ```
 
 - **`accept`**: Array of secrecy tags the sink accepts (exact string match against agent secrecy tags — not glob patterns)
