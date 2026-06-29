@@ -1,6 +1,7 @@
 ---
 description: Smoke test workflow that validates Copilot engine functionality by reviewing recent PRs twice daily
-on: 
+on:
+  roles: all
   schedule: every 12h
   workflow_dispatch:
   pull_request:
