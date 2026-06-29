@@ -31,7 +31,7 @@ func AllIntegrityLevels() []string {
 // is allowed and returns an empty string.
 func NormalizeIntegrityLevel(raw string, optional bool) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(raw))
-	logGuardPolicy.Printf("NormalizeIntegrityLevel: input=%q, normalized=%q, optional=%t", raw, normalized, optional)
+	logGuardPolicy.Printf("NormalizeIntegrityLevel: input=%q, normalized=%q, optional=%v", raw, normalized, optional)
 	if normalized == "" && optional {
 		return "", nil
 	}
