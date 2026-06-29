@@ -3746,4 +3746,294 @@ mod tests {
         let item = serde_json::json!({"labels": [{"name": "needs-review"}]});
         assert!(!has_demotion_label(&item, &ctx));
     }
+
+    // =========================================================================
+    // Tests for issue_integrity
+    // =========================================================================
+
+    #[test]
+    fn test_issue_integrity_blocked_author_returns_blocked() {
+        let ctx = PolicyContext {
+            blocked_users: vec!["bad-actor".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 1,
+            "user": { "login": "bad-actor" }
+        });
+
+        let result = issue_integrity(&item, "owner/repo", false, &ctx);
+
+        assert_eq!(result, blocked_integrity("owner/repo", &ctx));
+    }
+
+    #[test]
+    fn test_issue_integrity_public_repo_no_author_gets_none_floor() {
+        // No user.login and no author_association — backend stub returns -1 (unavailable).
+        // Collaborator lookup is also skipped (empty login). Baseline → none (rank 1).
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({ "number": 2 });
+
+        let result = issue_integrity(&item, "owner/repo", false, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 1);
+    }
+
+    #[test]
+    fn test_issue_integrity_public_repo_none_association_gets_reader_floor() {
+        // author_association="NONE" maps to reader integrity (rank 2).
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({
+            "number": 3,
+            "user": { "login": "contributor" },
+            "author_association": "NONE"
+        });
+
+        let result = issue_integrity(&item, "owner/repo", false, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 2);
+    }
+
+    #[test]
+    fn test_issue_integrity_public_repo_owner_association_gets_writer_floor() {
+        // author_association="OWNER" maps to writer integrity (rank 3).
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({
+            "number": 4,
+            "user": { "login": "owner" },
+            "author_association": "OWNER"
+        });
+
+        let result = issue_integrity(&item, "owner/repo", false, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 3);
+    }
+
+    #[test]
+    fn test_issue_integrity_private_repo_gets_writer_floor() {
+        // Private repo floor is always at least writer (rank 3), regardless of association.
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({ "number": 5 });
+
+        let result = issue_integrity(&item, "owner/repo", true, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 3);
+    }
+
+    #[test]
+    fn test_issue_integrity_refusal_label_caps_to_none() {
+        // T-GP-004: an issue with a refusal label must be capped at none integrity,
+        // even if the author_association would otherwise grant writer-level access.
+        let ctx = PolicyContext {
+            refusal_labels: vec!["spam".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 6,
+            "user": { "login": "owner" },
+            "author_association": "OWNER",
+            "labels": [{ "name": "spam" }]
+        });
+
+        let result = issue_integrity(&item, "owner/repo", false, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 1);
+    }
+
+    #[test]
+    fn test_issue_integrity_approval_label_promotes_to_writer() {
+        // An approval label raises a reader-floor issue to at least writer (rank 3).
+        let ctx = PolicyContext {
+            approval_labels: vec!["approved".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 7,
+            "user": { "login": "contributor" },
+            "author_association": "NONE",
+            "labels": [{ "name": "approved" }]
+        });
+
+        let result = issue_integrity(&item, "owner/repo", false, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 3);
+    }
+
+    #[test]
+    fn test_issue_integrity_refusal_label_overrides_approval_label() {
+        // T-GP-005: refusal label takes precedence over approval label.
+        // Even when both labels are present, the refusal demotion wins → rank 1.
+        let ctx = PolicyContext {
+            approval_labels: vec!["approved".to_string()],
+            refusal_labels: vec!["spam".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 8,
+            "user": { "login": "contributor" },
+            "author_association": "NONE",
+            "labels": [{ "name": "approved" }, { "name": "spam" }]
+        });
+
+        let result = issue_integrity(&item, "owner/repo", false, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 1);
+    }
+
+    #[test]
+    fn test_issue_integrity_blocked_user_with_refusal_label_returns_blocked() {
+        // T-GP-007: blocked_users check fires before any label processing.
+        // The result must be blocked_integrity, not just none.
+        let ctx = PolicyContext {
+            blocked_users: vec!["bad-actor".to_string()],
+            refusal_labels: vec!["spam".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 9,
+            "user": { "login": "bad-actor" },
+            "author_association": "OWNER",
+            "labels": [{ "name": "spam" }]
+        });
+
+        let result = issue_integrity(&item, "owner/repo", false, &ctx);
+
+        assert_eq!(result, blocked_integrity("owner/repo", &ctx));
+    }
+
+    // =========================================================================
+    // Tests for pr_integrity
+    // =========================================================================
+
+    #[test]
+    fn test_pr_integrity_blocked_author_returns_blocked() {
+        let ctx = PolicyContext {
+            blocked_users: vec!["bad-actor".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 10,
+            "user": { "login": "bad-actor" }
+        });
+
+        let result = pr_integrity(&item, "owner/repo", false, None, &ctx);
+
+        assert_eq!(result, blocked_integrity("owner/repo", &ctx));
+    }
+
+    #[test]
+    fn test_pr_integrity_public_repo_direct_pr_gets_writer_floor() {
+        // A non-forked public PR (is_forked=Some(false)) gets writer-level integrity (rank 3).
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({
+            "number": 11,
+            "user": { "login": "contributor" },
+            "author_association": "NONE"
+        });
+
+        let result = pr_integrity(&item, "owner/repo", false, Some(false), &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 3);
+    }
+
+    #[test]
+    fn test_pr_integrity_public_repo_forked_pr_gets_reader_floor() {
+        // A forked public PR (is_forked=Some(true)) gets at most reader-level integrity (rank 2).
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({
+            "number": 12,
+            "user": { "login": "external" },
+            "author_association": "NONE"
+        });
+
+        let result = pr_integrity(&item, "owner/repo", false, Some(true), &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 2);
+    }
+
+    #[test]
+    fn test_pr_integrity_private_repo_gets_writer_floor() {
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({ "number": 13 });
+
+        let result = pr_integrity(&item, "owner/repo", true, None, &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 3);
+    }
+
+    #[test]
+    fn test_pr_integrity_merged_pr_gets_merged_floor() {
+        // A merged PR (merged_at present) gets merged-level integrity (rank 4).
+        let ctx = PolicyContext::default();
+        let item = serde_json::json!({
+            "number": 14,
+            "user": { "login": "contributor" },
+            "author_association": "OWNER",
+            "merged_at": "2024-06-01T12:00:00Z"
+        });
+
+        let result = pr_integrity(&item, "owner/repo", false, Some(false), &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 4);
+    }
+
+    #[test]
+    fn test_pr_integrity_refusal_label_caps_to_none() {
+        // T-GP-004: refusal label overrides writer-level PR integrity → rank 1.
+        let ctx = PolicyContext {
+            refusal_labels: vec!["spam".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 15,
+            "user": { "login": "owner" },
+            "author_association": "OWNER",
+            "labels": [{ "name": "spam" }]
+        });
+
+        let result = pr_integrity(&item, "owner/repo", false, Some(false), &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 1);
+    }
+
+    #[test]
+    fn test_pr_integrity_refusal_label_overrides_approval_label() {
+        // T-GP-005: when both an approval and refusal label are present, refusal wins.
+        let ctx = PolicyContext {
+            approval_labels: vec!["approved".to_string()],
+            refusal_labels: vec!["spam".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 16,
+            "user": { "login": "contributor" },
+            "author_association": "NONE",
+            "labels": [{ "name": "approved" }, { "name": "spam" }]
+        });
+
+        let result = pr_integrity(&item, "owner/repo", false, Some(false), &ctx);
+
+        assert_eq!(integrity_rank("owner/repo", &result, &ctx), 1);
+    }
+
+    #[test]
+    fn test_pr_integrity_blocked_user_with_refusal_label_returns_blocked() {
+        // T-GP-007: blocked_users check fires before label processing; result is
+        // blocked_integrity rather than just none.
+        let ctx = PolicyContext {
+            blocked_users: vec!["bad-actor".to_string()],
+            refusal_labels: vec!["spam".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({
+            "number": 17,
+            "user": { "login": "bad-actor" },
+            "author_association": "OWNER",
+            "labels": [{ "name": "spam" }]
+        });
+
+        let result = pr_integrity(&item, "owner/repo", false, Some(false), &ctx);
+
+        assert_eq!(result, blocked_integrity("owner/repo", &ctx));
+    }
 }
