@@ -552,6 +552,31 @@ func TestCompileToolResponseFilterWithVars_DifferentVarsCacheMiss(t *testing.T) 
 	assert.NotSame(t, code1, code2, "CompileToolResponseFilterWithVars should use distinct cache entries for different varNames")
 }
 
+func TestToolResponseFilterVarsCacheKey_NoSeparatorCollision(t *testing.T) {
+	t.Parallel()
+
+	key1 := toolResponseFilterVarsCacheKey{
+		filter:      "a\x00b",
+		varNamesKey: buildVarNamesCacheKey([]string{"$c"}),
+	}
+	key2 := toolResponseFilterVarsCacheKey{
+		filter:      "a",
+		varNamesKey: buildVarNamesCacheKey([]string{"$b", "$c"}),
+	}
+
+	assert.NotEqual(t, key1, key2)
+}
+
+func TestCompileOptsWithVariables_DoesNotMutateSharedSecureOpts(t *testing.T) {
+	t.Parallel()
+
+	initialLen := len(secureCompileOpts)
+	opts := compileOptsWithVariables([]string{"$toolID"})
+
+	assert.Len(t, secureCompileOpts, initialLen)
+	assert.Len(t, opts, initialLen+1)
+}
+
 // ---------------------------------------------------------------------------
 // parseServerIDFromToolName
 // ---------------------------------------------------------------------------

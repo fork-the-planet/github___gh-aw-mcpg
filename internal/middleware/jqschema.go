@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -72,10 +73,15 @@ var (
 	jqSchemaCompileErr error
 )
 
-// filterCodeCache caches compiled tool-response filter code by expression string.
-// Filters compiled by CompileToolResponseFilter are stored on first call and reused
-// on subsequent calls with the same expression, avoiding redundant parse+compile work
-// when multiple tools share identical filter expressions.
+// filterCodeCache caches compiled tool-response filter code.
+//
+// Key shapes:
+//   - string (raw filter expression) for CompileToolResponseFilter
+//   - toolResponseFilterVarsCacheKey for CompileToolResponseFilterWithVars
+//
+// Entries are stored on first call and reused on subsequent calls with the same
+// key, avoiding redundant parse+compile work when multiple tools share identical
+// filter definitions.
 //
 // The cache is unbounded and grows with the number of unique filter expressions.
 // In practice this is bounded by the number of distinct filter strings in the
@@ -83,6 +89,11 @@ var (
 //
 // TODO: if config hot-reload is added, replace sync.Map with a bounded LRU cache.
 var filterCodeCache sync.Map
+
+type toolResponseFilterVarsCacheKey struct {
+	filter      string
+	varNamesKey string
+}
 
 // secureCompileOpts are the gojq compiler options applied to every Compile call in this
 // package. Centralising them here ensures the security intent ($ENV disabled) is never
@@ -282,7 +293,10 @@ func CompileToolResponseFilter(filter string) (*gojq.Code, error) {
 // (filter, varNames) tuple recurs on every tool invocation, so caching here eliminates
 // repeated gojq.Parse + gojq.Compile calls on the parameterized-filter hot path.
 func CompileToolResponseFilterWithVars(filter string, varNames []string) (*gojq.Code, error) {
-	cacheKey := filter + "\x00" + strings.Join(varNames, "\x00")
+	cacheKey := toolResponseFilterVarsCacheKey{
+		filter:      filter,
+		varNamesKey: buildVarNamesCacheKey(varNames),
+	}
 	if cached, ok := filterCodeCache.Load(cacheKey); ok {
 		code, ok := cached.(*gojq.Code)
 		if !ok {
@@ -300,7 +314,7 @@ func CompileToolResponseFilterWithVars(filter string, varNames []string) (*gojq.
 	}
 
 	code, err := gojq.Compile(query,
-		append(secureCompileOpts, gojq.WithVariables(varNames))...,
+		compileOptsWithVariables(varNames)...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile tool response filter: %w", err)
@@ -309,6 +323,29 @@ func CompileToolResponseFilterWithVars(filter string, varNames []string) (*gojq.
 	filterCodeCache.Store(cacheKey, code)
 	logMiddleware.Printf("CompileToolResponseFilterWithVars: filter compiled and cached successfully")
 	return code, nil
+}
+
+func compileOptsWithVariables(varNames []string) []gojq.CompilerOption {
+	opts := make([]gojq.CompilerOption, 0, len(secureCompileOpts)+1)
+	opts = append(opts, secureCompileOpts...)
+	opts = append(opts, gojq.WithVariables(varNames))
+	return opts
+}
+
+func buildVarNamesCacheKey(varNames []string) string {
+	if len(varNames) == 0 {
+		return ""
+	}
+	const estimatedBytesPerVar = 12 // ~len-digits + ":" + typical var name + ";"
+	var b strings.Builder
+	b.Grow(len(varNames) * estimatedBytesPerVar)
+	for _, varName := range varNames {
+		b.WriteString(strconv.Itoa(len(varName)))
+		b.WriteByte(':')
+		b.WriteString(varName)
+		b.WriteByte(';')
+	}
+	return b.String()
 }
 
 func applyToolResponseFilter(ctx context.Context, code *gojq.Code, jsonData any) (any, error) {
