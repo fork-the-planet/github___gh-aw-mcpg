@@ -513,6 +513,70 @@ func TestCompileToolResponseFilter_CacheHit(t *testing.T) {
 	assert.Same(t, code1, code2, "CompileToolResponseFilter should return cached code for identical filters")
 }
 
+// TestCompileToolResponseFilterWithVars_CacheHit verifies that calling
+// CompileToolResponseFilterWithVars twice with the same (filter, varNames) pair
+// returns the same *gojq.Code pointer (cache hit).
+func TestCompileToolResponseFilterWithVars_CacheHit(t *testing.T) {
+	// Use a unique filter to avoid interference with other tests.
+	filter := ". | {cached: true, id: $toolID}"
+	varNames := []string{"$toolID"}
+
+	code1, err := CompileToolResponseFilterWithVars(filter, varNames)
+	require.NoError(t, err)
+	require.NotNil(t, code1)
+
+	code2, err := CompileToolResponseFilterWithVars(filter, varNames)
+	require.NoError(t, err)
+	require.NotNil(t, code2)
+
+	// Pointer equality proves the same compiled object was returned from the cache.
+	assert.Same(t, code1, code2, "CompileToolResponseFilterWithVars should return cached code for identical (filter, varNames) pairs")
+}
+
+// TestCompileToolResponseFilterWithVars_DifferentVarsCacheMiss verifies that
+// the same filter string compiled with different variable name lists produces
+// distinct cache entries (different *gojq.Code pointers).
+func TestCompileToolResponseFilterWithVars_DifferentVarsCacheMiss(t *testing.T) {
+	// Use a filter that doesn't reference any specific variable so it compiles
+	// successfully with any varNames list.
+	filter := ". | {ok: true}"
+	code1, err := CompileToolResponseFilterWithVars(filter, []string{"$a"})
+	require.NoError(t, err)
+	require.NotNil(t, code1)
+
+	// Same filter string but a different variable name list → distinct cache key.
+	code2, err := CompileToolResponseFilterWithVars(filter, []string{"$a", "$b"})
+	require.NoError(t, err)
+	require.NotNil(t, code2)
+
+	assert.NotSame(t, code1, code2, "CompileToolResponseFilterWithVars should use distinct cache entries for different varNames")
+}
+
+func TestToolResponseFilterVarsCacheKey_NoSeparatorCollision(t *testing.T) {
+	t.Parallel()
+
+	key1 := toolResponseFilterVarsCacheKey{
+		filter:      "a\x00b",
+		varNamesKey: buildVarNamesCacheKey([]string{"$c"}),
+	}
+	key2 := toolResponseFilterVarsCacheKey{
+		filter:      "a",
+		varNamesKey: buildVarNamesCacheKey([]string{"$b", "$c"}),
+	}
+
+	assert.NotEqual(t, key1, key2)
+}
+
+func TestCompileOptsWithVariables_DoesNotMutateSharedSecureOpts(t *testing.T) {
+	t.Parallel()
+
+	initialLen := len(secureCompileOpts)
+	opts := compileOptsWithVariables([]string{"$toolID"})
+
+	assert.Len(t, secureCompileOpts, initialLen)
+	assert.Len(t, opts, initialLen+1)
+}
+
 // ---------------------------------------------------------------------------
 // parseServerIDFromToolName
 // ---------------------------------------------------------------------------
