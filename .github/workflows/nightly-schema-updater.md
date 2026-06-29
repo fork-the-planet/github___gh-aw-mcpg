@@ -18,7 +18,7 @@ network:
 
 steps:
   - name: Set up Go
-    uses: actions/setup-go@v6.4.0
+    uses: actions/setup-go@v6.5.0
     with:
       go-version-file: go.mod
       cache: true

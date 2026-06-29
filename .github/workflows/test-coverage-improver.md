@@ -20,13 +20,13 @@ network:
 
 steps:
   - name: Checkout full repository
-    uses: actions/checkout@v6.0.3
+    uses: actions/checkout@v7.0.0
     with:
       fetch-depth: 1
       persist-credentials: false
 
   - name: Set up Go
-    uses: actions/setup-go@v6.4.0
+    uses: actions/setup-go@v6.5.0
     with:
       go-version-file: go.mod
       cache: true

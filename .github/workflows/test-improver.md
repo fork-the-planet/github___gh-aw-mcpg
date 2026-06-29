@@ -18,7 +18,7 @@ network:
 
 steps:
   - name: Set up Go
-    uses: actions/setup-go@v6.4.0
+    uses: actions/setup-go@v6.5.0
     with:
       go-version-file: go.mod
       cache: true
@@ -36,8 +36,9 @@ steps:
   - name: Check for existing PR
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      EXPR_GITHUB_REPOSITORY: ${{ github.repository }}
     run: |
-      gh pr list --repo "${{ github.repository }}" \
+      gh pr list --repo "$EXPR_GITHUB_REPOSITORY" \
         --state open --search "[test-improver]" \
         --json number,title --limit 5 \
         > /tmp/gh-aw/data/existing-prs.json
