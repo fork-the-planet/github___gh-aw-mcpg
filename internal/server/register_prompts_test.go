@@ -189,7 +189,13 @@ func TestRegisterPromptsFromBackend_EmptyPromptsList(t *testing.T) {
 // backend are registered on the unified server. The function should return nil and the
 // SDK server should have the prompt added.
 func TestRegisterPromptsFromBackend_RegistersPrompts(t *testing.T) {
+	promptsListCalled := make(chan struct{}, 10)
+	t.Cleanup(func() {
+		assert.Equal(t, 1, len(promptsListCalled), "expected prompts/list to be called exactly once")
+	})
+
 	srv := newStreamableBackendWithPromptsCapability(t, func(w http.ResponseWriter, reqID interface{}) {
+		promptsListCalled <- struct{}{}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"jsonrpc": "2.0",
