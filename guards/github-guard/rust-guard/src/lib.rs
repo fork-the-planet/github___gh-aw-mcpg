@@ -1022,8 +1022,12 @@ return n;
     let output_preview = safe_preview(&output_json, PREVIEW_MAX_BYTES);
     log_info(&format!("    output_preview={}", output_preview));
 
-    let n = try_write_json_output(&output_json, output_ptr, output_size, "label_response");
-    if n < 0 { 0 } else { n }
+let n = try_write_json_output(&output_json, output_ptr, output_size, "label_response");
+if n < 0 {
+    log_info("<<< label_response returning 0 (output write failed)");
+    0
+} else {
+    n
 }
 
 // ============================================================================
