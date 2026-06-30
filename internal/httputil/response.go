@@ -42,6 +42,12 @@ func ReadResponseBody(resp *http.Response, context string) ([]byte, error) {
 // Use this variant when the caller needs an exact status match (e.g. 200 only)
 // and wants the body included in the error message.
 func ReadResponseBodyStrict(resp *http.Response, expectedStatus int, context string) ([]byte, error) {
+	if resp == nil {
+		return nil, fmt.Errorf("failed to read %s response: nil response", context)
+	}
+	if resp.Body == nil {
+		return nil, fmt.Errorf("failed to read %s response: response body is nil", context)
+	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
