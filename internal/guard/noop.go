@@ -35,7 +35,7 @@ func (g *NoopGuard) LabelAgent(ctx context.Context, policy interface{}, backend 
 func (g *NoopGuard) LabelResource(ctx context.Context, toolName string, args interface{}, backend BackendCaller, caps *difc.Capabilities) (*difc.LabeledResource, difc.OperationType, error) {
 	logNoop.Printf("Labeling resource: tool=%s, operation=read-write (conservative)", toolName)
 
-	// Empty resource = no label requirements = all operations allowed
+	// Empty labels = no label requirements = all operations allowed
 	resource := difc.NewLabeledResource("noop resource (no restrictions)")
 
 	logNoop.Printf("Resource labeled with no restrictions: tool=%s", toolName)
