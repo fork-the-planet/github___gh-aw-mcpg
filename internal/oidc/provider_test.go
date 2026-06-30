@@ -443,5 +443,5 @@ func TestProvider_BodyReadError(t *testing.T) {
 	provider := oidc.NewProvider(server.URL, "test-token")
 	_, err := provider.Token(context.Background(), "https://example.com")
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "failed to read OIDC token response")
+	assert.ErrorContains(t, err, "failed to read OIDC token request response")
 }

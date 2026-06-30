@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/strutil"
@@ -83,18 +84,12 @@ func FetchCollaboratorPermission(
 	if resp.Body == nil {
 		return nil, fmt.Errorf("failed to fetch response: response body is nil")
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
+	body, err := httputil.ReadResponseBody(resp, "GitHub API")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+		logCollab.Printf("FetchCollaboratorPermission: GitHub API error: owner=%s, repo=%s, username=%s, err=%v", owner, repo, username, err)
+		return nil, err
 	}
-
 	logCollab.Printf("FetchCollaboratorPermission: response received: status=%d, bodyLen=%d", resp.StatusCode, len(body))
-	if resp.StatusCode >= 400 {
-		logCollab.Printf("FetchCollaboratorPermission: GitHub API error: status=%d, owner=%s, repo=%s, username=%s", resp.StatusCode, owner, repo, username)
-		return nil, fmt.Errorf("GitHub API returned %d", resp.StatusCode)
-	}
 
 	return LogAndWrapCollaboratorPermission(body, owner, repo, username, resp.StatusCode, logPrintf), nil
 }

@@ -219,7 +219,7 @@ func TestFetchCollaboratorPermissionHelper(t *testing.T) {
 			func(format string, args ...interface{}) {},
 		)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "failed to read response")
+		assert.ErrorContains(t, err, "failed to read GitHub API response")
 	})
 
 	t.Run("returns status code errors", func(t *testing.T) {
@@ -237,7 +237,7 @@ func TestFetchCollaboratorPermissionHelper(t *testing.T) {
 			func(format string, args ...interface{}) {},
 		)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "GitHub API returned 404")
+		assert.ErrorContains(t, err, "GitHub API returned HTTP 404")
 	})
 
 	t.Run("returns error when fetch returns nil response without error", func(t *testing.T) {

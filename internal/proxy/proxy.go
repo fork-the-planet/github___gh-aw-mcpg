@@ -308,16 +308,10 @@ func (r *restBackendCaller) CallTool(ctx context.Context, toolName string, args 
 	if err != nil {
 		return nil, fmt.Errorf("REST call failed: %w", err)
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
+	body, err := httputil.ReadResponseBody(resp, "GitHub API")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode >= 400 {
-		logProxy.Printf("restBackendCaller: %s returned %d", toolName, resp.StatusCode)
-		return nil, fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+		logProxy.Printf("restBackendCaller: %s returned error: %v", toolName, err)
+		return nil, err
 	}
 
 	// Wrap in MCP response format: {content: [{type: "text", text: "..."}]}

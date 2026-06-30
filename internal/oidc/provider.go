@@ -10,8 +10,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
+
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"net/url"
 	"strings"
 	"sync"
@@ -120,17 +121,11 @@ func (p *Provider) fetchToken(ctx context.Context, audience string) (string, tim
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("OIDC token request failed: %w", err)
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
+	body, err := httputil.ReadResponseBodyStrict(resp, http.StatusOK, "OIDC token request")
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("failed to read OIDC token response: %w", err)
+		return "", time.Time{}, err
 	}
-
 	logOIDC.Printf("OIDC token HTTP response: status=%d, bodyLen=%d", resp.StatusCode, len(body))
-	if resp.StatusCode != http.StatusOK {
-		return "", time.Time{}, fmt.Errorf("OIDC token request returned HTTP %d: %s", resp.StatusCode, string(body))
-	}
 
 	// Parse token value from response: {"value": "<jwt>"}
 	var tokenResp struct {
