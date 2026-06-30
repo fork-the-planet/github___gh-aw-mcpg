@@ -439,7 +439,7 @@ func parseCollectionLabeledData(items []any) (*difc.CollectionLabeledData, error
 
 		// Parse labels
 		if labelsData, ok := itemMap["labels"].(map[string]any); ok {
-			labels := difc.NewLabeledResource("")
+			labels := &difc.LabeledResource{}
 			fillLabeledResourceFromMap(labelsData, labels)
 
 			labeledItem.Labels = labels
