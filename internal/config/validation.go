@@ -140,7 +140,7 @@ func validateToolResponseFiltersWithVars(filters map[string]string, jsonPath str
 			return err
 		}
 		filter := strings.TrimSpace(rawFilter)
-		if err := NonEmptyString(filter, toolName, jsonPath+"."+toolName); err != nil {
+		if err := NonEmptyString(filter, "tool response filter", jsonPath+"."+toolName); err != nil {
 			return err
 		}
 
