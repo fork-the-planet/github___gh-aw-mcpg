@@ -27,8 +27,8 @@ func TestInitToolsLogger(t *testing.T) {
 	globalToolsMu.RUnlock()
 
 	// Clean up
-	err = CloseToolsLogger()
-	assert.NoError(err, "CloseToolsLogger failed")
+	err = CloseAllLoggers()
+	assert.NoError(err, "CloseAllLoggers failed")
 }
 
 func TestToolsLoggerLogTools(t *testing.T) {
@@ -68,8 +68,8 @@ func TestToolsLoggerLogTools(t *testing.T) {
 	assert.Equal("Second tool", toolsData.Servers["server1"][1].Description)
 
 	// Clean up
-	err = CloseToolsLogger()
-	assert.NoError(err, "CloseToolsLogger failed")
+	err = CloseAllLoggers()
+	assert.NoError(err, "CloseAllLoggers failed")
 }
 
 func TestToolsLoggerMultipleServers(t *testing.T) {
@@ -112,8 +112,8 @@ func TestToolsLoggerMultipleServers(t *testing.T) {
 	assert.Len(toolsData.Servers["server2"], 1, "Server2 should have 1 tool")
 
 	// Clean up
-	err = CloseToolsLogger()
-	assert.NoError(err, "CloseToolsLogger failed")
+	err = CloseAllLoggers()
+	assert.NoError(err, "CloseAllLoggers failed")
 }
 
 func TestToolsLoggerUpdate(t *testing.T) {
@@ -156,8 +156,8 @@ func TestToolsLoggerUpdate(t *testing.T) {
 	assert.Equal("tool3", toolsData.Servers["server1"][1].Name)
 
 	// Clean up
-	err = CloseToolsLogger()
-	assert.NoError(err, "CloseToolsLogger failed")
+	err = CloseAllLoggers()
+	assert.NoError(err, "CloseAllLoggers failed")
 }
 
 func TestToolsLoggerEmptyTools(t *testing.T) {
@@ -190,8 +190,8 @@ func TestToolsLoggerEmptyTools(t *testing.T) {
 	assert.Empty(toolsData.Servers["server1"], "Should have 0 tools")
 
 	// Clean up
-	err = CloseToolsLogger()
-	assert.NoError(err, "CloseToolsLogger failed")
+	err = CloseAllLoggers()
+	assert.NoError(err, "CloseAllLoggers failed")
 }
 
 func TestToolsLoggerFallback(t *testing.T) {
@@ -210,8 +210,8 @@ func TestToolsLoggerFallback(t *testing.T) {
 	LogToolsForServer("server1", tools)
 
 	// Clean up
-	err = CloseToolsLogger()
-	assert.NoError(err, "CloseToolsLogger failed")
+	err = CloseAllLoggers()
+	assert.NoError(err, "CloseAllLoggers failed")
 }
 
 // TestWriteToFile_Success verifies writeToFile writes valid JSON atomically.
@@ -376,6 +376,6 @@ func TestToolsLoggerJSONFormat(t *testing.T) {
 	assert.Contains(toolsData.Servers["server-1"][0].Description, "\n")
 
 	// Clean up
-	err = CloseToolsLogger()
-	assert.NoError(err, "CloseToolsLogger failed")
+	err = CloseAllLoggers()
+	assert.NoError(err, "CloseAllLoggers failed")
 }

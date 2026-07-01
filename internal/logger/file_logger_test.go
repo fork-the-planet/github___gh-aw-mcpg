@@ -17,7 +17,7 @@ func TestInitFileLogger(t *testing.T) {
 
 	err := InitFileLogger(logDir, fileName)
 	require.NoError(t, err, "InitFileLogger failed")
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	_, err = os.Stat(logDir)
 	require.NoError(t, err, "Log directory was not created: %s", logDir)
@@ -33,7 +33,7 @@ func TestFileLoggerFallback(t *testing.T) {
 
 	err := InitFileLogger(logDir, fileName)
 	require.NoError(t, err, "InitFileLogger should not fail on fallback")
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	globalLoggerMu.RLock()
 	logger := globalFileLogger
@@ -52,7 +52,7 @@ func TestFileLoggerLogging(t *testing.T) {
 
 	err := InitFileLogger(logDir, fileName)
 	require.NoError(t, err, "InitFileLogger failed")
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	LogInfo("test", "This is an info message")
 	LogWarn("test", "This is a warning message with value: %d", 42)
@@ -60,7 +60,7 @@ func TestFileLoggerLogging(t *testing.T) {
 	LogDebug("test", "This is a debug message")
 
 	// Close to flush before reading.
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, fileName)
 	content, err := os.ReadFile(logPath)
@@ -102,13 +102,13 @@ func TestFileLoggerAppend(t *testing.T) {
 	err := InitFileLogger(logDir, fileName)
 	require.NoError(t, err, "InitFileLogger failed")
 	LogInfo("test", "First message")
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	// Second session should append to the existing file.
 	err = InitFileLogger(logDir, fileName)
 	require.NoError(t, err, "InitFileLogger failed on second init")
 	LogInfo("test", "Second message")
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, fileName)
 	content, err := os.ReadFile(logPath)
@@ -126,7 +126,7 @@ func TestFileLoggerConcurrency(t *testing.T) {
 
 	err := InitFileLogger(logDir, fileName)
 	require.NoError(t, err, "InitFileLogger failed")
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	done := make(chan bool, 10)
 	for i := 0; i < 10; i++ {
@@ -142,7 +142,7 @@ func TestFileLoggerConcurrency(t *testing.T) {
 		<-done
 	}
 
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, fileName)
 	content, err := os.ReadFile(logPath)
@@ -173,7 +173,7 @@ func TestFileLoggerReadableByOtherProcesses(t *testing.T) {
 	require.NoError(t, err, "Failed to read log file content")
 	assert.Contains(t, string(content), "Testing file readability", "Log file missing expected content")
 
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	// File should still be readable after the logger is closed.
 	content, err = os.ReadFile(logPath)
@@ -189,7 +189,7 @@ func TestFileLoggerFlushes(t *testing.T) {
 
 	err := InitFileLogger(logDir, fileName)
 	require.NoError(t, err, "InitFileLogger failed")
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	LogInfo("test", "Immediate flush test")
 
@@ -208,7 +208,7 @@ func TestFileLogger_GetWriter(t *testing.T) {
 
 		err := InitFileLogger(logDir, "test.log")
 		require.NoError(t, err)
-		defer CloseGlobalLogger()
+		defer CloseAllLoggers()
 
 		globalLoggerMu.RLock()
 		logger := globalFileLogger
@@ -224,7 +224,7 @@ func TestFileLogger_GetWriter(t *testing.T) {
 	t.Run("fallback logger returns stderr", func(t *testing.T) {
 		err := InitFileLogger("/root/nonexistent/directory", "test.log")
 		require.NoError(t, err)
-		defer CloseGlobalLogger()
+		defer CloseAllLoggers()
 
 		globalLoggerMu.RLock()
 		logger := globalFileLogger
@@ -245,7 +245,7 @@ func TestFileLogger_GetWriter(t *testing.T) {
 
 		err := InitFileLogger(logDir, "writer-test.log")
 		require.NoError(t, err)
-		defer CloseGlobalLogger()
+		defer CloseAllLoggers()
 
 		globalLoggerMu.RLock()
 		logger := globalFileLogger
@@ -266,7 +266,7 @@ func TestFileLogger_ReinitWithoutClose(t *testing.T) {
 
 	err := InitFileLogger(logDir, "session1.log")
 	require.NoError(t, err, "First InitFileLogger failed")
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	LogInfo("test", "Message from first session")
 
@@ -275,7 +275,7 @@ func TestFileLogger_ReinitWithoutClose(t *testing.T) {
 	require.NoError(t, err, "Second InitFileLogger failed")
 
 	LogInfo("test", "Message from second session")
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	// The first log file should contain the first message.
 	content1, err := os.ReadFile(filepath.Join(logDir, "session1.log"))
@@ -291,7 +291,7 @@ func TestFileLogger_ReinitWithoutClose(t *testing.T) {
 	assert.NotContains(t, string(content2), "Message from first session")
 }
 
-// TestFileLogger_LogAfterClose verifies that calling log functions after CloseGlobalLogger
+// TestFileLogger_LogAfterClose verifies that calling log functions after CloseAllLoggers
 // silently does nothing (exercises the nil-logger guard in withGlobalLogger).
 func TestFileLogger_LogAfterClose(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -301,7 +301,7 @@ func TestFileLogger_LogAfterClose(t *testing.T) {
 	err := InitFileLogger(logDir, "after-close.log")
 	require.NoError(t, err)
 	LogInfo("test", "Before close")
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	// These calls must not panic even though the logger is nil.
 	require.NotPanics(t, func() {
@@ -318,7 +318,7 @@ func TestFileLogger_LogAfterClose(t *testing.T) {
 	assert.NotContains(t, string(content), "After close")
 }
 
-// TestFileLogger_CloseIdempotent verifies that CloseGlobalLogger is safe to call multiple
+// TestFileLogger_CloseIdempotent verifies that CloseAllLoggers is safe to call multiple
 // times without error (exercises the nil check in closeGlobalLogger).
 func TestFileLogger_CloseIdempotent(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -327,12 +327,12 @@ func TestFileLogger_CloseIdempotent(t *testing.T) {
 	err := InitFileLogger(logDir, "idempotent.log")
 	require.NoError(t, err)
 
-	err = CloseGlobalLogger()
-	require.NoError(t, err, "First CloseGlobalLogger should not error")
+	err = CloseAllLoggers()
+	require.NoError(t, err, "First CloseAllLoggers should not error")
 
-	err = CloseGlobalLogger()
-	require.NoError(t, err, "Second CloseGlobalLogger should not error")
+	err = CloseAllLoggers()
+	require.NoError(t, err, "Second CloseAllLoggers should not error")
 
-	err = CloseGlobalLogger()
-	require.NoError(t, err, "Third CloseGlobalLogger should not error")
+	err = CloseAllLoggers()
+	require.NoError(t, err, "Third CloseAllLoggers should not error")
 }

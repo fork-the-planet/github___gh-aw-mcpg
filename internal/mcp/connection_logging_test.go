@@ -21,7 +21,7 @@ func TestLogInboundRPCResponseFromResult_LogsMarshaledResponseAndReturnsResultAn
 
 	require.NoError(logger.InitJSONLLogger(logDir, "rpc-messages.jsonl"))
 	t.Cleanup(func() {
-		require.NoError(logger.CloseJSONLLogger())
+		require.NoError(logger.CloseAllLoggers())
 	})
 
 	expectedErr := errors.New("expected error")

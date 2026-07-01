@@ -3,12 +3,12 @@ package syncutil
 
 import "sync"
 
-// GetOrCreate looks up key in cache under a read lock; if missing, acquires a
+// MapGetOrCreate looks up key in cache under a read lock; if missing, acquires a
 // write lock, double-checks, and calls create to populate the entry.
 // The entry is stored in cache only when create returns a nil error.
 // create is called while the write lock is held, so it is safe for create to
 // read or write other fields protected by the same mu.
-func GetOrCreate[K comparable, V any](
+func MapGetOrCreate[K comparable, V any](
 	mu *sync.RWMutex,
 	cache map[K]V,
 	key K,

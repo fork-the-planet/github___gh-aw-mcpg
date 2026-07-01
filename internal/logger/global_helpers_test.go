@@ -93,7 +93,7 @@ func TestCloseAllLoggers_AllCalledEvenIfEarlyFails(t *testing.T) {
 	require.NoError(t, InitToolsLogger(tmpDir, "tools.json"))
 	require.NoError(t, InitServerFileLogger(tmpDir))
 
-	// Force CloseGlobalLogger (the first closer) to fail by pre-closing its
+	// Force the file logger closer (the first closer) to fail by pre-closing its
 	// underlying file.  The FileLogger.Close() will then return an error when
 	// it tries to close an already-closed file descriptor.
 	globalLoggerMu.Lock()

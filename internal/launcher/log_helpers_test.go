@@ -467,7 +467,7 @@ func TestLauncher_LogLaunchSuccess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logDir := t.TempDir()
 			require.NoError(t, logger.InitServerFileLogger(logDir))
-			t.Cleanup(func() { logger.CloseServerFileLogger() })
+			t.Cleanup(func() { logger.CloseAllLoggers() })
 
 			launcher := &Launcher{}
 			launcher.logLaunchSuccess(tt.serverID, tt.sessionID)

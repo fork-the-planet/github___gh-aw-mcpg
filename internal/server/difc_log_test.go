@@ -62,8 +62,7 @@ func initTestLoggers(t *testing.T, tmpDir string) func() {
 	err = logger.InitServerFileLogger(tmpDir)
 	require.NoError(t, err)
 	return func() {
-		logger.CloseGlobalLogger()
-		logger.CloseServerFileLogger()
+		logger.CloseAllLoggers()
 	}
 }
 

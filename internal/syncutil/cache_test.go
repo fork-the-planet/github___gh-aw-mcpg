@@ -12,14 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetOrCreate_ReturnsCachedValue verifies that a pre-populated cache entry
+// TestMapGetOrCreate_ReturnsCachedValue verifies that a pre-populated cache entry
 // is returned without invoking create.
-func TestGetOrCreate_ReturnsCachedValue(t *testing.T) {
+func TestMapGetOrCreate_ReturnsCachedValue(t *testing.T) {
 	var mu sync.RWMutex
 	cache := map[string]int{"key": 42}
 
 	createCalled := false
-	v, err := syncutil.GetOrCreate(&mu, cache, "key", func() (int, error) {
+	v, err := syncutil.MapGetOrCreate(&mu, cache, "key", func() (int, error) {
 		createCalled = true
 		return 99, nil
 	})
@@ -29,13 +29,13 @@ func TestGetOrCreate_ReturnsCachedValue(t *testing.T) {
 	assert.False(t, createCalled, "create should not be called when value is already cached")
 }
 
-// TestGetOrCreate_CallsCreateForMissingKey verifies that create is called and
+// TestMapGetOrCreate_CallsCreateForMissingKey verifies that create is called and
 // the result is stored when the key is absent.
-func TestGetOrCreate_CallsCreateForMissingKey(t *testing.T) {
+func TestMapGetOrCreate_CallsCreateForMissingKey(t *testing.T) {
 	var mu sync.RWMutex
 	cache := map[string]int{}
 
-	v, err := syncutil.GetOrCreate(&mu, cache, "key", func() (int, error) {
+	v, err := syncutil.MapGetOrCreate(&mu, cache, "key", func() (int, error) {
 		return 7, nil
 	})
 
@@ -44,14 +44,14 @@ func TestGetOrCreate_CallsCreateForMissingKey(t *testing.T) {
 	assert.Equal(t, 7, cache["key"], "value should be stored in cache")
 }
 
-// TestGetOrCreate_DoesNotStoreOnError verifies that a failed create does not
+// TestMapGetOrCreate_DoesNotStoreOnError verifies that a failed create does not
 // pollute the cache.
-func TestGetOrCreate_DoesNotStoreOnError(t *testing.T) {
+func TestMapGetOrCreate_DoesNotStoreOnError(t *testing.T) {
 	var mu sync.RWMutex
 	cache := map[string]int{}
 	boom := errors.New("boom")
 
-	v, err := syncutil.GetOrCreate(&mu, cache, "key", func() (int, error) {
+	v, err := syncutil.MapGetOrCreate(&mu, cache, "key", func() (int, error) {
 		return 0, boom
 	})
 
@@ -61,9 +61,9 @@ func TestGetOrCreate_DoesNotStoreOnError(t *testing.T) {
 	assert.False(t, exists, "failed value should not be stored in cache")
 }
 
-// TestGetOrCreate_CreateCalledOnce verifies the double-check locking ensures
+// TestMapGetOrCreate_CreateCalledOnce verifies the double-check locking ensures
 // create is called exactly once even under concurrent access.
-func TestGetOrCreate_CreateCalledOnce(t *testing.T) {
+func TestMapGetOrCreate_CreateCalledOnce(t *testing.T) {
 	var mu sync.RWMutex
 	cache := map[string]int{}
 
@@ -77,7 +77,7 @@ func TestGetOrCreate_CreateCalledOnce(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func(idx int) {
 			defer wg.Done()
-			v, err := syncutil.GetOrCreate(&mu, cache, "key", func() (int, error) {
+			v, err := syncutil.MapGetOrCreate(&mu, cache, "key", func() (int, error) {
 				createCount.Add(1)
 				return 42, nil
 			})
@@ -95,14 +95,14 @@ func TestGetOrCreate_CreateCalledOnce(t *testing.T) {
 	assert.Equal(t, 42, cache["key"])
 }
 
-// TestGetOrCreate_MultipleKeys verifies independent keys are handled separately.
-func TestGetOrCreate_MultipleKeys(t *testing.T) {
+// TestMapGetOrCreate_MultipleKeys verifies independent keys are handled separately.
+func TestMapGetOrCreate_MultipleKeys(t *testing.T) {
 	var mu sync.RWMutex
 	cache := map[string]string{}
 
 	for _, key := range []string{"a", "b", "c"} {
 		k := key
-		v, err := syncutil.GetOrCreate(&mu, cache, k, func() (string, error) {
+		v, err := syncutil.MapGetOrCreate(&mu, cache, k, func() (string, error) {
 			return "value-" + k, nil
 		})
 		require.NoError(t, err)
@@ -112,8 +112,8 @@ func TestGetOrCreate_MultipleKeys(t *testing.T) {
 	assert.Len(t, cache, 3)
 }
 
-// TestGetOrCreate_RaceDetector is run with -race to verify no data races.
-func TestGetOrCreate_RaceDetector(t *testing.T) {
+// TestMapGetOrCreate_RaceDetector is run with -race to verify no data races.
+func TestMapGetOrCreate_RaceDetector(t *testing.T) {
 	var mu sync.RWMutex
 	cache := map[int]int{}
 
@@ -123,7 +123,7 @@ func TestGetOrCreate_RaceDetector(t *testing.T) {
 		wg.Add(1)
 		go func(k int) {
 			defer wg.Done()
-			_, _ = syncutil.GetOrCreate(&mu, cache, k, func() (int, error) {
+			_, _ = syncutil.MapGetOrCreate(&mu, cache, k, func() (int, error) {
 				return k * 10, nil
 			})
 		}(key)
@@ -131,8 +131,8 @@ func TestGetOrCreate_RaceDetector(t *testing.T) {
 	wg.Wait()
 }
 
-// TestGetOrCreate_DoubleCheckPreventsRedundantCreate verifies the double-check locking
-// branch in GetOrCreate: when two goroutines both observe a cache miss under the read lock
+// TestMapGetOrCreate_DoubleCheckPreventsRedundantCreate verifies the double-check locking
+// branch in MapGetOrCreate: when two goroutines both observe a cache miss under the read lock
 // and then race for the write lock, the second goroutine must find the key already
 // populated after acquiring the write lock and must NOT call create a second time.
 //
@@ -148,7 +148,7 @@ func TestGetOrCreate_RaceDetector(t *testing.T) {
 //  5. The test closes firstCreate; G1's create returns, stores the value, and releases
 //     the write lock. G2 then acquires the write lock, executes the double-check, finds
 //     the key already present, and returns without invoking create a second time.
-func TestGetOrCreate_DoubleCheckPreventsRedundantCreate(t *testing.T) {
+func TestMapGetOrCreate_DoubleCheckPreventsRedundantCreate(t *testing.T) {
 	var mu sync.RWMutex
 	cache := map[string]int{}
 
@@ -178,7 +178,7 @@ func TestGetOrCreate_DoubleCheckPreventsRedundantCreate(t *testing.T) {
 			defer wg.Done()
 			<-start
 			callStarted <- struct{}{}
-			v, err := syncutil.GetOrCreate(&mu, cache, "key", func() (int, error) {
+			v, err := syncutil.MapGetOrCreate(&mu, cache, "key", func() (int, error) {
 				// Only the first goroutine to win the write lock reaches here.
 				// It blocks on firstCreate so that the other goroutine queues on mu.Lock().
 				createCount.Add(1)

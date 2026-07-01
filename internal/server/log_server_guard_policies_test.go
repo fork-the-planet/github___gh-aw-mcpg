@@ -23,8 +23,7 @@ func captureServerLog(t *testing.T, fn func()) string {
 	require.NoError(t, logger.InitFileLogger(logDir, "mcp-gateway.log"), "failed to init file logger")
 	require.NoError(t, logger.InitServerFileLogger(logDir), "failed to init server file logger")
 	t.Cleanup(func() {
-		logger.CloseGlobalLogger()
-		logger.CloseServerFileLogger()
+		logger.CloseAllLoggers()
 	})
 	fn()
 	logPath := filepath.Join(logDir, "mcp-gateway.log")

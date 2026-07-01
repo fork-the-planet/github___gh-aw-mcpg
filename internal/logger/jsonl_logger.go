@@ -113,11 +113,6 @@ func (jl *JSONLLogger) logEntry(entry interface{}) error {
 	return nil
 }
 
-// CloseJSONLLogger closes the global JSONL logger
-func CloseJSONLLogger() error {
-	return closeGlobalLogger(&globalJSONLMu, &globalJSONLLogger)
-}
-
 // LogRPCMessageJSONL logs an RPC message to the global JSONL logger
 func LogRPCMessageJSONL(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payloadBytes []byte, err error) {
 	LogRPCMessageJSONLWithTags(direction, messageType, serverID, method, payloadBytes, err, nil, nil)

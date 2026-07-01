@@ -209,8 +209,3 @@ func LogErrorToMarkdown(category, format string, args ...interface{}) {
 func LogDebugToMarkdown(category, format string, args ...interface{}) {
 	markdownLevelLoggers.debug(category, format, args...)
 }
-
-// CloseMarkdownLogger closes the global markdown logger
-func CloseMarkdownLogger() error {
-	return closeGlobalLogger(&globalMarkdownMu, &globalMarkdownLogger)
-}

@@ -30,16 +30,16 @@ func TestStartupInfo(t *testing.T) {
 
 	err := InitFileLogger(logDir, "test.log")
 	require.NoError(t, err)
-	defer CloseGlobalLogger()
 
 	err = InitMarkdownLogger(logDir, "test.md")
 	require.NoError(t, err)
-	defer CloseMarkdownLogger()
+	t.Cleanup(func() {
+		assert.NoError(t, CloseAllLoggers())
+	})
 
 	StartupInfo("Server started on %s", "localhost:3000")
 
-	CloseMarkdownLogger()
-	CloseGlobalLogger()
+	require.NoError(t, CloseAllLoggers())
 
 	// Verify file logger received the message
 	logPath := filepath.Join(logDir, "test.log")
@@ -67,11 +67,11 @@ func TestStartupWarn(t *testing.T) {
 
 	err := InitFileLogger(logDir, "test.log")
 	require.NoError(t, err)
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	StartupWarn("tracing provider failed: %v", "connection refused")
 
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	// Verify file logger received the message with WARN level
 	logPath := filepath.Join(logDir, "test.log")
@@ -91,11 +91,11 @@ func TestStartupInfoWithoutFormatArgs(t *testing.T) {
 
 	err := InitFileLogger(logDir, "test.log")
 	require.NoError(t, err)
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	StartupInfo("Environment validation passed")
 
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, "test.log")
 	content, err := os.ReadFile(logPath)
@@ -115,13 +115,13 @@ func TestStartupInfo_WritesToStandardLogger(t *testing.T) {
 
 	err := InitFileLogger(logDir, "test.log")
 	require.NoError(t, err)
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	logOutput := captureStdLog(t, func() {
 		StartupInfo("Gateway listening on %s", ":3000")
 	})
 
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	assert.Contains(t, logOutput, "Gateway listening on :3000",
 		"StartupInfo should call log.Printf so the message appears on the standard logger")
@@ -135,13 +135,13 @@ func TestStartupWarn_WritesToStandardLoggerWithWarningPrefix(t *testing.T) {
 
 	err := InitFileLogger(logDir, "test.log")
 	require.NoError(t, err)
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	logOutput := captureStdLog(t, func() {
 		StartupWarn("tracing disabled: %s", "no endpoint configured")
 	})
 
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	assert.Contains(t, logOutput, "Warning: tracing disabled: no endpoint configured",
 		"StartupWarn should call log.Printf with 'Warning: ' prefix")
@@ -157,16 +157,14 @@ func TestStartupWarn_DoesNotWriteToMarkdownLogger(t *testing.T) {
 
 	err := InitFileLogger(logDir, "test.log")
 	require.NoError(t, err)
-	defer CloseGlobalLogger()
 
 	err = InitMarkdownLogger(logDir, "test.md")
 	require.NoError(t, err)
-	defer CloseMarkdownLogger()
+	defer CloseAllLoggers()
 
 	StartupWarn("startup warning: %s", "something is off")
 
-	CloseMarkdownLogger()
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	// Verify the message IS in the file log
 	logPath := filepath.Join(logDir, "test.log")
@@ -191,11 +189,11 @@ func TestStartupWarnWithoutFormatArgs(t *testing.T) {
 
 	err := InitFileLogger(logDir, "test.log")
 	require.NoError(t, err)
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	StartupWarn("Docker daemon not reachable")
 
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, "test.log")
 	content, err := os.ReadFile(logPath)

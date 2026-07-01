@@ -139,8 +139,3 @@ func LogObservedURLDomains(serverID string, domains []string) {
 		}
 	})
 }
-
-// CloseObservedURLDomainsLogger closes the global observed URL domains logger.
-func CloseObservedURLDomainsLogger() error {
-	return closeGlobalLogger(&globalObservedURLDomainsMu, &globalObservedURLDomainsLogger)
-}

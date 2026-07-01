@@ -21,7 +21,7 @@ import (
 func TestNonExistentToolCallLogging_RoutedMode(t *testing.T) {
 	// Initialize logger to capture log output
 	logger.InitFileLogger("/tmp", "test-nonexistent-tool.log")
-	defer logger.CloseGlobalLogger()
+	defer logger.CloseAllLoggers()
 
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{
@@ -124,7 +124,7 @@ func TestNonExistentToolCallLogging_RoutedMode(t *testing.T) {
 func TestNonExistentToolCallLogging_UnifiedMode(t *testing.T) {
 	// Initialize logger to capture log output
 	logger.InitFileLogger("/tmp", "test-nonexistent-tool-unified.log")
-	defer logger.CloseGlobalLogger()
+	defer logger.CloseAllLoggers()
 
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{

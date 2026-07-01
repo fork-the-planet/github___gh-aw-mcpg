@@ -436,7 +436,7 @@ func TestDebugLoggerWritesToFile(t *testing.T) {
 	// Initialize the file logger
 	err := InitFileLogger(logDir, fileName)
 	require.NoError(t, err, "InitFileLogger failed")
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	// Use t.Setenv to enable all debug loggers
 	t.Setenv("DEBUG", "*")
@@ -455,7 +455,7 @@ func TestDebugLoggerWritesToFile(t *testing.T) {
 	assert.Contains(t, stderrOutput, "Another test message", "Stderr should contain debug message")
 
 	// Close the file logger to flush all data
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	// Read the log file
 	logPath := filepath.Join(logDir, fileName)
@@ -487,7 +487,7 @@ func TestDebugLoggerDisabledNoFileWrite(t *testing.T) {
 	// Initialize the file logger
 	err := InitFileLogger(logDir, fileName)
 	require.NoError(t, err, "InitFileLogger failed")
-	defer CloseGlobalLogger()
+	defer CloseAllLoggers()
 
 	// Use t.Setenv to disable all debug loggers
 	t.Setenv("DEBUG", "")
@@ -502,7 +502,7 @@ func TestDebugLoggerDisabledNoFileWrite(t *testing.T) {
 	log.Printf("This should not appear")
 
 	// Close the file logger to flush all data
-	CloseGlobalLogger()
+	CloseAllLoggers()
 
 	// Read the log file
 	logPath := filepath.Join(logDir, fileName)

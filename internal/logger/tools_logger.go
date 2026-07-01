@@ -131,8 +131,3 @@ func LogToolsForServer(serverID string, tools []ToolInfo) {
 		}
 	})
 }
-
-// CloseToolsLogger closes the global tools logger
-func CloseToolsLogger() error {
-	return closeGlobalLogger(&globalToolsMu, &globalToolsLogger)
-}

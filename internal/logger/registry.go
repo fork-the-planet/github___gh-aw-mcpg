@@ -71,27 +71,27 @@ var proxyLoggerInitializers = []loggerInitEntry{
 var globalLoggerClosers = []loggerCloseEntry{
 	{
 		name:  "file logger",
-		close: CloseGlobalLogger,
+		close: func() error { return closeGlobalLogger(&globalLoggerMu, &globalFileLogger) },
 	},
 	{
 		name:  "JSONL logger",
-		close: CloseJSONLLogger,
+		close: func() error { return closeGlobalLogger(&globalJSONLMu, &globalJSONLLogger) },
 	},
 	{
 		name:  "markdown logger",
-		close: CloseMarkdownLogger,
+		close: func() error { return closeGlobalLogger(&globalMarkdownMu, &globalMarkdownLogger) },
 	},
 	{
 		name:  "tools logger",
-		close: CloseToolsLogger,
+		close: func() error { return closeGlobalLogger(&globalToolsMu, &globalToolsLogger) },
 	},
 	{
 		name:  "server file logger",
-		close: CloseServerFileLogger,
+		close: func() error { return closeGlobalLogger(&globalServerLoggerMu, &globalServerFileLogger) },
 	},
 	{
 		name:  "observed URL domains logger",
-		close: CloseObservedURLDomainsLogger,
+		close: func() error { return closeGlobalLogger(&globalObservedURLDomainsMu, &globalObservedURLDomainsLogger) },
 	},
 }
 

@@ -20,7 +20,7 @@ func TestInitServerFileLogger(t *testing.T) {
 	// Initialize the server logger
 	err := InitServerFileLogger(logDir)
 	require.NoError(t, err, "InitServerFileLogger failed")
-	defer CloseServerFileLogger()
+	defer CloseAllLoggers()
 
 	// Check that the log directory was created
 	_, err = os.Stat(logDir)
@@ -55,7 +55,7 @@ func TestServerFileLoggerCreatesLogFiles(t *testing.T) {
 	// Initialize the server logger
 	err := InitServerFileLogger(logDir)
 	require.NoError(t, err)
-	defer CloseServerFileLogger()
+	defer CloseAllLoggers()
 
 	// Log messages for different servers
 	LogInfoToServer("github", "test", "Test message 1")
@@ -63,7 +63,7 @@ func TestServerFileLoggerCreatesLogFiles(t *testing.T) {
 	LogWarnToServer("github", "test", "Warning message")
 
 	// Close to flush all files
-	err = CloseServerFileLogger()
+	err = CloseAllLoggers()
 	require.NoError(t, err)
 
 	// Check that log files were created for each server
@@ -98,7 +98,7 @@ func TestServerFileLoggerConcurrentAccess(t *testing.T) {
 	// Initialize the server logger
 	err := InitServerFileLogger(logDir)
 	require.NoError(t, err)
-	defer CloseServerFileLogger()
+	defer CloseAllLoggers()
 
 	// Concurrently log messages from multiple goroutines
 	var wg sync.WaitGroup
@@ -118,7 +118,7 @@ func TestServerFileLoggerConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	// Close to flush all files
-	err = CloseServerFileLogger()
+	err = CloseAllLoggers()
 	require.NoError(t, err)
 
 	// Verify that each server has the expected number of log entries
@@ -141,7 +141,7 @@ func TestServerFileLoggerFallback(t *testing.T) {
 	// Initialize the logger - should not fail, but use fallback
 	err := InitServerFileLogger(logDir)
 	require.NoError(t, err, "InitServerFileLogger should not fail on fallback")
-	defer CloseServerFileLogger()
+	defer CloseAllLoggers()
 
 	globalServerLoggerMu.RLock()
 	useFallback := globalServerFileLogger.useFallback
@@ -163,7 +163,7 @@ func TestServerFileLoggerAllLevels(t *testing.T) {
 	// Initialize the server logger
 	err := InitServerFileLogger(logDir)
 	require.NoError(t, err)
-	defer CloseServerFileLogger()
+	defer CloseAllLoggers()
 
 	serverID := "test-server"
 
@@ -174,7 +174,7 @@ func TestServerFileLoggerAllLevels(t *testing.T) {
 	LogDebugToServer(serverID, "test", "Debug message")
 
 	// Close to flush
-	err = CloseServerFileLogger()
+	err = CloseAllLoggers()
 	require.NoError(t, err)
 
 	// Read log file
@@ -217,7 +217,7 @@ func TestServerFileLoggerMultipleInit(t *testing.T) {
 	LogInfoToServer("server1", "test", "Message 2")
 
 	// Close
-	err = CloseServerFileLogger()
+	err = CloseAllLoggers()
 	require.NoError(t, err)
 
 	// Verify both messages are in the file
@@ -237,11 +237,10 @@ func TestServerFileLoggerPreservesUnifiedView(t *testing.T) {
 	// Initialize both the unified file logger and the server file logger
 	err := InitFileLogger(logDir, "mcp-gateway.log")
 	require.NoError(t, err, "InitFileLogger failed")
-	defer CloseGlobalLogger()
 
 	err = InitServerFileLogger(logDir)
 	require.NoError(t, err, "InitServerFileLogger failed")
-	defer CloseServerFileLogger()
+	defer CloseAllLoggers()
 
 	// Log messages using per-serverID logging
 	LogInfoToServer("github", "backend", "GitHub server started")
@@ -249,9 +248,7 @@ func TestServerFileLoggerPreservesUnifiedView(t *testing.T) {
 	LogErrorToServer("github", "backend", "GitHub authentication failed")
 
 	// Close loggers to flush
-	err = CloseServerFileLogger()
-	require.NoError(t, err)
-	err = CloseGlobalLogger()
+	err = CloseAllLoggers()
 	require.NoError(t, err)
 
 	// Verify per-serverID log files exist and contain correct messages
@@ -501,7 +498,7 @@ func TestLogToServerWrappers(t *testing.T) {
 	LogErrorToServer(serverID, "test", "compat error %s", "msg")
 	LogDebugToServer(serverID, "test", "compat debug %s", "msg")
 
-	err = CloseServerFileLogger()
+	err = CloseAllLoggers()
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(filepath.Join(logDir, serverID+".log"))

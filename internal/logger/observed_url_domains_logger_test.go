@@ -17,7 +17,7 @@ import (
 func resetObservedURLDomainsLogger(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
-		_ = CloseObservedURLDomainsLogger()
+		_ = CloseAllLoggers()
 	})
 }
 
@@ -54,7 +54,7 @@ func TestURLDomainAuditEnabled_Toggle(t *testing.T) {
 	assert.False(t, URLDomainAuditEnabled(), "audit should be disabled after SetURLDomainAuditEnabled(false)")
 }
 
-// ---- InitObservedURLDomainsLogger / CloseObservedURLDomainsLogger ----
+// ---- InitObservedURLDomainsLogger / CloseAllLoggers ----
 
 func TestInitObservedURLDomainsLogger_Success(t *testing.T) {
 	tmpDir := t.TempDir()
@@ -94,21 +94,21 @@ func TestInitObservedURLDomainsLogger_FallbackOnBadDir(t *testing.T) {
 	globalObservedURLDomainsMu.RUnlock()
 }
 
-func TestCloseObservedURLDomainsLogger_NilGlobal(t *testing.T) {
+func TestCloseAllLoggers_ObservedURLDomains_NilGlobal(t *testing.T) {
 	// Ensure the global is nil before the test.
-	_ = CloseObservedURLDomainsLogger()
+	_ = CloseAllLoggers()
 
 	// Closing when there is no global logger should return nil without panicking.
-	err := CloseObservedURLDomainsLogger()
-	assert.NoError(t, err, "CloseObservedURLDomainsLogger on nil logger should be a no-op")
+	err := CloseAllLoggers()
+	assert.NoError(t, err, "CloseAllLoggers on nil logger should be a no-op")
 }
 
-func TestCloseObservedURLDomainsLogger_ClearsGlobal(t *testing.T) {
+func TestCloseAllLoggers_ObservedURLDomains_ClearsGlobal(t *testing.T) {
 	tmpDir := t.TempDir()
 	require.NoError(t, InitObservedURLDomainsLogger(tmpDir, observedURLDomainsFileName))
 
-	err := CloseObservedURLDomainsLogger()
-	assert.NoError(t, err, "CloseObservedURLDomainsLogger should succeed")
+	err := CloseAllLoggers()
+	assert.NoError(t, err, "CloseAllLoggers should succeed")
 
 	globalObservedURLDomainsMu.RLock()
 	assert.Nil(t, globalObservedURLDomainsLogger, "global logger should be nil after close")
@@ -283,7 +283,7 @@ func TestLogDomains_SortedOutputInFile(t *testing.T) {
 
 func TestLogObservedURLDomains_NoGlobalLogger_NoPanic(t *testing.T) {
 	// Ensure no global logger is set.
-	_ = CloseObservedURLDomainsLogger()
+	_ = CloseAllLoggers()
 	resetObservedURLDomainsLogger(t)
 
 	// Calling the global helper with no logger initialised must not panic.

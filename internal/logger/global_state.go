@@ -184,7 +184,7 @@ import (
 //  1. Implement Close() method following the Close Pattern (above)
 //  2. Add type to closableLogger constraint in global_helpers.go
 //  3. Use initLogger() for initialization with appropriate fallback strategy
-//  4. Add initGlobal*Logger() and closeGlobal*Logger() helpers
+//  4. Add initGlobal*Logger() helper and inline the close closure in registry.go
 //  5. Document the fallback strategy and use case
 //
 // This consistent pattern ensures:

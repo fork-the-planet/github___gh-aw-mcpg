@@ -24,7 +24,7 @@ func TestInitJSONLLogger(t *testing.T) {
 	// Test successful initialization
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	// Verify log file was created
 	logPath := filepath.Join(logDir, "test.jsonl")
@@ -42,12 +42,12 @@ func TestJSONLLoggerClose(t *testing.T) {
 	require.NoError(err, "InitJSONLLogger failed")
 
 	// Test closing
-	err = CloseJSONLLogger()
-	assert.NoError(err, "CloseJSONLLogger should not error")
+	err = CloseAllLoggers()
+	assert.NoError(err, "CloseAllLoggers should not error")
 
 	// Test closing again (should not error)
-	err = CloseJSONLLogger()
-	assert.NoError(err, "CloseJSONLLogger should not error on second call")
+	err = CloseAllLoggers()
+	assert.NoError(err, "CloseAllLoggers should not error on second call")
 }
 
 func TestLogRPCMessageJSONL(t *testing.T) {
@@ -58,7 +58,7 @@ func TestLogRPCMessageJSONL(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	// Log a request
 	requestPayload := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`)
@@ -69,7 +69,7 @@ func TestLogRPCMessageJSONL(t *testing.T) {
 	LogRPCMessageJSONL(RPCDirectionInbound, RPCMessageResponse, "github", "", responsePayload, nil)
 
 	// Close to flush
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Read and verify the log file
 	logPath := filepath.Join(logDir, "test.jsonl")
@@ -222,7 +222,7 @@ func TestLogRPCMessageJSONLWithError(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	// Log a response with error
 	responsePayload := []byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid request"}}`)
@@ -230,7 +230,7 @@ func TestLogRPCMessageJSONLWithError(t *testing.T) {
 	LogRPCMessageJSONL(RPCDirectionInbound, RPCMessageResponse, "github", "", responsePayload, testErr)
 
 	// Close to flush
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Read and verify
 	logPath := filepath.Join(logDir, "test.jsonl")
@@ -252,14 +252,14 @@ func TestLogRPCMessageJSONLWithInvalidJSON(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	// Log invalid JSON
 	invalidPayload := []byte(`{invalid json}`)
 	LogRPCMessageJSONL(RPCDirectionOutbound, RPCMessageRequest, "github", "test", invalidPayload, nil)
 
 	// Close to flush
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Read and verify
 	logPath := filepath.Join(logDir, "test.jsonl")
@@ -281,7 +281,7 @@ func TestLogRPCMessageJSONLWithInvalidJSON(t *testing.T) {
 
 func TestJSONLLoggerNotInitialized(t *testing.T) {
 	// Ensure no global logger is set
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Should not panic when logging without initialization
 	requestPayload := []byte(`{"jsonrpc":"2.0","id":1,"method":"test"}`)
@@ -297,7 +297,7 @@ func TestMultipleMessagesInJSONL(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	// Log multiple messages
 	messages := []struct {
@@ -318,7 +318,7 @@ func TestMultipleMessagesInJSONL(t *testing.T) {
 	}
 
 	// Close to flush
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Read and verify all lines
 	logPath := filepath.Join(logDir, "test.jsonl")
@@ -392,7 +392,7 @@ func TestLogRPCMessageJSONLDirectionTypes(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	tests := []struct {
 		name      string
@@ -436,12 +436,12 @@ func TestLogRPCMessageJSONLDirectionTypes(t *testing.T) {
 			os.Remove(logPath)
 
 			// Re-init logger for each subtest
-			CloseJSONLLogger()
+			CloseAllLoggers()
 			err := InitJSONLLogger(logDir, "test.jsonl")
 			require.NoError(err, "Re-init failed")
 
 			LogRPCMessageJSONL(tt.direction, tt.msgType, "test-server", "test-method", testPayload, nil)
-			CloseJSONLLogger()
+			CloseAllLoggers()
 
 			// Read and verify
 			content, err := os.ReadFile(logPath)
@@ -466,13 +466,13 @@ func TestLogRPCMessageJSONLEmptyPayload(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	// Log with empty payload
 	emptyPayload := []byte(`{}`)
 	LogRPCMessageJSONL(RPCDirectionOutbound, RPCMessageRequest, "github", "test", emptyPayload, nil)
 
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Read and verify
 	logPath := filepath.Join(logDir, "test.jsonl")
@@ -497,13 +497,13 @@ func TestLogRPCMessageJSONLWithNilError(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	// Log with nil error (normal case)
 	payload := []byte(`{"jsonrpc":"2.0","id":1}`)
 	LogRPCMessageJSONL(RPCDirectionOutbound, RPCMessageRequest, "github", "test", payload, nil)
 
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Read and verify
 	logPath := filepath.Join(logDir, "test.jsonl")
@@ -540,7 +540,7 @@ func TestLogDifcFilteredItem_WritesAuditEntryToJSONL(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "rpc-messages.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	entry := &JSONLFilteredItem{
 		FilteredItemLogEntry: FilteredItemLogEntry{
@@ -558,7 +558,7 @@ func TestLogDifcFilteredItem_WritesAuditEntryToJSONL(t *testing.T) {
 	}
 	LogDifcFilteredItem(entry)
 
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, "rpc-messages.jsonl")
 	content, err := os.ReadFile(logPath)
@@ -596,7 +596,7 @@ func TestLogDifcFilteredItem_MultipleEntriesAuditTrail(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "rpc-messages.jsonl")
 	require.NoError(err)
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	entries := []*JSONLFilteredItem{
 		{FilteredItemLogEntry: FilteredItemLogEntry{ServerID: "github", ToolName: "list_issues", Number: "1", Reason: "secrecy mismatch"}},
@@ -607,7 +607,7 @@ func TestLogDifcFilteredItem_MultipleEntriesAuditTrail(t *testing.T) {
 	for _, e := range entries {
 		LogDifcFilteredItem(e)
 	}
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, "rpc-messages.jsonl")
 	file, err := os.Open(logPath)
@@ -646,13 +646,13 @@ func TestLogRPCMessageJSONLWithTags_AgentSecrecyTags(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	payload := []byte(`{"jsonrpc":"2.0","id":1}`)
 	secrecyTags := []string{"private:org/repo", "public"}
 
 	LogRPCMessageJSONLWithTags(RPCDirectionInbound, RPCMessageResponse, "github", "tools/call", payload, nil, secrecyTags, nil)
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, "test.jsonl")
 	content, err := os.ReadFile(logPath)
@@ -677,13 +677,13 @@ func TestLogRPCMessageJSONLWithTags_AgentIntegrityTags(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	payload := []byte(`{"jsonrpc":"2.0","id":1}`)
 	integrityTags := []string{"approved:org/repo", "merged"}
 
 	LogRPCMessageJSONLWithTags(RPCDirectionOutbound, RPCMessageRequest, "github", "tools/list", payload, nil, nil, integrityTags)
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, "test.jsonl")
 	content, err := os.ReadFile(logPath)
@@ -708,14 +708,14 @@ func TestLogRPCMessageJSONLWithTags_BothTagTypes(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	payload := []byte(`{"jsonrpc":"2.0","id":2}`)
 	secrecyTags := []string{"private:org/repo"}
 	integrityTags := []string{"approved:org/repo", "merged:org/repo"}
 
 	LogRPCMessageJSONLWithTags(RPCDirectionInbound, RPCMessageResponse, "github", "tools/call", payload, nil, secrecyTags, integrityTags)
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, "test.jsonl")
 	content, err := os.ReadFile(logPath)
@@ -743,13 +743,13 @@ func TestLogRPCMessageJSONLWithTags_EmptyTagsOmitted(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	payload := []byte(`{"jsonrpc":"2.0","id":1}`)
 
 	// Pass explicitly empty (non-nil) slices.
 	LogRPCMessageJSONLWithTags(RPCDirectionOutbound, RPCMessageRequest, "github", "tools/list", payload, nil, []string{}, []string{})
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, "test.jsonl")
 	content, err := os.ReadFile(logPath)
@@ -780,14 +780,14 @@ func TestLogRPCMessageJSONLWithTags_TagsCopied(t *testing.T) {
 
 	err := InitJSONLLogger(logDir, "test.jsonl")
 	require.NoError(err, "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	payload := []byte(`{"jsonrpc":"2.0","id":1}`)
 	secrecyTags := []string{"private:org/repo"}
 	integrityTags := []string{"approved:org/repo"}
 
 	LogRPCMessageJSONLWithTags(RPCDirectionInbound, RPCMessageResponse, "github", "tools/call", payload, nil, secrecyTags, integrityTags)
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Mutate the originals after the call.
 	secrecyTags[0] = "MUTATED"
@@ -972,7 +972,7 @@ func TestLogDifcFilteredItem_SetsTimestampEventAndSchema(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitJSONLLogger(logDir, "difc.jsonl"), "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	entry := &JSONLFilteredItem{
 		FilteredItemLogEntry: FilteredItemLogEntry{
@@ -985,7 +985,7 @@ func TestLogDifcFilteredItem_SetsTimestampEventAndSchema(t *testing.T) {
 	}
 
 	LogDifcFilteredItem(entry)
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	logPath := filepath.Join(logDir, "difc.jsonl")
 	data, err := os.ReadFile(logPath)
@@ -1008,7 +1008,7 @@ func TestLogDifcFilteredItem_SetsTimestampEventAndSchema(t *testing.T) {
 // and does not panic when no global JSONL logger has been initialised.
 func TestLogDifcFilteredItem_NoLogger(t *testing.T) {
 	// Ensure no global logger is active.
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	entry := &JSONLFilteredItem{
 		FilteredItemLogEntry: FilteredItemLogEntry{
@@ -1026,8 +1026,7 @@ func TestLogDifcFilteredItem_NoLogger(t *testing.T) {
 // LogUnrecognizedEndpointPassthrough does not panic when no global JSONL logger
 // has been initialised (and no markdown logger is active either).
 func TestLogUnrecognizedEndpointPassthrough_NoLogger(t *testing.T) {
-	CloseJSONLLogger()
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	assert.NotPanics(t, func() {
 		LogUnrecognizedEndpointPassthrough("GET", "/v1/unknown")
@@ -1042,15 +1041,13 @@ func TestLogUnrecognizedEndpointPassthrough_WritesCorrectFields(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitJSONLLogger(logDir, "rpc-messages.jsonl"), "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
 
 	require.NoError(t, InitMarkdownLogger(logDir, "gateway.md"), "InitMarkdownLogger failed")
-	defer CloseMarkdownLogger()
+	defer CloseAllLoggers()
 
 	LogUnrecognizedEndpointPassthrough("POST", "/v1/unknown/endpoint")
 
-	CloseJSONLLogger()
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Verify JSONL output.
 	jsonlPath := filepath.Join(logDir, "rpc-messages.jsonl")

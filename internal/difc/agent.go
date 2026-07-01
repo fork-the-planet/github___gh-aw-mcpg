@@ -244,7 +244,7 @@ func NewAgentRegistryWithDefaults(defaultSecrecy []Tag, defaultIntegrity []Tag) 
 func (r *AgentRegistry) GetOrCreate(agentID string) *AgentLabels {
 	logAgent.Printf("GetOrCreate called for agentID=%s", agentID)
 
-	labels, _ := syncutil.GetOrCreate(&r.mu, r.agents, agentID, func() (*AgentLabels, error) {
+	labels, _ := syncutil.MapGetOrCreate(&r.mu, r.agents, agentID, func() (*AgentLabels, error) {
 		labels := NewAgentLabelsWithTags(agentID, r.defaultSecrecy, r.defaultIntegrity)
 		logAgent.Printf("Created new agent: %s with default labels (secrecy: %v, integrity: %v)",
 			agentID, r.defaultSecrecy, r.defaultIntegrity)

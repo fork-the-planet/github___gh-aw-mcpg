@@ -377,18 +377,16 @@ func TestLogRPCRequest(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
-	defer CloseGlobalLogger()
 
 	require.NoError(t, InitMarkdownLogger(logDir, "test.md"), "InitMarkdownLogger failed")
-	defer CloseMarkdownLogger()
+	defer CloseAllLoggers()
 
 	// Log an RPC request
 	payload := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`)
 	LogRPCRequest(RPCDirectionOutbound, "github", "tools/list", payload, nil, nil)
 
 	// Close loggers to flush
-	CloseGlobalLogger()
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Check text log
 	textLog := filepath.Join(logDir, "test.log")
@@ -412,10 +410,9 @@ func TestLogRPCResponse(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
-	defer CloseGlobalLogger()
 
 	require.NoError(t, InitMarkdownLogger(logDir, "test.md"), "InitMarkdownLogger failed")
-	defer CloseMarkdownLogger()
+	defer CloseAllLoggers()
 
 	// Log an RPC response with error
 	payload := []byte(`{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid request"}}`)
@@ -423,8 +420,7 @@ func TestLogRPCResponse(t *testing.T) {
 	LogRPCResponse(RPCDirectionInbound, "github", payload, err, nil, nil)
 
 	// Close loggers to flush
-	CloseGlobalLogger()
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Check text log
 	textLog := filepath.Join(logDir, "test.log")
@@ -450,18 +446,16 @@ func TestLogRPCRequestWithSecrets(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
-	defer CloseGlobalLogger()
 
 	require.NoError(t, InitMarkdownLogger(logDir, "test.md"), "InitMarkdownLogger failed")
-	defer CloseMarkdownLogger()
+	defer CloseAllLoggers()
 
 	// Log an RPC request with a secret
 	payload := []byte(`{"jsonrpc":"2.0","id":1,"method":"authenticate","params":{"token":"ghp_1234567890123456789012345678901234567890"}}`)
 	LogRPCRequest(RPCDirectionInbound, "client", "authenticate", payload, nil, nil)
 
 	// Close loggers to flush
-	CloseGlobalLogger()
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	const secret = "ghp_1234567890123456789012345678901234567890"
 
@@ -489,10 +483,9 @@ func TestLogRPCRequestPayloadTruncation(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
-	defer CloseGlobalLogger()
 
 	require.NoError(t, InitMarkdownLogger(logDir, "test.md"), "InitMarkdownLogger failed")
-	defer CloseMarkdownLogger()
+	defer CloseAllLoggers()
 
 	// Create a large payload (> 10KB for text, > 512 chars for markdown)
 	largeData := strings.Repeat("x", 12*1024) // 12KB of x's
@@ -500,8 +493,7 @@ func TestLogRPCRequestPayloadTruncation(t *testing.T) {
 	LogRPCRequest(RPCDirectionOutbound, "backend", "test", payload, nil, nil)
 
 	// Close loggers to flush
-	CloseGlobalLogger()
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Check text log - payload should be truncated at 10KB
 	textLog := filepath.Join(logDir, "test.log")
@@ -529,10 +521,9 @@ func TestLogRPCRequest_WithAgentSnapshot(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
-	defer CloseGlobalLogger()
 
 	require.NoError(t, InitJSONLLogger(logDir, "test.jsonl"), "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	agentSecrecy := []string{"private", "confidential"}
 	agentIntegrity := []string{"trusted"}
@@ -540,8 +531,7 @@ func TestLogRPCRequest_WithAgentSnapshot(t *testing.T) {
 	payload := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{}}`)
 	LogRPCRequest(RPCDirectionOutbound, "github", "tools/call", payload, agentSecrecy, agentIntegrity)
 
-	CloseGlobalLogger()
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Verify agent tags are recorded in the JSONL log
 	jsonlPath := filepath.Join(logDir, "test.jsonl")
@@ -565,10 +555,9 @@ func TestLogRPCResponse_WithAgentSnapshot(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
-	defer CloseGlobalLogger()
 
 	require.NoError(t, InitJSONLLogger(logDir, "test.jsonl"), "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	agentSecrecy := []string{"public"}
 	agentIntegrity := []string{"approved", "merged"}
@@ -576,8 +565,7 @@ func TestLogRPCResponse_WithAgentSnapshot(t *testing.T) {
 	payload := []byte(`{"jsonrpc":"2.0","id":1,"result":{"tools":[]}}`)
 	LogRPCResponse(RPCDirectionInbound, "github", payload, nil, agentSecrecy, agentIntegrity)
 
-	CloseGlobalLogger()
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Verify agent tags are recorded in the JSONL log
 	jsonlPath := filepath.Join(logDir, "test.jsonl")
@@ -600,16 +588,14 @@ func TestLogRPCRequest_EmptyAgentSnapshotTags(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
-	defer CloseGlobalLogger()
 
 	require.NoError(t, InitJSONLLogger(logDir, "test.jsonl"), "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	payload := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
 	LogRPCRequest(RPCDirectionOutbound, "github", "tools/list", payload, nil, nil)
 
-	CloseGlobalLogger()
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	jsonlPath := filepath.Join(logDir, "test.jsonl")
 	content, err := os.ReadFile(jsonlPath)
@@ -628,10 +614,9 @@ func TestLogRPCMessage(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
-	defer CloseGlobalLogger()
 
 	require.NoError(t, InitMarkdownLogger(logDir, "test.md"), "InitMarkdownLogger failed")
-	defer CloseMarkdownLogger()
+	defer CloseAllLoggers()
 
 	info := &RPCMessageInfo{
 		Direction:   RPCDirectionOutbound,
@@ -643,8 +628,7 @@ func TestLogRPCMessage(t *testing.T) {
 	}
 	LogRPCMessage(info)
 
-	CloseGlobalLogger()
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Verify text log
 	textContent, err := os.ReadFile(filepath.Join(logDir, "test.log"))
@@ -700,16 +684,14 @@ func TestLogRPCResponse_NoError(t *testing.T) {
 	logDir := filepath.Join(tmpDir, "logs")
 
 	require.NoError(t, InitFileLogger(logDir, "test.log"), "InitFileLogger failed")
-	defer CloseGlobalLogger()
 
 	require.NoError(t, InitJSONLLogger(logDir, "test.jsonl"), "InitJSONLLogger failed")
-	defer CloseJSONLLogger()
+	defer CloseAllLoggers()
 
 	payload := []byte(`{"jsonrpc":"2.0","id":1,"result":{}}`)
 	LogRPCResponse(RPCDirectionInbound, "backend", payload, nil, nil, nil)
 
-	CloseGlobalLogger()
-	CloseJSONLLogger()
+	CloseAllLoggers()
 
 	// Verify JSONL entry has no error field when nil error is passed
 	jsonlContent, err := os.ReadFile(filepath.Join(logDir, "test.jsonl"))

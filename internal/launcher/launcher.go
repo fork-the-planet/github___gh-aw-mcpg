@@ -122,7 +122,7 @@ func (l *Launcher) getServerConfig(serverID string) (*config.ServerConfig, error
 // already hold the config (e.g. GetOrLaunchForSession for HTTP backends) do not
 // need to acquire the config read-lock a second time.
 func getOrLaunchWithConfig(l *Launcher, serverID string, serverCfg *config.ServerConfig) (*mcp.Connection, error) {
-	return syncutil.GetOrCreate(&l.mu, l.connections, serverID, func() (*mcp.Connection, error) {
+	return syncutil.MapGetOrCreate(&l.mu, l.connections, serverID, func() (*mcp.Connection, error) {
 		logLauncher.Printf("Connection not found in cache, launching new: serverID=%s", serverID)
 		logLauncher.Printf("Retrieved server config: serverID=%s, type=%s", serverID, serverCfg.Type)
 

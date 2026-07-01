@@ -56,7 +56,7 @@ Per-serverID logging is automatically initialized when the gateway starts:
 ```go
 // In internal/cmd/root.go
 logger.InitServerFileLogger(logDir)
-defer logger.CloseServerFileLogger()
+defer logger.CloseAllLoggers()
 ```
 
 ### Benefits

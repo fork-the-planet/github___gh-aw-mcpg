@@ -17,7 +17,7 @@ func TestInitMarkdownLogger(t *testing.T) {
 
 	err := InitMarkdownLogger(logDir, fileName)
 	require.NoError(t, err, "InitMarkdownLogger failed")
-	defer CloseMarkdownLogger()
+	defer CloseAllLoggers()
 
 	// Check that the log directory was created
 	assert.DirExists(t, logDir, "Log directory was not created: %s", logDir)
@@ -41,7 +41,7 @@ func TestMarkdownLoggerFormatting(t *testing.T) {
 	LogErrorToMarkdown("test", "This is an error message")
 	LogDebugToMarkdown("test", "This is a debug message")
 
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Read the log file
 	logPath := filepath.Join(logDir, fileName)
@@ -114,7 +114,7 @@ func TestMarkdownLoggerSecretSanitization(t *testing.T) {
 		LogInfoToMarkdown("test", "%s", tc.input)
 	}
 
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Read the log file
 	logPath := filepath.Join(logDir, fileName)
@@ -156,7 +156,7 @@ func TestMarkdownLoggerCategories(t *testing.T) {
 		LogInfoToMarkdown(category, "Message for category %s", category)
 	}
 
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Read the log file
 	logPath := filepath.Join(logDir, fileName)
@@ -178,7 +178,7 @@ func TestMarkdownLoggerConcurrency(t *testing.T) {
 
 	err := InitMarkdownLogger(logDir, fileName)
 	require.NoError(t, err, "InitMarkdownLogger failed")
-	defer CloseMarkdownLogger()
+	defer CloseAllLoggers()
 
 	// Write from multiple goroutines
 	done := make(chan bool, 10)
@@ -196,7 +196,7 @@ func TestMarkdownLoggerConcurrency(t *testing.T) {
 		<-done
 	}
 
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Read the log file
 	logPath := filepath.Join(logDir, fileName)
@@ -225,7 +225,7 @@ func TestMarkdownLoggerCodeBlocks(t *testing.T) {
 	LogInfoToMarkdown("test", "Multi-line\ncontent\nhere")
 	LogInfoToMarkdown("test", "Simple message")
 
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Read the log file
 	logPath := filepath.Join(logDir, fileName)
@@ -247,7 +247,7 @@ func TestMarkdownLoggerFallback(t *testing.T) {
 	// Initialize the logger - should not fail, but use fallback
 	err := InitMarkdownLogger(logDir, fileName)
 	require.NoError(t, err, "InitMarkdownLogger should not fail on fallback")
-	defer CloseMarkdownLogger()
+	defer CloseAllLoggers()
 
 	globalMarkdownMu.RLock()
 	useFallback := globalMarkdownLogger.useFallback
@@ -278,7 +278,7 @@ func TestMarkdownLoggerRPCFormatting(t *testing.T) {
 	LogInfoToMarkdown("backend", "command=/usr/bin/docker args=[run]")
 	LogInfoToMarkdown("backend", "Multi\nline\ncontent")
 
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Read the log file
 	logPath := filepath.Join(logDir, fileName)
@@ -334,7 +334,7 @@ Please check your configuration`
 
 	LogErrorToMarkdown("startup", "Configuration validation failed:\n%s", errorMsg)
 
-	CloseMarkdownLogger()
+	CloseAllLoggers()
 
 	// Read the log file
 	logPath := filepath.Join(logDir, fileName)
@@ -392,7 +392,7 @@ func TestLogToMarkdownWrappers(t *testing.T) {
 	LogErrorToMarkdown("test", "md compat error %s", "msg")
 	LogDebugToMarkdown("test", "md compat debug %s", "msg")
 
-	err = CloseMarkdownLogger()
+	err = CloseAllLoggers()
 	require.NoError(t, err)
 
 	content, err := os.ReadFile(filepath.Join(logDir, "gateway.md"))

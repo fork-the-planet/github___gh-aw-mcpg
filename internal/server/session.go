@@ -105,11 +105,11 @@ func (us *UnifiedServer) requireSession(ctx context.Context) error {
 	sessionID := us.getSessionID(ctx)
 	logSession.Printf("Checking session: sessionID=%s", truncateSessionID(sessionID))
 
-	// Use syncutil.GetOrCreate to handle the double-checked locking pattern.
+	// Use syncutil.MapGetOrCreate to handle the double-checked locking pattern.
 	// The isNew flag is set inside the create callback (while the write lock is held)
 	// so that ensureSessionDirectory is called exactly once per new session.
 	isNew := false
-	if _, err := syncutil.GetOrCreate(&us.sessionMu, us.sessions, sessionID, func() (*Session, error) {
+	if _, err := syncutil.MapGetOrCreate(&us.sessionMu, us.sessions, sessionID, func() (*Session, error) {
 		logSession.Printf("Auto-creating session for ID: %s", truncateSessionID(sessionID))
 		s := NewSession(sessionID, "")
 		logSession.Printf("Session auto-created for ID: %s", truncateSessionID(sessionID))

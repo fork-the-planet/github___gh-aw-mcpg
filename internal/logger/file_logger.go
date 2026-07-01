@@ -150,8 +150,3 @@ func LogError(category, format string, args ...interface{}) {
 func LogDebug(category, format string, args ...interface{}) {
 	fileLevelLoggers.debug(category, format, args...)
 }
-
-// CloseGlobalLogger closes the global file logger
-func CloseGlobalLogger() error {
-	return closeGlobalLogger(&globalLoggerMu, &globalFileLogger)
-}
