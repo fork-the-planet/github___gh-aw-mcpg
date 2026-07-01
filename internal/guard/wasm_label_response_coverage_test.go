@@ -151,7 +151,7 @@ var labelResponseWritesLabeledPathsWasm = []byte{
 //	      return
 //	    end
 //	    ;; Write {} (2 bytes) at outPtr
-//	    local.get 2  i32.const 32123  i32.store  ;; 0x7D7B = "{}"
+//	    local.get 2  i32.const 32123  i32.store  ;; 0x7D7B – little-endian encoding of "{}"
 //	    i32.const 2))
 var labelResponseWritesItemsIfInputLargeWasm = []byte{
 	0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x09, 0x01, 0x60, 0x04, 0x7f, 0x7f, 0x7f,
