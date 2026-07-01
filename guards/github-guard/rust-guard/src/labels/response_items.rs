@@ -116,33 +116,7 @@ pub fn label_response_items(
             if tool_name == "pull_request_read" && !method.is_empty() && method != "get" {
                 // Fall through — use resource-level labels from tool_rules
             } else {
-                // Handle array, {items: [...]}, {pull_requests: [...]}, GraphQL nested, GraphQL single, or REST single object.
-                // Work directly with &[Value] slices to avoid allocating a Vec<&Value>.
-                // Use std::slice::from_ref for single-object branches so no clone is needed.
-                let items: &[Value] = if let Some(arr) = actual_response.as_array() {
-                    arr.as_slice()
-                } else if let Some(items_arr) =
-                    actual_response.get("items").and_then(|v| v.as_array())
-                {
-                    items_arr.as_slice()
-                } else if let Some(items_arr) = actual_response
-                    .get("pull_requests")
-                    .and_then(|v| v.as_array())
-                {
-                    items_arr.as_slice()
-                } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
-                    nodes.as_slice()
-                } else if let Some(obj) = extract_graphql_single_object(&actual_response) {
-                    std::slice::from_ref(obj)
-                } else if actual_response.is_object()
-                    && !is_graphql_wrapper(&actual_response)
-                    && !is_search_result_wrapper(&actual_response)
-                    && !is_mcp_text_wrapper(&actual_response)
-                {
-                    std::slice::from_ref(actual_response.as_ref())
-                } else {
-                    &[]
-                };
+                let items = extract_items_slice(&actual_response, "pull_requests");
 
                 if !items.is_empty() {
                     let items_to_process = limit_items_with_log(items, "list_pull_requests");
@@ -239,32 +213,7 @@ pub fn label_response_items(
             if tool_name == "issue_read" && !method.is_empty() && method != "get" {
                 // Fall through — use resource-level labels from tool_rules
             } else {
-                // Handle single issue, array of issues, {issues: [...]}, GraphQL nested, or GraphQL single object.
-                // Work directly with &[Value] slices to avoid allocating a Vec<&Value>.
-                // Use std::slice::from_ref for single-object branches so no clone is needed.
-                let items: &[Value] = if let Some(arr) = actual_response.as_array() {
-                    arr.as_slice()
-                } else if let Some(items_arr) =
-                    actual_response.get("items").and_then(|v| v.as_array())
-                {
-                    items_arr.as_slice()
-                } else if let Some(items_arr) =
-                    actual_response.get("issues").and_then(|v| v.as_array())
-                {
-                    items_arr.as_slice()
-                } else if let Some(nodes) = extract_graphql_nodes(&actual_response) {
-                    nodes.as_slice()
-                } else if let Some(obj) = extract_graphql_single_object(&actual_response) {
-                    std::slice::from_ref(obj)
-                } else if actual_response.is_object()
-                    && !is_graphql_wrapper(&actual_response)
-                    && !is_search_result_wrapper(&actual_response)
-                    && !is_mcp_text_wrapper(&actual_response)
-                {
-                    std::slice::from_ref(actual_response.as_ref())
-                } else {
-                    &[]
-                };
+                let items = extract_items_slice(&actual_response, "issues");
 
                 // Limit items to prevent WASM memory exhaustion
                 let items_limited = limit_items_with_log(items, "list_issues");
@@ -473,6 +422,33 @@ pub fn label_response_items(
     }
 
     labeled_items
+}
+
+/// Extract a `&[Value]` slice from a response, trying multiple response shapes in order:
+/// root array, `{"items":[...]}` envelope, `{list_field:[...]}` type-specific envelope,
+/// GraphQL `nodes`, GraphQL single object, and bare REST singleton.
+///
+/// This is the single authoritative extraction path used by both PR and issue response arms.
+fn extract_items_slice<'a>(response: &'a Value, list_field: &str) -> &'a [Value] {
+    if let Some(arr) = response.as_array() {
+        arr.as_slice()
+    } else if let Some(arr) = response.get("items").and_then(|v| v.as_array()) {
+        arr.as_slice()
+    } else if let Some(arr) = response.get(list_field).and_then(|v| v.as_array()) {
+        arr.as_slice()
+    } else if let Some(nodes) = extract_graphql_nodes(response) {
+        nodes.as_slice()
+    } else if let Some(obj) = extract_graphql_single_object(response) {
+        std::slice::from_ref(obj)
+    } else if response.is_object()
+        && !is_graphql_wrapper(response)
+        && !is_search_result_wrapper(response)
+        && !is_mcp_text_wrapper(response)
+    {
+        std::slice::from_ref(response)
+    } else {
+        &[]
+    }
 }
 
 #[cfg(test)]

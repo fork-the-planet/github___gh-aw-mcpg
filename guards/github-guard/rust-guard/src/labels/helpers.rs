@@ -1590,6 +1590,17 @@ pub fn has_author_association(item: &Value) -> bool {
     get_author_association(item).is_some()
 }
 
+/// Returns `true` if the given PR object has been merged.
+///
+/// Checks `merged_at` (non-null value) first, then falls back to the `merged`
+/// boolean field for older API responses that omit `merged_at`.
+pub(crate) fn is_pr_merged(item: &Value) -> bool {
+    item.get(field_names::MERGED_AT)
+        .map(|v| !v.is_null())
+        .or_else(|| item.get(field_names::MERGED).and_then(|v| v.as_bool()))
+        .unwrap_or(false)
+}
+
 /// Extract author_association from an item and return initial integrity floor.
 /// Trusted first-party GitHub bots and any gateway-configured trusted bots are
 /// elevated to approved (writer) integrity regardless of their author_association value.
@@ -1788,11 +1799,7 @@ pub fn pr_integrity(
     let mut integrity = author_association_floor(item, repo_full_name, ctx);
 
     // Check if PR is merged (either merged_at field exists or merged boolean is true)
-    let mut is_merged = item
-        .get(field_names::MERGED_AT)
-        .map(|v| !v.is_null())
-        .or_else(|| item.get(field_names::MERGED).and_then(|v| v.as_bool()))
-        .unwrap_or(false);
+    let mut is_merged = is_pr_merged(item);
 
     // Track whether fork status was enriched from the backend
     let mut effective_is_forked = is_forked;
