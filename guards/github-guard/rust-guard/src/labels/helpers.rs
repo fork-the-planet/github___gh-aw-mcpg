@@ -1590,6 +1590,23 @@ pub fn has_author_association(item: &Value) -> bool {
     get_author_association(item).is_some()
 }
 
+/// Returns `true` if the given PR object has been merged.
+///
+/// Checks `merged_at` (non-null value) first, then falls back to the `merged`
+/// boolean field when `merged_at` is absent or explicitly `null`.
+pub(crate) fn is_pr_merged(item: &Value) -> bool {
+    if item
+        .get(field_names::MERGED_AT)
+        .is_some_and(|value| !value.is_null())
+    {
+        true
+    } else {
+        item.get(field_names::MERGED)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+    }
+}
+
 /// Extract author_association from an item and return initial integrity floor.
 /// Trusted first-party GitHub bots and any gateway-configured trusted bots are
 /// elevated to approved (writer) integrity regardless of their author_association value.
@@ -2134,23 +2151,6 @@ pub(crate) fn is_any_trusted_actor(username: &str, ctx: &PolicyContext) -> bool 
     is_trusted_first_party_bot(username)
         || is_configured_trusted_bot(username, ctx)
         || is_trusted_user(username, ctx)
-}
-
-/// Returns `true` when a pull request has been merged.
-///
-/// Checks `merged_at` first, then falls back to the `merged` boolean for
-/// responses that omit the timestamp field.
-pub(crate) fn is_pr_merged(item: &Value) -> bool {
-    if item
-        .get(field_names::MERGED_AT)
-        .is_some_and(|value| !value.is_null())
-    {
-        true
-    } else {
-        item.get(field_names::MERGED)
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false)
-    }
 }
 
 #[cfg(test)]

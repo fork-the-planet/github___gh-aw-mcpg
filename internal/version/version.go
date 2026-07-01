@@ -10,6 +10,10 @@ import (
 
 var logVersion = logger.New("version:version")
 
+// readBuildInfo is a package-level variable wrapping debug.ReadBuildInfo to
+// allow test injection without changing the public API.
+var readBuildInfo = debug.ReadBuildInfo
+
 const shortHashLength = 7
 
 // vcsCommitFromBuildInfo extracts the vcs.revision setting from build info,
@@ -88,7 +92,7 @@ func BuildVersionString(mainVersion, gitCommit, buildDate string) string {
 
 	if gitCommit != "" {
 		parts = append(parts, fmt.Sprintf("commit: %s", gitCommit))
-	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
+	} else if buildInfo, ok := readBuildInfo(); ok {
 		if commit := vcsCommitFromBuildInfo(buildInfo); commit != "" {
 			parts = append(parts, fmt.Sprintf("commit: %s", commit))
 		}
@@ -96,7 +100,7 @@ func BuildVersionString(mainVersion, gitCommit, buildDate string) string {
 
 	if buildDate != "" {
 		parts = append(parts, fmt.Sprintf("built: %s", buildDate))
-	} else if buildInfo, ok := debug.ReadBuildInfo(); ok {
+	} else if buildInfo, ok := readBuildInfo(); ok {
 		if date := vcsTimeFromBuildInfo(buildInfo); date != "" {
 			parts = append(parts, fmt.Sprintf("built: %s", date))
 		}

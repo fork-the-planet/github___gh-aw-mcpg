@@ -10,6 +10,7 @@ use std::thread;
 use std::time::Duration;
 
 use super::constants::{MEDIUM_BUFFER_SIZE, SMALL_BUFFER_SIZE};
+use super::helpers::is_pr_merged;
 
 /// Backend callback signature used for GitHub MCP tool calls.
 pub type GithubMcpCallback = fn(&str, &str, &mut [u8]) -> Result<usize, i32>;
@@ -351,7 +352,7 @@ pub fn get_pull_request_facts_with_callback(
         _ => None,
     };
 
-    let is_merged = super::helpers::is_pr_merged(&pr);
+    let is_merged = is_pr_merged(&pr);
 
     let author_association = pr
         .get("author_association")

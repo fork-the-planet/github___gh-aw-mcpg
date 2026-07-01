@@ -152,6 +152,49 @@ func makeTestBuildInfo(settings map[string]string) *debug.BuildInfo {
 	return info
 }
 
+func TestBuildVersionString_FallbackFromBuildInfo(t *testing.T) {
+	origReadBuildInfo := readBuildInfo
+	t.Cleanup(func() { readBuildInfo = origReadBuildInfo })
+
+	mockInfo := makeTestBuildInfo(map[string]string{
+		"vcs.revision": "abcdef1234567890abcdef12",
+		"vcs.time":     "2024-06-01T12:00:00Z",
+	})
+	readBuildInfo = func() (*debug.BuildInfo, bool) {
+		return mockInfo, true
+	}
+
+	t.Run("uses truncated vcs.revision when gitCommit is empty", func(t *testing.T) {
+		got := BuildVersionString("v1.0.0", "", "2024-01-01")
+		assert.Contains(t, got, "commit: abcdef1", "should include truncated commit from build info")
+		assert.Contains(t, got, "built: 2024-01-01", "should use explicit buildDate")
+	})
+
+	t.Run("uses vcs.time when buildDate is empty", func(t *testing.T) {
+		got := BuildVersionString("v1.0.0", "explicit", "")
+		assert.Contains(t, got, "commit: explicit", "should use explicit gitCommit")
+		assert.Contains(t, got, "built: 2024-06-01T12:00:00Z", "should include vcs.time from build info")
+	})
+
+	t.Run("uses both vcs fields when gitCommit and buildDate are empty", func(t *testing.T) {
+		got := BuildVersionString("v1.0.0", "", "")
+		assert.Equal(t, "v1.0.0, commit: abcdef1, built: 2024-06-01T12:00:00Z", got)
+	})
+
+	t.Run("build info unavailable leaves commit and date absent", func(t *testing.T) {
+		readBuildInfo = func() (*debug.BuildInfo, bool) { return nil, false }
+		got := BuildVersionString("v1.0.0", "", "")
+		assert.Equal(t, "v1.0.0", got, "no fallback data when build info is unavailable")
+	})
+
+	t.Run("build info available but no vcs settings", func(t *testing.T) {
+		emptyInfo := makeTestBuildInfo(map[string]string{})
+		readBuildInfo = func() (*debug.BuildInfo, bool) { return emptyInfo, true }
+		got := BuildVersionString("v2.0.0", "", "")
+		assert.Equal(t, "v2.0.0", got, "no commit or date appended when vcs settings absent")
+	})
+}
+
 func TestVCSCommitFromBuildInfo(t *testing.T) {
 	tests := []struct {
 		name      string

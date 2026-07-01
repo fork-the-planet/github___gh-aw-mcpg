@@ -421,6 +421,7 @@ func (e *ViolationError) Detailed() string {
 
 // FormatViolationError creates a detailed error message explaining the violation and its implications.
 func FormatViolationError(result *EvaluationResult, agentSecrecy *SecrecyLabel, agentIntegrity *IntegrityLabel, resource *LabeledResource) error {
+	logLabels.Printf("FormatViolationError: decision=%s, reason=%q", result.Decision, result.Reason)
 	if result.Decision == AccessAllow {
 		return nil
 	}
@@ -527,6 +528,7 @@ func formatSecrecyLevel(tags []Tag) string {
 // StringsToTags converts a slice of strings to a slice of Tags,
 // trimming whitespace and skipping empty values.
 func StringsToTags(values []string) []Tag {
+	logLabels.Printf("StringsToTags: converting %d string values to tags", len(values))
 	tags := make([]Tag, 0, len(values))
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
@@ -534,11 +536,13 @@ func StringsToTags(values []string) []Tag {
 			tags = append(tags, Tag(trimmed))
 		}
 	}
+	logLabels.Printf("StringsToTags: produced %d tags from %d input values", len(tags), len(values))
 	return tags
 }
 
 // TagsToStrings converts a slice of Tags to a slice of strings.
 func TagsToStrings(tags []Tag) []string {
+	logLabels.Printf("TagsToStrings: converting %d tags to strings", len(tags))
 	values := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		values = append(values, string(tag))
