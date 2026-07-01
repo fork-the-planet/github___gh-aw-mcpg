@@ -137,8 +137,8 @@ func TestNewWasmGuardWithOptions_EmptyName(t *testing.T) {
 
 	_, err := NewWasmGuardWithOptions(ctx, "", minimalGuardWasm, &mockBackendCaller{}, opts)
 	require.Error(t, err, "minimalGuardWasm has no exports so creation must fail")
-	// The error message should still reference the original (empty) name in WasmGuard.name,
-	// but the module was registered with the fallback name "guard".
+	// NewWasmGuardWithOptions falls back to module name "guard" when name is empty; the
+	// returned error here is only checking the missing-export validation path.
 	assert.ErrorContains(t, err, "must export")
 }
 
