@@ -15,6 +15,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
+	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/server"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
@@ -181,6 +182,12 @@ func run(cmd *cobra.Command, args []string) error {
 	if cacheErr != nil {
 		return cacheErr
 	}
+	cleanupCtx := context.WithoutCancel(ctx)
+	defer func() {
+		if err := guard.CloseGlobalCompilationCache(cleanupCtx); err != nil {
+			logger.LogError("shutdown", "Failed to close WASM compilation cache: %v", err)
+		}
+	}()
 	logger.StartupInfo("WASM compilation cache directory: %s", resolvedWasmCacheDir)
 
 	// Validate execution environment if requested
