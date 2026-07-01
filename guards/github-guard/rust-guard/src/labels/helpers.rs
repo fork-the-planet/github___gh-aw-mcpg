@@ -1593,12 +1593,18 @@ pub fn has_author_association(item: &Value) -> bool {
 /// Returns `true` if the given PR object has been merged.
 ///
 /// Checks `merged_at` (non-null value) first, then falls back to the `merged`
-/// boolean field for older API responses that omit `merged_at`.
+/// boolean field when `merged_at` is absent or explicitly `null`.
 pub(crate) fn is_pr_merged(item: &Value) -> bool {
-    item.get(field_names::MERGED_AT)
-        .map(|v| !v.is_null())
-        .or_else(|| item.get(field_names::MERGED).and_then(|v| v.as_bool()))
-        .unwrap_or(false)
+    if item
+        .get(field_names::MERGED_AT)
+        .is_some_and(|value| !value.is_null())
+    {
+        true
+    } else {
+        item.get(field_names::MERGED)
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+    }
 }
 
 /// Extract author_association from an item and return initial integrity floor.
@@ -2210,6 +2216,26 @@ mod tests {
         assert!(is_any_trusted_actor("custom-bot", &ctx));
         assert!(is_any_trusted_actor("trusted-human", &ctx));
         assert!(!is_any_trusted_actor("random-user", &ctx));
+    }
+
+    #[test]
+    fn test_is_pr_merged_checks_timestamp_first() {
+        let item = serde_json::json!({
+            "merged_at": "2024-06-01T12:00:00Z",
+            "merged": false
+        });
+
+        assert!(is_pr_merged(&item));
+    }
+
+    #[test]
+    fn test_is_pr_merged_falls_back_to_boolean() {
+        let item = serde_json::json!({
+            "merged_at": null,
+            "merged": true
+        });
+
+        assert!(is_pr_merged(&item));
     }
 
     #[test]

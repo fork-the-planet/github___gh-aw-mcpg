@@ -17,6 +17,29 @@ use crate::{LabeledItem, ResourceLabels, SharedLabels};
 use serde_json::Value;
 use std::borrow::Cow;
 
+/// Extract a slice of response items, supporting REST, search, and GraphQL shapes.
+fn extract_items_slice<'a>(response: &'a Value, list_field: &str) -> &'a [Value] {
+    if let Some(arr) = response.as_array() {
+        arr.as_slice()
+    } else if let Some(arr) = response.get("items").and_then(|v| v.as_array()) {
+        arr.as_slice()
+    } else if let Some(arr) = response.get(list_field).and_then(|v| v.as_array()) {
+        arr.as_slice()
+    } else if let Some(nodes) = extract_graphql_nodes(response) {
+        nodes.as_slice()
+    } else if let Some(obj) = extract_graphql_single_object(response) {
+        std::slice::from_ref(obj)
+    } else if response.is_object()
+        && !is_graphql_wrapper(response)
+        && !is_search_result_wrapper(response)
+        && !is_mcp_text_wrapper(response)
+    {
+        std::slice::from_ref(response)
+    } else {
+        &[]
+    }
+}
+
 /// Label individual items in a response (fine-grained labeling)
 /// This returns labeled items using the legacy format that works with MCP wrappers
 /// Format: {"items": [{"data": <item>, "labels": {...}}, ...]}
@@ -424,33 +447,6 @@ pub fn label_response_items(
     labeled_items
 }
 
-/// Extract a `&[Value]` slice from a response, trying multiple response shapes in order:
-/// root array, `{"items":[...]}` envelope, `{list_field:[...]}` type-specific envelope,
-/// GraphQL `nodes`, GraphQL single object, and bare REST singleton.
-///
-/// This is the single authoritative extraction path used by both PR and issue response arms.
-fn extract_items_slice<'a>(response: &'a Value, list_field: &str) -> &'a [Value] {
-    if let Some(arr) = response.as_array() {
-        arr.as_slice()
-    } else if let Some(arr) = response.get("items").and_then(|v| v.as_array()) {
-        arr.as_slice()
-    } else if let Some(arr) = response.get(list_field).and_then(|v| v.as_array()) {
-        arr.as_slice()
-    } else if let Some(nodes) = extract_graphql_nodes(response) {
-        nodes.as_slice()
-    } else if let Some(obj) = extract_graphql_single_object(response) {
-        std::slice::from_ref(obj)
-    } else if response.is_object()
-        && !is_graphql_wrapper(response)
-        && !is_search_result_wrapper(response)
-        && !is_mcp_text_wrapper(response)
-    {
-        std::slice::from_ref(response)
-    } else {
-        &[]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -500,5 +496,30 @@ mod tests {
                 .any(|s| s == "private" || s.starts_with("private:")),
             "private repo should get a private secrecy label, got: {secrecy:?}"
         );
+    }
+
+    #[test]
+    fn extract_items_slice_supports_type_specific_envelope() {
+        let response = json!({
+            "pull_requests": [{"number": 1}]
+        });
+
+        let items = extract_items_slice(&response, "pull_requests");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].get("number").and_then(|v| v.as_u64()), Some(1));
+    }
+
+    #[test]
+    fn extract_items_slice_promotes_single_rest_object() {
+        let response = json!({
+            "number": 42,
+            "title": "singleton"
+        });
+
+        let items = extract_items_slice(&response, "issues");
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].get("number").and_then(|v| v.as_u64()), Some(42));
     }
 }

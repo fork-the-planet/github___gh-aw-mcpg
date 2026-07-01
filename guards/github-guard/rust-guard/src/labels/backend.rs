@@ -787,6 +787,25 @@ mod tests {
         Ok(bytes.len())
     }
 
+    fn merged_boolean_pull_request_callback(
+        tool: &str,
+        _args: &str,
+        buffer: &mut [u8],
+    ) -> Result<usize, i32> {
+        assert_eq!(tool, "pull_request_read");
+
+        let payload = serde_json::json!({
+            "author_association": "MEMBER",
+            "merged_at": null,
+            "merged": true,
+            "user": { "login": "merged-pr-author" },
+            "base": { "repo": { "full_name": "owner/repo" } },
+            "head": { "repo": { "full_name": "owner/repo" } }
+        });
+
+        copy_payload(payload, buffer)
+    }
+
     static RETRY_WITH_REQUIRED_SIZE_CALL_COUNT: AtomicUsize = AtomicUsize::new(0);
 
     fn retry_with_required_size_callback(
@@ -1028,6 +1047,23 @@ mod tests {
         assert_eq!(facts.author_login.as_deref(), Some("big-pr-author"));
         assert_eq!(facts.is_forked, Some(false));
         assert!(!facts.is_merged);
+    }
+
+    #[test]
+    fn test_get_pull_request_facts_uses_merged_boolean_fallback() {
+        let facts = get_pull_request_facts_with_callback(
+            merged_boolean_pull_request_callback,
+            "owner",
+            "repo",
+            "123",
+        );
+
+        assert!(facts.is_some());
+        let facts = facts.unwrap();
+        assert_eq!(facts.author_association.as_deref(), Some("MEMBER"));
+        assert_eq!(facts.author_login.as_deref(), Some("merged-pr-author"));
+        assert_eq!(facts.is_forked, Some(false));
+        assert!(facts.is_merged);
     }
 
     #[test]
