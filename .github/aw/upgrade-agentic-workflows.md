@@ -17,6 +17,7 @@ Read the ENTIRE content of this file carefully before proceeding. Follow the ins
   - Local copy: @.github/aw/github-agentic-workflows.md
   - Canonical upstream: https://raw.githubusercontent.com/github/gh-aw/main/.github/aw/github-agentic-workflows.md
 - If the user says “campaign”, “KPI”, “pacing”, “cadence”, or “stop-after”, consult @.github/aw/campaign.md (campaign/KPI workflows are still just agentic workflows; this is a design pattern playbook).
+- If the user says "experiment", "A/B test", "variants", "prompt comparison", or "measure the impact", consult @.github/aw/experiments.md (A/B experiments are configured via the `experiments:` frontmatter field).
 
 **Key Commands Available**
 
@@ -74,7 +75,7 @@ Before upgrading, always review what's new:
 
 2. **Optional Flags**
 
-   - `gh aw upgrade --push` - Automatically commit and push changes after successful upgrade
+   - `gh aw upgrade --create-pull-request` - Open a pull request with the upgrade changes (alias: `--pr`)
    - `gh aw upgrade --no-fix` - Update agent files only (skip codemods, actions, and compilation)
    - `gh aw upgrade --no-actions` - Skip updating GitHub Actions versions
    - `gh aw upgrade --dir custom/workflows` - Upgrade workflows in custom directory
@@ -101,8 +102,14 @@ Before attempting to compile, apply automatic codemods:
    
    This will automatically update workflow files with changes like:
    - Replacing 'timeout_minutes' with 'timeout-minutes'
-   - Replacing 'network.firewall' with 'sandbox.agent: false'
-   - Removing deprecated 'safe-inputs.mode' field
+   - Replacing `network.firewall: false` with:
+     ```yaml
+     features:
+       dangerously-disable-sandbox-agent: "controlled environment with no internet access"
+     sandbox:
+       agent: false
+     ```
+   - Removing deprecated 'mcp-scripts.mode' field
 
 2. **Review the Changes**
    - Note which workflows were updated by the codemods
@@ -150,10 +157,9 @@ If compilation fails, work through errors systematically:
      github:
        mode: remote
    
-   # New format
+   # New format (do NOT include mode: remote - it does not work with GitHub Actions token)
    tools:
      github:
-       mode: remote
        toolsets: [default]
    ```
 
