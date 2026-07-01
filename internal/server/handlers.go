@@ -45,8 +45,7 @@ func handleOAuthDiscovery() http.Handler {
 func handleClose(unifiedServer *UnifiedServer) http.Handler {
 	logHandlers.Print("Creating close handler")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("[%s] %s %s", r.RemoteAddr, r.Method, r.URL.Path)
-		logger.LogInfo("shutdown", "Close endpoint called, remote=%s", r.RemoteAddr)
+		logger.LogInfo("shutdown", "Close endpoint called: method=%s, path=%s, remote=%s", r.Method, r.URL.Path, r.RemoteAddr)
 
 		// Only accept POST requests
 		if r.Method != http.MethodPost {
@@ -76,7 +75,7 @@ func handleClose(unifiedServer *UnifiedServer) http.Handler {
 			"serversTerminated": serversTerminated,
 		})
 
-		logger.LogInfo("shutdown", "Close endpoint response sent, servers_terminated=%d", serversTerminated)
+		logger.LogInfo("shutdown", "Close endpoint response sent: servers_terminated=%d, remote=%s", serversTerminated, r.RemoteAddr)
 		log.Printf("Gateway shutdown initiated. Terminated %d server(s)", serversTerminated)
 
 		// Exit the process after draining in-flight requests (spec 5.1.3)
