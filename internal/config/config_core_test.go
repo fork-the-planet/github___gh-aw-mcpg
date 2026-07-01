@@ -347,9 +347,9 @@ my_tool = "   "
 	assert.ErrorContains(t, err, "cannot be empty")
 }
 
-// TestLoadFromFile_UnknownKeysDoNotCauseError verifies that unknown configuration
-// keys are rejected with an error per spec §4.3.1.
-func TestLoadFromFile_UnknownKeysDoNotCauseError(t *testing.T) {
+// TestLoadFromFile_UnknownKeysAreRejectedWithError verifies that unknown
+// configuration keys are rejected with an error per spec §4.3.1.
+func TestLoadFromFile_UnknownKeysAreRejectedWithError(t *testing.T) {
 	path := writeTempTOML(t, `
 [gateway]
 prot = 3000
@@ -363,6 +363,36 @@ args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
 	require.Error(t, err)
 	assert.Nil(t, cfg)
 	assert.ErrorContains(t, err, "unrecognized field")
+}
+
+// TestLoadFromFile_GuardConfigAllowsDynamicKeys verifies that guard-specific
+// config sections accept arbitrary nested TOML keys without triggering the
+// unknown-field check.
+func TestLoadFromFile_GuardConfigAllowsDynamicKeys(t *testing.T) {
+	path := writeTempTOML(t, `
+[servers.github]
+command = "docker"
+args = ["run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"]
+
+[guards.myfence]
+type = "wasm"
+path = "/path/to/guard.wasm"
+
+[guards.myfence.config]
+level = "strict"
+allowed_repos = ["owner/repo"]
+`)
+	cfg, err := LoadFromFile(path)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Contains(t, cfg.Guards, "myfence")
+
+	guard := cfg.Guards["myfence"]
+	require.NotNil(t, guard)
+	assert.Equal(t, "wasm", guard.Type)
+	assert.Equal(t, "/path/to/guard.wasm", guard.Path)
+	assert.Equal(t, "strict", guard.Config["level"])
+	assert.Equal(t, []interface{}{"owner/repo"}, guard.Config["allowed_repos"])
 }
 
 // TestLoadFromFile_TrustedBotsEmptyArray verifies that an explicitly set but
