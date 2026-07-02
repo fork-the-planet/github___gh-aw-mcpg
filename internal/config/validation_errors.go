@@ -38,7 +38,7 @@ func (e *ValidationError) Error() string {
 // newValidationError logs logMsg and returns a ValidationError with the given fields.
 // It centralises the repeated log+return pattern used by error constructor functions.
 func newValidationError(logMsg, field, message, jsonPath, suggestion string) *ValidationError {
-	logValidation.Printf("%s", logMsg)
+	logValidation.Print(logMsg)
 	return &ValidationError{Field: field, Message: message, JSONPath: jsonPath, Suggestion: suggestion}
 }
 
