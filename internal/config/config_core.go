@@ -560,6 +560,9 @@ func LoadFromFile(path string) (*Config, error) {
 //
 // For all other error types, it falls back to err.Error().
 func FormatConfigError(err error) string {
+	if err == nil {
+		return ""
+	}
 	var perr toml.ParseError
 	if errors.As(err, &perr) {
 		return perr.ErrorWithUsage()
