@@ -369,9 +369,9 @@ func formatLogLine(level LogLevel, category, format string, args ...interface{})
 		sb.WriteString(format)
 	}
 
-	result := sb.String()
-	logLinePool.Put(sb)
-	return result
+result := strings.Clone(sb.String())
+logLinePool.Put(sb)
+return result
 }
 
 // It syncs buffered data before closing and handles errors appropriately.
