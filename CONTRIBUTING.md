@@ -569,6 +569,7 @@ docker run --rm -i \
   -e MCP_GATEWAY_DOMAIN=localhost \
   -e MCP_GATEWAY_AGENT_ID=your-agent-id \
   -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /path/to/logs:/tmp/gh-aw/mcp-logs \
   -p 8000:8000 \
   awmg < config.json
 ```
@@ -591,6 +592,7 @@ docker run --rm -i \
   -e MCP_GATEWAY_DOMAIN=example.com \
   -e MCP_GATEWAY_AGENT_ID=your-agent-id \
   -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /path/to/logs:/tmp/gh-aw/mcp-logs \
   -p 8080:8080 \
   awmg < custom-config.json
 ```
