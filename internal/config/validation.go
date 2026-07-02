@@ -441,7 +441,6 @@ func validateGatewayConfig(gateway *StdinGatewayConfig) error {
 	if gateway.OpenTelemetry != nil {
 		tracingCfg := &TracingConfig{
 			Endpoint:    gateway.OpenTelemetry.Endpoint,
-			Headers:     gateway.OpenTelemetry.Headers,
 			TraceID:     gateway.OpenTelemetry.TraceID,
 			SpanID:      gateway.OpenTelemetry.SpanID,
 			ServiceName: gateway.OpenTelemetry.ServiceName,

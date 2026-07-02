@@ -182,7 +182,8 @@ func TestLoadFromStdin_ValidateGatewayConfigError_AllZeroTraceId(t *testing.T) {
 }
 
 // TestLoadFromStdin_OpenTelemetryHeaders verifies that gateway.opentelemetry.headers
-// passes schema validation and is converted into the runtime tracing config.
+// is rejected by schema validation (spec §4.1.3.7 v1.14.0 Breaking Change).
+// Authentication headers must be provided via OTEL_EXPORTER_OTLP_HEADERS env var.
 func TestLoadFromStdin_OpenTelemetryHeaders(t *testing.T) {
 	jsonConfig := `{
 		"mcpServers": {
@@ -201,19 +202,13 @@ func TestLoadFromStdin_OpenTelemetryHeaders(t *testing.T) {
 		}
 	}`
 
-	var (
-		cfg     *Config
-		loadErr error
-	)
+	var loadErr error
 	stdinFromString(t, jsonConfig, func() {
-		cfg, loadErr = LoadFromStdin()
+		_, loadErr = LoadFromStdin()
 	})
 
-	require.NoError(t, loadErr)
-	require.NotNil(t, cfg)
-	require.NotNil(t, cfg.Gateway)
-	require.NotNil(t, cfg.Gateway.Tracing)
-	assert.Equal(t, "X-Test=value", cfg.Gateway.Tracing.Headers)
+	require.Error(t, loadErr, "headers field in opentelemetry config must be rejected")
+	assert.ErrorContains(t, loadErr, "headers")
 }
 
 // TestNormalizeLocalType_NonObjectServerValue covers the continue branch (line 616-617)

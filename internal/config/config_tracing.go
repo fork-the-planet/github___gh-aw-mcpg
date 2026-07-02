@@ -99,7 +99,6 @@ func init() {
 		}
 		cfg.Gateway.Tracing = &TracingConfig{
 			Endpoint:    otel.Endpoint,
-			Headers:     otel.Headers,
 			TraceID:     otel.TraceID,
 			SpanID:      otel.SpanID,
 			ServiceName: otel.ServiceName,

@@ -365,7 +365,6 @@ func TestStdinConverter_OTelConfig(t *testing.T) {
 		Gateway: &StdinGatewayConfig{
 			OpenTelemetry: &StdinOpenTelemetryConfig{
 				Endpoint:    "https://otel.example.com",
-				Headers:     "Authorization=Bearer tok",
 				TraceID:     "4bf92f3577b34da6a3ce929d0e0e4736",
 				SpanID:      "00f067aa0ba902b7",
 				ServiceName: "my-service",
@@ -376,7 +375,6 @@ func TestStdinConverter_OTelConfig(t *testing.T) {
 
 	require.NotNil(t, cfg.Gateway.Tracing, "TracingConfig must be populated by the stdin converter")
 	assert.Equal(t, "https://otel.example.com", cfg.Gateway.Tracing.Endpoint)
-	assert.Equal(t, "Authorization=Bearer tok", cfg.Gateway.Tracing.Headers)
 	assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", cfg.Gateway.Tracing.TraceID)
 	assert.Equal(t, "00f067aa0ba902b7", cfg.Gateway.Tracing.SpanID)
 	assert.Equal(t, "my-service", cfg.Gateway.Tracing.ServiceName)

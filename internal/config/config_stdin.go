@@ -76,10 +76,6 @@ type StdinOpenTelemetryConfig struct {
 	// Endpoint is the OTLP/HTTP collector URL. MUST be HTTPS. Supports ${VAR} expansion.
 	Endpoint string `json:"endpoint"`
 
-	// Headers is a comma-separated list of key=value HTTP headers for export requests
-	// (e.g. "Authorization=Bearer ${OTEL_TOKEN},X-Custom=value"). Supports ${VAR} expansion.
-	Headers string `json:"headers,omitempty"`
-
 	// TraceID is the parent trace ID (32-char lowercase hex, W3C format). Supports ${VAR}.
 	TraceID string `json:"traceId,omitempty"`
 

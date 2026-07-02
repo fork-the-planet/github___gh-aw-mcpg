@@ -456,11 +456,6 @@
           "description": "Logical service name reported in the 'service.name' resource attribute of all emitted spans. Identifies the gateway in the tracing backend. Defaults to 'mcp-gateway' when not specified.",
           "minLength": 1,
           "default": "mcp-gateway"
-        },
-        "headers": {
-          "type": "string",
-          "description": "Comma-separated key=value HTTP headers for OTLP export requests. Supports ${VAR} expansion.",
-          "minLength": 1
         }
       },
       "required": [
