@@ -9,7 +9,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var logCollab = logger.New("githubhttp:collaborator")
@@ -19,9 +19,9 @@ var logCollab = logger.New("githubhttp:collaborator")
 // It returns the (possibly partial) values even on error so that callers can
 // include them in diagnostic log messages.
 func ParseCollaboratorPermissionArgs(argsMap map[string]interface{}) (owner, repo, username string, err error) {
-	owner = strutil.GetStringFromMap(argsMap, "owner")
-	repo = strutil.GetStringFromMap(argsMap, "repo")
-	username = strutil.GetStringFromMap(argsMap, "username")
+	owner = util.GetStringFromMap(argsMap, "owner")
+	repo = util.GetStringFromMap(argsMap, "repo")
+	username = util.GetStringFromMap(argsMap, "username")
 	if owner == "" || repo == "" || username == "" {
 		logCollab.Printf("ParseCollaboratorPermissionArgs: missing required fields: owner=%q, repo=%q, username=%q", owner, repo, username)
 		err = fmt.Errorf("get_collaborator_permission: missing owner/repo/username")

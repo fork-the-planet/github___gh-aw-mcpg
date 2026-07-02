@@ -7,7 +7,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var logDifcLog = logger.New("server:difc_log")
@@ -49,7 +49,7 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 	// Extract identifying metadata from the raw item data.
 	// Data is interface{} from JSON parsing — typically map[string]interface{}.
 	if m, ok := detail.Item.Data.(map[string]interface{}); ok {
-		entry.AuthorAssociation = strutil.GetStringFromMap(m, "author_association", "authorAssociation")
+		entry.AuthorAssociation = util.GetStringFromMap(m, "author_association", "authorAssociation")
 		userLoginFound := false
 		if user, ok := m["user"].(map[string]interface{}); ok {
 			if login, ok := user["login"].(string); ok {
@@ -64,11 +64,11 @@ func buildFilteredItemLogEntry(serverID, toolName string, detail difc.FilteredIt
 				}
 			}
 		}
-		entry.HTMLURL = strutil.GetStringFromMap(m, "html_url", "htmlUrl")
-		if s, ok := strutil.InterfaceToIntString(m["number"]); ok {
+		entry.HTMLURL = util.GetStringFromMap(m, "html_url", "htmlUrl")
+		if s, ok := util.InterfaceToIntString(m["number"]); ok {
 			entry.Number = s
 		}
-		entry.SHA = strutil.GetStringFromMap(m, "sha")
+		entry.SHA = util.GetStringFromMap(m, "sha")
 		logDifcLog.Printf("Filtered item metadata: author=%s, number=%s, url=%s", entry.AuthorLogin, entry.Number, entry.HTMLURL)
 	}
 

@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var logSink = logger.New("difc:sink_server_ids")
@@ -31,7 +31,7 @@ func SetSinkServerIDs(serverIDs []string) {
 		return
 	}
 
-	normalized := strutil.DeduplicateStrings(serverIDs, true)
+	normalized := util.DeduplicateStrings(serverIDs, true)
 	if len(normalized) < len(serverIDs) {
 		logSink.Printf("Removed %d duplicate or empty sink server IDs", len(serverIDs)-len(normalized))
 	}
@@ -82,7 +82,7 @@ func ParseSinkServerIDs(input string) ([]string, error) {
 		validated = append(validated, value)
 	}
 
-	result := strutil.DeduplicateStrings(validated, false)
+	result := util.DeduplicateStrings(validated, false)
 	logSink.Printf("Parsed %d unique DIFC sink server IDs: %v", len(result), result)
 	return result, nil
 }

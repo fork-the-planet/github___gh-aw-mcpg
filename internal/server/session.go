@@ -13,8 +13,8 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/syncutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var logSession = logger.New("server:session")
@@ -25,7 +25,7 @@ func truncateSessionID(sessionID string) string {
 	if sessionID == "" {
 		return "(none)"
 	}
-	return strutil.Truncate(sessionID, 8)
+	return util.Truncate(sessionID, 8)
 }
 
 // truncateCacheKeyForLog returns a log-safe version of a cache key of the form

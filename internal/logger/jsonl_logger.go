@@ -45,26 +45,21 @@ type JSONLRPCMessage struct {
 	Payload        json.RawMessage `json:"payload"` // Full sanitized payload as raw JSON
 }
 
-// setupJSONLLogger configures a JSONLLogger after the log file has been opened.
-func setupJSONLLogger(file *os.File, logDir, fileName string) (*JSONLLogger, error) {
-	jl := &JSONLLogger{
-		logDir:   logDir,
-		fileName: fileName,
-		logFile:  file,
-		encoder:  json.NewEncoder(file),
-	}
-	return jl, nil
-}
-
-// handleJSONLLoggerError returns the error immediately — JSONLLogger has no fallback mode.
-func handleJSONLLoggerError(err error, _ string, _ string) (*JSONLLogger, error) {
-	return strictLoggerOnInitError[*JSONLLogger](err)
-}
-
 // jsonlLoggerFactory bundles the setup and error-handler for JSONLLogger.
 var jsonlLoggerFactory = loggerFactory[*JSONLLogger]{
-	setup:   setupJSONLLogger,
-	onError: handleJSONLLoggerError,
+	setup: func(file *os.File, logDir, fileName string) (*JSONLLogger, error) {
+		jl := &JSONLLogger{
+			logDir:   logDir,
+			fileName: fileName,
+			logFile:  file,
+			encoder:  json.NewEncoder(file),
+		}
+		return jl, nil
+	},
+	onError: func(err error, _ string, _ string) (*JSONLLogger, error) {
+		// JSONLLogger has no fallback mode — return the error immediately.
+		return strictLoggerOnInitError[*JSONLLogger](err)
+	},
 }
 
 // InitJSONLLogger initializes the global JSONL logger

@@ -20,13 +20,13 @@ import (
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/sanitize"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 // truncateAndSanitize truncates the payload to max length and sanitizes secrets.
 func truncateAndSanitize(payload string, maxLength int) string {
 	sanitized := sanitize.SanitizeString(payload)
-	return strutil.Truncate(sanitized, maxLength)
+	return util.Truncate(sanitized, maxLength)
 }
 
 // LogMarshaledForDebug marshals value for debug logging and dispatches to the

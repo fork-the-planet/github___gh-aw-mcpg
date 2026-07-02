@@ -24,30 +24,25 @@ var (
 	globalMarkdownMu     sync.RWMutex
 )
 
-// setupMarkdownLogger configures a MarkdownLogger after the log file has been opened.
-func setupMarkdownLogger(file *os.File, logDir, fileName string) (*MarkdownLogger, error) {
-	ml := &MarkdownLogger{
-		logDir:      logDir,
-		fileName:    fileName,
-		logFile:     file,
-		initialized: false, // Will be initialized on first write
-	}
-	return ml, nil
-}
-
-// handleMarkdownLoggerError sets fallback mode (no stdout redirect) when the file cannot be opened.
-func handleMarkdownLoggerError(_ error, logDir, fileName string) (*MarkdownLogger, error) {
-	return silentFallbackLoggerOnInitError(&MarkdownLogger{
-		logDir:      logDir,
-		fileName:    fileName,
-		useFallback: true,
-	})
-}
-
 // markdownLoggerFactory bundles the setup and error-handler for MarkdownLogger.
 var markdownLoggerFactory = loggerFactory[*MarkdownLogger]{
-	setup:   setupMarkdownLogger,
-	onError: handleMarkdownLoggerError,
+	setup: func(file *os.File, logDir, fileName string) (*MarkdownLogger, error) {
+		ml := &MarkdownLogger{
+			logDir:      logDir,
+			fileName:    fileName,
+			logFile:     file,
+			initialized: false, // Will be initialized on first write
+		}
+		return ml, nil
+	},
+	onError: func(_ error, logDir, fileName string) (*MarkdownLogger, error) {
+		// Sets fallback mode (no stdout redirect) when the file cannot be opened.
+		return silentFallbackLoggerOnInitError(&MarkdownLogger{
+			logDir:      logDir,
+			fileName:    fileName,
+			useFallback: true,
+		})
+	},
 }
 
 // InitMarkdownLogger initializes the global markdown logger

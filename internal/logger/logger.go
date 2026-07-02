@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/tty"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 // Environment variable names for logging configuration
@@ -117,9 +117,9 @@ func (l *Logger) emit(messageFn func() string) {
 
 	// Write to stderr with colors and time diff
 	if l.color != "" {
-		fmt.Fprintf(os.Stderr, "%s%s%s %s +%s\n", l.color, l.namespace, colorReset, message, strutil.FormatDuration(diff))
+		fmt.Fprintf(os.Stderr, "%s%s%s %s +%s\n", l.color, l.namespace, colorReset, message, util.FormatDuration(diff))
 	} else {
-		fmt.Fprintf(os.Stderr, "%s %s +%s\n", l.namespace, message, strutil.FormatDuration(diff))
+		fmt.Fprintf(os.Stderr, "%s %s +%s\n", l.namespace, message, util.FormatDuration(diff))
 	}
 
 	// Also write to file logger in text-only format (no colors, no time diff)

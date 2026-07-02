@@ -5,7 +5,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var logTransform = logger.New("proxy:response_transform")
@@ -116,7 +116,7 @@ func rebuildGraphQLResponse(originalData interface{}, filtered *difc.FilteredCol
 	logTransform.Printf("rebuildGraphQLResponse: rebuilding with %d accessible items", filtered.GetAccessibleCount())
 
 	// Deep-clone the original data structure
-	cloned := strutil.DeepCloneJSON(original)
+	cloned := util.DeepCloneJSON(original)
 
 	// Build accessible items set
 	accessibleItems := make([]interface{}, 0, len(filtered.Accessible))

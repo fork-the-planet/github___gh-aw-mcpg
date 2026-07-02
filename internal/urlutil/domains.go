@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var logDomains = logger.New("urlutil:domains")
@@ -26,7 +26,7 @@ func ExtractURLDomainsFromValue(value any) []string {
 		return nil
 	}
 
-	domains := strutil.SortedSetKeys(domainSet)
+	domains := util.SortedSetKeys(domainSet)
 	logDomains.Printf("ExtractURLDomainsFromValue: extracted %d unique domain(s)", len(domains))
 	return domains
 }
@@ -87,7 +87,7 @@ func ExtractURLDomains(text string) []string {
 	if len(domainSet) == 0 {
 		return nil
 	}
-	domains := strutil.SortedSetKeys(domainSet)
+	domains := util.SortedSetKeys(domainSet)
 	logDomains.Printf("ExtractURLDomains: resolved %d unique domain(s) from %d candidate(s)", len(domains), len(matches))
 	return domains
 }

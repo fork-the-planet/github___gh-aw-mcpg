@@ -1,12 +1,12 @@
-package strutil
+package util
 
 import (
 	"fmt"
 	"time"
 )
 
-// Time and duration helpers live in strutil because their output is string
-// formatting used by logging and user-visible status messages.
+// Time and duration helpers live in the util package because their output is
+// string formatting used by logging and user-visible status messages.
 
 // FormatFutureTime returns a human-readable representation of a future time,
 // combining an RFC3339 timestamp with a relative countdown (e.g. "2026-05-03T12:00:00Z (in 5.0m)").

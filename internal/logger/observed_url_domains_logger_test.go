@@ -208,7 +208,7 @@ func TestLogDomains_AccumulatesNewDomains(t *testing.T) {
 	domains := readObservedURLDomainsFile(t, tmpDir, observedURLDomainsFileName)
 	require.Contains(t, domains, "github")
 
-	// Results are sorted by strutil.SortedSetKeys.
+	// Results are sorted by util.SortedSetKeys.
 	got := domains["github"]
 	sort.Strings(got)
 	assert.Equal(t, []string{"api.github.com", "uploads.github.com"}, got)
@@ -364,16 +364,16 @@ func TestLogObservedURLDomains_WriteError_WarningLogged(t *testing.T) {
 // where the target file name already exists as a directory.  atomicWriteFile can
 // still create the temp file (filePath+".tmp") in the parent dir, but os.Rename will
 // return EISDIR on Linux, causing writeToFile to fail.
-func TestSetupObservedURLDomainsLogger_WriteToFileFails(t *testing.T) {
+func TestObservedURLDomainsLoggerFactory_Setup_WriteToFileFails(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create a directory at the target file path so atomicWriteFile's Rename fails.
 	targetDir := filepath.Join(tmpDir, observedURLDomainsFileName)
 	require.NoError(t, os.MkdirAll(targetDir, 0755))
 
-	l, err := setupObservedURLDomainsLogger(nil, tmpDir, observedURLDomainsFileName)
+	l, err := observedURLDomainsLoggerFactory.setup(nil, tmpDir, observedURLDomainsFileName)
 
-	require.Error(t, err, "setupObservedURLDomainsLogger should return an error when writeToFile fails")
+	require.Error(t, err, "observedURLDomainsLoggerFactory.setup should return an error when writeToFile fails")
 	assert.Nil(t, l, "logger should be nil on setup failure")
 	assert.Contains(t, err.Error(), "failed to rename temp file",
 		"error should originate from the atomic rename step")

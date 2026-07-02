@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var logGraphQL = logger.New("proxy:graphql")
@@ -147,10 +147,10 @@ func extractOwnerRepo(variables map[string]interface{}, query string) (string, s
 
 	// Try variables first
 	if variables != nil {
-		owner = strutil.GetStringFromMap(variables, "owner")
-		repo = strutil.GetStringFromMap(variables, "name")
+		owner = util.GetStringFromMap(variables, "owner")
+		repo = util.GetStringFromMap(variables, "name")
 		if repo == "" {
-			repo = strutil.GetStringFromMap(variables, "repo")
+			repo = util.GetStringFromMap(variables, "repo")
 		}
 		logGraphQL.Printf("extractOwnerRepo: from variables: owner=%q repo=%q", owner, repo)
 	}
@@ -192,13 +192,13 @@ func extractSearchQuery(query string, variables map[string]interface{}) string {
 	// Check variables for $query
 	if variables != nil {
 		if v, ok := variables["query"].(string); ok && v != "" {
-			logGraphQL.Printf("extractSearchQuery: found in variables: %q", strutil.TruncateRunes(v, 80))
+			logGraphQL.Printf("extractSearchQuery: found in variables: %q", util.TruncateRunes(v, 80))
 			return v
 		}
 	}
 	// Parse inline: search(query:"repo:owner/name is:issue", ...)
 	if m := searchQueryArgPattern.FindStringSubmatch(query); m != nil {
-		logGraphQL.Printf("extractSearchQuery: found inline: %q", strutil.TruncateRunes(m[1], 80))
+		logGraphQL.Printf("extractSearchQuery: found inline: %q", util.TruncateRunes(m[1], 80))
 		return m[1]
 	}
 	logGraphQL.Print("extractSearchQuery: no search query found")

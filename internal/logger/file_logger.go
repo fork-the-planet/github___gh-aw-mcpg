@@ -23,34 +23,28 @@ var (
 	globalLoggerMu   sync.RWMutex
 )
 
-// setupFileLogger configures a FileLogger after the log file has been opened.
-func setupFileLogger(file *os.File, logDir, fileName string) (*FileLogger, error) {
-	fl := &FileLogger{
-		logDir:   logDir,
-		fileName: fileName,
-		logFile:  file,
-		logger:   log.New(file, "", 0),
-	}
-	log.Printf("Logging to file: %s", filepath.Join(logDir, fileName))
-	return fl, nil
-}
-
-// handleFileLoggerError falls back to stderr when the log file cannot be opened.
-// Stderr is used (not stdout) to avoid corrupting the stdout JSON channel that
-// callers use to receive the gateway configuration output.
-func handleFileLoggerError(err error, logDir, fileName string) (*FileLogger, error) {
-	return fallbackLoggerOnInitError(err, "Failed to initialize log file", "Falling back to stderr for logging", &FileLogger{
-		logDir:      logDir,
-		fileName:    fileName,
-		useFallback: true,
-		logger:      log.New(os.Stderr, "", 0),
-	})
-}
-
 // fileLoggerFactory bundles the setup and error-handler for FileLogger.
 var fileLoggerFactory = loggerFactory[*FileLogger]{
-	setup:   setupFileLogger,
-	onError: handleFileLoggerError,
+	setup: func(file *os.File, logDir, fileName string) (*FileLogger, error) {
+		fl := &FileLogger{
+			logDir:   logDir,
+			fileName: fileName,
+			logFile:  file,
+			logger:   log.New(file, "", 0),
+		}
+		log.Printf("Logging to file: %s", filepath.Join(logDir, fileName))
+		return fl, nil
+	},
+	onError: func(err error, logDir, fileName string) (*FileLogger, error) {
+		// Stderr is used (not stdout) to avoid corrupting the stdout JSON channel that
+		// callers use to receive the gateway configuration output.
+		return fallbackLoggerOnInitError(err, "Failed to initialize log file", "Falling back to stderr for logging", &FileLogger{
+			logDir:      logDir,
+			fileName:    fileName,
+			useFallback: true,
+			logger:      log.New(os.Stderr, "", 0),
+		})
+	},
 }
 
 // InitFileLogger initializes the global file logger

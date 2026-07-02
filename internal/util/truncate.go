@@ -1,4 +1,4 @@
-package strutil
+package util
 
 // Truncate truncates a string to the specified maximum length.
 // If the string is longer than maxLen, it's truncated and "..." is appended.

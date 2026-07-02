@@ -41,7 +41,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/sanitize"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var log = logger.New("auth:header")
@@ -206,7 +206,7 @@ func IsMalformedHeader(header string) bool {
 // if none is provided. Returns a 32-byte hex-encoded string (64 chars).
 func GenerateRandomAgentID() (string, error) {
 	logAPIKey.Print("Generating random agent ID")
-	key, err := strutil.RandomHex(32)
+	key, err := util.RandomHex(32)
 	if err != nil {
 		logAPIKey.Printf("Random agent ID generation failed: %v", err)
 		return "", fmt.Errorf("failed to generate random agent ID: %w", err)

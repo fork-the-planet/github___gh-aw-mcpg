@@ -17,8 +17,8 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/mcpresult"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/urlutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 	"github.com/itchyny/gojq"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -488,7 +488,7 @@ func wrapToolHandler(
 
 	return func(ctx context.Context, req *sdk.CallToolRequest, args any) (*sdk.CallToolResult, any, error) {
 		// Generate random query ID
-		queryID := strutil.RandomHexWithFallback(queryIDBytes)
+		queryID := util.RandomHexWithFallback(queryIDBytes)
 
 		// Get session ID from context
 		sessionID := getSessionID(ctx)

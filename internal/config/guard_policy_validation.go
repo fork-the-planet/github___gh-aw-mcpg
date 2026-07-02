@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 const errMsgPolicyMissingKey = "policy must include allow-only or write-sink"
@@ -188,7 +188,7 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 		return normalized, nil
 
 	case []string:
-		scopes, err := normalizeAndValidateScopeArray(strutil.StringsToAny(scope))
+		scopes, err := normalizeAndValidateScopeArray(util.StringsToAny(scope))
 		if err != nil {
 			return nil, err
 		}
