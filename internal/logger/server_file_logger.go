@@ -145,7 +145,7 @@ func logWithLevelAndServer(serverID string, level LogLevel, category, format str
 	}
 }
 
-// The exported vars below follow the Log-Level Quad-Function Pattern
+// The exported vars below follow the Log-Level Quad-Var Pattern
 // documented in global_state.go. Each var is a direct alias of the
 // corresponding per-level closure in serverLevelLoggers, eliminating
 // the four boilerplate wrapper functions.
