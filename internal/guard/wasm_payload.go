@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 // normalizePolicyPayload coerces a policy value to a map[string]interface{}.
@@ -251,7 +251,7 @@ func BuildLabelAgentPayload(policy interface{}, trustedBots []string, trustedUse
 
 	if len(trustedBots) > 0 {
 		// trusted-bots is a top-level key in the label_agent payload.
-		bots := strutil.StringsToAny(trustedBots)
+		bots := util.StringsToAny(trustedBots)
 		payload["trusted-bots"] = bots
 		logWasm.Printf("BuildLabelAgentPayload: injected %d trusted-bots into payload", len(trustedBots))
 	}
@@ -260,7 +260,7 @@ func BuildLabelAgentPayload(policy interface{}, trustedBots []string, trustedUse
 		// trusted-users is injected inside the allow-only object.
 		// If allow-only is absent, the injection is skipped and buildStrictLabelAgentPayload
 		// will reject the payload when called with the missing allow-only key.
-		users := strutil.StringsToAny(trustedUsers)
+		users := util.StringsToAny(trustedUsers)
 		// Inject into allow-only object if present
 		if allowOnly, ok := payload["allow-only"].(map[string]interface{}); ok {
 			allowOnly["trusted-users"] = users

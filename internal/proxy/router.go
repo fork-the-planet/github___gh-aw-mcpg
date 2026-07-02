@@ -7,10 +7,22 @@ import (
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var logRouter = logger.New("proxy:router")
+
+// Argument key constants used when building route args maps.
+// Centralising these strings avoids typo-prone bare literals scattered across the file.
+const (
+	argOwner            = "owner"
+	argRepo             = "repo"
+	argPullNumber       = "pullNumber"
+	argIssueNumber      = "issue_number"
+	argMethod           = "method"
+	argResourceID       = "resource_id"
+	argDiscussionNumber = "discussion_number"
+)
 
 // RouteMatch contains the result of matching a REST API path to a guard tool name.
 type RouteMatch struct {
@@ -31,33 +43,33 @@ type route struct {
 // repoArgs builds the standard owner/repo args map.
 func repoArgs(owner, repo string) map[string]interface{} {
 	return map[string]interface{}{
-		"owner": owner,
-		"repo":  repo,
+		argOwner: owner,
+		argRepo:  repo,
 	}
 }
 
 // prArgs builds owner+repo+pullNumber+method args.
 func prArgs(owner, repo, pullNumber, method string) map[string]interface{} {
-	return map[string]interface{}{"owner": owner, "repo": repo, "pullNumber": pullNumber, "method": method}
+	return map[string]interface{}{argOwner: owner, argRepo: repo, argPullNumber: pullNumber, argMethod: method}
 }
 
 // issueArgs builds owner+repo+issue_number args, with optional method.
 func issueArgs(owner, repo, issueNumber string, method ...string) map[string]interface{} {
-	m := map[string]interface{}{"owner": owner, "repo": repo, "issue_number": issueNumber}
+	m := map[string]interface{}{argOwner: owner, argRepo: repo, argIssueNumber: issueNumber}
 	if len(method) > 0 {
-		m["method"] = method[0]
+		m[argMethod] = method[0]
 	}
 	return m
 }
 
 // repoMethodArgs builds owner+repo+method args.
 func repoMethodArgs(owner, repo, method string) map[string]interface{} {
-	return map[string]interface{}{"owner": owner, "repo": repo, "method": method}
+	return map[string]interface{}{argOwner: owner, argRepo: repo, argMethod: method}
 }
 
 // repoMethodResourceArgs builds owner+repo+method+resource_id args.
 func repoMethodResourceArgs(owner, repo, method, resourceID string) map[string]interface{} {
-	return map[string]interface{}{"owner": owner, "repo": repo, "method": method, "resource_id": resourceID}
+	return map[string]interface{}{argOwner: owner, argRepo: repo, argMethod: method, argResourceID: resourceID}
 }
 
 // emptyExtractArgs is a shared extractArgs for routes that need no parameters.
@@ -74,14 +86,14 @@ func repoArgsExtractor(m []string) map[string]interface{} {
 // from tool arguments, accepting either string or float64 JSON number inputs for
 // the identifier.
 func extractOwnerRepoNumber(argsMap map[string]interface{}, ownerKey, repoKey, numberKey, toolName string) (owner, repo, number string, err error) {
-	owner = strutil.GetStringFromMap(argsMap, ownerKey)
-	repo = strutil.GetStringFromMap(argsMap, repoKey)
-	number = strutil.GetStringFromMap(argsMap, numberKey)
+	owner = util.GetStringFromMap(argsMap, ownerKey)
+	repo = util.GetStringFromMap(argsMap, repoKey)
+	number = util.GetStringFromMap(argsMap, numberKey)
 	if number == "" {
 		rawVal := argsMap[numberKey]
 		switch rawVal.(type) {
 		case float64, json.Number:
-			s, ok := strutil.InterfaceToIntString(rawVal)
+			s, ok := util.InterfaceToIntString(rawVal)
 			if !ok {
 				logRouter.Printf("extractOwnerRepoNumber: %s=%v is not a valid integer for tool=%s", numberKey, rawVal, toolName)
 				err = fmt.Errorf("%s: invalid %s (out of range or not an integer)", toolName, numberKey)
@@ -181,7 +193,7 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/commits/([^/]+)$`),
 		toolName: "get_commit",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "sha": m[3]}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], "sha": m[3]}
 		},
 	},
 	{
@@ -200,7 +212,7 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/git/ref/tags/(.+)$`),
 		toolName: "get_tag",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "tag": m[3]}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], "tag": m[3]}
 		},
 	},
 	{
@@ -219,7 +231,7 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/releases/tags/(.+)$`),
 		toolName: "get_release_by_tag",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "tag": m[3]}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], "tag": m[3]}
 		},
 	},
 	{
@@ -233,14 +245,14 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/contents/(.+)$`),
 		toolName: "get_file_contents",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "path": m[3]}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], "path": m[3]}
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/git/trees/(.+)$`),
 		toolName: "get_file_contents",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "path": m[3]}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], "path": m[3]}
 		},
 	},
 
@@ -249,7 +261,7 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/labels/(.+)$`),
 		toolName: "get_label",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "name": m[3]}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], "name": m[3]}
 		},
 	},
 	{
@@ -291,14 +303,14 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/runs/(\d+)/attempts/(\d+)/logs$`),
 		toolName: "get_job_logs",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "run_id": m[3]}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], "run_id": m[3]}
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/actions/runs/(\d+)/logs$`),
 		toolName: "get_job_logs",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "run_id": m[3]}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], "run_id": m[3]}
 		},
 	},
 	{
@@ -390,7 +402,7 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/orgs/([^/]+)/actions/(?:secrets|variables)(?:/[^/]+)?$`),
 		toolName: "actions_list",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "method": "list_org_config"}
+			return map[string]interface{}{argOwner: m[1], argMethod: "list_org_config"}
 		},
 	},
 
@@ -404,14 +416,14 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/discussions/(\d+)/comments$`),
 		toolName: "get_discussion_comments",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "discussion_number": m[3]}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], argDiscussionNumber: m[3]}
 		},
 	},
 	{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/discussions/(\d+)$`),
 		toolName: "list_discussions",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "discussion_number": m[3]}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], argDiscussionNumber: m[3]}
 		},
 	},
 
@@ -420,7 +432,7 @@ var routes = []route{
 		pattern:  regexp.MustCompile(`^/repos/([^/]+)/([^/]+)/commits/([^/]+)/check-(?:runs|suites)$`),
 		toolName: "pull_request_read",
 		extractArgs: func(m []string) map[string]interface{} {
-			return map[string]interface{}{"owner": m[1], "repo": m[2], "sha": m[3], "method": "get_check_runs"}
+			return map[string]interface{}{argOwner: m[1], argRepo: m[2], "sha": m[3], argMethod: "get_check_runs"}
 		},
 	},
 
@@ -465,10 +477,10 @@ func MatchRoute(path string) *RouteMatch {
 				ToolName: r.toolName,
 				Args:     args,
 			}
-			if owner, ok := args["owner"].(string); ok {
+			if owner, ok := args[argOwner].(string); ok {
 				m.Owner = owner
 			}
-			if repo, ok := args["repo"].(string); ok {
+			if repo, ok := args[argRepo].(string); ok {
 				m.Repo = repo
 			}
 			logRouter.Printf("matched %s → tool=%s owner=%s repo=%s", path, m.ToolName, m.Owner, m.Repo)

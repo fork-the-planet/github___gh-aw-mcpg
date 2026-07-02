@@ -3,7 +3,7 @@ package server
 import (
 	"testing"
 
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,7 +53,7 @@ func TestCopyToolCallLimits(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := strutil.CopyTrimmedStringIntMap(tt.input)
+			got := util.CopyTrimmedStringIntMap(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -63,7 +63,7 @@ func TestCopyToolCallLimits(t *testing.T) {
 // defensive copy — mutations to the copy do not affect the original.
 func TestCopyToolCallLimits_IsolatesFromOriginal(t *testing.T) {
 	original := map[string]int{"get_file": 10, "create_issue": 5}
-	copied := strutil.CopyTrimmedStringIntMap(original)
+	copied := util.CopyTrimmedStringIntMap(original)
 	require.NotNil(t, copied)
 
 	// Mutate the copy.
@@ -78,7 +78,7 @@ func TestCopyToolCallLimits_IsolatesFromOriginal(t *testing.T) {
 // original after copying do not affect the returned copy.
 func TestCopyToolCallLimits_IsolatesOriginalFromCopy(t *testing.T) {
 	original := map[string]int{"get_file": 10}
-	result := strutil.CopyTrimmedStringIntMap(original)
+	result := util.CopyTrimmedStringIntMap(original)
 	require.NotNil(t, result)
 
 	// Mutate the original after copying.

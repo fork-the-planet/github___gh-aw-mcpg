@@ -20,8 +20,8 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var logHandler = logger.New("proxy:handler")
@@ -96,7 +96,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		match := MatchGraphQL(graphQLBody)
 		if match == nil {
 			// Unknown GraphQL query — fail closed: deny rather than risk leaking unfiltered data
-			logHandler.Printf("unknown GraphQL query, blocking request: %s", strutil.Truncate(string(graphQLBody), 500))
+			logHandler.Printf("unknown GraphQL query, blocking request: %s", util.Truncate(string(graphQLBody), 500))
 			httputil.WriteJSONResponse(w, http.StatusForbidden, map[string]interface{}{
 				"errors": []map[string]string{{"message": "access denied: unrecognized GraphQL operation"}},
 				"data":   nil,

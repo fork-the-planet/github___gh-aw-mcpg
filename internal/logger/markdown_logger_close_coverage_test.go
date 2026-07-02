@@ -24,7 +24,7 @@ func TestMarkdownLogger_Log_InitializeFileError(t *testing.T) {
 	f, err := os.CreateTemp(tmpDir, "test-*.md")
 	require.NoError(t, err)
 
-	ml, err := setupMarkdownLogger(f, tmpDir, filepath.Base(f.Name()))
+	ml, err := markdownLoggerFactory.setup(f, tmpDir, filepath.Base(f.Name()))
 	require.NoError(t, err)
 	require.NotNil(t, ml)
 
@@ -58,7 +58,7 @@ func TestMarkdownLogger_Close_FooterWriteError(t *testing.T) {
 	f, err := os.CreateTemp(tmpDir, "test-*.md")
 	require.NoError(t, err)
 
-	ml, err := setupMarkdownLogger(f, tmpDir, filepath.Base(f.Name()))
+	ml, err := markdownLoggerFactory.setup(f, tmpDir, filepath.Base(f.Name()))
 	require.NoError(t, err)
 	require.NotNil(t, ml)
 
@@ -75,7 +75,7 @@ func TestMarkdownLogger_Close_FooterWriteError(t *testing.T) {
 // Close() should return nil.
 func TestMarkdownLogger_Close_NilLogFile(t *testing.T) {
 	tmpDir := t.TempDir()
-	ml, err := handleMarkdownLoggerError(os.ErrNotExist, tmpDir, "test.md")
+	ml, err := markdownLoggerFactory.onError(os.ErrNotExist, tmpDir, "test.md")
 	require.NoError(t, err)
 	require.NotNil(t, ml)
 	assert.Nil(t, ml.logFile, "fallback logger should have nil logFile")
@@ -92,7 +92,7 @@ func TestMarkdownLogger_InitializeFile_WriteError(t *testing.T) {
 	f, err := os.CreateTemp(tmpDir, "test-*.md")
 	require.NoError(t, err)
 
-	ml, err := setupMarkdownLogger(f, tmpDir, filepath.Base(f.Name()))
+	ml, err := markdownLoggerFactory.setup(f, tmpDir, filepath.Base(f.Name()))
 	require.NoError(t, err)
 
 	// Close the file to force the WriteString call to fail.
@@ -111,7 +111,7 @@ func TestMarkdownLogger_InitializeFile_AlreadyInitialized(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	ml, err := setupMarkdownLogger(f, tmpDir, filepath.Base(f.Name()))
+	ml, err := markdownLoggerFactory.setup(f, tmpDir, filepath.Base(f.Name()))
 	require.NoError(t, err)
 
 	ml.initialized = true
@@ -129,7 +129,7 @@ func TestMarkdownLogger_Log_WriteError(t *testing.T) {
 	f, err := os.CreateTemp(tmpDir, "test-*.md")
 	require.NoError(t, err)
 
-	ml, err := setupMarkdownLogger(f, tmpDir, filepath.Base(f.Name()))
+	ml, err := markdownLoggerFactory.setup(f, tmpDir, filepath.Base(f.Name()))
 	require.NoError(t, err)
 
 	// Write the header successfully so ml.initialized becomes true.

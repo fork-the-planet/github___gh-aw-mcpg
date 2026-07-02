@@ -10,7 +10,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 var logGuardInit = logger.New("server:guard_init")
@@ -350,7 +350,7 @@ func (us *UnifiedServer) ensureGuardInitialized(
 	}
 	var toolCallLimits map[string]int
 	if policy.AllowOnly != nil {
-		toolCallLimits = strutil.CopyTrimmedStringIntMap(policy.AllowOnly.ToolCallLimits)
+		toolCallLimits = util.CopyTrimmedStringIntMap(policy.AllowOnly.ToolCallLimits)
 	}
 	session.GuardInit[serverID] = &GuardSessionState{
 		Initialized:      true,

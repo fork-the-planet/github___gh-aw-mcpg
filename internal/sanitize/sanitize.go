@@ -35,7 +35,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 // SecretPatterns contains regex patterns for detecting potential secrets
@@ -95,7 +95,7 @@ func TruncateSecret(input string) string {
 	if len(input) <= 4 {
 		return "..."
 	}
-	return strutil.TruncateWithSuffix(input, 4, "...")
+	return util.TruncateWithSuffix(input, 4, "...")
 }
 
 // TruncateSecretMap returns a sanitized version of environment variables

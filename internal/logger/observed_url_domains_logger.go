@@ -9,7 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 const observedURLDomainsFileName = "observed-url-domains.json"
@@ -40,35 +40,31 @@ var (
 	globalObservedURLDomainsMu     sync.RWMutex
 )
 
-func setupObservedURLDomainsLogger(file *os.File, logDir, fileName string) (*ObservedURLDomainsLogger, error) {
-	if file != nil {
-		file.Close()
-	}
-
-	l := &ObservedURLDomainsLogger{
-		logDir:   logDir,
-		fileName: fileName,
-		data:     make(map[string]map[string]struct{}),
-	}
-	if err := l.writeToFile(); err != nil {
-		return nil, err
-	}
-	log.Printf("Observed URL domains logging to file: %s", filepath.Join(logDir, fileName))
-	return l, nil
-}
-
-func handleObservedURLDomainsLoggerError(err error, logDir, fileName string) (*ObservedURLDomainsLogger, error) {
-	return fallbackLoggerOnInitError(err, "Failed to initialize observed URL domains log file", "Observed URL domains logging disabled", &ObservedURLDomainsLogger{
-		logDir:      logDir,
-		fileName:    fileName,
-		data:        make(map[string]map[string]struct{}),
-		useFallback: true,
-	})
-}
-
 var observedURLDomainsLoggerFactory = loggerFactory[*ObservedURLDomainsLogger]{
-	setup:   setupObservedURLDomainsLogger,
-	onError: handleObservedURLDomainsLoggerError,
+	setup: func(file *os.File, logDir, fileName string) (*ObservedURLDomainsLogger, error) {
+		if file != nil {
+			file.Close()
+		}
+
+		l := &ObservedURLDomainsLogger{
+			logDir:   logDir,
+			fileName: fileName,
+			data:     make(map[string]map[string]struct{}),
+		}
+		if err := l.writeToFile(); err != nil {
+			return nil, err
+		}
+		log.Printf("Observed URL domains logging to file: %s", filepath.Join(logDir, fileName))
+		return l, nil
+	},
+	onError: func(err error, logDir, fileName string) (*ObservedURLDomainsLogger, error) {
+		return fallbackLoggerOnInitError(err, "Failed to initialize observed URL domains log file", "Observed URL domains logging disabled", &ObservedURLDomainsLogger{
+			logDir:      logDir,
+			fileName:    fileName,
+			data:        make(map[string]map[string]struct{}),
+			useFallback: true,
+		})
+	},
 }
 
 // InitObservedURLDomainsLogger initializes observed-url-domains.json logger.
@@ -117,7 +113,7 @@ func (l *ObservedURLDomainsLogger) LogDomains(serverID string, domains []string)
 func (l *ObservedURLDomainsLogger) writeToFile() error {
 	serialized := make(map[string][]string, len(l.data))
 	for serverID, domains := range l.data {
-		serialized[serverID] = strutil.SortedSetKeys(domains)
+		serialized[serverID] = util.SortedSetKeys(domains)
 	}
 
 	jsonData, err := json.MarshalIndent(serialized, "", "  ")

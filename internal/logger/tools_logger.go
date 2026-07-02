@@ -39,41 +39,34 @@ var (
 	globalToolsMu     sync.RWMutex
 )
 
-// setupToolsLogger configures a ToolsLogger after the log file has been opened.
-// The file is closed immediately because ToolsLogger writes atomically on each update.
-func setupToolsLogger(file *os.File, logDir, fileName string) (*ToolsLogger, error) {
-	// Close the file immediately - we'll write directly later
-	if file != nil {
-		file.Close()
-	}
-
-	tl := &ToolsLogger{
-		logDir:   logDir,
-		fileName: fileName,
-		data: &ToolsData{
-			Servers: make(map[string][]ToolInfo),
-		},
-	}
-	log.Printf("Tools logging to file: %s", filepath.Join(logDir, fileName))
-	return tl, nil
-}
-
-// handleToolsLoggerError falls back to a no-op logger when the file cannot be opened.
-func handleToolsLoggerError(err error, logDir, fileName string) (*ToolsLogger, error) {
-	return fallbackLoggerOnInitError(err, "Failed to initialize tools log file", "Tools logging disabled", &ToolsLogger{
-		logDir:      logDir,
-		fileName:    fileName,
-		useFallback: true,
-		data: &ToolsData{
-			Servers: make(map[string][]ToolInfo),
-		},
-	})
-}
-
 // toolsLoggerFactory bundles the setup and error-handler for ToolsLogger.
 var toolsLoggerFactory = loggerFactory[*ToolsLogger]{
-	setup:   setupToolsLogger,
-	onError: handleToolsLoggerError,
+	setup: func(file *os.File, logDir, fileName string) (*ToolsLogger, error) {
+		// Close the file immediately - we'll write directly later
+		if file != nil {
+			file.Close()
+		}
+
+		tl := &ToolsLogger{
+			logDir:   logDir,
+			fileName: fileName,
+			data: &ToolsData{
+				Servers: make(map[string][]ToolInfo),
+			},
+		}
+		log.Printf("Tools logging to file: %s", filepath.Join(logDir, fileName))
+		return tl, nil
+	},
+	onError: func(err error, logDir, fileName string) (*ToolsLogger, error) {
+		return fallbackLoggerOnInitError(err, "Failed to initialize tools log file", "Tools logging disabled", &ToolsLogger{
+			logDir:      logDir,
+			fileName:    fileName,
+			useFallback: true,
+			data: &ToolsData{
+				Servers: make(map[string][]ToolInfo),
+			},
+		})
+	},
 }
 
 // InitToolsLogger initializes the global tools logger

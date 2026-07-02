@@ -208,7 +208,7 @@ func TestLogDomains_AccumulatesNewDomains(t *testing.T) {
 	domains := readObservedURLDomainsFile(t, tmpDir, observedURLDomainsFileName)
 	require.Contains(t, domains, "github")
 
-	// Results are sorted by strutil.SortedSetKeys.
+	// Results are sorted by util.SortedSetKeys.
 	got := domains["github"]
 	sort.Strings(got)
 	assert.Equal(t, []string{"api.github.com", "uploads.github.com"}, got)
@@ -371,7 +371,7 @@ func TestSetupObservedURLDomainsLogger_WriteToFileFails(t *testing.T) {
 	targetDir := filepath.Join(tmpDir, observedURLDomainsFileName)
 	require.NoError(t, os.MkdirAll(targetDir, 0755))
 
-	l, err := setupObservedURLDomainsLogger(nil, tmpDir, observedURLDomainsFileName)
+	l, err := observedURLDomainsLoggerFactory.setup(nil, tmpDir, observedURLDomainsFileName)
 
 	require.Error(t, err, "setupObservedURLDomainsLogger should return an error when writeToFile fails")
 	assert.Nil(t, l, "logger should be nil on setup failure")

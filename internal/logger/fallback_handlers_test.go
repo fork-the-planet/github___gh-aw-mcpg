@@ -12,7 +12,7 @@ func TestHandleFileLoggerError_UsesFallback(t *testing.T) {
 	var logger *FileLogger
 	var err error
 	_ = captureStdLog(t, func() {
-		logger, err = handleFileLoggerError(assert.AnError, "/tmp/logs", "test.log")
+		logger, err = fileLoggerFactory.onError(assert.AnError, "/tmp/logs", "test.log")
 	})
 	require.NoError(t, err)
 	require.NotNil(t, logger)
@@ -26,7 +26,7 @@ func TestHandleMarkdownLoggerError_UsesFallback(t *testing.T) {
 	var logger *MarkdownLogger
 	var err error
 	_ = captureStdLog(t, func() {
-		logger, err = handleMarkdownLoggerError(assert.AnError, "/tmp/logs", "test.md")
+		logger, err = markdownLoggerFactory.onError(assert.AnError, "/tmp/logs", "test.md")
 	})
 	require.NoError(t, err)
 	require.NotNil(t, logger)
@@ -39,7 +39,7 @@ func TestHandleToolsLoggerError_UsesFallback(t *testing.T) {
 	var logger *ToolsLogger
 	var err error
 	_ = captureStdLog(t, func() {
-		logger, err = handleToolsLoggerError(assert.AnError, "/tmp/logs", "tools.json")
+		logger, err = toolsLoggerFactory.onError(assert.AnError, "/tmp/logs", "tools.json")
 	})
 	require.NoError(t, err)
 	require.NotNil(t, logger)

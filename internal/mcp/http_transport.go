@@ -15,7 +15,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/sanitize"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -188,7 +188,7 @@ func parseJSONRPCResponseWithSSE(body []byte, statusCode int, contextDesc string
 				return httpErrorResponse(), nil
 			}
 			// Include the response body to help debug what the server actually returned
-			bodyPreview := strutil.TruncateWithSuffix(string(body), 500, "... (truncated)")
+			bodyPreview := util.TruncateWithSuffix(string(body), 500, "... (truncated)")
 			return nil, fmt.Errorf("failed to parse %s (received non-JSON or malformed response): %w\nResponse body: %s", contextDesc, sseErr, bodyPreview)
 		}
 

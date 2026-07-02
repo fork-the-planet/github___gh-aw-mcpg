@@ -46,16 +46,16 @@ func TimeoutPositive(timeout int, fieldName, jsonPath string) *ValidationError {
 
 // PositiveInteger validates that a value is at least 1.
 // Returns nil if valid, *ValidationError if invalid.
+// It delegates to TimeoutMinimum with min=1, then overrides Message and
+// Suggestion to use "positive integer" phrasing instead of the generic
+// "must be at least N" wording produced by TimeoutMinimum.
 func PositiveInteger(value int, fieldName, jsonPath string) *ValidationError {
 	logValidation.Printf("Validating positive integer: field=%s, value=%d, jsonPath=%s", fieldName, value, jsonPath)
-	if value < 1 {
+	if err := TimeoutMinimum(value, 1, fieldName, jsonPath); err != nil {
 		logValidation.Printf("Positive integer validation failed: %s=%d is not positive", fieldName, value)
-		return &ValidationError{
-			Field:      fieldName,
-			Message:    fmt.Sprintf("%s must be a positive integer (>= 1), got %d", fieldName, value),
-			JSONPath:   jsonPath,
-			Suggestion: fmt.Sprintf("Use a positive integer (>= 1) for %s", fieldName),
-		}
+		err.Message = fmt.Sprintf("%s must be a positive integer (>= 1), got %d", fieldName, value)
+		err.Suggestion = fmt.Sprintf("Use a positive integer (>= 1) for %s", fieldName)
+		return err
 	}
 	return nil
 }

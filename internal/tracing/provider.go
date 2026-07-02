@@ -35,7 +35,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 	"github.com/github/gh-aw-mcpg/internal/version"
 )
 
@@ -80,7 +80,7 @@ func (p *Provider) Shutdown(ctx context.Context) error {
 // generateRandomSpanID creates a cryptographically random 8-byte span ID.
 func generateRandomSpanID() (trace.SpanID, error) {
 	var id trace.SpanID
-	b, err := strutil.RandomBytes(len(id))
+	b, err := util.RandomBytes(len(id))
 	if err != nil {
 		return id, fmt.Errorf("failed to generate random span ID: %w", err)
 	}

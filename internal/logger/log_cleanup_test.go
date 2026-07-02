@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/github/gh-aw-mcpg/internal/strutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 // Pre-compiled regexes for performance (avoid recompiling in hot paths).
@@ -42,7 +42,7 @@ func testExtractErrorMessage(line string) string {
 
 	// If the line is too long (>200 chars), truncate it
 	if len(cleanedLine) > 200 {
-		cleanedLine = strutil.Truncate(cleanedLine, 197)
+		cleanedLine = util.Truncate(cleanedLine, 197)
 	}
 
 	return cleanedLine
