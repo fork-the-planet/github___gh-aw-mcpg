@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/version"
@@ -769,4 +770,69 @@ func TestFixSchemaBytes_keepaliveIntervalNegative(t *testing.T) {
 
 	err := validateJSONSchema([]byte(validConfig))
 	assert.NoError(t, err, "keepaliveInterval -1 (disable) should be accepted by the schema")
+}
+
+// TestSchema_OpenTelemetryConfig verifies that the JSON schema accepts and rejects
+// opentelemetry configurations correctly, covering currently defined schema fields.
+func TestSchema_OpenTelemetryConfig(t *testing.T) {
+	validBase := `{
+		"mcpServers": {"s": {"container": "img:latest"}},
+		"gateway": {"port": 8080, "domain": "localhost", "agentId": "test-key", "opentelemetry": %s}
+	}`
+
+	tests := []struct {
+		name      string
+		otel      string
+		shouldErr bool
+		errMsg    string
+	}{
+		{
+			name:      "valid minimal opentelemetry (endpoint only)",
+			otel:      `{"endpoint": "https://otel.example.com"}`,
+			shouldErr: false,
+		},
+		{
+			name:      "invalid opentelemetry with headers",
+			otel:      `{"endpoint": "https://otel.example.com", "headers": "Authorization=Bearer token"}`,
+			shouldErr: true,
+			errMsg:    "headers",
+		},
+		{
+			name:      "valid opentelemetry with all fields",
+			otel:      `{"endpoint": "https://otel.example.com", "traceId": "4bf92f3577b34da6a3ce929d0e0e4736", "spanId": "00f067aa0ba902b7", "serviceName": "my-svc"}`,
+			shouldErr: false,
+		},
+		{
+			name:      "valid opentelemetry with serviceName only",
+			otel:      `{"endpoint": "https://otel.example.com", "serviceName": "custom-svc"}`,
+			shouldErr: false,
+		},
+		{
+			name:      "invalid opentelemetry missing endpoint",
+			otel:      `{"serviceName": "svc"}`,
+			shouldErr: true,
+			errMsg:    "endpoint",
+		},
+		{
+			name:      "invalid opentelemetry unknown field",
+			otel:      `{"endpoint": "https://otel.example.com", "unknownField": "value"}`,
+			shouldErr: true,
+			errMsg:    "unknownField",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := fmt.Sprintf(validBase, tt.otel)
+			err := validateJSONSchema([]byte(cfg))
+			if tt.shouldErr {
+				require.Error(t, err, "expected schema validation to fail")
+				if tt.errMsg != "" {
+					assert.ErrorContains(t, err, tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err, "expected schema validation to pass")
+			}
+		})
+	}
 }
