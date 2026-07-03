@@ -76,6 +76,11 @@ type StdinOpenTelemetryConfig struct {
 	// Endpoint is the OTLP/HTTP collector URL. MUST be HTTPS. Supports ${VAR} expansion.
 	Endpoint string `json:"endpoint"`
 
+	// Headers is a comma-separated list of key=value HTTP headers sent with every OTLP
+	// export request (e.g. "Authorization=Bearer ${MY_TOKEN}"). Supports ${VAR} expansion.
+	// Mirrors the TOML gateway.opentelemetry.headers field.
+	Headers string `json:"headers,omitempty"`
+
 	// TraceID is the parent trace ID (32-char lowercase hex, W3C format). Supports ${VAR}.
 	TraceID string `json:"traceId,omitempty"`
 

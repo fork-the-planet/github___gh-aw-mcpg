@@ -92,13 +92,14 @@ func init() {
 			return
 		}
 		otel := stdinCfg.Gateway.OpenTelemetry
-		logTracingCfg.Printf("Converting OpenTelemetry config from stdin: hasEndpoint=%v, hasServiceName=%v, hasTraceID=%v",
-			otel.Endpoint != "", otel.ServiceName != "", otel.TraceID != "")
+		logTracingCfg.Printf("Converting OpenTelemetry config from stdin: hasEndpoint=%v, hasHeaders=%v, hasServiceName=%v, hasTraceID=%v",
+			otel.Endpoint != "", otel.Headers != "", otel.ServiceName != "", otel.TraceID != "")
 		if cfg.Gateway == nil {
 			cfg.Gateway = &GatewayConfig{}
 		}
 		cfg.Gateway.Tracing = &TracingConfig{
 			Endpoint:    otel.Endpoint,
+			Headers:     otel.Headers,
 			TraceID:     otel.TraceID,
 			SpanID:      otel.SpanID,
 			ServiceName: otel.ServiceName,

@@ -378,6 +378,27 @@ func TestStdinConverter_OTelConfig(t *testing.T) {
 	assert.Equal(t, "4bf92f3577b34da6a3ce929d0e0e4736", cfg.Gateway.Tracing.TraceID)
 	assert.Equal(t, "00f067aa0ba902b7", cfg.Gateway.Tracing.SpanID)
 	assert.Equal(t, "my-service", cfg.Gateway.Tracing.ServiceName)
+	assert.Empty(t, cfg.Gateway.Tracing.Headers, "Headers must be empty when not provided")
+}
+
+// TestStdinConverter_OTelConfig_Headers verifies that the headers field in the stdin
+// JSON opentelemetry config is wired through to TracingConfig.Headers.
+func TestStdinConverter_OTelConfig_Headers(t *testing.T) {
+	cfg := &Config{Gateway: &GatewayConfig{}}
+	stdinCfg := &StdinConfig{
+		Gateway: &StdinGatewayConfig{
+			OpenTelemetry: &StdinOpenTelemetryConfig{
+				Endpoint:    "https://otel.example.com",
+				Headers:     "Authorization=Bearer token123,X-Custom=value",
+				ServiceName: "my-service",
+			},
+		},
+	}
+	applyStdinConverters(cfg, stdinCfg)
+
+	require.NotNil(t, cfg.Gateway.Tracing, "TracingConfig must be populated by the stdin converter")
+	assert.Equal(t, "Authorization=Bearer token123,X-Custom=value", cfg.Gateway.Tracing.Headers,
+		"headers from stdin JSON must be copied to TracingConfig.Headers")
 }
 
 // TestStdinConverter_OTelConfig_DefaultsServiceName verifies that the stdin converter
