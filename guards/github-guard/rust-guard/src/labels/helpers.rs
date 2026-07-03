@@ -4183,4 +4183,38 @@ mod tests {
             "demotion_label should cap merged PR to none integrity"
         );
     }
+
+    #[test]
+    fn limit_items_with_log_truncates_at_max() {
+        let items: Vec<u32> = (0..200).collect();
+        let limited = limit_items_with_log(&items, "test_tool");
+        let max = crate::labels::constants::MAX_ITEMS_PER_RESPONSE;
+        assert_eq!(limited.len(), max);
+        // Verify leading slice semantics
+        assert_eq!(limited[0], 0);
+        assert_eq!(limited[max - 1], (max - 1) as u32);
+    }
+
+    #[test]
+    fn limit_items_with_log_passes_through_at_exact_max() {
+        let max = crate::labels::constants::MAX_ITEMS_PER_RESPONSE;
+        let items: Vec<u32> = (0..max as u32).collect();
+        let result = limit_items_with_log(&items, "test_tool");
+        assert_eq!(result.len(), max);
+    }
+
+    #[test]
+    fn limit_items_with_log_passes_through_below_max() {
+        let items = vec![1u32, 2, 3];
+        let result = limit_items_with_log(&items, "test_tool");
+        assert_eq!(result.len(), 3);
+        assert_eq!(result, &[1, 2, 3]);
+    }
+
+    #[test]
+    fn limit_items_with_log_handles_empty_slice() {
+        let items: &[u32] = &[];
+        let result = limit_items_with_log(items, "test_tool");
+        assert!(result.is_empty());
+    }
 }
