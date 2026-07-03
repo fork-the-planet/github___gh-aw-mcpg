@@ -214,6 +214,68 @@ func TestCreateFilteredServer_ToolFiltering(t *testing.T) {
 	_ = filteredServer // Use variable to avoid unused error
 }
 
+// TestCreateFilteredServer_AnnotationsPropagated verifies that ToolAnnotations
+// (e.g. readOnly, destructive hints) are forwarded to clients in routed mode.
+// Regression test for the bug where createFilteredServer omitted Annotations.
+func TestCreateFilteredServer_AnnotationsPropagated(t *testing.T) {
+	require := require.New(t)
+	assert := assert.New(t)
+
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{},
+	}
+
+	ctx := context.Background()
+	us, err := NewUnified(ctx, cfg)
+	require.NoError(err, "NewUnified() failed")
+	defer us.Close()
+
+	destructiveHint := true
+	mockHandler := func(ctx context.Context, req *sdk.CallToolRequest, state interface{}) (*sdk.CallToolResult, interface{}, error) {
+		return &sdk.CallToolResult{}, state, nil
+	}
+
+	us.toolsMu.Lock()
+	us.tools["github___safe_read"] = &ToolInfo{
+		Name:        "github___safe_read",
+		Description: "Read-only tool with annotations",
+		BackendID:   "github",
+		InputSchema: map[string]interface{}{"type": "object"},
+		Annotations: &sdk.ToolAnnotations{
+			ReadOnlyHint:    true,
+			DestructiveHint: &destructiveHint,
+		},
+		Handler: mockHandler,
+	}
+	us.toolsMu.Unlock()
+
+	filteredServer := createFilteredServer(us, "github")
+	require.NotNil(filteredServer)
+
+	// Connect a client via in-memory transport and call ListTools to verify annotations.
+	serverTransport, clientTransport := sdk.NewInMemoryTransports()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	go func() { _ = filteredServer.Run(ctx, serverTransport) }()
+
+	client := sdk.NewClient(&sdk.Implementation{Name: "test-client", Version: "1.0"}, &sdk.ClientOptions{})
+	clientSession, err := client.Connect(ctx, clientTransport, nil)
+	require.NoError(err)
+	defer clientSession.Close()
+
+	listResult, err := clientSession.ListTools(ctx, &sdk.ListToolsParams{})
+	require.NoError(err)
+	require.Len(listResult.Tools, 1, "Expected exactly one tool in filtered server")
+
+	tool := listResult.Tools[0]
+	assert.Equal("safe_read", tool.Name)
+	require.NotNil(tool.Annotations, "Annotations must be forwarded to routed-mode clients")
+	assert.True(tool.Annotations.ReadOnlyHint, "ReadOnlyHint must be preserved")
+	require.NotNil(tool.Annotations.DestructiveHint, "DestructiveHint pointer must be preserved")
+	assert.True(*tool.Annotations.DestructiveHint, "DestructiveHint value must be preserved")
+}
+
 func TestGetToolHandler(t *testing.T) {
 	cfg := &config.Config{
 		Servers: map[string]*config.ServerConfig{},

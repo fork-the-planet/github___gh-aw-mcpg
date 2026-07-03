@@ -123,6 +123,7 @@ func createFilteredServer(unifiedServer *UnifiedServer, backendID string) *sdk.S
 			Name:        toolInfo.Name, // Without prefix for the client
 			Description: toolInfo.Description,
 			InputSchema: toolInfo.InputSchema, // Include schema for clients
+			Annotations: toolInfo.Annotations, // Preserve readOnly/destructive hints
 		}, func(ctx context.Context, req *sdk.CallToolRequest, _ interface{}) (*sdk.CallToolResult, interface{}, error) {
 			logRouted.Printf("[ROUTED] Calling unified handler for: %s", toolNameCopy)
 			return handler(ctx, req, nil)

@@ -507,6 +507,26 @@ DEBUG_COLORS=0 DEBUG=* ./awmg --config config.toml
 - **mTLS**: Mutual TLS can be enabled with `--tls-cert`, `--tls-key`, and `--tls-ca` flags (or corresponding env vars) to require client certificates for all connections
 - **HMAC request signing**: Set `--hmac-secret` (or `MCP_GATEWAY_HMAC_SECRET`) to require HMAC-SHA256 signed requests; protects against replay attacks using `X-MCP-Timestamp`, `X-MCP-Nonce`, and `X-MCP-Signature` headers
 
+## SDK Upgrade Process
+
+Before upgrading `github.com/modelcontextprotocol/go-sdk`, verify the two canary tests still pass:
+
+| Test | File | Guards |
+|---|---|---|
+| `TestMaxRetriesSentinelCanary` | `internal/mcp/http_transport_test.go` | `streamableMaxRetries = -1` disables SDK-level auto-reconnect; gateway owns reconnect logic |
+| `TestArgumentValidationBypassCanary` | `internal/server/tool_registry_test.go` | `Server.AddTool` (method receiver) skips argument validation, allowing draft-07 schemas from backends |
+
+Run them explicitly after bumping the version:
+
+```bash
+go test ./internal/mcp/      -run TestMaxRetriesSentinelCanary      -v
+go test ./internal/server/   -run TestArgumentValidationBypassCanary -v
+```
+
+If either canary fails after an upgrade, **stop and investigate** before merging:
+- `TestMaxRetriesSentinelCanary` failure → SDK changed `MaxRetries: -1` semantics; update `streamableMaxRetries` and reconnect logic in `internal/mcp/http_transport.go`.
+- `TestArgumentValidationBypassCanary` failure → SDK added argument validation to the `AddTool` method path; switch to a different bypass mechanism and update `registerToolWithoutValidation` in `internal/server/tool_registry.go`.
+
 ## Resources
 
 - [README.md](./README.md) - Full documentation
