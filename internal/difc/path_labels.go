@@ -151,8 +151,7 @@ func (p *PathLabeledData) resolve() error {
 	for _, pl := range p.PathLabels.LabeledPaths {
 		idx, err := p.extractIndexFromPath(pl.Path, p.PathLabels.ItemsPath)
 		if err != nil {
-			// Path doesn't match items pattern, skip
-			logPathLabels.Printf("resolve: skipping path %q: %v", pl.Path, err)
+			logPathLabels.Printf("resolve: skipping labeled path %q: %v", pl.Path, err)
 			continue
 		}
 		entry := pl.Labels // Create a copy
