@@ -115,6 +115,50 @@ fn resolve_author_integrity(
 }
 
 // ============================================================================
+// Issue Read Enrichment Helper
+// ============================================================================
+
+/// Set issue desc and optionally enrich integrity from author info.
+///
+/// `always_enrich` = false for list calls (per-item response labeling handles
+/// refinement); = true for single-issue reads where the full enrichment is
+/// applied at request time.
+fn apply_issue_read_enrichment(
+    owner: &str,
+    repo: &str,
+    repo_id: &str,
+    tool_args: &Value,
+    mut desc: String,
+    mut integrity: Vec<String>,
+    always_enrich: bool,
+    ctx: &PolicyContext,
+) -> (String, Vec<String>) {
+    if !owner.is_empty() && !repo.is_empty() {
+        if let Some(issue_num) = extract_number_as_string(tool_args, field_names::ISSUE_NUMBER) {
+            desc = format!("issue:{}/{}#{}", owner, repo, issue_num);
+            if always_enrich {
+                if let Some(info) =
+                    super::backend::get_issue_author_info(owner, repo, &issue_num)
+                {
+                    integrity = resolve_author_integrity(
+                        owner,
+                        repo,
+                        repo_id,
+                        info.author_login.as_deref(),
+                        info.author_association.as_deref(),
+                        "issue_read",
+                        &issue_num,
+                        integrity,
+                        ctx,
+                    );
+                }
+            }
+        }
+    }
+    (desc, integrity)
+}
+
+// ============================================================================
 // Tool Label Application
 // ============================================================================
 
@@ -143,61 +187,18 @@ pub fn apply_tool_labels(
             // Issues are user-submitted, low integrity
             // I(issue) = contributor if author is contributor, else untrusted (empty)
             // S(issue) = S(repo) - inherits from repository visibility
-            if !owner.is_empty() && !repo.is_empty() {
-                if let Some(issue_num) =
-                    extract_number_as_string(tool_args, field_names::ISSUE_NUMBER)
-                {
-                    desc = format!("issue:{}/{}#{}", owner, repo, issue_num);
-                }
-            }
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             integrity = private_writer_integrity(repo_id, repo_private, ctx);
-
-            if matches!(tool_name, "get_issue" | "issue_read") {
-                if let Some(issue_num) =
-                    extract_number_as_string(tool_args, field_names::ISSUE_NUMBER)
-                {
-                    if let Some(info) =
-                        super::backend::get_issue_author_info(&owner, &repo, &issue_num)
-                    {
-                        integrity = resolve_author_integrity(
-                            &owner, &repo, repo_id,
-                            info.author_login.as_deref(),
-                            info.author_association.as_deref(),
-                            "issue_read", &issue_num,
-                            integrity, ctx,
-                        );
-                    }
-                }
-            }
+            let enrich = matches!(tool_name, "get_issue" | "issue_read");
+            (desc, integrity) =
+                apply_issue_read_enrichment(&owner, &repo, repo_id, tool_args, desc, integrity, enrich, ctx);
         }
 
         "issue_dependency_read" => {
             secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
             integrity = private_writer_integrity(repo_id, repo_private, ctx);
-
-            if !owner.is_empty() && !repo.is_empty() {
-                if let Some(issue_num) =
-                    extract_number_as_string(tool_args, field_names::ISSUE_NUMBER)
-                {
-                    desc = format!("issue:{}/{}#{}", owner, repo, &issue_num);
-                    if let Some(info) =
-                        super::backend::get_issue_author_info(&owner, &repo, &issue_num)
-                    {
-                        integrity = resolve_author_integrity(
-                            &owner,
-                            &repo,
-                            repo_id,
-                            info.author_login.as_deref(),
-                            info.author_association.as_deref(),
-                            "issue_read",
-                            &issue_num,
-                            integrity,
-                            ctx,
-                        );
-                    }
-                }
-            }
+            (desc, integrity) =
+                apply_issue_read_enrichment(&owner, &repo, repo_id, tool_args, desc, integrity, true, ctx);
         }
 
         "issue_dependency_write" => {
