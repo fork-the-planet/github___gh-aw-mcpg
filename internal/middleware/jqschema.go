@@ -253,32 +253,13 @@ func runJqCode(
 // For parameterized filters that need to incorporate per-call values such as server IDs,
 // session metadata, or user-controlled data, use CompileToolResponseFilterWithVars instead.
 func CompileToolResponseFilter(filter string) (*gojq.Code, error) {
-	if cached, ok := filterCodeCache.Load(filter); ok {
-		code, ok := cached.(*gojq.Code)
-		if !ok {
-			// Should never happen; the cache only stores *gojq.Code values.
-			return nil, fmt.Errorf("internal error: unexpected cached value type for filter (len=%d)", len(filter))
-		}
-		logMiddleware.Printf("CompileToolResponseFilter: cache hit, len=%d", len(filter))
-		return code, nil
-	}
-
-	logMiddleware.Printf("CompileToolResponseFilter: parsing jq filter expression, len=%d", len(filter))
-	query, err := gojq.Parse(filter)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse tool response filter: %w", err)
-	}
-
-	code, err := gojq.Compile(query,
-		secureCompileOpts...,
+	return compileToolResponseFilterInternal(
+		filter,
+		filter,
+		secureCompileOpts,
+		"CompileToolResponseFilter",
+		"",
 	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compile tool response filter: %w", err)
-	}
-
-	filterCodeCache.Store(filter, code)
-	logMiddleware.Printf("CompileToolResponseFilter: filter compiled and cached successfully")
-	return code, nil
 }
 
 // CompileToolResponseFilterWithVars parses and compiles a jq expression that references
@@ -300,31 +281,45 @@ func CompileToolResponseFilterWithVars(filter string, varNames []string) (*gojq.
 		filter:      filter,
 		varNamesKey: buildVarNamesCacheKey(varNames),
 	}
+	return compileToolResponseFilterInternal(
+		cacheKey,
+		filter,
+		compileOptsWithVariables(varNames),
+		"CompileToolResponseFilterWithVars",
+		fmt.Sprintf(", vars=%v", varNames),
+	)
+}
+
+func compileToolResponseFilterInternal[K comparable](
+	cacheKey K,
+	filter string,
+	compileOpts []gojq.CompilerOption,
+	logFunctionName string,
+	logSuffix string,
+) (*gojq.Code, error) {
 	if cached, ok := filterCodeCache.Load(cacheKey); ok {
 		code, ok := cached.(*gojq.Code)
 		if !ok {
 			// Should never happen; the cache only stores *gojq.Code values.
 			return nil, fmt.Errorf("internal error: unexpected cached value type for filter (len=%d)", len(filter))
 		}
-		logMiddleware.Printf("CompileToolResponseFilterWithVars: cache hit, len=%d, vars=%v", len(filter), varNames)
+		logMiddleware.Printf("%s: cache hit, len=%d%s", logFunctionName, len(filter), logSuffix)
 		return code, nil
 	}
 
-	logMiddleware.Printf("CompileToolResponseFilterWithVars: parsing jq filter expression, len=%d, vars=%v", len(filter), varNames)
+	logMiddleware.Printf("%s: parsing jq filter expression, len=%d%s", logFunctionName, len(filter), logSuffix)
 	query, err := gojq.Parse(filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse tool response filter: %w", err)
 	}
 
-	code, err := gojq.Compile(query,
-		compileOptsWithVariables(varNames)...,
-	)
+	code, err := gojq.Compile(query, compileOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile tool response filter: %w", err)
 	}
 
 	filterCodeCache.Store(cacheKey, code)
-	logMiddleware.Printf("CompileToolResponseFilterWithVars: filter compiled and cached successfully")
+	logMiddleware.Printf("%s: filter compiled and cached successfully", logFunctionName)
 	return code, nil
 }
 
