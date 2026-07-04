@@ -105,12 +105,13 @@ func InvalidPattern(fieldName, value, jsonPath, suggestion string) *ValidationEr
 // InvalidValue creates a ValidationError for field values that violate a constraint.
 // The message describes the specific constraint violation.
 func InvalidValue(fieldName, message, jsonPath, suggestion string) *ValidationError {
-	return &ValidationError{
-		Field:      fieldName,
-		Message:    message,
-		JSONPath:   jsonPath,
-		Suggestion: suggestion,
-	}
+	return newValidationError(
+		fmt.Sprintf("Validation error: invalid value at %s, field=%s, message=%q", jsonPath, fieldName, message),
+		fieldName,
+		message,
+		jsonPath,
+		suggestion,
+	)
 }
 
 // SchemaValidationError creates a ValidationError for custom schema validation failures.
