@@ -142,7 +142,7 @@ func logWithLevelAndServer(serverID string, level LogLevel, category, format str
 }
 
 // The exported wrappers below follow the Log-Level Quad-Function Pattern
-// documented in common.go, with shared per-level closure registration handled
+// documented in global_state.go, with shared per-level closure registration handled
 // by newServerLevelLoggerFuncs.
 var serverLevelLoggers = newServerLevelLoggerFuncs(logWithLevelAndServer)
 
