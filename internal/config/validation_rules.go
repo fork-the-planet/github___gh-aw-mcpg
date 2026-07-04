@@ -173,12 +173,13 @@ func MountFormat(mount, jsonPath string, index int) *ValidationError {
 // Returns nil if the value is non-empty.
 func RequiredStringField(value, fieldName, jsonPath, suggestion string) *ValidationError {
 	if value == "" {
-		return &ValidationError{
-			Field:      fieldName,
-			Message:    fmt.Sprintf("%s is required", fieldName),
-			JSONPath:   jsonPath,
-			Suggestion: suggestion,
-		}
+		return newValidationError(
+			fmt.Sprintf("Required string validation failed: %s is empty", fieldName),
+			fieldName,
+			fmt.Sprintf("%s is required", fieldName),
+			jsonPath,
+			suggestion,
+		)
 	}
 	return nil
 }
@@ -187,12 +188,13 @@ func RequiredStringField(value, fieldName, jsonPath, suggestion string) *Validat
 // Returns nil if valid, *ValidationError if invalid
 func NonEmptyString(value, fieldName, jsonPath string) *ValidationError {
 	if value == "" {
-		return &ValidationError{
-			Field:      fieldName,
-			Message:    fmt.Sprintf("%s cannot be empty", fieldName),
-			JSONPath:   jsonPath,
-			Suggestion: fmt.Sprintf("Provide a non-empty value for %s", fieldName),
-		}
+		return newValidationError(
+			fmt.Sprintf("Non-empty string validation failed: %s is empty", fieldName),
+			fieldName,
+			fmt.Sprintf("%s cannot be empty", fieldName),
+			jsonPath,
+			fmt.Sprintf("Provide a non-empty value for %s", fieldName),
+		)
 	}
 	return nil
 }
