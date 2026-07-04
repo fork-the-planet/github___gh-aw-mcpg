@@ -338,3 +338,22 @@ func configureTLSTrustEnvironment(caCertPath string) error {
 	logProxyCmd.Printf("TLS trust environment configured successfully: %d env vars set", len(tlsTrustEnvKeys))
 	return nil
 }
+
+// clientAddr returns a client-friendly address from a listener address.
+// When the host is a wildcard (0.0.0.0, ::, or empty), it substitutes
+// "localhost" so the printed GH_HOST value is usable from a client.
+//
+// Note: output.go uses "127.0.0.1" for the same wildcard substitution in
+// the gateway config output, while this function uses "localhost" because
+// GH_HOST must be a resolvable hostname for the gh CLI.
+func clientAddr(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	switch host {
+	case "", "0.0.0.0", "::", "[::]":
+		return net.JoinHostPort("localhost", port)
+	}
+	return addr
+}
