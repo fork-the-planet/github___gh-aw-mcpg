@@ -2,6 +2,7 @@ package httputil
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -113,6 +114,19 @@ func TestReadResponseBody_NilBody(t *testing.T) {
 	assert.Nil(t, body)
 }
 
+func TestReadResponseBody_ClosesBody(t *testing.T) {
+	body := &trackingReadCloser{Reader: bytes.NewBufferString(`{"ok":true}`)}
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       body,
+	}
+
+	got, err := ReadResponseBody(resp, "test")
+	require.NoError(t, err)
+	assert.Equal(t, `{"ok":true}`, string(got))
+	assert.True(t, body.closed)
+}
+
 func TestReadResponseBodyStrict(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -201,8 +215,62 @@ func TestReadResponseBodyStrict_NilBody(t *testing.T) {
 	assert.Nil(t, body)
 }
 
+func TestReadResponseBodyStrict_ClosesBodyOnStatusMismatch(t *testing.T) {
+	body := &trackingReadCloser{Reader: bytes.NewBufferString(`unexpected`)}
+	resp := &http.Response{
+		StatusCode: http.StatusCreated,
+		Body:       body,
+	}
+
+	got, err := ReadResponseBodyStrict(resp, http.StatusOK, "test")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "test returned HTTP 201: unexpected")
+	assert.Nil(t, got)
+	assert.True(t, body.closed)
+}
+
 type failReader struct{}
 
 func (f *failReader) Read([]byte) (int, error) {
 	return 0, io.ErrUnexpectedEOF
+}
+
+type trackingReadCloser struct {
+	io.Reader
+	closed bool
+}
+
+func (t *trackingReadCloser) Close() error {
+	t.closed = true
+	return nil
+}
+
+type failCloser struct {
+	io.Reader
+}
+
+func (f *failCloser) Close() error {
+	return errors.New("close failed")
+}
+
+func TestReadResponseBody_CloseError(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       &failCloser{Reader: bytes.NewBufferString(`{"ok":true}`)},
+	}
+	body, err := ReadResponseBody(resp, "test")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to close test response body")
+	assert.Nil(t, body)
+}
+
+func TestReadResponseBodyStrict_CloseError(t *testing.T) {
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       &failCloser{Reader: bytes.NewBufferString(`{"ok":true}`)},
+	}
+	body, err := ReadResponseBodyStrict(resp, http.StatusOK, "test")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to close test response body")
+	assert.Nil(t, body)
 }
