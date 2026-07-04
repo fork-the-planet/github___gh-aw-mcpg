@@ -94,12 +94,14 @@ func TimeoutRange(timeout, min, max int, fieldName, jsonPath string) *Validation
 }
 
 func mountValidationError(jsonPath string, index int, message, suggestion string) *ValidationError {
-	return &ValidationError{
-		Field:      "mounts",
-		Message:    message,
-		JSONPath:   fmt.Sprintf("%s.mounts[%d]", jsonPath, index),
-		Suggestion: suggestion,
-	}
+	mountPath := fmt.Sprintf("%s.mounts[%d]", jsonPath, index)
+	return newValidationError(
+		fmt.Sprintf("Mount validation failed at %s: %s", mountPath, message),
+		"mounts",
+		message,
+		mountPath,
+		suggestion,
+	)
 }
 
 // MountFormat validates a mount specification in the format "source:dest:mode"
