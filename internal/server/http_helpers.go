@@ -38,6 +38,11 @@ func logRuntimeError(errorType, detail string, r *http.Request, serverName *stri
 // HTTP error response. This consolidates the 3-step rejection pattern that was
 // previously duplicated across auth and handler code paths.
 //
+// This is the canonical rejection entry point for all middleware and handler code.
+// New middleware should call rejectRequest directly, or define a thin wrapper
+// (like rejectAuthRequest in middleware_auth.go or rejectHMACRequest in hmac.go)
+// that wires in the appropriate log category and error type constants.
+//
 // Parameters:
 //   - logCategory: category for the structured log (e.g. "auth")
 //   - runtimeErrType: error_type field for runtime error log (e.g. "authentication_failed")
