@@ -148,7 +148,8 @@ func TestUnwrapSingleObject_NilFilteredData(t *testing.T) {
 // TestUnwrapSingleObject_WrappedEmptyArray covers the guard-compatibility branch
 // where an empty original top-level array has been wrapped as [[]], producing a
 // single-element filteredData whose inner element is an empty []interface{}.
-// The function should restore the original empty-array shape (line 61 in response_transform.go).
+// The function should restore the original empty-array shape when the wrapped
+// inner collection is empty.
 func TestUnwrapSingleObject_WrappedEmptyArray(t *testing.T) {
 	original := []interface{}{}
 	// filteredData is [[]] — the empty array wrapped as a single collection item.
