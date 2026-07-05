@@ -72,23 +72,6 @@ type RPCMessageInfo struct {
 	Error       string              // Error message if any (for responses)
 }
 
-// newRPCMessageInfo constructs an RPCMessageInfo with the given parameters, truncating
-// the payload preview to maxPayload characters.
-func newRPCMessageInfo(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error, maxPayload int) *RPCMessageInfo {
-	info := &RPCMessageInfo{
-		Direction:   direction,
-		MessageType: messageType,
-		ServerID:    serverID,
-		Method:      method,
-		PayloadSize: len(payload),
-		Payload:     truncateAndSanitize(string(payload), maxPayload),
-	}
-	if err != nil {
-		info.Error = err.Error()
-	}
-	return info
-}
-
 // newRPCMessageInfoFromSanitized builds an RPCMessageInfo from an already-sanitized
 // payload string, truncating to maxPayload without re-running the regex sanitization pass.
 // Use this when the same payload is logged at multiple preview lengths to avoid
