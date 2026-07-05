@@ -34,10 +34,10 @@ func PortRange(port int, jsonPath string) *ValidationError {
 
 // TimeoutPositive validates that a timeout value is at least 1.
 // Returns nil if valid, *ValidationError if invalid.
-// It delegates validation to TimeoutMinimum with min=1, then overrides the
-// Suggestion with a more specific message: "Use a positive number of seconds (e.g., 30)".
+// It delegates to PositiveInteger, then overrides the Suggestion with a
+// timeout-specific message: "Use a positive number of seconds (e.g., 30)".
 func TimeoutPositive(timeout int, fieldName, jsonPath string) *ValidationError {
-	if err := TimeoutMinimum(timeout, 1, fieldName, jsonPath); err != nil {
+	if err := PositiveInteger(timeout, fieldName, jsonPath); err != nil {
 		err.Suggestion = "Use a positive number of seconds (e.g., 30)"
 		return err
 	}
