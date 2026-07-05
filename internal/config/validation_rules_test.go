@@ -124,7 +124,7 @@ func TestTimeoutPositive(t *testing.T) {
 			fieldName:  "startupTimeout",
 			jsonPath:   "gateway.startupTimeout",
 			shouldErr:  true,
-			errMsg:     "startupTimeout must be at least 1",
+			errMsg:     "startupTimeout must be a positive integer (>= 1), got 0",
 			suggestion: "Use a positive number of seconds (e.g., 30)",
 		},
 		{
@@ -133,7 +133,7 @@ func TestTimeoutPositive(t *testing.T) {
 			fieldName:  "toolTimeout",
 			jsonPath:   "gateway.toolTimeout",
 			shouldErr:  true,
-			errMsg:     "toolTimeout must be at least 1",
+			errMsg:     "toolTimeout must be a positive integer (>= 1), got -10",
 			suggestion: "Use a positive number of seconds (e.g., 30)",
 		},
 	}
