@@ -808,10 +808,10 @@ func TestSlogHandler_Handle_AllLevelPrefixes(t *testing.T) {
 	}
 }
 
-// TestSlogHandler_Handle_NonStringKeyFallback tests the defensive non-string key path.
-// In production slog always provides string keys, but the attrKeyString helper
-// also handles unexpected types via fmt.Sprint.
-func TestSlogHandler_Handle_NonStringKeyFallback(t *testing.T) {
+// TestSlogHandler_Handle_StringKeyFormatting validates that Handle correctly formats
+// a normal string attribute key in the output. Non-string key fallback behaviour
+// is covered separately by TestAttrKeyString.
+func TestSlogHandler_Handle_StringKeyFormatting(t *testing.T) {
 	t.Setenv("DEBUG", "*")
 
 	output := captureStderr(func() {
