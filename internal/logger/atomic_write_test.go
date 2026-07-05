@@ -66,18 +66,16 @@ func TestAtomicWriteFile(t *testing.T) {
 	})
 
 	t.Run("rename fails and cleanup also fails – parent dir read-only", func(t *testing.T) {
-		if os.Getuid() == 0 {
-			t.Skip("skipping: chmod restrictions do not apply to root")
-		}
-
 		tmpDir := t.TempDir()
 		filePath := filepath.Join(tmpDir, "output.json")
 		tempPath := filePath + ".tmp"
+		probePath := filepath.Join(tmpDir, "probe.tmp")
 
 		// Pre-create the temp file so atomicWriteFile's os.WriteFile can overwrite
 		// it without needing directory write permission (O_TRUNC on an existing file
 		// does not require directory write permission on Linux).
 		require.NoError(t, os.WriteFile(tempPath, []byte("{}"), 0600))
+		require.NoError(t, os.WriteFile(probePath, []byte("probe"), 0600))
 
 		// Occupy the target path with a directory so os.Rename returns EISDIR.
 		require.NoError(t, os.MkdirAll(filePath, 0755))
@@ -87,10 +85,22 @@ func TestAtomicWriteFile(t *testing.T) {
 		require.NoError(t, os.Chmod(tmpDir, 0555))
 		t.Cleanup(func() { _ = os.Chmod(tmpDir, 0755) })
 
-		err := atomicWriteFile(filePath, data, 0600)
+		// Some environments (or users) may not enforce chmod-based write
+		// restrictions. Detect that and skip instead of asserting on a branch that
+		// cannot be triggered there.
+		if err := os.Remove(probePath); err == nil {
+			t.Skip("directory write restrictions are not enforced in this environment")
+		}
+
+		var err error
+		logOutput := captureStdLog(t, func() {
+			err = atomicWriteFile(filePath, data, 0600)
+		})
 		require.Error(t, err, "should fail when rename target is a directory")
 		assert.Contains(t, err.Error(), "failed to rename temp file",
 			"primary rename error should be returned")
+		assert.Contains(t, logOutput, "WARNING: Failed to cleanup temp file "+tempPath,
+			"cleanup-failure warning log should be emitted")
 	})
 
 	t.Run("idempotent – second write overwrites first", func(t *testing.T) {
