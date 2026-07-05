@@ -132,8 +132,8 @@ func TestWriteSinkGuard_WriteEvaluation_Passes(t *testing.T) {
 		"approved:github/gh-aw*",
 	}
 
-	agentSecrecy := difc.NewSecrecyLabelWithTags(agentSecrecyTags)
-	agentIntegrity := difc.NewIntegrityLabelWithTags(agentIntegrityTags)
+	agentSecrecy := difc.NewSecrecyLabel(agentSecrecyTags...)
+	agentIntegrity := difc.NewIntegrityLabel(agentIntegrityTags...)
 
 	// Guard labels the resource using configured accept patterns
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
@@ -157,8 +157,8 @@ func TestWriteSinkGuard_NoopWouldFail(t *testing.T) {
 		"approved:github/gh-aw*",
 	}
 
-	agentSecrecy := difc.NewSecrecyLabelWithTags(agentSecrecyTags)
-	agentIntegrity := difc.NewIntegrityLabelWithTags(agentIntegrityTags)
+	agentSecrecy := difc.NewSecrecyLabel(agentSecrecyTags...)
+	agentIntegrity := difc.NewIntegrityLabel(agentIntegrityTags...)
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -177,8 +177,8 @@ func TestWriteSinkGuard_SecrecyMismatchFails(t *testing.T) {
 
 	// Agent accessed a different private repo not in accept list
 	agentSecrecyTags := []difc.Tag{"private:github/gh-aw*", "private:github/secret-repo"}
-	agentSecrecy := difc.NewSecrecyLabelWithTags(agentSecrecyTags)
-	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+	agentSecrecy := difc.NewSecrecyLabel(agentSecrecyTags...)
+	agentIntegrity := difc.NewIntegrityLabel()
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -215,8 +215,8 @@ func TestWriteSinkAcceptRules_ExactRepo(t *testing.T) {
 	g := NewWriteSinkGuard(accept)
 
 	// Agent secrecy from label_agent with repos=["github/gh-aw"]
-	agentSecrecy := difc.NewSecrecyLabelWithTags([]difc.Tag{"private:github/gh-aw"})
-	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+	agentSecrecy := difc.NewSecrecyLabel([]difc.Tag{"private:github/gh-aw"}...)
+	agentIntegrity := difc.NewIntegrityLabel()
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -233,8 +233,8 @@ func TestWriteSinkAcceptRules_OwnerWildcard(t *testing.T) {
 	accept := []string{"private:myorg"}
 	g := NewWriteSinkGuard(accept)
 
-	agentSecrecy := difc.NewSecrecyLabelWithTags([]difc.Tag{"private:myorg"})
-	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+	agentSecrecy := difc.NewSecrecyLabel([]difc.Tag{"private:myorg"}...)
+	agentIntegrity := difc.NewIntegrityLabel()
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -251,8 +251,8 @@ func TestWriteSinkAcceptRules_OwnerWildcard_WrongAccept(t *testing.T) {
 	accept := []string{"private:myorg/*"}
 	g := NewWriteSinkGuard(accept)
 
-	agentSecrecy := difc.NewSecrecyLabelWithTags([]difc.Tag{"private:myorg"})
-	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+	agentSecrecy := difc.NewSecrecyLabel([]difc.Tag{"private:myorg"}...)
+	agentIntegrity := difc.NewIntegrityLabel()
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -269,8 +269,8 @@ func TestWriteSinkAcceptRules_PrefixWildcard(t *testing.T) {
 	g := NewWriteSinkGuard(accept)
 
 	// Agent secrecy from label_agent with repos=["github/gh-aw*"]
-	agentSecrecy := difc.NewSecrecyLabelWithTags([]difc.Tag{"private:github/gh-aw*"})
-	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+	agentSecrecy := difc.NewSecrecyLabel([]difc.Tag{"private:github/gh-aw*"}...)
+	agentIntegrity := difc.NewIntegrityLabel()
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -286,11 +286,11 @@ func TestWriteSinkAcceptRules_MultipleExactRepos(t *testing.T) {
 	g := NewWriteSinkGuard(accept)
 
 	// Agent secrecy from label_agent with repos=["github/repo1", "github/repo2"]
-	agentSecrecy := difc.NewSecrecyLabelWithTags([]difc.Tag{
+	agentSecrecy := difc.NewSecrecyLabel([]difc.Tag{
 		"private:github/repo1",
 		"private:github/repo2",
-	})
-	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+	}...)
+	agentIntegrity := difc.NewIntegrityLabel()
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -306,11 +306,11 @@ func TestWriteSinkAcceptRules_MixedScopes(t *testing.T) {
 	g := NewWriteSinkGuard(accept)
 
 	// Agent secrecy from label_agent with repos=["myorg/*", "partner/shared-lib"]
-	agentSecrecy := difc.NewSecrecyLabelWithTags([]difc.Tag{
+	agentSecrecy := difc.NewSecrecyLabel([]difc.Tag{
 		"private:myorg",
 		"private:partner/shared-lib",
-	})
-	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+	}...)
+	agentIntegrity := difc.NewIntegrityLabel()
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -328,8 +328,8 @@ func TestWriteSinkAcceptRules_SupersetAcceptAllowed(t *testing.T) {
 	g := NewWriteSinkGuard(accept)
 
 	// Agent only has one secrecy tag
-	agentSecrecy := difc.NewSecrecyLabelWithTags([]difc.Tag{"private:github/gh-aw*"})
-	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+	agentSecrecy := difc.NewSecrecyLabel([]difc.Tag{"private:github/gh-aw*"}...)
+	agentIntegrity := difc.NewIntegrityLabel()
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -345,8 +345,8 @@ func TestWriteSinkAcceptRules_EmptyAgentSecrecy(t *testing.T) {
 	// Wildcard accept: agent has no secrecy, write passes
 	g := NewWriteSinkGuard([]string{"*"})
 
-	agentSecrecy := difc.NewSecrecyLabelWithTags(nil) // repos="all" or repos="public"
-	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+	agentSecrecy := difc.NewSecrecyLabel() // repos="all" or repos="public"
+	agentIntegrity := difc.NewIntegrityLabel()
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -364,11 +364,11 @@ func TestWriteSinkAcceptRules_PartialAcceptFails(t *testing.T) {
 	g := NewWriteSinkGuard(accept)
 
 	// Agent has two secrecy tags from repos=["github/repo1", "github/repo2"]
-	agentSecrecy := difc.NewSecrecyLabelWithTags([]difc.Tag{
+	agentSecrecy := difc.NewSecrecyLabel([]difc.Tag{
 		"private:github/repo1",
 		"private:github/repo2",
-	})
-	agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+	}...)
+	agentIntegrity := difc.NewIntegrityLabel()
 
 	resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 	require.NoError(t, err)
@@ -480,8 +480,8 @@ func TestWriteSinkAcceptRules_AllScopeTypes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWriteSinkGuard(tc.accept)
 
-			agentSecrecy := difc.NewSecrecyLabelWithTags(tc.agentSecrecy)
-			agentIntegrity := difc.NewIntegrityLabelWithTags(nil)
+			agentSecrecy := difc.NewSecrecyLabel(tc.agentSecrecy...)
+			agentIntegrity := difc.NewIntegrityLabel()
 
 			resource, operation, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
 			require.NoError(t, err)
@@ -508,12 +508,12 @@ func TestWriteSinkGuard_WildcardAccept_WithIntegrity(t *testing.T) {
 	g := NewWriteSinkGuard([]string{"*"})
 
 	// Agent has integrity from GitHub guard (repos="all" still gets integrity)
-	agentSecrecy := difc.NewSecrecyLabelWithTags(nil)
-	agentIntegrity := difc.NewIntegrityLabelWithTags([]difc.Tag{
+	agentSecrecy := difc.NewSecrecyLabel()
+	agentIntegrity := difc.NewIntegrityLabel([]difc.Tag{
 		"none:*",
 		"unapproved:*",
 		"approved:*",
-	})
+	}...)
 
 	resource, operation, err := g.LabelResource(context.Background(), "safe_output", nil, nil, nil)
 	require.NoError(t, err)
@@ -532,13 +532,13 @@ func TestWriteSinkGuard_WildcardAccept_TaintedAgent(t *testing.T) {
 	g := NewWriteSinkGuard([]string{"*"})
 
 	// Agent tainted with secrecy from some other source
-	agentSecrecy := difc.NewSecrecyLabelWithTags([]difc.Tag{
+	agentSecrecy := difc.NewSecrecyLabel([]difc.Tag{
 		"private:github/secret-repo",
 		"private:other-org/internal",
-	})
-	agentIntegrity := difc.NewIntegrityLabelWithTags([]difc.Tag{
+	}...)
+	agentIntegrity := difc.NewIntegrityLabel([]difc.Tag{
 		"approved:github/secret-repo",
-	})
+	}...)
 
 	resource, operation, err := g.LabelResource(context.Background(), "safe_output", nil, nil, nil)
 	require.NoError(t, err)

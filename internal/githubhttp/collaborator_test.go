@@ -79,12 +79,12 @@ func TestParseCollaboratorPermissionArgs(t *testing.T) {
 	})
 }
 
-func TestLogAndWrapCollaboratorPermission(t *testing.T) {
+func TestWrapCollaboratorPermission(t *testing.T) {
 	t.Run("logs permission and wraps in MCP format", func(t *testing.T) {
 		body := []byte(`{"permission":"admin","user":{"login":"alice"}}`)
 
 		var logged []string
-		result := LogAndWrapCollaboratorPermission(body, "myorg", "myrepo", "alice", 200, func(format string, args ...interface{}) {
+		result := WrapCollaboratorPermission(body, "myorg", "myrepo", "alice", 200, func(format string, args ...interface{}) {
 			logged = append(logged, fmt.Sprintf(format, args...))
 		})
 
@@ -116,7 +116,7 @@ func TestLogAndWrapCollaboratorPermission(t *testing.T) {
 		body := []byte(`{"role":"something"}`)
 
 		var logged []string
-		result := LogAndWrapCollaboratorPermission(body, "org", "repo", "bob", 200, func(format string, args ...interface{}) {
+		result := WrapCollaboratorPermission(body, "org", "repo", "bob", 200, func(format string, args ...interface{}) {
 			logged = append(logged, fmt.Sprintf(format, args...))
 		})
 
@@ -137,7 +137,7 @@ func TestLogAndWrapCollaboratorPermission(t *testing.T) {
 		body := []byte(`not valid json`)
 
 		var logged []string
-		result := LogAndWrapCollaboratorPermission(body, "org", "repo", "charlie", 200, func(format string, args ...interface{}) {
+		result := WrapCollaboratorPermission(body, "org", "repo", "charlie", 200, func(format string, args ...interface{}) {
 			logged = append(logged, fmt.Sprintf(format, args...))
 		})
 
@@ -158,7 +158,7 @@ func TestLogAndWrapCollaboratorPermission(t *testing.T) {
 		body := []byte(`{"permission":"write"}`)
 
 		var logged []string
-		LogAndWrapCollaboratorPermission(body, "org", "repo", "dave", 201, func(format string, args ...interface{}) {
+		WrapCollaboratorPermission(body, "org", "repo", "dave", 201, func(format string, args ...interface{}) {
 			logged = append(logged, fmt.Sprintf(format, args...))
 		})
 

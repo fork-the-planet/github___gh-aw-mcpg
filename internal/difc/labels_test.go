@@ -285,12 +285,12 @@ func TestSecrecyLabel_CheckFlow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var src *SecrecyLabel
 			if !tt.nilSrc {
-				src = NewSecrecyLabelWithTags(tt.src)
+				src = NewSecrecyLabel(tt.src...)
 			}
 
 			var target *SecrecyLabel
 			if !tt.nilTarget {
-				target = NewSecrecyLabelWithTags(tt.target)
+				target = NewSecrecyLabel(tt.target...)
 			}
 
 			ok, violatingTags := src.CheckFlow(target)
@@ -369,12 +369,12 @@ func TestIntegrityLabel_CheckFlow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var src *IntegrityLabel
 			if !tt.nilSrc {
-				src = NewIntegrityLabelWithTags(tt.src)
+				src = NewIntegrityLabel(tt.src...)
 			}
 
 			var target *IntegrityLabel
 			if !tt.nilTarget {
-				target = NewIntegrityLabelWithTags(tt.target)
+				target = NewIntegrityLabel(tt.target...)
 			}
 
 			ok, violatingTags := src.CheckFlow(target)
@@ -408,7 +408,7 @@ func TestSecrecyLabel_Clone(t *testing.T) {
 	})
 
 	t.Run("clone is independent from original", func(t *testing.T) {
-		orig := NewSecrecyLabelWithTags([]Tag{"confidential", "private"})
+		orig := NewSecrecyLabel([]Tag{"confidential", "private"}...)
 		cloned := orig.Clone()
 		require.NotNil(t, cloned)
 
@@ -438,7 +438,7 @@ func TestIntegrityLabel_Clone(t *testing.T) {
 	})
 
 	t.Run("clone is independent from original", func(t *testing.T) {
-		orig := NewIntegrityLabelWithTags([]Tag{"trusted", "verified"})
+		orig := NewIntegrityLabel([]Tag{"trusted", "verified"}...)
 		cloned := orig.Clone()
 		require.NotNil(t, cloned)
 
@@ -451,11 +451,11 @@ func TestIntegrityLabel_Clone(t *testing.T) {
 	})
 }
 
-// TestNewSecrecyLabelWithTags tests that NewSecrecyLabelWithTags initializes correctly.
-func TestNewSecrecyLabelWithTags(t *testing.T) {
+// TestNewSecrecyLabel tests that NewSecrecyLabel initializes correctly.
+func TestNewSecrecyLabel(t *testing.T) {
 	t.Run("creates label with all provided tags", func(t *testing.T) {
 		tags := []Tag{"t1", "t2", "t3"}
-		l := NewSecrecyLabelWithTags(tags)
+		l := NewSecrecyLabel(tags...)
 		require.NotNil(t, l)
 		for _, tag := range tags {
 			assert.True(t, l.Label.Contains(tag))
@@ -464,17 +464,17 @@ func TestNewSecrecyLabelWithTags(t *testing.T) {
 	})
 
 	t.Run("creates empty label from nil tags", func(t *testing.T) {
-		l := NewSecrecyLabelWithTags(nil)
+		l := NewSecrecyLabel()
 		require.NotNil(t, l)
 		assert.True(t, l.Label.IsEmpty())
 	})
 }
 
-// TestNewIntegrityLabelWithTags tests that NewIntegrityLabelWithTags initializes correctly.
-func TestNewIntegrityLabelWithTags(t *testing.T) {
+// TestNewIntegrityLabel tests that NewIntegrityLabel initializes correctly.
+func TestNewIntegrityLabel(t *testing.T) {
 	t.Run("creates label with all provided tags", func(t *testing.T) {
 		tags := []Tag{"trust1", "trust2"}
-		l := NewIntegrityLabelWithTags(tags)
+		l := NewIntegrityLabel(tags...)
 		require.NotNil(t, l)
 		for _, tag := range tags {
 			assert.True(t, l.Label.Contains(tag))
@@ -482,7 +482,7 @@ func TestNewIntegrityLabelWithTags(t *testing.T) {
 	})
 
 	t.Run("creates empty label from nil tags", func(t *testing.T) {
-		l := NewIntegrityLabelWithTags(nil)
+		l := NewIntegrityLabel()
 		require.NotNil(t, l)
 		assert.True(t, l.Label.IsEmpty())
 	})
@@ -800,7 +800,7 @@ func TestViolationError_implementsError(t *testing.T) {
 func TestSecrecyLabel_CanFlowTo_NilCases(t *testing.T) {
 	t.Run("nil receiver can flow to anything", func(t *testing.T) {
 		var l *SecrecyLabel
-		target := NewSecrecyLabelWithTags([]Tag{"any"})
+		target := NewSecrecyLabel([]Tag{"any"}...)
 		assert.True(t, l.CanFlowTo(target))
 	})
 
@@ -810,7 +810,7 @@ func TestSecrecyLabel_CanFlowTo_NilCases(t *testing.T) {
 	})
 
 	t.Run("non-empty source cannot flow to nil target", func(t *testing.T) {
-		l := NewSecrecyLabelWithTags([]Tag{"restricted"})
+		l := NewSecrecyLabel([]Tag{"restricted"}...)
 		assert.False(t, l.CanFlowTo(nil))
 	})
 
@@ -830,12 +830,12 @@ func TestIntegrityLabel_CanFlowTo_NilCases(t *testing.T) {
 
 	t.Run("nil receiver with non-empty target: denied", func(t *testing.T) {
 		var l *IntegrityLabel
-		target := NewIntegrityLabelWithTags([]Tag{"required"})
+		target := NewIntegrityLabel([]Tag{"required"}...)
 		assert.False(t, l.CanFlowTo(target))
 	})
 
 	t.Run("non-empty source can flow to nil target", func(t *testing.T) {
-		l := NewIntegrityLabelWithTags([]Tag{"trusted"})
+		l := NewIntegrityLabel([]Tag{"trusted"}...)
 		assert.True(t, l.CanFlowTo(nil))
 	})
 }
@@ -973,8 +973,8 @@ func TestWildcardTag_SecrecyCanFlowTo(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			src := NewSecrecyLabelWithTags(tc.src)
-			target := NewSecrecyLabelWithTags(tc.target)
+			src := NewSecrecyLabel(tc.src...)
+			target := NewSecrecyLabel(tc.target...)
 			assert.Equal(t, tc.expected, src.CanFlowTo(target))
 		})
 	}
@@ -982,8 +982,8 @@ func TestWildcardTag_SecrecyCanFlowTo(t *testing.T) {
 
 func TestWildcardTag_SecrecyCheckFlow(t *testing.T) {
 	// CheckFlow returns (bool, []Tag) — verify wildcard in target passes with no violations
-	src := NewSecrecyLabelWithTags([]Tag{"private:org/repo", "private:org/secret"})
-	target := NewSecrecyLabelWithTags([]Tag{WildcardTag})
+	src := NewSecrecyLabel([]Tag{"private:org/repo", "private:org/secret"}...)
+	target := NewSecrecyLabel([]Tag{WildcardTag}...)
 
 	ok, violations := src.CheckFlow(target)
 	assert.True(t, ok, "wildcard target should accept all source tags")
@@ -1019,8 +1019,8 @@ func TestWildcardTag_IntegrityCanFlowTo(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			src := NewIntegrityLabelWithTags(tc.src)
-			target := NewIntegrityLabelWithTags(tc.target)
+			src := NewIntegrityLabel(tc.src...)
+			target := NewIntegrityLabel(tc.target...)
 			assert.Equal(t, tc.expected, src.CanFlowTo(target))
 		})
 	}
@@ -1028,8 +1028,8 @@ func TestWildcardTag_IntegrityCanFlowTo(t *testing.T) {
 
 func TestWildcardTag_IntegrityCheckFlow(t *testing.T) {
 	// Integrity: src ⊇ target. Wildcard in src means src has everything.
-	src := NewIntegrityLabelWithTags([]Tag{WildcardTag})
-	target := NewIntegrityLabelWithTags([]Tag{"approved:org/repo", "merged:org/repo"})
+	src := NewIntegrityLabel([]Tag{WildcardTag}...)
+	target := NewIntegrityLabel([]Tag{"approved:org/repo", "merged:org/repo"}...)
 
 	ok, violations := src.CheckFlow(target)
 	assert.True(t, ok, "wildcard in source should satisfy all target integrity tags")

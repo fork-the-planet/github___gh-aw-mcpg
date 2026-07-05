@@ -134,8 +134,8 @@ func TestCollectionLabeledData_Overall_WithItems(t *testing.T) {
 					Data: "item1",
 					Labels: &LabeledResource{
 						Description: "item",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"private"}),
-						Integrity:   *NewIntegrityLabelWithTags([]Tag{"trusted"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"private"}...),
+						Integrity:   *NewIntegrityLabel([]Tag{"trusted"}...),
 					},
 				},
 			},
@@ -149,16 +149,16 @@ func TestCollectionLabeledData_Overall_WithItems(t *testing.T) {
 					Data: "item1",
 					Labels: &LabeledResource{
 						Description: "item1",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"tag1"}),
-						Integrity:   *NewIntegrityLabelWithTags([]Tag{"int1"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"tag1"}...),
+						Integrity:   *NewIntegrityLabel([]Tag{"int1"}...),
 					},
 				},
 				{
 					Data: "item2",
 					Labels: &LabeledResource{
 						Description: "item2",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"tag2"}),
-						Integrity:   *NewIntegrityLabelWithTags([]Tag{"int2"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"tag2"}...),
+						Integrity:   *NewIntegrityLabel([]Tag{"int2"}...),
 					},
 				},
 			},
@@ -173,7 +173,7 @@ func TestCollectionLabeledData_Overall_WithItems(t *testing.T) {
 					Data: "item2",
 					Labels: &LabeledResource{
 						Description: "item2",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"secret"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"secret"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -271,7 +271,7 @@ func TestFilteredCollectionLabeledData_Overall_EmptyAccessible(t *testing.T) {
 					Data: "filtered-item",
 					Labels: &LabeledResource{
 						Description: "filtered",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"secret"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"secret"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -306,8 +306,8 @@ func TestFilteredCollectionLabeledData_Overall_WithAccessibleItems(t *testing.T)
 					Data: "accessible",
 					Labels: &LabeledResource{
 						Description: "accessible-item",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"public"}),
-						Integrity:   *NewIntegrityLabelWithTags([]Tag{"verified"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"public"}...),
+						Integrity:   *NewIntegrityLabel([]Tag{"verified"}...),
 					},
 				},
 			},
@@ -317,8 +317,8 @@ func TestFilteredCollectionLabeledData_Overall_WithAccessibleItems(t *testing.T)
 						Data: "filtered",
 						Labels: &LabeledResource{
 							Description: "filtered-item",
-							Secrecy:     *NewSecrecyLabelWithTags([]Tag{"ultra-secret"}),
-							Integrity:   *NewIntegrityLabelWithTags([]Tag{"high-trust"}),
+							Secrecy:     *NewSecrecyLabel([]Tag{"ultra-secret"}...),
+							Integrity:   *NewIntegrityLabel([]Tag{"high-trust"}...),
 						},
 					},
 					Reason: "test",
@@ -334,7 +334,7 @@ func TestFilteredCollectionLabeledData_Overall_WithAccessibleItems(t *testing.T)
 					Data: "item1",
 					Labels: &LabeledResource{
 						Description: "item1",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"tag-a"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"tag-a"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -342,8 +342,8 @@ func TestFilteredCollectionLabeledData_Overall_WithAccessibleItems(t *testing.T)
 					Data: "item2",
 					Labels: &LabeledResource{
 						Description: "item2",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"tag-b"}),
-						Integrity:   *NewIntegrityLabelWithTags([]Tag{"int-x"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"tag-b"}...),
+						Integrity:   *NewIntegrityLabel([]Tag{"int-x"}...),
 					},
 				},
 			},
@@ -359,7 +359,7 @@ func TestFilteredCollectionLabeledData_Overall_WithAccessibleItems(t *testing.T)
 					Data: "item2",
 					Labels: &LabeledResource{
 						Description: "item2",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"conf"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"conf"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -532,7 +532,7 @@ func TestFilteredCollectionLabeledData_Integration(t *testing.T) {
 			Data: map[string]string{"name": "public-item"},
 			Labels: &LabeledResource{
 				Description: "public",
-				Secrecy:     *NewSecrecyLabelWithTags([]Tag{"public"}),
+				Secrecy:     *NewSecrecyLabel([]Tag{"public"}...),
 				Integrity:   *NewIntegrityLabel(),
 			},
 		},
@@ -543,7 +543,7 @@ func TestFilteredCollectionLabeledData_Integration(t *testing.T) {
 				Data: map[string]string{"name": "private-item"},
 				Labels: &LabeledResource{
 					Description: "private",
-					Secrecy:     *NewSecrecyLabelWithTags([]Tag{"private"}),
+					Secrecy:     *NewSecrecyLabel([]Tag{"private"}...),
 					Integrity:   *NewIntegrityLabel(),
 				},
 			},
@@ -554,7 +554,7 @@ func TestFilteredCollectionLabeledData_Integration(t *testing.T) {
 				Data: map[string]string{"name": "secret-item"},
 				Labels: &LabeledResource{
 					Description: "secret",
-					Secrecy:     *NewSecrecyLabelWithTags([]Tag{"secret"}),
+					Secrecy:     *NewSecrecyLabel([]Tag{"secret"}...),
 					Integrity:   *NewIntegrityLabel(),
 				},
 			},

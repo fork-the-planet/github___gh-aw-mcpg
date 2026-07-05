@@ -90,7 +90,7 @@ func (g *WriteSinkGuard) LabelResource(_ context.Context, toolName string, toolA
 	g.auditURLsInBody(toolName, toolArgs)
 
 	resource := difc.NewLabeledResource("write-sink (" + toolName + ")")
-	resource.Secrecy = *difc.NewSecrecyLabelWithTags(g.acceptTags)
+	resource.Secrecy = *difc.NewSecrecyLabel(g.acceptTags...)
 
 	return resource, difc.OperationWrite, nil
 }
