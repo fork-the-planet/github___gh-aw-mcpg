@@ -9,17 +9,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestAtomicWriteFile exercises the three reachable code paths in atomicWriteFile:
+// TestAtomicWriteFile exercises all four code paths in atomicWriteFile:
 //
 //  1. Success – the temp file is written and renamed into place.
 //  2. WriteFile fails – the parent directory does not exist.
 //  3. Rename fails, cleanup succeeds – the target path is an existing directory,
 //     which causes os.Rename to return EISDIR on Linux (the temp file is cleaned up
 //     by os.Remove, and the rename error is returned).
-//
-// The fourth path – rename fails AND cleanup fails – requires the temp file to become
-// a non-removable, non-NotExist entry after os.WriteFile succeeds, which cannot be
-// triggered deterministically in a portable unit test.
+//  4. Rename fails AND cleanup fails – the parent directory is made read-only after
+//     the temp file is pre-created (so os.WriteFile succeeds by overwriting the
+//     existing file without requiring directory write permission), the target path is
+//     occupied by a directory (os.Rename returns EISDIR), and os.Remove then fails
+//     with EACCES because the parent directory is not writable.
+
 func TestAtomicWriteFile(t *testing.T) {
 	data := []byte(`{"key":"value"}`)
 
@@ -61,6 +63,44 @@ func TestAtomicWriteFile(t *testing.T) {
 		// The temp file should be cleaned up even though rename failed.
 		_, statErr := os.Stat(filePath + ".tmp")
 		assert.True(t, os.IsNotExist(statErr), "temp file should be removed after failed rename")
+	})
+
+	t.Run("rename fails and cleanup also fails – parent dir read-only", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		filePath := filepath.Join(tmpDir, "output.json")
+		tempPath := filePath + ".tmp"
+		probePath := filepath.Join(tmpDir, "probe.tmp")
+
+		// Pre-create the temp file so atomicWriteFile's os.WriteFile can overwrite
+		// it without needing directory write permission (O_TRUNC on an existing file
+		// does not require directory write permission on Linux).
+		require.NoError(t, os.WriteFile(tempPath, []byte("{}"), 0600))
+		require.NoError(t, os.WriteFile(probePath, []byte("probe"), 0600))
+
+		// Occupy the target path with a directory so os.Rename returns EISDIR.
+		require.NoError(t, os.MkdirAll(filePath, 0755))
+
+		// Remove write permission from the parent directory so os.Remove(tempPath)
+		// returns EACCES rather than os.IsNotExist, triggering the warning log branch.
+		require.NoError(t, os.Chmod(tmpDir, 0555))
+		t.Cleanup(func() { _ = os.Chmod(tmpDir, 0755) })
+
+		// Some environments (or users) may not enforce chmod-based write
+		// restrictions. Detect that and skip instead of asserting on a branch that
+		// cannot be triggered there.
+		if err := os.Remove(probePath); err == nil {
+			t.Skip("directory write restrictions are not enforced in this environment")
+		}
+
+		var err error
+		logOutput := captureStdLog(t, func() {
+			err = atomicWriteFile(filePath, data, 0600)
+		})
+		require.Error(t, err, "should fail when rename target is a directory")
+		assert.Contains(t, err.Error(), "failed to rename temp file",
+			"primary rename error should be returned")
+		assert.Contains(t, logOutput, "WARNING: Failed to cleanup temp file "+tempPath,
+			"cleanup-failure warning log should be emitted")
 	})
 
 	t.Run("idempotent – second write overwrites first", func(t *testing.T) {
