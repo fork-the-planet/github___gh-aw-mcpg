@@ -179,6 +179,9 @@ func TestNewWasmGuardWithOptions_InvalidExportedFunctionSignature(t *testing.T) 
 	}
 
 	invalidSignatureWasm := append([]byte(nil), fullGuardWasm...)
+	// fullGuardWasm uses one shared function signature in section 1.
+	// Byte 14 is the second parameter type for that signature, and 0x7e encodes i64.
+	// Flipping this from i32 (0x7f) to i64 intentionally breaks the expected ABI.
 	invalidSignatureWasm[14] = 0x7e // i64 instead of i32 in the shared function type
 
 	_, err := NewWasmGuardWithOptions(ctx, "bad-signature", invalidSignatureWasm, &mockBackendCaller{}, opts)
