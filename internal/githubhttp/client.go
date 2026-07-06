@@ -6,8 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
@@ -60,26 +58,6 @@ func DoGitHubGET(ctx context.Context, apiBaseURL, path, authHeader string) (*htt
 	}
 	logHTTP.Printf("GitHub GET response: path=%q, status=%d", path, resp.StatusCode)
 	return resp, nil
-}
-
-// ParseRateLimitResetHeader parses the Unix-timestamp value of the
-// X-RateLimit-Reset HTTP header into a time.Time.
-// Returns zero time when the header value is absent or malformed.
-//
-// See also: parseRateLimitResetFromText in server/rate_limit.go, which parses
-// the same timing information from MCP tool result text bodies instead of HTTP headers.
-func ParseRateLimitResetHeader(value string) time.Time {
-	if value == "" {
-		return time.Time{}
-	}
-	unix, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
-	if err != nil {
-		logHTTP.Printf("Failed to parse X-RateLimit-Reset header value=%q: %v", value, err)
-		return time.Time{}
-	}
-	reset := time.Unix(unix, 0)
-	logHTTP.Printf("Parsed X-RateLimit-Reset: resetAt=%s", reset.UTC().Format(time.RFC3339))
-	return reset
 }
 
 // ComputeRetryAfter returns the number of seconds a client should wait before

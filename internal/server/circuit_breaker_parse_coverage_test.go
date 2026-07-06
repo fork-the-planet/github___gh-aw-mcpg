@@ -1,17 +1,18 @@
 package server
 
-// Additional coverage tests for parseRateLimitResetFromText edge cases
+// Additional coverage tests for githubhttp.ParseRateLimitResetFromText edge cases
 // not covered by circuit_breaker_test.go.
 
 import (
 	"testing"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/githubhttp"
 	"github.com/stretchr/testify/assert"
 )
 
 // TestParseRateLimitResetFromText_AdditionalEdgeCases covers code paths in
-// parseRateLimitResetFromText that are not exercised by the existing test suite:
+// githubhttp.ParseRateLimitResetFromText that are not exercised by the existing test suite:
 //
 //   - Negative seconds: exercises the secs <= 0 branch
 //   - Non-numeric digits: exercises the err != nil branch from strconv.ParseInt
@@ -94,7 +95,7 @@ func TestParseRateLimitResetFromText_AdditionalEdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			before := time.Now()
-			got := parseRateLimitResetFromText(tt.text)
+			got := githubhttp.ParseRateLimitResetFromText(tt.text)
 			if tt.wantZero {
 				assert.True(t, got.IsZero(), "expected zero time for %q, got %v", tt.text, got)
 			} else {

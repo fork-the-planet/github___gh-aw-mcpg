@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/githubhttp"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -360,7 +361,7 @@ func TestParseRateLimitResetFromText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := parseRateLimitResetFromText(tt.text)
+			got := githubhttp.ParseRateLimitResetFromText(tt.text)
 			if tt.wantZero {
 				assert.True(t, got.IsZero(), "expected zero time, got %v", got)
 			} else {

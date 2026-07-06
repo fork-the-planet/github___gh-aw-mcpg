@@ -40,7 +40,7 @@ func TestSessionSuffix(t *testing.T) {
 		{
 			name:      "with session ID",
 			sessionID: "test-session-123",
-			want:      " for session 'test-session-123'",
+			want:      " for session 'test-ses...'",
 		},
 		{
 			name:      "empty session ID",
@@ -50,7 +50,7 @@ func TestSessionSuffix(t *testing.T) {
 		{
 			name:      "session ID with special characters",
 			sessionID: "session-with-dashes_and_underscores.123",
-			want:      " for session 'session-with-dashes_and_underscores.123'",
+			want:      " for session 'session-...'",
 		},
 	}
 
@@ -314,7 +314,7 @@ func TestLauncher_LogLaunchError(t *testing.T) {
 			wantInLog: []string{
 				"FAILED",
 				"failed-server",
-				"session-123",
+				"session-...",
 				"connection refused",
 				"docker",
 				"bad-image",
@@ -478,7 +478,7 @@ func TestLauncher_LogLaunchSuccess(t *testing.T) {
 			assert.Contains(t, string(content), tt.wantLog)
 			assert.Contains(t, string(content), tt.serverID)
 			if tt.sessionID != "" {
-				assert.Contains(t, string(content), tt.sessionID)
+				assert.Contains(t, string(content), "session-...")
 			}
 		})
 	}

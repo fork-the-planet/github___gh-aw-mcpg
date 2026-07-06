@@ -10,13 +10,14 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 func sessionSuffix(sessionID string) string {
 	if sessionID == "" {
 		return ""
 	}
-	return fmt.Sprintf(" for session '%s'", sessionID)
+	return fmt.Sprintf(" for session '%s'", util.FormatSessionIDForLog(sessionID))
 }
 
 // ConnectionErrorContext holds all context needed to produce a detailed connection

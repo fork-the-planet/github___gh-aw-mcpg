@@ -1,10 +1,10 @@
 package server
 
 import (
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/github/gh-aw-mcpg/internal/githubhttp"
 	"github.com/github/gh-aw-mcpg/internal/mcpresult"
 )
 
@@ -45,7 +45,7 @@ func isRateLimitToolResult(result interface{}) (bool, time.Time) {
 
 	text := mcpresult.ExtractTextContent(m)
 	if isRateLimitText(text) {
-		resetAt := parseRateLimitResetFromText(text)
+		resetAt := githubhttp.ParseRateLimitResetFromText(text)
 		logCircuitBreaker.Printf("Rate limit detected in tool result: hasResetAt=%v", !resetAt.IsZero())
 		return true, resetAt
 	}
@@ -60,35 +60,4 @@ func isRateLimitText(text string) bool {
 		strings.Contains(lower, "api rate limit") ||
 		strings.Contains(lower, "secondary rate limit") ||
 		strings.Contains(lower, "too many requests")
-}
-
-// parseRateLimitResetFromText attempts to extract a reset timestamp from the
-// rate-limit error text. The GitHub MCP server includes messages like
-// "API rate limit exceeded [rate reset in 42s]".
-// Returns zero time when the value cannot be parsed or is 0 seconds.
-//
-// See also: githubhttp.ParseRateLimitResetHeader in githubhttp/client.go, which
-// parses the same timing information from the X-RateLimit-Reset HTTP response header
-// instead of MCP tool result text bodies.
-func parseRateLimitResetFromText(text string) time.Time {
-	// Look for "[rate reset in Ns]" pattern.
-	lower := strings.ToLower(text)
-	idx := strings.Index(lower, "rate reset in ")
-	if idx < 0 {
-		logCircuitBreaker.Print("parseRateLimitResetFromText: no reset time pattern found in text")
-		return time.Time{}
-	}
-	rest := text[idx+len("rate reset in "):]
-	// Find the first non-digit character.
-	end := strings.IndexAny(rest, "s])")
-	if end < 0 {
-		return time.Time{}
-	}
-	secs, err := strconv.ParseInt(strings.TrimSpace(rest[:end]), 10, 64)
-	if err != nil || secs <= 0 {
-		return time.Time{}
-	}
-	resetAt := time.Now().Add(time.Duration(secs) * time.Second)
-	logCircuitBreaker.Printf("Parsed rate limit reset time from text: resetIn=%ds, resetAt=%s", secs, resetAt.UTC().Format(time.RFC3339))
-	return resetAt
 }

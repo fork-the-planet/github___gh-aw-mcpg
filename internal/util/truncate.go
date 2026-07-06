@@ -1,5 +1,7 @@
 package util
 
+const sessionIDLogMaxLen = 8
+
 // Truncate truncates a string to the specified maximum length.
 // If the string is longer than maxLen, it's truncated and "..." is appended.
 // If maxLen is 0, returns "..." for non-empty strings, empty string for empty strings.
@@ -28,6 +30,16 @@ func TruncateWithSuffix(s string, maxLen int, suffix string) string {
 		return s
 	}
 	return s[:maxLen] + suffix
+}
+
+// FormatSessionIDForLog returns a log-safe session ID representation.
+// Empty session IDs are rendered as "(none)"; non-empty IDs are truncated to
+// the first 8 bytes with an ellipsis when needed.
+func FormatSessionIDForLog(sessionID string) string {
+	if sessionID == "" {
+		return "(none)"
+	}
+	return Truncate(sessionID, sessionIDLogMaxLen)
 }
 
 // TruncateRunes truncates s to at most maxRunes Unicode code points (runes).

@@ -7,13 +7,9 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-// truncateSessionID returns a truncated session ID for safe logging (first 8 bytes).
-// Returns "(none)" for empty session IDs, and appends "..." for truncated values.
+// truncateSessionID returns a shared log-safe session ID representation.
 func truncateSessionID(sessionID string) string {
-	if sessionID == "" {
-		return "(none)"
-	}
-	return util.Truncate(sessionID, 8)
+	return util.FormatSessionIDForLog(sessionID)
 }
 
 // truncateCacheKeyForLog returns a log-safe version of a cache key of the form

@@ -1,11 +1,13 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/github/gh-aw-mcpg/internal/syncutil"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -85,5 +87,50 @@ func CreateHTTPServerForMCP(addr string, unifiedServer *UnifiedServer, apiKey, h
 		// Mount handler at /mcp endpoint (logging is done in the callback above)
 		mux.Handle("/mcp/", finalHandler)
 		mux.Handle("/mcp", finalHandler)
+	})
+}
+
+// CreateHTTPServerForRoutedMode creates an HTTP server for routed mode.
+// In routed mode, each backend is accessible at /mcp/<server>.
+// Multiple routes from the same Authorization header share a session.
+// If apiKey is provided, all requests except /health require authentication (spec 7.1).
+// If hmacSecret is provided, routed /mcp/<server> requests must carry a valid
+// HMAC-SHA256 signature (ASI-07); common endpoints (e.g. /health, /close) are not HMAC-protected.
+func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, apiKey, hmacSecret string) *http.Server {
+	logRouted.Printf("Creating HTTP server for routed mode: addr=%s", addr)
+
+	allBackends := unifiedServer.GetServerIDs()
+	logRouted.Printf("Registering routes for %d backends: %v", len(allBackends), allBackends)
+
+	return buildMCPHTTPServer(addr, unifiedServer, apiKey, hmacSecret, func(mux *http.ServeMux, sessionTimeout time.Duration) {
+		logRouted.Printf("[CACHE] Creating filtered server cache: ttl=%s, maxSize=%d", sessionTimeout, filteredServerCacheMaxSize)
+		serverCache := syncutil.NewTTLCache[string, *sdk.Server](sessionTimeout, filteredServerCacheMaxSize)
+
+		for _, serverID := range allBackends {
+			backendID := serverID
+			route := fmt.Sprintf("/mcp/%s", backendID)
+
+			finalHandler := buildMCPHandler(func(r *http.Request) *sdk.Server {
+				if _, ok := setupSessionCallback(r, backendID); !ok {
+					return nil
+				}
+
+				sessionID := SessionIDFromContext(r.Context())
+				cacheKey := fmt.Sprintf("%s/%s", backendID, sessionID)
+				return serverCache.GetOrCreate(cacheKey, func() *sdk.Server {
+					logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, truncateSessionID(sessionID))
+					return createFilteredServer(unifiedServer, backendID)
+				})
+			}, buildDefaultHandlerConfig(unifiedServer, sessionTimeout, defaultHandlerConfigOptions{
+				handlerLog: logRouted,
+				logTag:     "routed:" + backendID,
+				apiKey:     apiKey,
+				hmacSecret: hmacSecret,
+			}))
+
+			mux.Handle(route+"/", finalHandler)
+			mux.Handle(route, finalHandler)
+			logRouted.Printf("Registered route: %s", route)
+		}
 	})
 }

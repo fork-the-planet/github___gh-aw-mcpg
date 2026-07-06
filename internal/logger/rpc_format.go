@@ -30,13 +30,6 @@ func truncateAndSanitize(payload string, maxLength int) string {
 	return util.Truncate(sanitized, maxLength)
 }
 
-// truncateSanitized truncates an already-sanitized payload string without running the
-// regex sanitization pass again. Use this when the same payload is previewed at
-// multiple lengths (e.g. text vs. markdown) so that sanitization is paid only once.
-func truncateSanitized(sanitized string, maxLength int) string {
-	return util.Truncate(sanitized, maxLength)
-}
-
 // LogMarshaledForDebug marshals value for debug logging and dispatches to the
 // provided callbacks for success or marshal failure paths.
 func LogMarshaledForDebug(value interface{}, onMarshalSuccess func(string), onMarshalFailure func(error)) {

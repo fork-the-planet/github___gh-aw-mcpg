@@ -20,7 +20,10 @@
 //	logger.LogRPCResponse(logger.RPCDirectionInbound, "github", responsePayload, nil, nil, nil)
 package logger
 
-import "github.com/github/gh-aw-mcpg/internal/sanitize"
+import (
+	"github.com/github/gh-aw-mcpg/internal/sanitize"
+	"github.com/github/gh-aw-mcpg/internal/util"
+)
 
 // RPCMessageType represents the direction of an RPC message
 type RPCMessageType string
@@ -83,7 +86,7 @@ func newRPCMessageInfoFromSanitized(direction RPCMessageDirection, messageType R
 		ServerID:    serverID,
 		Method:      method,
 		PayloadSize: len(payload),
-		Payload:     truncateSanitized(sanitized, maxPayload),
+		Payload:     util.Truncate(sanitized, maxPayload),
 	}
 	if err != nil {
 		info.Error = err.Error()
