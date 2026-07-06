@@ -3,7 +3,6 @@ package difc
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
@@ -21,13 +20,12 @@ const WildcardTag = Tag("*")
 
 // Label represents a set of DIFC tags
 type Label struct {
-	tags map[Tag]struct{}
-	mu   sync.RWMutex
+	tagSet
 }
 
 // NewLabel creates a new empty label
 func NewLabel() *Label {
-	return &Label{tags: make(map[Tag]struct{})}
+	return &Label{tagSet: newTagSet()}
 }
 
 // newLabelWithTags is a helper function that creates a label with the given tags.
@@ -40,42 +38,27 @@ func newLabelWithTags(tags []Tag) *Label {
 
 // Add adds a tag to this label
 func (l *Label) Add(tag Tag) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.tags[tag] = struct{}{}
+	l.add(tag)
 }
 
 // AddAll adds multiple tags to this label
 func (l *Label) AddAll(tags []Tag) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, tag := range tags {
-		l.tags[tag] = struct{}{}
-	}
+	l.addAll(tags)
 }
 
 // Remove removes a single tag from this label
 func (l *Label) Remove(tag Tag) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	delete(l.tags, tag)
+	l.remove(tag)
 }
 
 // RemoveAll removes multiple tags from this label
 func (l *Label) RemoveAll(tags []Tag) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	for _, tag := range tags {
-		delete(l.tags, tag)
-	}
+	l.removeAll(tags)
 }
 
 // Contains checks if this label contains a specific tag
 func (l *Label) Contains(tag Tag) bool {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	_, ok := l.tags[tag]
-	return ok
+	return l.contains(tag)
 }
 
 // Union merges another label into this label
@@ -144,20 +127,12 @@ func (l *Label) Clone() *Label {
 
 // GetTags returns all tags in this label as a slice
 func (l *Label) GetTags() []Tag {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	tags := make([]Tag, 0, len(l.tags))
-	for tag := range l.tags {
-		tags = append(tags, tag)
-	}
-	return tags
+	return l.getAll()
 }
 
 // IsEmpty returns true if this label has no tags
 func (l *Label) IsEmpty() bool {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return len(l.tags) == 0
+	return l.isEmpty()
 }
 
 // cloneLabelOrNew clones inner if it is non-nil, otherwise returns a new empty Label.
