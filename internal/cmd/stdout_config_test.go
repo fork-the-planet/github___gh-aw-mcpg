@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -317,6 +318,64 @@ func TestWriteGatewayConfig_PortOnlyAddress(t *testing.T) {
 	// Empty host from SplitHostPort should fall back to DefaultListenIPv4
 	assert.Contains(t, url, DefaultListenIPv4, "Should use default IPv4 host when address has no host")
 	assert.Contains(t, url, "8080", "Should preserve the port")
+}
+
+// TestWriteGatewayConfigToStdout_CobraWrapper verifies that writeGatewayConfigToStdout
+// correctly delegates to writeGatewayConfig using cmd.OutOrStdout(). It redirects
+// the cobra command's output to a buffer via cmd.SetOut and confirms the same JSON
+// is produced as the direct writeGatewayConfig call.
+func TestWriteGatewayConfigToStdout_CobraWrapper(t *testing.T) {
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"github": {
+				Command: "docker",
+				Args:    []string{"run", "--rm", "-i", "ghcr.io/github/github-mcp-server:latest"},
+			},
+		},
+		Gateway: &config.GatewayConfig{
+			APIKey: "wrapper-api-key",
+		},
+	}
+
+	var buf bytes.Buffer
+	cmd := &cobra.Command{}
+	cmd.SetOut(&buf)
+
+	err := writeGatewayConfigToStdout(cmd, cfg, "127.0.0.1:3000", "routed", false)
+	require.NoError(t, err)
+
+	var result map[string]interface{}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &result), "output should be valid JSON")
+
+	mcpServers, ok := result["mcpServers"].(map[string]interface{})
+	require.True(t, ok, "mcpServers field should be a map")
+	require.Contains(t, mcpServers, "github", "github server should be present")
+
+	serverConfig, ok := mcpServers["github"].(map[string]interface{})
+	require.True(t, ok, "server config should be a map")
+	assert.Equal(t, "http://127.0.0.1:3000/mcp/github", serverConfig["url"])
+	assert.Equal(t, "http", serverConfig["type"])
+
+	headers, ok := serverConfig["headers"].(map[string]interface{})
+	require.True(t, ok, "headers should be present")
+	assert.Equal(t, "wrapper-api-key", headers["Authorization"])
+}
+
+// TestWriteGatewayConfigToStdout_WriteError verifies that writeGatewayConfigToStdout
+// propagates errors from the underlying writeGatewayConfig call when the writer fails.
+func TestWriteGatewayConfigToStdout_WriteError(t *testing.T) {
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"test": {Command: "echo"},
+		},
+	}
+
+	cmd := &cobra.Command{}
+	cmd.SetOut(errWriter{})
+
+	err := writeGatewayConfigToStdout(cmd, cfg, "127.0.0.1:8080", "routed", false)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to encode configuration")
 }
 
 // TestWriteGatewayConfig_TLSScheme verifies that https:// URLs are emitted when
