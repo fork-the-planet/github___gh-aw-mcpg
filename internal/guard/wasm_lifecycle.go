@@ -318,17 +318,23 @@ func NewWasmGuardWithOptions(ctx context.Context, name string, wasmBytes []byte,
 		def := fn.Definition()
 		paramTypes := def.ParamTypes()
 		resultTypes := def.ResultTypes()
+		signatureErr := fmt.Errorf(
+			"WASM module function %s must have signature (i32,i32,i32,i32)->i32, got %v->%v",
+			functionName,
+			paramTypes,
+			resultTypes,
+		)
 		if len(paramTypes) != len(expectedParamTypes) || len(resultTypes) != len(expectedResultTypes) {
-			return fmt.Errorf("WASM module function %s must have signature (i32,i32,i32,i32)->i32, got %v->%v", functionName, paramTypes, resultTypes)
+			return signatureErr
 		}
 		for i := range expectedParamTypes {
 			if paramTypes[i] != expectedParamTypes[i] {
-				return fmt.Errorf("WASM module function %s must have signature (i32,i32,i32,i32)->i32, got %v->%v", functionName, paramTypes, resultTypes)
+				return signatureErr
 			}
 		}
 		for i := range expectedResultTypes {
 			if resultTypes[i] != expectedResultTypes[i] {
-				return fmt.Errorf("WASM module function %s must have signature (i32,i32,i32,i32)->i32, got %v->%v", functionName, paramTypes, resultTypes)
+				return signatureErr
 			}
 		}
 		return nil
