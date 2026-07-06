@@ -161,7 +161,7 @@ Test all commands and instructions in `CONTRIBUTING.md`:
      - Fields with incorrect descriptions
 
 2. **Validation rules audit:**
-   - Read `internal/config/validation_server.go`, `internal/config/validation_gateway.go`, and `internal/config/validation_rules.go`
+   - Read `internal/config/validation_schema.go` (schema constraints), `internal/config/validation_server.go`, `internal/config/validation_gateway.go`, and `internal/config/validation_rules.go`
    - Check validation rules for each field
    - Compare with documented constraints in README.md
    - Look for mismatches (e.g., field documented as optional but required in code)
