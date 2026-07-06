@@ -33,6 +33,14 @@ func resetAllGlobalLoggers(t *testing.T) {
 	globalServerLoggerMu.Unlock()
 }
 
+// TestSyncFileWithWarning_NilFile verifies that syncFileWithWarning silently
+// ignores a nil file and does not panic.
+func TestSyncFileWithWarning_NilFile(t *testing.T) {
+	assert.NotPanics(t, func() {
+		syncFileWithWarning(nil, " for server test")
+	}, "syncFileWithWarning should not panic when called with a nil file")
+}
+
 // TestCloseAllLoggers_NoLoggersInitialized verifies that CloseAllLoggers returns nil
 // when no loggers are currently initialized.
 func TestCloseAllLoggers_NoLoggersInitialized(t *testing.T) {

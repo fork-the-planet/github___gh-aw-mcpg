@@ -338,7 +338,7 @@ func TestNormalizeGuardPolicy_EndorsementReactionDedup(t *testing.T) {
 		}}
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "endorsement-reactions cannot be empty")
+		assert.ErrorContains(t, err, "endorsement-reactions is required")
 	})
 
 	t.Run("deduplicate disapproval-reactions case-insensitively", func(t *testing.T) {
@@ -361,7 +361,7 @@ func TestNormalizeGuardPolicy_EndorsementReactionDedup(t *testing.T) {
 		}}
 		_, err := NormalizeGuardPolicy(policy)
 		require.Error(t, err)
-		assert.ErrorContains(t, err, "disapproval-reactions cannot be empty")
+		assert.ErrorContains(t, err, "disapproval-reactions is required")
 	})
 
 	t.Run("invalid disapproval-integrity rejected", func(t *testing.T) {

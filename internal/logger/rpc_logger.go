@@ -20,6 +20,8 @@
 //	logger.LogRPCResponse(logger.RPCDirectionInbound, "github", responsePayload, nil, nil, nil)
 package logger
 
+import "github.com/github/gh-aw-mcpg/internal/sanitize"
+
 // RPCMessageType represents the direction of an RPC message
 type RPCMessageType string
 
@@ -70,16 +72,18 @@ type RPCMessageInfo struct {
 	Error       string              // Error message if any (for responses)
 }
 
-// newRPCMessageInfo constructs an RPCMessageInfo with the given parameters, truncating
-// the payload preview to maxPayload characters.
-func newRPCMessageInfo(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error, maxPayload int) *RPCMessageInfo {
+// newRPCMessageInfoFromSanitized builds an RPCMessageInfo from an already-sanitized
+// payload string, truncating to maxPayload without re-running the regex sanitization pass.
+// Use this when the same payload is logged at multiple preview lengths to avoid
+// redundant sanitization work.
+func newRPCMessageInfoFromSanitized(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error, sanitized string, maxPayload int) *RPCMessageInfo {
 	info := &RPCMessageInfo{
 		Direction:   direction,
 		MessageType: messageType,
 		ServerID:    serverID,
 		Method:      method,
 		PayloadSize: len(payload),
-		Payload:     truncateAndSanitize(string(payload), maxPayload),
+		Payload:     truncateSanitized(sanitized, maxPayload),
 	}
 	if err != nil {
 		info.Error = err.Error()
@@ -87,15 +91,20 @@ func newRPCMessageInfo(direction RPCMessageDirection, messageType RPCMessageType
 	return info
 }
 
-// logRPCMessageToAll is a helper that logs RPC messages to text, markdown, and JSONL logs.
+// logRPCMessageToAll routes a single RPC message to all log sinks (text, markdown, JSONL).
 // It uses the withGlobalLogger helper from global_helpers.go to handle mutex locking and nil-checking.
 func logRPCMessageToAll(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error, agentSecrecy, agentIntegrity []string) {
+	// Sanitize the payload string once, then truncate to different preview lengths.
+	// SanitizeString runs 10 compiled regex patterns; sharing the sanitized string
+	// between the text and markdown previews halves the sanitization work per RPC hop.
+	sanitized := sanitize.SanitizeString(string(payload))
+
 	// Log to text file (with larger payload preview)
-	infoText := newRPCMessageInfo(direction, messageType, serverID, method, payload, err, MaxPayloadPreviewLengthText)
+	infoText := newRPCMessageInfoFromSanitized(direction, messageType, serverID, method, payload, err, sanitized, MaxPayloadPreviewLengthText)
 	LogDebug("rpc", "%s", formatRPCMessage(infoText))
 
 	// Log to markdown file (with shorter payload preview)
-	infoMarkdown := newRPCMessageInfo(direction, messageType, serverID, method, payload, err, MaxPayloadPreviewLengthMarkdown)
+	infoMarkdown := newRPCMessageInfoFromSanitized(direction, messageType, serverID, method, payload, err, sanitized, MaxPayloadPreviewLengthMarkdown)
 	withGlobalLogger(&globalMarkdownMu, &globalMarkdownLogger, func(logger *MarkdownLogger) {
 		logger.Log(LogLevelDebug, "rpc", "%s", formatRPCMessageMarkdown(infoMarkdown))
 	})

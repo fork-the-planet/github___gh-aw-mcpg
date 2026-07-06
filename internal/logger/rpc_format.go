@@ -17,6 +17,7 @@ package logger
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/github/gh-aw-mcpg/internal/sanitize"
@@ -26,6 +27,13 @@ import (
 // truncateAndSanitize truncates the payload to max length and sanitizes secrets.
 func truncateAndSanitize(payload string, maxLength int) string {
 	sanitized := sanitize.SanitizeString(payload)
+	return util.Truncate(sanitized, maxLength)
+}
+
+// truncateSanitized truncates an already-sanitized payload string without running the
+// regex sanitization pass again. Use this when the same payload is previewed at
+// multiple lengths (e.g. text vs. markdown) so that sanitization is paid only once.
+func truncateSanitized(sanitized string, maxLength int) string {
 	return util.Truncate(sanitized, maxLength)
 }
 
@@ -71,38 +79,44 @@ func LogMarshaledForDebugf(
 // formatRPCMessage formats an RPC message for logging
 func formatRPCMessage(info *RPCMessageInfo) string {
 	// Short format: server→method (or server←resp) size payload
-	var dir string
+	dir := "←"
 	if info.Direction == RPCDirectionOutbound {
 		dir = "→"
-	} else {
-		dir = "←"
 	}
 
-	var parts []string
+	var sb strings.Builder
 
 	// Server and direction
 	if info.ServerID != "" {
+		sb.WriteString(info.ServerID)
+		sb.WriteString(dir)
 		if info.Method != "" {
-			parts = append(parts, fmt.Sprintf("%s%s%s", info.ServerID, dir, info.Method))
+			sb.WriteString(info.Method)
 		} else {
-			parts = append(parts, fmt.Sprintf("%s%sresp", info.ServerID, dir))
+			sb.WriteString("resp")
 		}
 	}
 
 	// Size
-	parts = append(parts, fmt.Sprintf("%db", info.PayloadSize))
+	if sb.Len() > 0 {
+		sb.WriteByte(' ')
+	}
+	sb.WriteString(strconv.Itoa(info.PayloadSize))
+	sb.WriteByte('b')
 
 	// Error (if present)
 	if info.Error != "" {
-		parts = append(parts, fmt.Sprintf("err:%s", info.Error))
+		sb.WriteString(" err:")
+		sb.WriteString(info.Error)
 	}
 
 	// Payload preview (if present)
 	if info.Payload != "" {
-		parts = append(parts, info.Payload)
+		sb.WriteByte(' ')
+		sb.WriteString(info.Payload)
 	}
 
-	return strings.Join(parts, " ")
+	return sb.String()
 }
 
 // isEffectivelyEmpty checks if the data is effectively empty (only contains params: null)

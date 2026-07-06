@@ -34,8 +34,8 @@ func NewAgentLabelsWithTags(agentID string, secrecyTags []Tag, integrityTags []T
 		agentID, secrecyTags, integrityTags)
 	return &AgentLabels{
 		AgentID:   agentID,
-		Secrecy:   NewSecrecyLabelWithTags(secrecyTags),
-		Integrity: NewIntegrityLabelWithTags(integrityTags),
+		Secrecy:   NewSecrecyLabel(secrecyTags...),
+		Integrity: NewIntegrityLabel(integrityTags...),
 	}
 }
 

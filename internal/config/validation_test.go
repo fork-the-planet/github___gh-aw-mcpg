@@ -458,7 +458,7 @@ func TestValidateGatewayConfig(t *testing.T) {
 				StartupTimeout: intPtr(-1),
 			},
 			shouldErr: true,
-			errorMsg:  "startupTimeout must be at least 1",
+			errorMsg:  "startupTimeout must be a positive integer (>= 1), got -1",
 		},
 		{
 			name: "zero startupTimeout",
@@ -466,7 +466,7 @@ func TestValidateGatewayConfig(t *testing.T) {
 				StartupTimeout: intPtr(0),
 			},
 			shouldErr: true,
-			errorMsg:  "startupTimeout must be at least 1",
+			errorMsg:  "startupTimeout must be a positive integer (>= 1), got 0",
 		},
 		{
 			name: "negative toolTimeout",
@@ -1220,7 +1220,7 @@ func TestValidateToolResponseFilters(t *testing.T) {
 				},
 			},
 			shouldErr: true,
-			errMsg:    "cannot be empty",
+			errMsg:    "is required",
 		},
 	}
 

@@ -29,14 +29,14 @@ func ParseCollaboratorPermissionArgs(argsMap map[string]interface{}) (owner, rep
 	return
 }
 
-// LogAndWrapCollaboratorPermission parses the raw GitHub API response body for a
+// WrapCollaboratorPermission parses the raw GitHub API response body for a
 // get_collaborator_permission request, logs the resolved permission level for
 // observability, and returns the body wrapped in MCP text-response format.
 //
 // This helper is shared between the server and proxy packages to eliminate
 // duplicated parse/log/wrap logic. Callers pass their own debug logger's Printf
 // method so that log lines appear under the correct namespace.
-func LogAndWrapCollaboratorPermission(
+func WrapCollaboratorPermission(
 	body []byte,
 	owner, repo, username string,
 	statusCode int,
@@ -91,5 +91,5 @@ func FetchCollaboratorPermission(
 	}
 	logCollab.Printf("FetchCollaboratorPermission: response received: status=%d, bodyLen=%d", resp.StatusCode, len(body))
 
-	return LogAndWrapCollaboratorPermission(body, owner, repo, username, resp.StatusCode, logPrintf), nil
+	return WrapCollaboratorPermission(body, owner, repo, username, resp.StatusCode, logPrintf), nil
 }

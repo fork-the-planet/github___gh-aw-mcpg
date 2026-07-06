@@ -98,6 +98,94 @@ func TestServeAndWait_OnShutdownSignalCalled(t *testing.T) {
 	assert.True(t, signalCalled, "onShutdownSignal should have been called on shutdown")
 }
 
+func TestServeAndWait_ShutdownTimesOut(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	requestStarted := make(chan struct{})
+	handlerDone := make(chan struct{})
+	httpServer := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/hang" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+
+			close(requestStarted)
+			<-r.Context().Done()
+			close(handlerDone)
+		}),
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- serveAndWait(
+			ctx,
+			cancel,
+			httpServer,
+			50*time.Millisecond,
+			nil,
+			func() error {
+				return httpServer.Serve(listener)
+			},
+		)
+	}()
+
+	readyClient := &http.Client{Timeout: 100 * time.Millisecond}
+	require.Eventually(t, func() bool {
+		resp, reqErr := readyClient.Get("http://" + listener.Addr().String())
+		if reqErr != nil {
+			return false
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, time.Second, 20*time.Millisecond)
+
+	requestDone := make(chan struct{})
+	hangClient := &http.Client{Timeout: 5 * time.Second}
+	go func() {
+		defer close(requestDone)
+
+		resp, reqErr := hangClient.Get("http://" + listener.Addr().String() + "/hang")
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+		assert.Error(t, reqErr)
+	}()
+
+	require.Eventually(t, func() bool {
+		select {
+		case <-requestStarted:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 20*time.Millisecond)
+
+	cancel()
+
+	require.ErrorIs(t, <-errCh, context.DeadlineExceeded)
+	require.Eventually(t, func() bool {
+		select {
+		case <-handlerDone:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool {
+		select {
+		case <-requestDone:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 20*time.Millisecond)
+}
+
 // TestServeAndWait_ServeFnError verifies that when serveFn returns an unexpected
 // error (not http.ErrServerClosed), serveAndWait triggers context cancellation
 // and propagates the error to the caller.

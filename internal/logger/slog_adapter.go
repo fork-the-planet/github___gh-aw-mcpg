@@ -41,12 +41,7 @@ func (h *SlogHandler) Handle(_ context.Context, r slog.Record) error {
 		})
 		// Format attributes as key=value pairs
 		for i := 0; i < len(attrs); i += 2 {
-			// Safely handle non-string keys (defensive programming - slog always provides string keys)
-			key, ok := attrs[i].(string)
-			if !ok {
-				key = fmt.Sprint(attrs[i])
-			}
-			msg += " " + key + "=" + formatSlogValue(attrs[i+1])
+			msg += " " + attrKeyString(attrs[i]) + "=" + formatSlogValue(attrs[i+1])
 		}
 	}
 
@@ -87,6 +82,16 @@ func formatSlogValue(v any) string {
 		return val.String()
 	}
 	return slog.AnyValue(v).String()
+}
+
+// attrKeyString converts a slog attribute key value to a string.
+// In normal slog usage a.Key is always a string, but this helper uses
+// fmt.Sprint as a defensive fallback for unexpected types.
+func attrKeyString(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return fmt.Sprint(v)
 }
 
 // NewSlogLogger creates a new slog.Logger that uses gh-aw's logger package

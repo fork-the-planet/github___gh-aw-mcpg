@@ -24,8 +24,11 @@ type BaseResponseWriter struct {
 // matching net/http semantics where only the first WriteHeader is effective.
 func (w *BaseResponseWriter) WriteHeader(code int) {
 	if !w.wroteHeader {
+		logHTTP.Printf("BaseResponseWriter.WriteHeader: capturing status code=%d", code)
 		w.StatusCode = code
 		w.wroteHeader = true
+	} else {
+		logHTTP.Printf("BaseResponseWriter.WriteHeader: duplicate status code=%d (captured=%d); forwarding to underlying writer", code, w.StatusCode)
 	}
 	w.ResponseWriter.WriteHeader(code)
 }
@@ -34,6 +37,7 @@ func (w *BaseResponseWriter) WriteHeader(code int) {
 // was issued, then delegates to the underlying writer.
 func (w *BaseResponseWriter) Write(b []byte) (int, error) {
 	if !w.wroteHeader {
+		logHTTP.Printf("BaseResponseWriter.Write: implicit 200 status captured (first write, len=%d)", len(b))
 		w.StatusCode = http.StatusOK
 		w.wroteHeader = true
 	}

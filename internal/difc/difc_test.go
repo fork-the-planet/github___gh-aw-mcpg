@@ -538,7 +538,7 @@ func TestCollectionFiltering(t *testing.T) {
 					Data: map[string]string{"name": "public-item"},
 					Labels: &LabeledResource{
 						Description: "public item",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"public"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"public"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -546,7 +546,7 @@ func TestCollectionFiltering(t *testing.T) {
 					Data: map[string]string{"name": "secret-item"},
 					Labels: &LabeledResource{
 						Description: "secret item",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"secret"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"secret"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},

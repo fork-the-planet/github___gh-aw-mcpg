@@ -127,7 +127,7 @@ func (sfl *ServerFileLogger) Close() error {
 // logWithLevelAndServer is a helper that reduces code duplication for per-server logging at different levels.
 // It uses the withGlobalLogger helper from global_helpers.go to handle mutex locking and nil-checking,
 // eliminating repeated patterns across LogInfoToServer, LogWarnToServer, LogErrorToServer, and LogDebugToServer.
-// It uses the logFuncs map (common.go) for the unified log dispatch, avoiding a repeated switch-on-level block.
+// It uses the logFuncs map (global_state.go) for the unified log dispatch, avoiding a repeated switch-on-level block.
 func logWithLevelAndServer(serverID string, level LogLevel, category, format string, args ...interface{}) {
 	withGlobalLogger(&globalServerLoggerMu, &globalServerFileLogger, func(logger *ServerFileLogger) {
 		logger.Log(serverID, level, category, format, args...)
@@ -142,7 +142,7 @@ func logWithLevelAndServer(serverID string, level LogLevel, category, format str
 }
 
 // The exported wrappers below follow the Log-Level Quad-Function Pattern
-// documented in common.go, with shared per-level closure registration handled
+// documented in global_state.go, with shared per-level closure registration handled
 // by newServerLevelLoggerFuncs.
 var serverLevelLoggers = newServerLevelLoggerFuncs(logWithLevelAndServer)
 

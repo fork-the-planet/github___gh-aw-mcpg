@@ -808,9 +808,10 @@ func TestSlogHandler_Handle_AllLevelPrefixes(t *testing.T) {
 	}
 }
 
-// TestSlogHandler_Handle_NonStringKeyFallback tests the defensive non-string key path.
-// This exercises the fmt.Sprint fallback for non-string attribute keys.
-func TestSlogHandler_Handle_NonStringKeyFallback(t *testing.T) {
+// TestSlogHandler_Handle_StringKeyFormatting validates that Handle correctly formats
+// a normal string attribute key in the output. Non-string key fallback behaviour
+// is covered separately by TestAttrKeyString.
+func TestSlogHandler_Handle_StringKeyFormatting(t *testing.T) {
 	t.Setenv("DEBUG", "*")
 
 	output := captureStderr(func() {
@@ -818,16 +819,58 @@ func TestSlogHandler_Handle_NonStringKeyFallback(t *testing.T) {
 		handler := NewSlogHandler(l)
 
 		r := slog.NewRecord(time.Now(), slog.LevelInfo, "test message", 0)
-
-		// Manually build an attrs slice that contains a non-string key
-		// by calling Handle with a crafted approach via direct field manipulation.
-		// Since the slog.Record.AddAttrs always uses string keys (a.Key is string),
-		// we test this path by calling the handler directly and adding a regular attr,
-		// verifying the normal path works (slog always provides string keys).
 		r.AddAttrs(slog.String("normalkey", "val"))
 		err := handler.Handle(context.Background(), r)
 		require.NoError(t, err)
 	})
 
 	assert.Contains(t, output, "normalkey=val")
+}
+
+// TestAttrKeyString verifies attrKeyString returns the string directly for string
+// inputs and uses fmt.Sprint for non-string fallback types.
+func TestAttrKeyString(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    any
+		expected string
+	}{
+		{
+			name:     "string value is returned as-is",
+			input:    "mykey",
+			expected: "mykey",
+		},
+		{
+			name:     "empty string is returned as-is",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "integer falls back to fmt.Sprint",
+			input:    42,
+			expected: "42",
+		},
+		{
+			name:     "boolean falls back to fmt.Sprint",
+			input:    true,
+			expected: "true",
+		},
+		{
+			name:     "nil falls back to fmt.Sprint",
+			input:    nil,
+			expected: "<nil>",
+		},
+		{
+			name:     "float64 falls back to fmt.Sprint",
+			input:    3.14,
+			expected: "3.14",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := attrKeyString(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

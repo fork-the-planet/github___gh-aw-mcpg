@@ -55,7 +55,7 @@ func TestValidateToolResponseFilters_DirectCall(t *testing.T) {
 			},
 			jsonPath:  "mcpServers.myserver.tool_response_filters",
 			wantErr:   true,
-			errSubstr: "tool name cannot be empty",
+			errSubstr: "tool name is required",
 		},
 		{
 			name: "whitespace-only tool name key returns error",
@@ -64,7 +64,7 @@ func TestValidateToolResponseFilters_DirectCall(t *testing.T) {
 			},
 			jsonPath:  "mcpServers.myserver.tool_response_filters",
 			wantErr:   true,
-			errSubstr: "tool name cannot be empty",
+			errSubstr: "tool name is required",
 		},
 		{
 			name: "empty filter value returns error",
@@ -73,7 +73,7 @@ func TestValidateToolResponseFilters_DirectCall(t *testing.T) {
 			},
 			jsonPath:  "mcpServers.myserver.tool_response_filters",
 			wantErr:   true,
-			errSubstr: "cannot be empty",
+			errSubstr: "is required",
 		},
 		{
 			name: "whitespace-only filter value returns error",
@@ -82,7 +82,7 @@ func TestValidateToolResponseFilters_DirectCall(t *testing.T) {
 			},
 			jsonPath:  "mcpServers.myserver.tool_response_filters",
 			wantErr:   true,
-			errSubstr: "cannot be empty",
+			errSubstr: "is required",
 		},
 		{
 			name: "invalid jq expression returns error",
@@ -100,7 +100,7 @@ func TestValidateToolResponseFilters_DirectCall(t *testing.T) {
 			},
 			jsonPath:  "custom.path",
 			wantErr:   true,
-			errSubstr: "tool name cannot be empty",
+			errSubstr: "tool name is required",
 		},
 		{
 			// $ENV.KEY is valid jq syntax and compiles successfully, but it triggers the

@@ -31,7 +31,6 @@ func NewLabel() *Label {
 }
 
 // newLabelWithTags is a helper function that creates a label with the given tags.
-// This helper reduces duplication in NewSecrecyLabelWithTags and NewIntegrityLabelWithTags.
 func newLabelWithTags(tags []Tag) *Label {
 	logLabels.Printf("Creating label with %d initial tags: %v", len(tags), tags)
 	label := NewLabel()
@@ -213,23 +212,21 @@ type SecrecyLabel = flowLabel[secrecyKind]
 // l ⊇ target (this has all tags that target has)
 type IntegrityLabel = flowLabel[integrityKind]
 
-// NewSecrecyLabel creates a new empty secrecy label
-func NewSecrecyLabel() *SecrecyLabel {
-	return &SecrecyLabel{Label: NewLabel()}
-}
-
-// NewSecrecyLabelWithTags creates a secrecy label with the given tags
-func NewSecrecyLabelWithTags(tags []Tag) *SecrecyLabel {
+// NewSecrecyLabel creates a new secrecy label, optionally pre-populated with tags.
+// Zero arguments produce an empty label; one or more arguments add those tags.
+func NewSecrecyLabel(tags ...Tag) *SecrecyLabel {
+	if len(tags) == 0 {
+		return &SecrecyLabel{Label: NewLabel()}
+	}
 	return &SecrecyLabel{Label: newLabelWithTags(tags)}
 }
 
-// NewIntegrityLabel creates a new empty integrity label
-func NewIntegrityLabel() *IntegrityLabel {
-	return &IntegrityLabel{Label: NewLabel()}
-}
-
-// NewIntegrityLabelWithTags creates an integrity label with the given tags
-func NewIntegrityLabelWithTags(tags []Tag) *IntegrityLabel {
+// NewIntegrityLabel creates a new integrity label, optionally pre-populated with tags.
+// Zero arguments produce an empty label; one or more arguments add those tags.
+func NewIntegrityLabel(tags ...Tag) *IntegrityLabel {
+	if len(tags) == 0 {
+		return &IntegrityLabel{Label: NewLabel()}
+	}
 	return &IntegrityLabel{Label: newLabelWithTags(tags)}
 }
 

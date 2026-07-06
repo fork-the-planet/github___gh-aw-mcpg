@@ -23,5 +23,5 @@
 //     wire up different formatters.
 //
 // The per-type functions are bundled via the loggerFactory[T] generic defined in
-// common.go, which handles the shared open-file / call-setup / call-onError flow.
+// global_state.go, which handles the shared open-file / call-setup / call-onError flow.
 package logger

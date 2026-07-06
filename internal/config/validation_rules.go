@@ -34,12 +34,10 @@ func PortRange(port int, jsonPath string) *ValidationError {
 
 // TimeoutPositive validates that a timeout value is at least 1.
 // Returns nil if valid, *ValidationError if invalid.
-// It delegates to PositiveInteger, then overrides Message and Suggestion
-// to use timeout-specific phrasing ("must be at least 1" / "positive number
-// of seconds") instead of the generic positive-integer wording.
+// It delegates to PositiveInteger, then overrides the Suggestion with a
+// timeout-specific message: "Use a positive number of seconds (e.g., 30)".
 func TimeoutPositive(timeout int, fieldName, jsonPath string) *ValidationError {
 	if err := PositiveInteger(timeout, fieldName, jsonPath); err != nil {
-		err.Message = fmt.Sprintf("%s must be at least 1, got %d", fieldName, timeout)
 		err.Suggestion = "Use a positive number of seconds (e.g., 30)"
 		return err
 	}
@@ -96,12 +94,14 @@ func TimeoutRange(timeout, min, max int, fieldName, jsonPath string) *Validation
 }
 
 func mountValidationError(jsonPath string, index int, message, suggestion string) *ValidationError {
-	return &ValidationError{
-		Field:      "mounts",
-		Message:    message,
-		JSONPath:   fmt.Sprintf("%s.mounts[%d]", jsonPath, index),
-		Suggestion: suggestion,
-	}
+	mountPath := fmt.Sprintf("%s.mounts[%d]", jsonPath, index)
+	return newValidationError(
+		fmt.Sprintf("Mount validation failed at %s: %s", mountPath, message),
+		"mounts",
+		message,
+		mountPath,
+		suggestion,
+	)
 }
 
 // MountFormat validates a mount specification in the format "source:dest:mode"
@@ -175,27 +175,22 @@ func MountFormat(mount, jsonPath string, index int) *ValidationError {
 // Returns nil if the value is non-empty.
 func RequiredStringField(value, fieldName, jsonPath, suggestion string) *ValidationError {
 	if value == "" {
-		return &ValidationError{
-			Field:      fieldName,
-			Message:    fmt.Sprintf("%s is required", fieldName),
-			JSONPath:   jsonPath,
-			Suggestion: suggestion,
-		}
+		return newValidationError(
+			fmt.Sprintf("Required string validation failed: %s is empty", fieldName),
+			fieldName,
+			fmt.Sprintf("%s is required", fieldName),
+			jsonPath,
+			suggestion,
+		)
 	}
 	return nil
 }
 
-// NonEmptyString validates that a string field is not empty (minLength: 1).
-// It delegates to RequiredStringField, then overrides the Message to use
-// "cannot be empty" phrasing instead of the generic "is required" wording.
-// Returns nil if valid, *ValidationError if invalid.
+// NonEmptyString validates that a string field is not empty (minLength: 1)
+// Returns nil if valid, *ValidationError if invalid
 func NonEmptyString(value, fieldName, jsonPath string) *ValidationError {
-	if err := RequiredStringField(value, fieldName, jsonPath,
-		fmt.Sprintf("Provide a non-empty value for %s", fieldName)); err != nil {
-		err.Message = fmt.Sprintf("%s cannot be empty", fieldName)
-		return err
-	}
-	return nil
+	return RequiredStringField(value, fieldName, jsonPath,
+		fmt.Sprintf("Provide a non-empty value for %s", fieldName))
 }
 
 // AbsolutePath validates that a directory path is an absolute path

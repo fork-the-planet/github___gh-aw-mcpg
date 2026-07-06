@@ -205,10 +205,13 @@ func NormalizeGuardPolicy(policy *GuardPolicy) (*NormalizedGuardPolicy, error) {
 // ValidateAndNormalizeIntegrityField validates and normalizes a named integrity-level field.
 // It wraps NormalizeIntegrityLevel and prefixes the field path in any error message.
 func ValidateAndNormalizeIntegrityField(fieldPath, raw string, optional bool) (string, error) {
+	logGuardPolicy.Printf("ValidateAndNormalizeIntegrityField: field=%s, raw=%q, optional=%v", fieldPath, raw, optional)
 	v, err := NormalizeIntegrityLevel(raw, optional)
 	if err != nil {
+		logGuardPolicy.Printf("ValidateAndNormalizeIntegrityField: validation failed for field=%s: %v", fieldPath, err)
 		return "", fmt.Errorf("%s %w", fieldPath, err)
 	}
+	logGuardPolicy.Printf("ValidateAndNormalizeIntegrityField: normalized field=%s to %q", fieldPath, v)
 	return v, nil
 }
 
@@ -326,6 +329,7 @@ func normalizeStringSlice(field string, input []string, caseNorm func(string) st
 	if len(input) == 0 {
 		return nil, nil
 	}
+	logGuardPolicy.Printf("normalizeStringSlice: field=%s, inputCount=%d, storeNorm=%v", field, len(input), storeNorm)
 	seen := make(map[string]struct{}, len(input))
 	out := make([]string, 0, len(input))
 	for _, v := range input {
@@ -343,6 +347,7 @@ func normalizeStringSlice(field string, input []string, caseNorm func(string) st
 			}
 		}
 	}
+	logGuardPolicy.Printf("normalizeStringSlice: field=%s, outputCount=%d (deduplicated from %d)", field, len(out), len(input))
 	return out, nil
 }
 
@@ -382,11 +387,13 @@ func IsValidAllowOnlyReposValue(repos interface{}) bool {
 	}
 }
 
+// normalizeToolCallLimits validates and normalizes a tool-call-limits map.
 func normalizeToolCallLimits(input map[string]int) (map[string]int, error) {
 	if len(input) == 0 {
 		return nil, nil
 	}
 
+	logGuardPolicy.Printf("normalizeToolCallLimits: validating %d tool-call limit entries", len(input))
 	out := make(map[string]int, len(input))
 	for toolName, limit := range input {
 		toolName = strings.TrimSpace(toolName)

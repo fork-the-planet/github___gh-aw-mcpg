@@ -425,7 +425,7 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Data: "item1",
 					Labels: &LabeledResource{
 						Description: "public item 1",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"public"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"public"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -433,7 +433,7 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Data: "item2",
 					Labels: &LabeledResource{
 						Description: "public item 2",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"public"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"public"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -458,7 +458,7 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Data: "secret1",
 					Labels: &LabeledResource{
 						Description: "secret item 1",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"secret"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"secret"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -466,7 +466,7 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Data: "secret2",
 					Labels: &LabeledResource{
 						Description: "secret item 2",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"topsecret"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"topsecret"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -494,7 +494,7 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Labels: &LabeledResource{
 						Description: "low integrity",
 						Secrecy:     *NewSecrecyLabel(),
-						Integrity:   *NewIntegrityLabelWithTags([]Tag{"trusted"}),
+						Integrity:   *NewIntegrityLabel([]Tag{"trusted"}...),
 					},
 				},
 				{
@@ -502,7 +502,7 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Labels: &LabeledResource{
 						Description: "high integrity",
 						Secrecy:     *NewSecrecyLabel(),
-						Integrity:   *NewIntegrityLabelWithTags([]Tag{"trusted", "verified", "certified"}),
+						Integrity:   *NewIntegrityLabel([]Tag{"trusted", "verified", "certified"}...),
 					},
 				},
 			},
@@ -527,16 +527,16 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Data: "read-only",
 					Labels: &LabeledResource{
 						Description: "can read but not write",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"internal"}),
-						Integrity:   *NewIntegrityLabelWithTags([]Tag{"trusted", "audited"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"internal"}...),
+						Integrity:   *NewIntegrityLabel([]Tag{"trusted", "audited"}...),
 					},
 				},
 				{
 					Data: "read-write",
 					Labels: &LabeledResource{
 						Description: "can read and write",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"internal"}),
-						Integrity:   *NewIntegrityLabelWithTags([]Tag{"trusted"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"internal"}...),
+						Integrity:   *NewIntegrityLabel([]Tag{"trusted"}...),
 					},
 				},
 			},
@@ -597,7 +597,7 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Data: "public-only",
 					Labels: &LabeledResource{
 						Description: "public",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"public"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"public"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -605,7 +605,7 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Data: "internal-only",
 					Labels: &LabeledResource{
 						Description: "internal",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"internal"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"internal"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -613,7 +613,7 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Data: "secret",
 					Labels: &LabeledResource{
 						Description: "secret",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"secret"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"secret"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -621,7 +621,7 @@ func TestEvaluator_FilterCollection_Advanced(t *testing.T) {
 					Data: "low-integrity",
 					Labels: &LabeledResource{
 						Description: "low integrity",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"public"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"public"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -984,7 +984,7 @@ func TestEvaluator_FilterCollection_DetectionFailureRate(t *testing.T) {
 
 	t.Run("8 of 30 items blocked mirrors 26.7% detection failure rate", func(t *testing.T) {
 		// Agent has public clearance only — cannot access private-scoped items.
-		agentSecrecy := NewSecrecyLabelWithTags([]Tag{"public"})
+		agentSecrecy := NewSecrecyLabel([]Tag{"public"}...)
 		agentIntegrity := NewIntegrityLabel()
 
 		items := make([]LabeledItem, 30)
@@ -1075,7 +1075,7 @@ func TestEvaluator_FilterCollection_FilteredItemsHaveReasons(t *testing.T) {
 					Data: "private-issue",
 					Labels: &LabeledResource{
 						Description: "issue in private repo",
-						Secrecy:     *NewSecrecyLabelWithTags([]Tag{"private:org/repo"}),
+						Secrecy:     *NewSecrecyLabel([]Tag{"private:org/repo"}...),
 						Integrity:   *NewIntegrityLabel(),
 					},
 				},
@@ -1095,7 +1095,7 @@ func TestEvaluator_FilterCollection_FilteredItemsHaveReasons(t *testing.T) {
 		// Agent has integrity "approved"; resource has no integrity → resource ⊄ agent
 		// so the read is denied in strict mode.
 		agentSecrecy := NewSecrecyLabel()
-		agentIntegrity := NewIntegrityLabelWithTags([]Tag{"approved"})
+		agentIntegrity := NewIntegrityLabel([]Tag{"approved"}...)
 
 		collection := &CollectionLabeledData{
 			Items: []LabeledItem{
@@ -1126,8 +1126,8 @@ func TestEvaluator_FilterCollection_FilteredItemsHaveReasons(t *testing.T) {
 		collection := &CollectionLabeledData{
 			Items: []LabeledItem{
 				{Data: "accessible", Labels: &LabeledResource{Description: "open", Secrecy: *NewSecrecyLabel(), Integrity: *NewIntegrityLabel()}},
-				{Data: "blocked-1", Labels: &LabeledResource{Description: "secret-1", Secrecy: *NewSecrecyLabelWithTags([]Tag{"private:a/b"}), Integrity: *NewIntegrityLabel()}},
-				{Data: "blocked-2", Labels: &LabeledResource{Description: "secret-2", Secrecy: *NewSecrecyLabelWithTags([]Tag{"private:c/d"}), Integrity: *NewIntegrityLabel()}},
+				{Data: "blocked-1", Labels: &LabeledResource{Description: "secret-1", Secrecy: *NewSecrecyLabel([]Tag{"private:a/b"}...), Integrity: *NewIntegrityLabel()}},
+				{Data: "blocked-2", Labels: &LabeledResource{Description: "secret-2", Secrecy: *NewSecrecyLabel([]Tag{"private:c/d"}...), Integrity: *NewIntegrityLabel()}},
 			},
 		}
 
@@ -1145,7 +1145,7 @@ func TestEvaluator_FilterCollection_FilteredItemsHaveReasons(t *testing.T) {
 	t.Run("IsSecrecyViolation is false for integrity-only violation", func(t *testing.T) {
 		// Agent requires approved integrity; item has none.
 		agentSecrecy := NewSecrecyLabel()
-		agentIntegrity := NewIntegrityLabelWithTags([]Tag{"approved:org/repo"})
+		agentIntegrity := NewIntegrityLabel([]Tag{"approved:org/repo"}...)
 
 		collection := &CollectionLabeledData{
 			Items: []LabeledItem{

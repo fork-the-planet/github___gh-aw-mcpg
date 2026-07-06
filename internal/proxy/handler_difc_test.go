@@ -51,7 +51,7 @@ func (g *stubGuard) LabelResponse(_ context.Context, _ string, _ interface{}, _ 
 // when the evaluator is in strict or filter mode.
 func privateResource() *difc.LabeledResource {
 	r := difc.NewLabeledResource("private-resource")
-	r.Secrecy = *difc.NewSecrecyLabelWithTags([]difc.Tag{"private:test-org/test-repo"})
+	r.Secrecy = *difc.NewSecrecyLabel([]difc.Tag{"private:test-org/test-repo"}...)
 	return r
 }
 

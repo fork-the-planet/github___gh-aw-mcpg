@@ -33,7 +33,7 @@ func TestValidateWriteSinkPolicy_EmptyAcceptEntry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := ValidateWriteSinkPolicy(tt.policy)
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "cannot be empty")
+			assert.ErrorContains(t, err, "is required")
 		})
 	}
 }
@@ -55,7 +55,7 @@ func TestNormalizeGuardPolicy_StringSliceReposError(t *testing.T) {
 		{
 			name:        "empty scope string",
 			repos:       []string{""},
-			errContains: "cannot be empty",
+			errContains: "is required",
 		},
 		{
 			name:        "duplicate scopes",
@@ -109,7 +109,7 @@ func TestNormalizeToolCallLimits_EmptyKey(t *testing.T) {
 
 			assert.Nil(t, result)
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "cannot be empty")
+			assert.ErrorContains(t, err, "is required")
 		})
 	}
 }

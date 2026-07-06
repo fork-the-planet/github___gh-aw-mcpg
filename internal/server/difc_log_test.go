@@ -20,10 +20,10 @@ import (
 func newTestFilteredItem(data map[string]interface{}, description, reason string, secrecyTags, integrityTags []string) difc.FilteredItemDetail {
 	labels := difc.NewLabeledResource(description)
 	if len(secrecyTags) > 0 {
-		labels.Secrecy = *difc.NewSecrecyLabelWithTags(difc.StringsToTags(secrecyTags))
+		labels.Secrecy = *difc.NewSecrecyLabel(difc.StringsToTags(secrecyTags)...)
 	}
 	if len(integrityTags) > 0 {
-		labels.Integrity = *difc.NewIntegrityLabelWithTags(difc.StringsToTags(integrityTags))
+		labels.Integrity = *difc.NewIntegrityLabel(difc.StringsToTags(integrityTags)...)
 	}
 	return difc.FilteredItemDetail{
 		Item: difc.LabeledItem{

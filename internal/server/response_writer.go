@@ -18,13 +18,13 @@ type responseWriter struct {
 	body bytes.Buffer
 }
 
-// newResponseWriter creates a new responseWriter with default status code
+// newResponseWriter creates a new responseWriter. StatusCode is 0 until the
+// first WriteHeader or Write call; 0 means no response has been written yet.
 func newResponseWriter(w http.ResponseWriter) *responseWriter {
-	logResponseWriter.Print("Creating new response writer with default status 200")
+	logResponseWriter.Print("Creating new response writer")
 	return &responseWriter{
 		BaseResponseWriter: httputil.BaseResponseWriter{
 			ResponseWriter: w,
-			StatusCode:     http.StatusOK,
 		},
 	}
 }
