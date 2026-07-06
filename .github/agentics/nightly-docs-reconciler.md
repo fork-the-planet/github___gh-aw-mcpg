@@ -24,7 +24,7 @@ Test all code examples and instructions in `README.md`:
 
 1. **Check Docker configuration example:**
    - Read the Docker quick start section in README.md
-   - Verify the configuration JSON structure matches the actual config schema in `internal/config/config.go`
+   - Verify the configuration JSON structure matches the actual config schema in `internal/config/config_core.go` and `internal/config/config_stdin.go`
    - Check that all fields mentioned (type, container, env) are valid according to the implementation
    - Verify environment variable names (MCP_GATEWAY_PORT, MCP_GATEWAY_DOMAIN, etc.) match actual usage in code
 
@@ -38,12 +38,12 @@ Test all code examples and instructions in `README.md`:
 
 1. **Test TOML format examples:**
    - Read the TOML configuration example in README.md
-   - Check that field names (command, args, servers) match the TOML parsing logic in `internal/config/config.go`
+   - Check that field names (command, args, servers) match the TOML parsing logic in `internal/config/config_core.go`
    - Verify the example would actually work if used
 
 2. **Test JSON stdin format examples:**
    - Read the JSON configuration example in README.md
-   - Validate against the struct definitions in `internal/config/config.go`
+   - Validate against the struct definitions in `internal/config/config_stdin.go`
    - Check that all mentioned fields (container, entrypoint, entrypointArgs, mounts, env, type) exist in the code
    - Verify the example includes required fields
    - Check if `command` field is mentioned - it should NOT be supported for JSON stdin format (only TOML)
@@ -51,7 +51,7 @@ Test all code examples and instructions in `README.md`:
 3. **Validate configuration field descriptions:**
    - Read the "Server Configuration Fields" section
    - Cross-reference each described field with actual struct tags and validation code
-   - Check that constraints (required/optional) match the validation logic in `internal/config/validation.go`
+   - Check that constraints (required/optional) match the validation logic in `internal/config/validation_server.go`, `internal/config/validation_gateway.go`, and `internal/config/validation_rules.go`
 
 ### 1.3 Feature List Accuracy
 
@@ -59,7 +59,7 @@ Test all code examples and instructions in `README.md`:
    - Read the feature list in README.md
    - Verify each claimed feature exists in the codebase:
      - Configuration modes (TOML/JSON) - check `internal/cmd/` for flags
-     - Variable expansion - check `internal/config/validation.go`
+     - Variable expansion - check `internal/config/expand.go`
      - Schema normalization - check relevant code
      - Routing modes - check `internal/server/`
      - Docker support - check `internal/launcher/`
@@ -152,7 +152,7 @@ Test all commands and instructions in `CONTRIBUTING.md`:
 ### 5.1 Configuration Fields Audit
 
 1. **Compare documentation to code:**
-   - Read `internal/config/config.go` struct definitions
+   - Read `internal/config/config_core.go` and `internal/config/config_stdin.go` struct definitions
    - List all configuration fields in the code
    - Compare with documented fields in README.md
    - Identify:
@@ -161,7 +161,7 @@ Test all commands and instructions in `CONTRIBUTING.md`:
      - Fields with incorrect descriptions
 
 2. **Validation rules audit:**
-   - Read `internal/config/validation.go`
+   - Read `internal/config/validation_server.go`, `internal/config/validation_gateway.go`, and `internal/config/validation_rules.go`
    - Check validation rules for each field
    - Compare with documented constraints in README.md
    - Look for mismatches (e.g., field documented as optional but required in code)
@@ -257,8 +257,8 @@ All commands from CONTRIBUTING.md were tested:
 
 ## Code References
 
-- Configuration structs: `internal/config/config.go`
-- Validation logic: `internal/config/validation.go`
+- Configuration structs: `internal/config/config_core.go`, `internal/config/config_stdin.go`
+- Validation logic: `internal/config/validation_server.go`, `internal/config/validation_gateway.go`, `internal/config/validation_rules.go`
 - [Additional relevant files]
 ```
 
