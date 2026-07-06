@@ -80,6 +80,7 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "set_secret",          // gh secret set
     "set_variable",        // gh variable set
     "star_repository",
+    "stop_codespace",      // gh codespace stop — POST /user|/orgs/.../codespaces/.../stop
     "sync_fork",            // gh repo sync
     "transfer_issue",       // gh issue transfer
     "transfer_repository",   // gh repo transfer  — blocked: repo ownership transfer is irreversible
@@ -331,6 +332,7 @@ mod tests {
             "delete_ssh_key",
             "delete_release_asset",
             "delete_workflow_run",
+            "stop_codespace",
         ] {
             assert!(
                 is_write_operation(op),
