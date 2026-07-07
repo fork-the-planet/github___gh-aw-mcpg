@@ -105,7 +105,8 @@ func TestRecordSpanErrorOnAll_SingleSpan_BehavesLikeRecordSpanError(t *testing.T
 
 func TestRecordSpanErrorSafe_RecordsPublicMsgNotInternalError(t *testing.T) {
 	span, getSpans := newRecordingSpan(t, "op")
-	internalErr := errors.New("database connection string: host=internal-db ******")
+	// Use a distinctive string in the internal error to verify it is never surfaced.
+	internalErr := errors.New("transport error: secret-token-12345 expired")
 	publicMsg := "tool execution failed"
 
 	RecordSpanErrorSafe(span, internalErr, publicMsg)
@@ -125,7 +126,7 @@ func TestRecordSpanErrorSafe_RecordsPublicMsgNotInternalError(t *testing.T) {
 		if attr.Key == "exception.message" {
 			assert.Equal(t, publicMsg, attr.Value.AsString(),
 				"exception.message should be the public message, not the internal error")
-			assert.NotContains(t, attr.Value.AsString(), "secret123",
+			assert.NotContains(t, attr.Value.AsString(), "secret-token-12345",
 				"internal error details must not leak to the trace backend")
 		}
 	}

@@ -83,12 +83,15 @@ func (f *fanoutExporter) Shutdown(ctx context.Context) error {
 	}
 
 	err := f.forEachExporter("Shutdown", func(e sdktrace.SpanExporter) error {
-		exporterCtx := ctx
-		if remaining > 0 {
-			var cancel context.CancelFunc
-			exporterCtx, cancel = context.WithTimeout(context.Background(), remaining)
-			defer cancel()
+		// When there is no deadline, use the parent context as-is so that
+		// parent cancellation still propagates.
+		if remaining <= 0 {
+			return e.Shutdown(ctx)
 		}
+		// Give each exporter a fresh, independent context with the remaining
+		// budget so one slow exporter cannot starve the others.
+		exporterCtx, cancel := context.WithTimeout(context.Background(), remaining)
+		defer cancel()
 		return e.Shutdown(exporterCtx)
 	})
 	logTracing.Printf("fanoutExporter.Shutdown: completed")
