@@ -2222,6 +2222,41 @@ mod tests {
     }
 
     #[test]
+    fn test_is_trusted_first_party_bot_all_variants() {
+        let trusted = [
+            "dependabot[bot]",
+            "github-actions[bot]",
+            "github-actions",
+            "app/github-actions",
+            "github-merge-queue[bot]",
+            "copilot",
+            "copilot-swe-agent[bot]",
+            "copilot-swe-agent",
+            "app/copilot-swe-agent",
+        ];
+
+        for username in trusted {
+            assert!(
+                is_trusted_first_party_bot(username),
+                "{username} must be recognized as a trusted first-party bot"
+            );
+            assert!(
+                is_trusted_first_party_bot(&username.to_uppercase()),
+                "{username} (uppercase) must also be recognized"
+            );
+        }
+
+        assert!(
+            !is_trusted_first_party_bot("random-user"),
+            "random-user must not be a trusted first-party bot"
+        );
+        assert!(
+            !is_trusted_first_party_bot("app/random-app"),
+            "app/random-app must not be a trusted first-party bot"
+        );
+    }
+
+    #[test]
     fn test_is_pr_merged_checks_timestamp_first() {
         let item = serde_json::json!({
             "merged_at": "2024-06-01T12:00:00Z",
