@@ -3,18 +3,15 @@ package config
 import (
 	"sync"
 
+	"github.com/github/gh-aw-mcpg/internal/jqutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
-	"github.com/itchyny/gojq"
 )
 
 var logValidation = logger.New("config:validation")
 
-// secureCompileOpts are the gojq compiler options applied to every Compile call in this
-// package. Centralising them here ensures the security intent ($ENV disabled) is never
-// accidentally omitted from a future compile site.
-var secureCompileOpts = []gojq.CompilerOption{
-	gojq.WithEnvironLoader(func() []string { return nil }), // explicitly disable $ENV access (defense-in-depth)
-}
+// secureCompileOpts delegates to jqutil.SecureCompileOpts so that all packages
+// share a single authoritative definition of the $ENV-disabled gojq compile options.
+var secureCompileOpts = jqutil.SecureCompileOpts
 
 // customSchemaCache stores compiled custom schemas by schema URL to avoid
 // repeated fetch + compile work across validations.

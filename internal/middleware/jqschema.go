@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/github/gh-aw-mcpg/internal/jqutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
 	"github.com/github/gh-aw-mcpg/internal/mcpresult"
@@ -98,12 +99,9 @@ type toolResponseFilterVarsCacheKey struct {
 	varNamesKey string
 }
 
-// secureCompileOpts are the gojq compiler options applied to every Compile call in this
-// package. Centralising them here ensures the security intent ($ENV disabled) is never
-// accidentally omitted from a future compile site.
-var secureCompileOpts = []gojq.CompilerOption{
-	gojq.WithEnvironLoader(func() []string { return nil }), // explicitly disable $ENV access (defense-in-depth)
-}
+// secureCompileOpts delegates to jqutil.SecureCompileOpts so that all packages
+// share a single authoritative definition of the $ENV-disabled gojq compile options.
+var secureCompileOpts = jqutil.SecureCompileOpts
 
 // init compiles the jq schema filter at startup for better performance and validation.
 // Following gojq best practices: compile once, run many times.
