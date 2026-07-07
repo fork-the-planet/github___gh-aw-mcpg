@@ -90,7 +90,7 @@ func (f *fanoutExporter) Shutdown(ctx context.Context) error {
 		}
 		// Give each exporter a fresh, independent context with the remaining
 		// budget so one slow exporter cannot starve the others.
-		exporterCtx, cancel := context.WithTimeout(context.Background(), remaining)
+		exporterCtx, cancel := context.WithTimeout(ctx, remaining)
 		defer cancel()
 		return e.Shutdown(exporterCtx)
 	})
