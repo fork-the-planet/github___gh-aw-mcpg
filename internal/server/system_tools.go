@@ -6,6 +6,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/mcp"
+	"github.com/github/gh-aw-mcpg/internal/util"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -47,14 +48,14 @@ func (s *SysServer) ListServers() (interface{}, error) {
 // It validates that a session exists and delegates to callAndLogSysTool.
 func (us *UnifiedServer) sysListServersHandler(ctx context.Context, _ *sdk.CallToolRequest, _ interface{}) (*sdk.CallToolResult, interface{}, error) {
 	sessionID := us.getSessionID(ctx)
-	logger.LogInfo("client", "MCP sys_list_servers request, session=%s", truncateSessionID(sessionID))
+	logger.LogInfo("client", "MCP sys_list_servers request, session=%s", util.FormatSessionIDForLog(sessionID))
 
 	if err := us.requireSession(ctx); err != nil {
 		logger.LogError("client", "MCP sys_list_servers failed: session not initialized, session=%s", sessionID)
 		return mcp.NewErrorCallToolResult(err)
 	}
 
-	return us.callAndLogSysTool(truncateSessionID(sessionID), "sys_list_servers", "sys_list_servers")
+	return us.callAndLogSysTool(util.FormatSessionIDForLog(sessionID), "sys_list_servers", "sys_list_servers")
 }
 
 // sysInitHandler handles sys___init tool calls.
@@ -80,16 +81,16 @@ func (us *UnifiedServer) sysInitHandler(ctx context.Context, req *sdk.CallToolRe
 		return mcp.NewErrorCallToolResult(fmt.Errorf("no session ID provided"))
 	}
 
-	logger.LogInfo("client", "MCP session initialization started, session=%s, has_token=%v", truncateSessionID(sessionID), token != "")
+	logger.LogInfo("client", "MCP session initialization started, session=%s, has_token=%v", util.FormatSessionIDForLog(sessionID), token != "")
 
 	us.sessionMu.Lock()
 	us.sessions[sessionID] = NewSession(sessionID, token)
 	us.sessionMu.Unlock()
 
 	if err := us.ensureSessionDirectory(sessionID); err != nil {
-		logger.LogWarn("client", "Failed to create session directory for session=%s: %v", truncateSessionID(sessionID), err)
+		logger.LogWarn("client", "Failed to create session directory for session=%s: %v", util.FormatSessionIDForLog(sessionID), err)
 	}
 
-	logger.LogInfo("client", "MCP session initialized successfully, session=%s, available_servers=%v", truncateSessionID(sessionID), us.launcher.ServerIDs())
-	return us.callAndLogSysTool(truncateSessionID(sessionID), "session initialization", "sys_init")
+	logger.LogInfo("client", "MCP session initialized successfully, session=%s, available_servers=%v", util.FormatSessionIDForLog(sessionID), us.launcher.ServerIDs())
+	return us.callAndLogSysTool(util.FormatSessionIDForLog(sessionID), "session initialization", "sys_init")
 }
