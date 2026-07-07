@@ -1,9 +1,15 @@
 package server
 
 import (
+	"context"
+	"encoding/json"
+	"os"
 	"sync"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/config"
+	"github.com/github/gh-aw-mcpg/internal/launcher"
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -160,4 +166,150 @@ func TestSysServer_ConcurrentAccess(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+// minimalSysHandlerServer builds just enough of a UnifiedServer to invoke
+// sysListServersHandler and sysInitHandler directly without a running launcher.
+func minimalSysHandlerServer(t *testing.T, serverIDs []string, payloadDir string) *UnifiedServer {
+	t.Helper()
+	cfg := &config.Config{Servers: map[string]*config.ServerConfig{}}
+	l := launcher.New(context.Background(), cfg)
+	t.Cleanup(func() { l.Close() })
+	return &UnifiedServer{
+		launcher:   l,
+		sysServer:  NewSysServer(serverIDs),
+		sessions:   map[string]*Session{},
+		payloadDir: payloadDir,
+	}
+}
+
+// ctxWithSession returns a context carrying the given session ID.
+func ctxWithSession(sessionID string) context.Context {
+	return context.WithValue(context.Background(), SessionIDContextKey, sessionID)
+}
+
+func TestSysListServersHandler_Success(t *testing.T) {
+	dir := t.TempDir()
+	us := minimalSysHandlerServer(t, []string{"github", "slack"}, dir)
+
+	ctx := ctxWithSession("test-session-id")
+	result, data, err := us.sysListServersHandler(ctx, &sdk.CallToolRequest{}, nil)
+
+	require := require.New(t)
+	assert := assert.New(t)
+	require.NoError(err)
+	assert.Nil(result, "on success the sdk.CallToolResult should be nil")
+	require.NotNil(data)
+
+	text := validateToolContent(t, data)
+	assert.Contains(text, "github")
+	assert.Contains(text, "slack")
+}
+
+func TestSysListServersHandler_DefaultSessionID(t *testing.T) {
+	dir := t.TempDir()
+	us := minimalSysHandlerServer(t, []string{"github"}, dir)
+
+	// Context without an explicit session ID falls back to "default" via SessionIDFromContext.
+	result, data, err := us.sysListServersHandler(context.Background(), &sdk.CallToolRequest{}, nil)
+
+	require := require.New(t)
+	require.NoError(err)
+	assert.Nil(t, result)
+	require.NotNil(t, data)
+}
+
+func TestSysInitHandler_Success(t *testing.T) {
+	dir := t.TempDir()
+	us := minimalSysHandlerServer(t, []string{"github"}, dir)
+
+	args, _ := json.Marshal(map[string]interface{}{"token": "test-token"})
+	req := &sdk.CallToolRequest{
+		Params: &sdk.CallToolParamsRaw{
+			Name:      "sys___init",
+			Arguments: args,
+		},
+	}
+
+	ctx := ctxWithSession("init-session")
+	result, data, err := us.sysInitHandler(ctx, req, nil)
+
+	require := require.New(t)
+	assert := assert.New(t)
+	require.NoError(err)
+	assert.Nil(result, "on success the sdk.CallToolResult should be nil")
+	require.NotNil(data)
+
+	text := validateToolContent(t, data)
+	assert.Contains(text, "MCPG initialized")
+
+	// Confirm that the session was stored with the provided token.
+	us.sessionMu.RLock()
+	sess, ok := us.sessions["init-session"]
+	us.sessionMu.RUnlock()
+	require.True(ok, "session should be registered after sys_init")
+	assert.Equal("test-token", sess.Token)
+}
+
+func TestSysInitHandler_InvalidArguments(t *testing.T) {
+	dir := t.TempDir()
+	us := minimalSysHandlerServer(t, []string{"github"}, dir)
+
+	req := &sdk.CallToolRequest{
+		Params: &sdk.CallToolParamsRaw{
+			Name:      "sys___init",
+			Arguments: json.RawMessage(`{invalid json`),
+		},
+	}
+
+	ctx := ctxWithSession("bad-args-session")
+	result, data, err := us.sysInitHandler(ctx, req, nil)
+
+	require := require.New(t)
+	assert := assert.New(t)
+	require.Error(err, "handler should return an error for invalid arguments")
+	require.NotNil(result, "on argument parse failure a non-nil sdk.CallToolResult is returned")
+	assert.True(result.IsError, "result should be marked as an error")
+	assert.Nil(data)
+}
+
+func TestSysInitHandler_NoToken(t *testing.T) {
+	dir := t.TempDir()
+	us := minimalSysHandlerServer(t, []string{"github"}, dir)
+
+	// Empty arguments — token defaults to "".
+	req := &sdk.CallToolRequest{}
+	ctx := ctxWithSession("no-token-session")
+	result, data, err := us.sysInitHandler(ctx, req, nil)
+
+	require := require.New(t)
+	require.NoError(err)
+	assert.Nil(t, result)
+	require.NotNil(t, data)
+
+	us.sessionMu.RLock()
+	sess, ok := us.sessions["no-token-session"]
+	us.sessionMu.RUnlock()
+	require.True(ok)
+	assert.Equal(t, "", sess.Token)
+}
+
+func TestSysInitHandler_EnsureSessionDirectoryFailure(t *testing.T) {
+	// Point payloadDir at an existing regular file to make os.MkdirAll fail.
+	f, err := os.CreateTemp(t.TempDir(), "not-a-dir")
+	require.NoError(t, err)
+	f.Close()
+
+	us := minimalSysHandlerServer(t, []string{"github"}, f.Name())
+
+	req := &sdk.CallToolRequest{}
+	ctx := ctxWithSession("dir-fail-session")
+	// ensureSessionDirectory failure is non-fatal (only logs a warning),
+	// so the handler must still succeed.
+	result, data, err := us.sysInitHandler(ctx, req, nil)
+
+	require := require.New(t)
+	require.NoError(err)
+	assert.Nil(t, result)
+	require.NotNil(t, data)
 }
