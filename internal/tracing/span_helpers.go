@@ -4,10 +4,10 @@ package tracing
 
 import (
 	"context"
+	"errors"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -18,9 +18,25 @@ func RecordSpanError(span oteltrace.Span, err error, msg string) {
 	logTracing.Printf("Recording span error: msg=%s, err=%v", msg, err)
 	span.RecordError(err, oteltrace.WithStackTrace(true))
 	if err != nil {
-		span.SetAttributes(semconv.ErrorType(err))
+		span.SetAttributes(ErrorType(err))
 	}
 	span.SetStatus(codes.Error, msg)
+}
+
+// RecordSpanErrorSafe records a scrubbed error on span for security-sensitive paths.
+// internalErr is the actual error (logged and returned to the caller via normal channels);
+// publicMsg is the message recorded on the span and set as the status description.
+// This prevents internal error details from leaking to trace backends, which may be
+// operated by third parties.
+func RecordSpanErrorSafe(span oteltrace.Span, internalErr error, publicMsg string) {
+	if !span.IsRecording() {
+		return
+	}
+	logTracing.Printf("Recording span error (safe): msg=%s, internal=%v", publicMsg, internalErr)
+	publicErr := errors.New(publicMsg)
+	span.RecordError(publicErr, oteltrace.WithStackTrace(true))
+	span.SetAttributes(ErrorType(publicErr))
+	span.SetStatus(codes.Error, publicMsg)
 }
 
 // RecordSpanErrorOnAll records err on all provided spans with a stack trace and sets their
@@ -71,7 +87,7 @@ func StartDIFCPipelineSpan(ctx context.Context, tracer oteltrace.Tracer, toolNam
 	logTracing.Printf("Starting DIFC pipeline span: toolName=%s, urlPath=%s", toolName, urlPath)
 	return startSpan(ctx, tracer, "proxy.difc_pipeline", oteltrace.SpanKindInternal,
 		GenAIToolName.String(toolName),
-		semconv.URLPathKey.String(urlPath),
+		URLPathKey.String(urlPath),
 	)
 }
 
@@ -80,8 +96,8 @@ func StartDIFCPipelineSpan(ctx context.Context, tracer oteltrace.Tracer, toolNam
 func StartProxyForwardSpan(ctx context.Context, tracer oteltrace.Tracer, toolName, urlPath, serverAddress string) (context.Context, oteltrace.Span) {
 	logTracing.Printf("Starting proxy forward span: toolName=%s, urlPath=%s", toolName, urlPath)
 	return startSpan(ctx, tracer, "proxy.backend.forward", oteltrace.SpanKindClient,
-		semconv.URLPathKey.String(urlPath),
-		semconv.ServerAddressKey.String(serverAddress),
+		URLPathKey.String(urlPath),
+		ServerAddressKey.String(serverAddress),
 		GenAIToolName.String(toolName),
 	)
 }

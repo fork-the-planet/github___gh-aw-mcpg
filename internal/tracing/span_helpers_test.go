@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
@@ -50,7 +49,7 @@ func TestRecordSpanError_SetsStatusAndRecordsEvent(t *testing.T) {
 
 	assert.Equal(t, "Error", recorded.Status.Code.String(), "span status should be Error")
 	assert.Equal(t, "test failure", recorded.Status.Description)
-	assert.True(t, hasAttr(recorded.Attributes, semconv.ErrorTypeKey, "*errors.errorString"))
+	assert.True(t, hasAttr(recorded.Attributes, ErrorTypeKey, "*errors.errorString"))
 
 	var foundStackTrace bool
 	for _, event := range recorded.Events {
@@ -102,6 +101,50 @@ func TestRecordSpanErrorOnAll_SingleSpan_BehavesLikeRecordSpanError(t *testing.T
 	require.Len(t, spans, 1)
 	assert.Equal(t, "Error", spans[0].Status.Code.String())
 	assert.Equal(t, "single span msg", spans[0].Status.Description)
+}
+
+func TestRecordSpanErrorSafe_RecordsPublicMsgNotInternalError(t *testing.T) {
+	span, getSpans := newRecordingSpan(t, "op")
+	// Use a distinctive string in the internal error to verify it is never surfaced.
+	internalErr := errors.New("transport error: secret-token-12345 expired")
+	publicMsg := "tool execution failed"
+
+	RecordSpanErrorSafe(span, internalErr, publicMsg)
+
+	spans := getSpans()
+	require.Len(t, spans, 1)
+	recorded := spans[0]
+
+	assert.Equal(t, "Error", recorded.Status.Code.String(), "span status should be Error")
+	assert.Equal(t, publicMsg, recorded.Status.Description)
+
+	// Verify the public message — not the internal error — is what's recorded on the span.
+	require.NotEmpty(t, recorded.Events)
+	exceptionEvent := recorded.Events[0]
+	assert.Equal(t, "exception", exceptionEvent.Name)
+	foundMsg := false
+	for _, attr := range exceptionEvent.Attributes {
+		if attr.Key == "exception.message" {
+			foundMsg = true
+			assert.Equal(t, publicMsg, attr.Value.AsString(),
+				"exception.message should be the public message, not the internal error")
+			assert.NotContains(t, attr.Value.AsString(), "secret-token-12345",
+				"internal error details must not leak to the trace backend")
+		}
+	}
+	require.True(t, foundMsg, "exception.message attribute should be present on exception event")
+}
+
+func TestRecordSpanErrorSafe_SetsErrorTypeFromPublicErr(t *testing.T) {
+	span, getSpans := newRecordingSpan(t, "op")
+
+	RecordSpanErrorSafe(span, errors.New("sensitive internal details"), "tool execution failed")
+
+	spans := getSpans()
+	require.Len(t, spans, 1)
+	// error.type attribute should reflect *errors.errorString (the public error type),
+	// not expose anything from the internal error.
+	assert.True(t, hasAttr(spans[0].Attributes, ErrorTypeKey, "*errors.errorString"))
 }
 
 // newRecordingTracer creates an in-memory tracer provider and returns the tracer
@@ -174,7 +217,7 @@ func TestStartDIFCPipelineSpan(t *testing.T) {
 	assert.Equal(t, "proxy.difc_pipeline", s.Name)
 	assert.Equal(t, oteltrace.SpanKindInternal, s.SpanKind)
 	assert.True(t, hasAttr(s.Attributes, GenAIToolName, "my_tool"))
-	assert.True(t, hasAttr(s.Attributes, semconv.URLPathKey, "/api/v3/repos"))
+	assert.True(t, hasAttr(s.Attributes, URLPathKey, "/api/v3/repos"))
 }
 
 func TestStartProxyForwardSpan(t *testing.T) {
@@ -188,7 +231,7 @@ func TestStartProxyForwardSpan(t *testing.T) {
 	s := spans[0]
 	assert.Equal(t, "proxy.backend.forward", s.Name)
 	assert.Equal(t, oteltrace.SpanKindClient, s.SpanKind)
-	assert.True(t, hasAttr(s.Attributes, semconv.URLPathKey, "/api/v3/repos"))
-	assert.True(t, hasAttr(s.Attributes, semconv.ServerAddressKey, "api.github.com"))
+	assert.True(t, hasAttr(s.Attributes, URLPathKey, "/api/v3/repos"))
+	assert.True(t, hasAttr(s.Attributes, ServerAddressKey, "api.github.com"))
 	assert.True(t, hasAttr(s.Attributes, GenAIToolName, "my_tool"))
 }

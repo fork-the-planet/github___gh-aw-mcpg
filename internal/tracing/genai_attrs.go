@@ -1,38 +1,16 @@
 // Package tracing provides OpenTelemetry OTLP trace export for the MCP Gateway.
-// This file defines gen_ai semantic convention attribute keys per
-// https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/
+// This file defines custom and non-semconv attribute keys for gen_ai and MCP spans.
+// The semconv-derived GenAI attribute keys (GenAIToolName, GenAIOperationName, etc.)
+// are defined in semconv.go, which is the single file that imports
+// go.opentelemetry.io/otel/semconv/v1.41.0.
 package tracing
 
-import (
-	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
-)
+import "go.opentelemetry.io/otel/attribute"
 
-// GenAI semantic convention attribute keys.
-// Most are aliases for the official OpenTelemetry gen_ai semconv constants
-// (semconv/v1.41.0), re-exported here for convenience. GenAISystem is the
-// exception: it was removed in semconv/v1.41.0 and is defined as a raw
-// attribute.Key to preserve wire compatibility.
-const (
-	// GenAISystem identifies the GenAI system family for MCP spans.
-	// gen_ai.system was removed from semconv/v1.41.0; the key string is preserved for compatibility.
-	GenAISystem = attribute.Key("gen_ai.system")
-
-	// GenAIToolName is the name of the tool utilized by the agent.
-	GenAIToolName = semconv.GenAIToolNameKey
-
-	// GenAIOperationName is the name of the operation being performed.
-	GenAIOperationName = semconv.GenAIOperationNameKey
-
-	// GenAIConversationID is the unique identifier for a conversation (session).
-	GenAIConversationID = semconv.GenAIConversationIDKey
-
-	// GenAIAgentName is the human-readable name of the GenAI agent.
-	GenAIAgentName = semconv.GenAIAgentNameKey
-
-	// GenAIAgentID is the unique identifier of the GenAI agent (server ID).
-	GenAIAgentID = semconv.GenAIAgentIDKey
-)
+// GenAISystem identifies the GenAI system family for MCP spans.
+// gen_ai.system was removed from semconv/v1.41.0; the key string is preserved for
+// wire compatibility with observability backends that still expect it.
+const GenAISystem = attribute.Key("gen_ai.system")
 
 // MCP-specific attribute keys (no gen_ai equivalent in the spec).
 const (

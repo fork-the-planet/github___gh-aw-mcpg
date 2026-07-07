@@ -438,9 +438,11 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		if denied, detailedErr := guard.HandlePrePhaseError(err); denied != nil {
 			logger.LogWarn("difc", "Access DENIED for agent %s to %s: %s",
 				agentID, denied.Resource.Description, denied.EvalResult.Reason)
-			toolSpan.AddEvent("difc.access_denied", oteltrace.WithAttributes(
-				attribute.String("reason", denied.EvalResult.Reason),
-			))
+			if toolSpan.IsRecording() {
+				toolSpan.AddEvent("difc.access_denied", oteltrace.WithAttributes(
+					attribute.String("reason", denied.EvalResult.Reason),
+				))
+			}
 			tracing.RecordSpanError(toolSpan, detailedErr, "access denied: "+denied.EvalResult.Reason)
 			httpStatusCode = 403
 			return mcp.NewErrorCallToolResult(detailedErr)
@@ -449,8 +451,9 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		httpStatusCode = 500
 		return mcp.NewErrorCallToolResult(fmt.Errorf("guard labeling failed: %w", err))
 	}
-	toolSpan.AddEvent("difc.pre_phases_complete")
-
+	if toolSpan.IsRecording() {
+		toolSpan.AddEvent("difc.pre_phases_complete")
+	}
 	// Add agent tags snapshot to context for enriched MCP backend logging (Phase 3).
 	ctx = context.WithValue(ctx, mcp.AgentTagsSnapshotContextKey, &mcp.AgentTagsSnapshot{
 		Secrecy:   difc.TagsToStrings(pre.AgentLabels.GetSecrecyTags()),
@@ -474,9 +477,10 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		// Transport errors (connection failure, JSON parse error, etc.) are not rate-limit
 		// events and must not affect the consecutive rate-limit counter. Leave the circuit
 		// breaker state unchanged so genuine rate-limit history is preserved.
-		// Use a generic error message for trace recording to avoid leaking internal details
-		// to trace backends; the full error is returned to the caller and logged separately.
-		tracing.RecordSpanError(execSpan, fmt.Errorf("tool execution failed"), "tool execution failed")
+		// Use RecordSpanErrorSafe to avoid leaking internal transport/parse error
+		// details to trace backends; the full error is returned to the caller and
+		// logged separately.
+		tracing.RecordSpanErrorSafe(execSpan, err, "tool execution failed")
 		httpStatusCode = 500
 		return mcp.NewErrorCallToolResult(err)
 	}
@@ -486,11 +490,13 @@ func (us *UnifiedServer) callBackendTool(ctx context.Context, serverID, toolName
 		cb.RecordRateLimit(resetAt)
 		execSpan.SetAttributes(tracing.RateLimitHit.Bool(true))
 		toolSpan.SetAttributes(tracing.RateLimitHit.Bool(true))
-		eventAttrs := []attribute.KeyValue{}
-		if !resetAt.IsZero() {
-			eventAttrs = append(eventAttrs, attribute.String("reset_at", resetAt.UTC().Format(time.RFC3339)))
+		if toolSpan.IsRecording() {
+			eventAttrs := []attribute.KeyValue{}
+			if !resetAt.IsZero() {
+				eventAttrs = append(eventAttrs, attribute.String("reset_at", resetAt.UTC().Format(time.RFC3339)))
+			}
+			toolSpan.AddEvent("rate_limit.detected", oteltrace.WithAttributes(eventAttrs...))
 		}
-		toolSpan.AddEvent("rate_limit.detected", oteltrace.WithAttributes(eventAttrs...))
 		tracing.RecordSpanErrorOnAll(errRateLimitExceeded, rateLimitExceededStatus, execSpan, toolSpan)
 		httpStatusCode = 429
 		// Preserve the original backend error text so the agent sees the actual upstream

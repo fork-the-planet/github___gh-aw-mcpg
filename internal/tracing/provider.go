@@ -29,7 +29,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -192,8 +191,8 @@ func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, er
 		resource.WithTelemetrySDK(),
 		resource.WithContainer(),
 		resource.WithAttributes(
-			semconv.ServiceName(serviceName),
-			semconv.ServiceVersion(version.Get()),
+			ServiceName(serviceName),
+			ServiceVersion(version.Get()),
 		),
 		resource.WithProcessPID(),
 		resource.WithHost(),
@@ -201,9 +200,9 @@ func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, er
 	if err != nil {
 		logTracing.Printf("Warning: failed to create OTEL resource: %v", err)
 		serviceResource := resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceName(serviceName),
-			semconv.ServiceVersion(version.Get()),
+			SchemaURL,
+			ServiceName(serviceName),
+			ServiceVersion(version.Get()),
 		)
 		// resource.New can return a best-effort resource alongside an error.
 		// Preserve detected attributes and only ensure service identity exists.
@@ -231,7 +230,13 @@ func InitProvider(ctx context.Context, cfg *config.TracingConfig) (*Provider, er
 	}
 
 	sdkTP := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
+		sdktrace.WithBatcher(exporter,
+			// Tune batch processor for gateway throughput: halve the default batch
+			// size (512→256) and reduce the flush interval (5s→2s) to lower tail
+			// latency for trace delivery without sacrificing export efficiency.
+			sdktrace.WithMaxExportBatchSize(256),
+			sdktrace.WithBatchTimeout(2*time.Second),
+		),
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sampler),
 	)

@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/github/gh-aw-mcpg/internal/httputil"
@@ -58,11 +57,11 @@ func WrapHTTPHandler(next http.Handler, spanName string, extraAttrs ...attribute
 		}
 
 		attrs := append([]attribute.KeyValue{
-			semconv.HTTPRequestMethodKey.String(r.Method),
-			semconv.URLPathKey.String(r.URL.Path),
+			HTTPRequestMethodKey.String(r.Method),
+			URLPathKey.String(r.URL.Path),
 		}, extraAttrs...)
 		if route != "" {
-			attrs = append(attrs, semconv.HTTPRouteKey.String(route))
+			attrs = append(attrs, HTTPRouteKey.String(route))
 		}
 
 		ctx, span := t.Start(ctx, spanName,
@@ -75,7 +74,7 @@ func WrapHTTPHandler(next http.Handler, spanName string, extraAttrs ...attribute
 
 		srw := &statusResponseWriter{BaseResponseWriter: httputil.BaseResponseWriter{ResponseWriter: w, StatusCode: http.StatusOK}}
 		defer func() {
-			span.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(srw.StatusCode))
+			span.SetAttributes(HTTPResponseStatusCodeKey.Int(srw.StatusCode))
 			if srw.StatusCode >= 500 {
 				msg := http.StatusText(srw.StatusCode)
 				if msg == "" {

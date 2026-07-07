@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
@@ -199,9 +198,11 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		if denied, _ := guard.HandlePrePhaseError(err); denied != nil {
 			logHandler.Printf("[DIFC] Phase 2: BLOCKED %s %s — %s", r.Method, path, denied.EvalResult.Reason)
 			deniedErr := fmt.Errorf("DIFC policy violation: %s", denied.EvalResult.Reason)
-			difcSpan.AddEvent("difc.access_denied", oteltrace.WithAttributes(
-				attribute.String("reason", denied.EvalResult.Reason),
-			))
+			if difcSpan.IsRecording() {
+				difcSpan.AddEvent("difc.access_denied", oteltrace.WithAttributes(
+					attribute.String("reason", denied.EvalResult.Reason),
+				))
+			}
 			tracing.RecordSpanError(difcSpan, deniedErr, "access denied: "+denied.EvalResult.Reason)
 			writeDIFCForbidden(w, deniedErr.Error())
 			return
@@ -211,7 +212,9 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "resource labeling failed")
 		return
 	}
-	difcSpan.AddEvent("difc.pre_phases_complete")
+	if difcSpan.IsRecording() {
+		difcSpan.AddEvent("difc.pre_phases_complete")
+	}
 
 	// **Phase 3: Forward to upstream GitHub API**
 	clientAuth := r.Header.Get("Authorization")
@@ -226,14 +229,16 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 		resp, respBody = h.forwardAndReadBody(w, fwdCtx, r.Method, path, nil, "", clientAuth)
 	}
 	if resp != nil {
-		fwdSpan.SetAttributes(semconv.HTTPResponseStatusCodeKey.Int(resp.StatusCode))
+		fwdSpan.SetAttributes(tracing.HTTPResponseStatusCodeKey.Int(resp.StatusCode))
 		if rateLimited, resetHeader := rateLimitSignal(resp); rateLimited {
 			fwdSpan.SetAttributes(tracing.RateLimitHit.Bool(true))
-			eventAttrs := []attribute.KeyValue{}
-			if resetAt := githubhttp.ParseRateLimitResetHeader(resetHeader); !resetAt.IsZero() {
-				eventAttrs = append(eventAttrs, attribute.String("reset_at", resetAt.UTC().Format(time.RFC3339)))
+			if difcSpan.IsRecording() {
+				eventAttrs := []attribute.KeyValue{}
+				if resetAt := githubhttp.ParseRateLimitResetHeader(resetHeader); !resetAt.IsZero() {
+					eventAttrs = append(eventAttrs, attribute.String("reset_at", resetAt.UTC().Format(time.RFC3339)))
+				}
+				difcSpan.AddEvent("rate_limit.detected", oteltrace.WithAttributes(eventAttrs...))
 			}
-			difcSpan.AddEvent("rate_limit.detected", oteltrace.WithAttributes(eventAttrs...))
 		}
 	}
 	if resp == nil {
