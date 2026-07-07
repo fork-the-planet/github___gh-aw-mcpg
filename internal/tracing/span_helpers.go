@@ -29,6 +29,9 @@ func RecordSpanError(span oteltrace.Span, err error, msg string) {
 // This prevents internal error details from leaking to trace backends, which may be
 // operated by third parties.
 func RecordSpanErrorSafe(span oteltrace.Span, internalErr error, publicMsg string) {
+	if !span.IsRecording() {
+		return
+	}
 	logTracing.Printf("Recording span error (safe): msg=%s, internal=%v", publicMsg, internalErr)
 	publicErr := errors.New(publicMsg)
 	span.RecordError(publicErr, oteltrace.WithStackTrace(true))
