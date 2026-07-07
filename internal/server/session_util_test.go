@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
 // TestIsSinglePathSegmentSessionID verifies that isSinglePathSegmentSessionID
@@ -81,7 +83,7 @@ func TestTruncateSessionID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := truncateSessionID(tt.sessionID)
+			result := util.FormatSessionIDForLog(tt.sessionID)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

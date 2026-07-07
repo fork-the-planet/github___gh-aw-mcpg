@@ -8,6 +8,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
+	"github.com/github/gh-aw-mcpg/internal/util"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -59,7 +60,7 @@ func WithOTELTracing(next http.Handler, tag string) http.Handler {
 		next.ServeHTTP(w, r)
 		sessionID := SessionIDFromContext(r.Context())
 		span := oteltrace.SpanFromContext(r.Context())
-		span.SetAttributes(tracing.GenAIConversationID.String(truncateSessionID(sessionID)))
+		span.SetAttributes(tracing.GenAIConversationID.String(util.FormatSessionIDForLog(sessionID)))
 	})
 	return tracing.WrapHTTPHandler(enriched, "gateway.request", tracing.GatewayTag.String(tag))
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/syncutil"
+	"github.com/github/gh-aw-mcpg/internal/util"
 	"github.com/github/gh-aw-mcpg/internal/version"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -118,7 +119,7 @@ func CreateHTTPServerForRoutedMode(addr string, unifiedServer *UnifiedServer, ap
 				sessionID := SessionIDFromContext(r.Context())
 				cacheKey := fmt.Sprintf("%s/%s", backendID, sessionID)
 				return serverCache.GetOrCreate(cacheKey, func() *sdk.Server {
-					logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, truncateSessionID(sessionID))
+					logRouted.Printf("[CACHE] Creating new filtered server: backend=%s, session=%s", backendID, util.FormatSessionIDForLog(sessionID))
 					return createFilteredServer(unifiedServer, backendID)
 				})
 			}, buildDefaultHandlerConfig(unifiedServer, sessionTimeout, defaultHandlerConfigOptions{

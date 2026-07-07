@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/tetratelabs/wazero/api"
@@ -442,18 +441,6 @@ func parseCollectionLabeledData(items []any) (*difc.CollectionLabeledData, error
 
 	logWasm.Printf("parseCollectionLabeledData: parsed %d labeled items from %d input items", len(collection.Items), len(items))
 	return collection, nil
-}
-
-// validateIntegrityField returns an error if raw is not a valid integrity-level
-// string. fieldName is used in the error message (e.g. "disapproval-integrity").
-// It delegates to config.ValidateAndNormalizeIntegrityField for validation.
-func validateIntegrityField(fieldName string, raw interface{}) error {
-	s, ok := raw.(string)
-	if !ok {
-		s = ""
-	}
-	_, err := config.ValidateAndNormalizeIntegrityField(fieldName, s, false)
-	return err
 }
 
 // checkBoolFailure returns a non-nil error if the given raw response map
