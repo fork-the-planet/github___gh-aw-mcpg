@@ -57,12 +57,16 @@ func resolveGuardPolicyOverride(cmd *cobra.Command) (*config.GuardPolicy, string
 		cmd.Flags().Changed("allowonly-scope-repo") ||
 		cmd.Flags().Changed("allowonly-min-integrity")
 
+	debugLog.Printf("Resolving guard policy override: cliChanged=%v, cliGuardPolicyChanged=%v, allowOnlyPublic=%v, owner=%q, repo=%q, minIntegrity=%q",
+		cliChanged, cliGuardPolicyChanged, allowOnlyPublic, allowOnlyOwner, allowOnlyRepo, allowOnlyMinInt)
+
 	cliPolicyJSON := ""
 	if cliGuardPolicyChanged {
 		cliPolicyJSON = guardPolicyJSON
+		debugLog.Printf("Using CLI guard-policy-json: %q", cliPolicyJSON)
 	}
 
-	return config.ResolveGuardPolicyOverride(
+	policy, policyJSON, err := config.ResolveGuardPolicyOverride(
 		cliChanged,
 		cliPolicyJSON,
 		allowOnlyPublic,
@@ -70,4 +74,12 @@ func resolveGuardPolicyOverride(cmd *cobra.Command) (*config.GuardPolicy, string
 		allowOnlyRepo,
 		allowOnlyMinInt,
 	)
+	if err != nil {
+		debugLog.Printf("Guard policy resolution failed: %v", err)
+	} else if policy != nil {
+		debugLog.Printf("Guard policy resolved: policyJSON=%q", policyJSON)
+	} else {
+		debugLog.Print("No guard policy override configured")
+	}
+	return policy, policyJSON, err
 }
