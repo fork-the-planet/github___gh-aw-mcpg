@@ -354,14 +354,10 @@ pub fn apply_tool_labels(
                 None => !cfg!(test),
             };
 
-            integrity = if repo_private_effective {
-                if is_default_ref {
-                    merged_integrity(repo_id, ctx)
-                } else {
-                    writer_integrity(repo_id, ctx)
-                }
-            } else if is_default_ref {
+            integrity = if is_default_ref {
                 merged_integrity(repo_id, ctx)
+            } else if repo_private_effective {
+                writer_integrity(repo_id, ctx)
             } else {
                 vec![]
             };
