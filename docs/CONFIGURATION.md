@@ -446,6 +446,17 @@ to the agent via `label_agent`. The mapping depends on the `repos` configuration
 - Internal target repo → `sink-visibility: "internal"` — same as private
 - Without `sink-visibility: "public"`, an agent tricked into reading private data (via prompt injection) can exfiltrate it to a public repo comment (GitLost vulnerability)
 
+**Runtime Verification (defense-in-depth)**:
+- At startup, the gateway performs a runtime check against `GET /repos/{owner}/{repo}` using the `GITHUB_REPOSITORY` environment variable
+- If the API reports the repo is **public** but the configured `sink-visibility` is not `"public"`, the gateway **overrides** the configured value to `"public"` and emits a warning:
+  ```
+  SINK VISIBILITY OVERRIDE: configured="private" but runtime check shows repo owner/repo is "public" — overriding to "public" to prevent potential data exfiltration
+  ```
+- This catches cases where a repo was made public **after** the workflow was compiled
+- If the API check fails (network error, 404, 403), the gateway falls back to the configured value and logs a warning
+- The gateway never relaxes the setting: if configured as `"public"` but the repo is actually private, it keeps `"public"` (more restrictive)
+
+
 ## Custom Schemas (`customSchemas`)
 
 The `customSchemas` top-level field allows you to define custom server types beyond the built-in `"stdio"` and `"http"` types. Each custom type maps to an HTTPS schema URL that describes its configuration format.
