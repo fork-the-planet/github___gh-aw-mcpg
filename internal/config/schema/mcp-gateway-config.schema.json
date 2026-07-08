@@ -171,7 +171,12 @@
         },
         "guard-policies": {
           "type": "object",
-          "description": "Guard policies for access control at the MCP gateway level. The structure of guard policies is server-specific.",
+          "description": "Guard policies for access control at the MCP gateway level. Supports a 'write-sink' policy for DIFC-based output filtering. Additional server-specific policies may be provided.",
+          "properties": {
+            "write-sink": {
+              "$ref": "#/definitions/writeSinkGuardPolicyConfig"
+            }
+          },
           "additionalProperties": true
         }
       },
@@ -226,7 +231,12 @@
         },
         "guard-policies": {
           "type": "object",
-          "description": "Guard policies for access control at the MCP gateway level. The structure of guard policies is server-specific. For GitHub MCP server, see the GitHub guard policy schema. For other servers (Jira, WorkIQ), different policy schemas will apply.",
+          "description": "Guard policies for access control at the MCP gateway level. Supports a 'write-sink' policy for DIFC-based output filtering. Additional server-specific policies may be provided.",
+          "properties": {
+            "write-sink": {
+              "$ref": "#/definitions/writeSinkGuardPolicyConfig"
+            }
+          },
           "additionalProperties": true
         },
         "auth": {
@@ -414,7 +424,8 @@
         },
         "forcePublicRepos": {
           "type": "boolean",
-          "description": "When true (default), the gateway automatically overrides the allow-only scope to repos=\"public\" when the workflow repository (GITHUB_REPOSITORY) is detected as public at startup. Set to false to opt out (equivalent to private-to-public-flows: allow in workflow front matter)."
+          "description": "When true (default), forces the allow-only policy to repos=\"public\" at runtime if the gateway detects it is running in a public repository. Set to false by the compiler when private-to-public-flows: allow is declared in workflow frontmatter, or via MCP_GATEWAY_FORCE_PUBLIC_REPOS=false environment variable.",
+          "default": true
         }
       },
       "required": [
@@ -434,6 +445,26 @@
           ]
         }
       ]
+    },
+    "writeSinkGuardPolicyConfig": {
+      "type": "object",
+      "description": "Write-sink guard policy for DIFC-based output filtering. Controls whether an agent may write to the safe-outputs sink based on the agent's accumulated secrecy tags and the target repository visibility.",
+      "properties": {
+        "accept": {
+          "type": "array",
+          "description": "Secrecy tag patterns that are permitted to write to this sink. Use [\"*\"] to accept all secrecy levels. Required for all write-sink policies. When sink-visibility is \"public\", this field is syntactically required but has no runtime effect — resource secrecy is unconditionally set to empty.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sink-visibility": {
+          "type": "string",
+          "description": "Declares the visibility of the safe-outputs target repository (always the workflow's own repo, i.e. GITHUB_REPOSITORY). When \"public\", agents with non-empty secrecy are blocked regardless of accept patterns. When \"private\" or \"internal\", standard accept-pattern matching applies. When omitted, backward-compatible accept-pattern matching applies.",
+          "enum": ["public", "private", "internal"]
+        }
+      },
+      "required": ["accept"],
+      "additionalProperties": false
     },
     "opentelemetryConfig": {
       "type": "object",

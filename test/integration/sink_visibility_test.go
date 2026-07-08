@@ -78,12 +78,6 @@ func TestSinkVisibility_ConfigAccepted(t *testing.T) {
 			accept:         `["*"]`,
 			wantInLog:      "write-sink guard",
 		},
-		{
-			name:           "public visibility case insensitive",
-			sinkVisibility: `"PUBLIC"`,
-			accept:         `["*"]`,
-			wantInLog:      "write-sink guard",
-		},
 	}
 
 	for _, tt := range tests {
@@ -149,8 +143,8 @@ func TestSinkVisibility_ConfigAccepted(t *testing.T) {
 	}
 }
 
-// TestSinkVisibility_InvalidValue verifies the gateway falls back to noop guard
-// when an invalid sink-visibility value is provided.
+// TestSinkVisibility_InvalidValue verifies the gateway rejects invalid
+// sink-visibility values via schema validation and exits with an error.
 func TestSinkVisibility_InvalidValue(t *testing.T) {
 	binary := binaryPath(t)
 
@@ -216,20 +210,23 @@ func TestSinkVisibility_InvalidValue(t *testing.T) {
 			err := cmd.Start()
 			require.NoError(t, err, "Failed to start gateway")
 
-			ok := waitForStderr(&stderr, "Starting MCPG", 12*time.Second)
-			require.Truef(t, ok, "timeout waiting for startup; stderr:\n%s", stderr.String())
+			// Gateway should exit due to schema validation failure
+			done := make(chan error, 1)
+			go func() { done <- cmd.Wait() }()
 
-			cmd.Process.Kill()
-			cmd.Wait()
-
-			logContent := readUnifiedLog(logDir)
-			// Invalid sink-visibility causes validation failure → falls back to noop guard
-			// (the write-sink guard is NOT registered)
-			assert.Contains(t, logContent, "Registered guard 'noop'",
-				"Should fall back to noop guard on invalid sink-visibility")
-			assert.NotContains(t, logContent, "write-sink guard",
-				"Write-sink guard should NOT be created with invalid sink-visibility")
-			t.Logf("✓ Invalid sink-visibility=%s causes noop fallback", tt.sinkVisibility)
+			select {
+			case err := <-done:
+				// Gateway exited — expected due to schema validation failure
+				assert.Error(t, err, "Gateway should exit with error on invalid sink-visibility")
+				output := stderr.String()
+				assert.Contains(t, output, "sink-visibility",
+					"Stderr should mention the invalid sink-visibility field")
+				t.Logf("✓ Invalid sink-visibility=%s rejected by schema validation", tt.sinkVisibility)
+			case <-time.After(12 * time.Second):
+				cmd.Process.Kill()
+				cmd.Wait()
+				t.Fatalf("Gateway did not exit within timeout; stderr:\n%s", stderr.String())
+			}
 		})
 	}
 }
