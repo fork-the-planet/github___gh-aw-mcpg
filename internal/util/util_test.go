@@ -128,13 +128,13 @@ func TestDeepCloneJSON(t *testing.T) {
 	t.Run("bool true returns same value", func(t *testing.T) {
 		t.Parallel()
 		result := DeepCloneJSON(true)
-		assert.Equal(t, true, result)
+		assert.True(t, result.(bool))
 	})
 
 	t.Run("bool false returns same value", func(t *testing.T) {
 		t.Parallel()
 		result := DeepCloneJSON(false)
-		assert.Equal(t, false, result)
+		assert.False(t, result.(bool))
 	})
 
 	t.Run("empty map returns empty map", func(t *testing.T) {

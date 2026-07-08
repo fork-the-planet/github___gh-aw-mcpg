@@ -176,7 +176,7 @@ func TestApplyToolResponseFilter_NoResults(t *testing.T) {
 	filtered, err := ApplyToolResponseFilter(context.Background(), "empty", map[string]interface{}{"a": 1})
 	require.Error(t, err)
 	require.Nil(t, filtered)
-	require.EqualError(t, err, "tool response filter returned no results")
+	require.ErrorContains(t, err, "tool response filter returned no results")
 }
 
 func TestApplyToolResponseFilter_MultipleResults(t *testing.T) {

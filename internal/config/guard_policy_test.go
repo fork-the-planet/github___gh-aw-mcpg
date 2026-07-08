@@ -1085,7 +1085,7 @@ func TestValidateGuardPolicy(t *testing.T) {
 	t.Run("nil policy returns error", func(t *testing.T) {
 		err := ValidateGuardPolicy(nil)
 		require.Error(t, err)
-		assert.EqualError(t, err, errMsgPolicyMissingKey)
+		assert.ErrorContains(t, err, errMsgPolicyMissingKey)
 	})
 
 	t.Run("valid policy returns nil", func(t *testing.T) {

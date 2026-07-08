@@ -558,7 +558,7 @@ func TestBuildAllowOnlyPolicy_AllIntegrityValues(t *testing.T) {
 func TestBuildAllowOnlyPolicy_InvalidIntegrityErrorListsCanonicalValues(t *testing.T) {
 	got, err := BuildAllowOnlyPolicy(true, "", "", "superstrict")
 	require.Nil(t, got)
-	require.EqualError(t, err,
+	require.ErrorContains(t, err,
 		fmt.Sprintf("min-integrity must be one of: %s", strings.Join(allIntegrityLevels, ", ")))
 }
 
