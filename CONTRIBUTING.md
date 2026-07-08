@@ -287,6 +287,7 @@ gh-aw-mcpg/
     ├── githubhttp/            # GitHub API-specific HTTP helpers (auth headers, collaborator permission, rate-limit parsing)
     ├── guard/                 # Security guards (NoopGuard, WasmGuard, WriteSinkGuard)
     ├── httputil/              # Shared HTTP helper utilities (server responses, proxy transport)
+    ├── jqutil/                # Shared gojq compiler options (security: $ENV access disabled)
     ├── launcher/              # Backend server management
     ├── logger/                # Debug logging framework
     ├── mcp/                   # MCP protocol types & connection
