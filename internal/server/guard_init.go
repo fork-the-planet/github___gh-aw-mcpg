@@ -391,6 +391,14 @@ func (us *UnifiedServer) getTrustedBots() []string {
 // Emits a warning when overriding the configured value.
 // Falls back to the configured value on any API error (non-fatal).
 func (us *UnifiedServer) verifySinkVisibilityAtRuntime(serverID, configuredVisibility string) string {
+	// Skip runtime check when sink-visibility is not explicitly configured.
+	// This preserves backward-compatible behavior where omitted sink-visibility
+	// uses accept patterns without any override.
+	if configuredVisibility == "" {
+		logGuardInit.Printf("sink-visibility runtime check skipped: sink-visibility not configured (serverID=%s)", serverID)
+		return configuredVisibility
+	}
+
 	nwo := os.Getenv("GITHUB_REPOSITORY")
 	if nwo == "" {
 		logGuardInit.Printf("sink-visibility runtime check skipped: GITHUB_REPOSITORY not set (serverID=%s)", serverID)

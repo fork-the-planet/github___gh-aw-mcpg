@@ -170,7 +170,7 @@ func TestVerifySinkVisibility(t *testing.T) {
 			configured:     "private",
 			actualVis:      "internal",
 			actualPrivate:  true,
-			wantEffective:  "internal",
+			wantEffective:  "private",
 			wantOverridden: false,
 		},
 	}

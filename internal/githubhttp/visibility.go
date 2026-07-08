@@ -87,12 +87,12 @@ func FetchRepoVisibility(ctx context.Context, apiBaseURL, nwo, authHeader string
 }
 
 // VerifySinkVisibility compares the configured sink-visibility against the
-// actual repository visibility from the GitHub API. If the actual visibility
-// is more public than configured, it returns the actual (more restrictive)
-// visibility to prevent exfiltration.
+// actual repository visibility from the GitHub API. Only overrides the
+// configured value in the security-critical case: repo is actually public
+// but config doesn't say "public".
 //
 // Returns:
-//   - The effective visibility to use (may override configured value)
+//   - The effective visibility to use (configured value unless overridden to "public")
 //   - Whether an override occurred
 //   - Any error encountered (non-fatal — callers should log and use configured value)
 func VerifySinkVisibility(ctx context.Context, apiBaseURL, nwo, authHeader, configuredVisibility string) (string, bool, error) {
@@ -105,23 +105,18 @@ func VerifySinkVisibility(ctx context.Context, apiBaseURL, nwo, authHeader, conf
 		return configuredVisibility, false, err
 	}
 
-	actualStr := string(actual)
 	configured := strings.ToLower(strings.TrimSpace(configuredVisibility))
 
-	// If actual is "public" but configured is not "public" (or unset),
+	// If actual is "public" but configured is not "public",
 	// override to "public" — this is the security-critical case.
 	if actual == RepoVisibilityPublic && configured != "public" {
-		logger.LogWarn("difc", "Sink visibility override: configured=%q but repo %s is actually PUBLIC — overriding to \"public\" to prevent exfiltration", configured, nwo)
-		return actualStr, true, nil
+		return "public", true, nil
 	}
 
-	// If configured says public but actual says private/internal,
-	// keep "public" (the more restrictive setting) — defense in depth.
-	if configured == "public" && actual != RepoVisibilityPublic {
-		logVisibility.Printf("Sink visibility: configured=public but repo %s is %s — keeping public (more restrictive)", nwo, actual)
-		return "public", false, nil
-	}
-
-	logVisibility.Printf("Sink visibility verified: configured=%q, actual=%s — no override needed", configured, actual)
-	return actualStr, false, nil
+	// All other cases: return the configured value unchanged.
+	// This includes:
+	//   - configured="public" but actual=private → keep "public" (more restrictive)
+	//   - configured="private" and actual=private → no change needed
+	//   - configured="internal" and actual=internal → no change needed
+	return configuredVisibility, false, nil
 }
