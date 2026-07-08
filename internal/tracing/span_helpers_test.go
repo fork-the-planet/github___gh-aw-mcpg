@@ -11,6 +11,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // newRecordingSpan creates an in-memory tracer, starts a span named spanName,
@@ -234,4 +235,37 @@ func TestStartProxyForwardSpan(t *testing.T) {
 	assert.True(t, hasAttr(s.Attributes, URLPathKey, "/api/v3/repos"))
 	assert.True(t, hasAttr(s.Attributes, ServerAddressKey, "api.github.com"))
 	assert.True(t, hasAttr(s.Attributes, GenAIToolName, "my_tool"))
+}
+
+// TestRecordSpanErrorSafe_NoopSpan_ReturnsEarlyWithoutPanic verifies that
+// RecordSpanErrorSafe returns early without panicking when the span is not
+// recording (e.g., a noop span). This covers the !span.IsRecording() guard.
+func TestRecordSpanErrorSafe_NoopSpan_ReturnsEarlyWithoutPanic(t *testing.T) {
+	_, span := noop.NewTracerProvider().Tracer("test").Start(context.Background(), "noop-span")
+	assert.False(t, span.IsRecording(), "noop span must not be recording")
+
+	assert.NotPanics(t, func() {
+		RecordSpanErrorSafe(span, errors.New("internal error"), "public message")
+	}, "RecordSpanErrorSafe must not panic on a non-recording span")
+}
+
+// TestRecordSpanError_NilError_SetsStatusWithoutAttributes verifies that
+// RecordSpanError correctly handles a nil error: it still sets the span status
+// to Error with the given message but does not attach an error.type attribute.
+func TestRecordSpanError_NilError_SetsStatusWithoutAttributes(t *testing.T) {
+	span, getSpans := newRecordingSpan(t, "op")
+
+	RecordSpanError(span, nil, "nil error msg")
+
+	spans := getSpans()
+	require.Len(t, spans, 1)
+	recorded := spans[0]
+
+	assert.Equal(t, "Error", recorded.Status.Code.String(), "span status should be Error even with nil err")
+	assert.Equal(t, "nil error msg", recorded.Status.Description)
+
+	// No error.type attribute should be set when err is nil.
+	for _, attr := range recorded.Attributes {
+		assert.NotEqual(t, ErrorTypeKey, attr.Key, "error.type must not be set when err is nil")
+	}
 }
