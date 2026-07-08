@@ -901,6 +901,12 @@ mod tests {
         }
     }
 
+    // Serializes tests that clear and depend on the global repo visibility cache.
+    // Without this, parallel test execution can cause `clear_repo_visibility_cache_for_tests`
+    // in one test to wipe a cache entry that another test has just populated, producing
+    // spurious `None` results in the cache-hit assertion.
+    static CACHE_TEST_LOCK: Mutex<()> = Mutex::new(());
+
     fn clear_repo_visibility_cache_for_tests() {
         if let Ok(mut cache) = repo_visibility_cache().lock() {
             cache.clear();
@@ -1122,6 +1128,7 @@ mod tests {
 
     #[test]
     fn test_is_repo_private_retries_once_after_rate_limit_error() {
+        let _guard = CACHE_TEST_LOCK.lock().unwrap();
         clear_repo_visibility_cache_for_tests();
         RATE_LIMIT_RETRY_CALL_COUNT.store(0, Ordering::SeqCst);
 
@@ -1135,6 +1142,7 @@ mod tests {
 
     #[test]
     fn test_is_repo_private_uses_cached_visibility_when_rate_limited() {
+        let _guard = CACHE_TEST_LOCK.lock().unwrap();
         clear_repo_visibility_cache_for_tests();
 
         let first = is_repo_private_with_callback(

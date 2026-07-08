@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -243,4 +244,13 @@ func TestValidateServerAuth_DirectCall(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLogValidationFail_ReturnsOriginalError(t *testing.T) {
+	assert := assert.New(t)
+
+	wantErr := errors.New("validation failure")
+	gotErr := logValidationFail("my-server", "http", "reason", wantErr)
+
+	assert.Same(wantErr, gotErr)
 }
