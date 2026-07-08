@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/envutil"
+	"github.com/github/gh-aw-mcpg/internal/githubhttp"
 	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/util"
@@ -61,8 +65,9 @@ func (us *UnifiedServer) registerGuard(serverID string) error {
 	if g == nil {
 		// Check if server has a write-sink policy — create WriteSinkGuard directly
 		if ws := us.resolveWriteSinkPolicy(serverID); ws != nil {
-			g = guard.NewWriteSinkGuardWithVisibility(ws.Accept, ws.SinkVisibility)
-			logger.LogInfoToServer(serverID, "difc", "Created write-sink guard with %d accept patterns, sink-visibility=%q", len(ws.Accept), ws.SinkVisibility)
+			effectiveVisibility := us.verifySinkVisibilityAtRuntime(serverID, ws.SinkVisibility)
+			g = guard.NewWriteSinkGuardWithVisibility(ws.Accept, effectiveVisibility)
+			logger.LogInfoToServer(serverID, "difc", "Created write-sink guard with %d accept patterns, sink-visibility=%q", len(ws.Accept), effectiveVisibility)
 		}
 	}
 
@@ -375,4 +380,48 @@ func (us *UnifiedServer) getTrustedBots() []string {
 		return nil
 	}
 	return us.cfg.Gateway.TrustedBots
+}
+
+// verifySinkVisibilityAtRuntime checks the actual repository visibility via the
+// GitHub API and overrides the configured sink-visibility if the repo is more
+// public than declared. This is a defense-in-depth measure: even if the compile-
+// time config says "private", a runtime check catches cases where the repo was
+// made public after the workflow was compiled.
+//
+// Emits a warning when overriding the configured value.
+// Falls back to the configured value on any API error (non-fatal).
+func (us *UnifiedServer) verifySinkVisibilityAtRuntime(serverID, configuredVisibility string) string {
+	nwo := os.Getenv("GITHUB_REPOSITORY")
+	if nwo == "" {
+		logGuardInit.Printf("sink-visibility runtime check skipped: GITHUB_REPOSITORY not set (serverID=%s)", serverID)
+		return configuredVisibility
+	}
+
+	token := envutil.LookupGitHubToken()
+	if token == "" {
+		logGuardInit.Printf("sink-visibility runtime check skipped: no GitHub token available (serverID=%s)", serverID)
+		return configuredVisibility
+	}
+
+	apiURL := envutil.DeriveGitHubAPIURL(envutil.DefaultGitHubAPIBaseURL)
+	authHeader := "token " + token
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	effective, overridden, err := githubhttp.VerifySinkVisibility(ctx, apiURL, nwo, authHeader, configuredVisibility)
+	if err != nil {
+		logger.LogWarnToServer(serverID, "difc", "Sink visibility runtime verification failed (using configured value %q): %v", configuredVisibility, err)
+		return configuredVisibility
+	}
+
+	if overridden {
+		logger.LogWarnToServer(serverID, "difc",
+			"SINK VISIBILITY OVERRIDE: configured=%q but runtime check shows repo %s is %q — overriding to %q to prevent potential data exfiltration",
+			configuredVisibility, nwo, effective, effective)
+	} else {
+		logger.LogInfoToServer(serverID, "difc", "Sink visibility runtime verification passed: repo=%s, visibility=%q", nwo, effective)
+	}
+
+	return effective
 }
