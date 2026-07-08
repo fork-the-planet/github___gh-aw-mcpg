@@ -69,7 +69,7 @@ test-integration:
 		echo "Binary not found. Building..."; \
 		$(MAKE) build; \
 	fi
-	@go test -v -timeout=5m ./test/integration/...
+	@go test -v -timeout 5m ./test/integration/...
 
 # Run unit tests with race detection (catches concurrent data races)
 # The MCP Gateway is a concurrent server; use this to validate thread safety.
