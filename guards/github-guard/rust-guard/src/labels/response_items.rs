@@ -392,7 +392,7 @@ pub fn label_response_items(
 
         // === Notifications - all are private ===
         "list_notifications" | "get_notification_details" => {
-            let items = actual_response.as_array().or_else(|| response.as_array());
+            let items = actual_response.as_array();
 
             if let Some(items) = items {
                 let notif_secrecy = private_user_label();
@@ -521,5 +521,44 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].get("number").and_then(|v| v.as_u64()), Some(42));
+    }
+
+    /// Notifications are labelled as private with a `notification:{id}` description.
+    #[test]
+    fn list_notifications_labels_each_item_as_private() {
+        let ctx = default_ctx();
+        let response = json!([
+            {"id": "1", "subject": {"title": "PR reviewed"}},
+            {"id": "2", "subject": {"title": "Mention"}}
+        ]);
+        let result = label_response_items("list_notifications", &json!({}), &response, &ctx);
+        assert_eq!(result.len(), 2);
+        let expected_secrecy = private_user_label();
+        for item in &result {
+            assert_eq!(
+                item.labels.secrecy,
+                expected_secrecy,
+                "notification secrecy should be private:user"
+            );
+        }
+    }
+
+    /// The description field is formatted as `notification:{id}` for each item.
+    #[test]
+    fn list_notifications_description_includes_id() {
+        let ctx = default_ctx();
+        let response = json!([{"id": "42"}]);
+        let result = label_response_items("list_notifications", &json!({}), &response, &ctx);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].labels.description, "notification:42");
+    }
+
+    /// An empty notifications array returns an empty result set.
+    #[test]
+    fn get_notification_details_empty_array_returns_empty() {
+        let ctx = default_ctx();
+        let result =
+            label_response_items("get_notification_details", &json!({}), &json!([]), &ctx);
+        assert!(result.is_empty());
     }
 }
