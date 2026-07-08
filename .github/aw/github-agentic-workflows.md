@@ -5,6 +5,14 @@ applyTo: ".github/workflows/*.md,.github/workflows/**/*.md"
 
 # GitHub Agentic Workflows
 
+## Persona-to-Pattern Quick Matrix
+
+| Persona | Preferred trigger and scope | Typical read tools | Typical write path | Explicit `noop` rule |
+|---|---|---|---|---|
+| Backend Engineer | `pull_request` with `paths:` scoped to migrations, schema, and API contracts | `github` (`gh-proxy`) | `add-comment` for PR-local findings; `create-issue` only for cross-cutting incidents | `noop` when no backend contract files changed |
+| Frontend Developer | `pull_request` with `paths:` scoped to UI, design-token, and asset files | `github` (`gh-proxy`), optional `playwright`, optional `cache-memory` for baselines | `add-comment` | `noop` when no UI/token files changed or no actionable visual/token issues were found |
+| DevOps Engineer | `workflow_run` for GitHub Actions failures, `deployment_status` for external deployment failures | `github` (`gh-proxy`) with `actions: read` or `deployments: read` | `create-issue` with stable dedup key | `noop` when status is non-terminal, self-recovered, or an open incident already exists for the same dedup key |
+
 ## File Format
 
 Agentic workflows are markdown files with YAML frontmatter.
@@ -74,6 +82,23 @@ Use the smallest trigger that matches the requested automation.
 | Run the workflow on demand | `workflow_dispatch` | Use for manual tests, backfills, and operator-invoked runs; often pair with `schedule` or `workflow_run`. |
 
 See also: [workflow-constraints.md](workflow-constraints.md)
+
+## Ad Hoc Scenario Evaluation
+
+Installed gh-aw agents should support scenario evaluation requests that do not create workflow files.
+
+- Treat prompts such as `agentic-workflows evaluate this scenario without creating files` as ad hoc evaluation mode.
+- Return a compact design recommendation covering trigger, scope, tools, permissions, safe outputs, `noop` behavior, and any report window / grouping / deduplication requirements.
+- Offer to turn the recommendation into `.github/workflows/<workflow-id>.md` only if the user asks to proceed.
+
+### Non-technical persona example (Program Management)
+
+When the request is framed as a PM or stakeholder workflow (for example "weekly product health digest"):
+
+- Prefer `schedule: weekly` (or `daily on weekdays` for operational digests) plus `workflow_dispatch` for preview/backfill runs
+- Read with `github` (`gh-proxy`) and default to `create-issue` for the digest destination
+- Require an explicit report window, grouping dimensions, and a stable dedup key before creating output
+- Use `close-older-issues: true` for recurring issue-style digests and call `noop` when the selected window has no qualifying updates
 
 ## PR Checks with Linked References
 
