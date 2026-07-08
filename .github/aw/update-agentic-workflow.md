@@ -55,7 +55,7 @@ See [workflow-editing.md](workflow-editing.md) for the full frontmatter-vs-body 
 
 ## Cost-Oriented Update Checks
 
-When refining existing workflows, keep edits minimal and confirm the design still follows the [High-Volume Triage and Escalation Pattern](workflow-patterns.md#high-volume-triage-and-escalation-pattern): cheap triage before escalation, `noop`/safe output for known/duplicate/stale cases, frontier reasoning reserved for high-value cases, and context pulled on demand. Keep sub-agent fan-out bounded (see [subagents.md](subagents.md)), then measure the change with `gh aw audit` and treat token or quality regressions as failures (see [token-optimization.md](token-optimization.md)).
+When refining existing workflows, keep edits minimal and confirm the design still follows the cost-aware triage guidance in [create-agentic-workflow.md](create-agentic-workflow.md#8-add-cost-aware-triage-and-context-flow): cheap triage before escalation, `noop`/safe output for known/duplicate/stale cases, frontier reasoning reserved for high-value cases, and context pulled on demand. Keep sub-agent fan-out bounded (see [subagents.md](subagents.md)), then measure the change with `gh aw audit` and treat token or quality regressions as failures (see [token-optimization.md](token-optimization.md)).
 
 ## Security Rules
 
