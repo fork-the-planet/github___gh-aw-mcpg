@@ -185,7 +185,7 @@ func TestOverrideToPublicScope_GlobalPolicy_OverridesRepos(t *testing.T) {
 // TestOverrideToPublicScope_GlobalPolicy_NoAllowOnly_WriteSinkOnly_Skipped verifies
 // that overrideToPublicScope does NOT add AllowOnly to a write-sink-only global policy
 // because allow-only and write-sink are mutually exclusive in the GuardPolicy schema.
-func TestOverrideToPublicScope_GlobalPolicy_NoAllowOnly_WriteSinkOnly_Skipped(t *testing.T) {
+func TestOverrideToPublicScope_GlobalPolicy_WriteSinkOnly(t *testing.T) {
 	t.Setenv("GITHUB_REPOSITORY", "test-owner/test-repo")
 
 	cfg := &config.Config{
@@ -239,7 +239,7 @@ func TestOverrideToPublicScope_PerServerPolicy_OverridesRepos(t *testing.T) {
 // TestOverrideToPublicScope_PerServerPolicy_WriteSinkOnly_Skipped verifies that
 // overrideToPublicScope does NOT add AllowOnly to a write-sink-only per-server policy
 // (allow-only and write-sink are mutually exclusive in the GuardPolicy schema).
-func TestOverrideToPublicScope_PerServerPolicy_WriteSinkOnly_Skipped(t *testing.T) {
+func TestOverrideToPublicScope_PerServerPolicy_WriteSinkOnly(t *testing.T) {
 	t.Setenv("GITHUB_REPOSITORY", "test-owner/test-repo")
 
 	cfg := &config.Config{

@@ -437,7 +437,7 @@ func (us *UnifiedServer) verifySinkVisibilityAtRuntime(serverID, configuredVisib
 	}
 
 	logger.LogInfoToServer(serverID, "difc", "Sink visibility runtime verification passed: repo=%s, visibility=%q", nwo, vis)
-	return configured
+	return string(vis)
 }
 
 // resolveWorkflowRepoVisibility fetches and caches the visibility of the workflow
@@ -595,7 +595,7 @@ func (us *UnifiedServer) overrideToPublicScope(serverID string) {
 			return
 		}
 		if policy == nil {
-			// Unrecognised policy format — inject allow-only directly into the map
+			// Unrecognized policy format — inject allow-only directly into the map
 			// only if there is no write-sink key present (to avoid creating an
 			// invalid combined policy).
 			if _, hasWriteSink := serverCfg.GuardPolicies["write-sink"]; !hasWriteSink {
