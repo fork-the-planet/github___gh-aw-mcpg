@@ -355,10 +355,10 @@ func TestVerifySinkVisibilityAtRuntime_PrivateRepo_ConfiguredPrivate(t *testing.
 
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		require.NoError(t, json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"visibility": "private",
 			"private":    true,
-		}))
+		})
 	}))
 	t.Cleanup(apiServer.Close)
 	t.Setenv("GITHUB_API_URL", apiServer.URL)
