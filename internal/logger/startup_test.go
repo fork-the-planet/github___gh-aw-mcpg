@@ -84,6 +84,30 @@ func TestStartupWarn(t *testing.T) {
 	assert.Contains(t, logContent, "tracing provider failed: connection refused")
 }
 
+// TestShutdownWarn verifies that ShutdownWarn writes to the file logger with WARN level
+// and uses the shutdown category.
+func TestShutdownWarn(t *testing.T) {
+	tmpDir := t.TempDir()
+	logDir := filepath.Join(tmpDir, "logs")
+
+	err := InitFileLogger(logDir, "test.log")
+	require.NoError(t, err)
+	defer CloseAllLoggers()
+
+	ShutdownWarn("tracing provider shutdown error: %v", "flush timeout")
+
+	CloseAllLoggers()
+
+	logPath := filepath.Join(logDir, "test.log")
+	content, err := os.ReadFile(logPath)
+	require.NoError(t, err)
+
+	logContent := string(content)
+	assert.Contains(t, logContent, "[WARN]")
+	assert.Contains(t, logContent, "[shutdown]")
+	assert.Contains(t, logContent, "tracing provider shutdown error: flush timeout")
+}
+
 // TestStartupInfoWithoutFormatArgs verifies StartupInfo works with plain strings.
 func TestStartupInfoWithoutFormatArgs(t *testing.T) {
 	tmpDir := t.TempDir()

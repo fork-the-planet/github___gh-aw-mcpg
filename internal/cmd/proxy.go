@@ -193,7 +193,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		tracingCfg,
 		"failed to initialize tracing provider: %v",
 		logger.StartupWarn,
-		logger.StartupWarn,
+		logger.ShutdownWarn,
 	)
 	defer cleanupTracing()
 	if tracingCfg != nil {

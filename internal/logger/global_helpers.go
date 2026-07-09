@@ -173,6 +173,14 @@ func StartupWarn(format string, args ...interface{}) {
 	LogWarn("startup", format, args...)
 }
 
+// ShutdownWarn logs a shutdown warning message to stderr (via log.Printf with
+// "Warning: " prefix) and to the shutdown warning log sink (via LogWarn with
+// "shutdown" category).
+func ShutdownWarn(format string, args ...interface{}) {
+	log.Printf("Warning: "+format, args...)
+	LogWarn("shutdown", format, args...)
+}
+
 // initWithWarning calls the Init* function result and prints a warning when it returns an error.
 // It is used by InitGatewayLoggers and InitProxyLoggers to report non-fatal initialization
 // failures without aborting startup.
