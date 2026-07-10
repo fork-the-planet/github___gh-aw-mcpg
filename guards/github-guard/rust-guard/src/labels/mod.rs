@@ -36,28 +36,25 @@ mod response_items;
 mod response_paths;
 pub mod tool_rules;
 
-// Re-export helpers - these are part of the public API and used by tests
-// The unused_imports warning is suppressed because these are intentionally
-// re-exported for external modules and tests, not used within mod.rs itself
-#[cfg(test)]
-pub use helpers::has_approval_label;
-#[cfg(test)]
-pub use helpers::has_refusal_label;
-#[cfg(test)]
-pub use helpers::secret_label;
-#[allow(unused_imports)]
+// Re-export helpers that form the public API consumed by lib.rs
 pub use helpers::{
-    blocked_integrity, commit_integrity, ensure_integrity_baseline, extract_graphql_nodes,
-    extract_graphql_single_object, extract_items_array, extract_number_as_string,
-    extract_repo_from_item, extract_repo_info, extract_repo_info_from_search_query,
-    is_blocked_user, is_graphql_wrapper, is_mcp_text_wrapper, is_search_result_wrapper,
-    issue_integrity, limit_items_with_log, merged_integrity, none_integrity, pr_integrity,
-    private_scope_label, private_user_label, project_github_label, reader_integrity,
-    search_result_total_count, writer_integrity, MinIntegrity, PolicyContext, PolicyScopeEntry,
-    ScopeKind,
+    blocked_integrity, ensure_integrity_baseline, extract_repo_info,
+    extract_repo_info_from_search_query, is_mcp_text_wrapper, is_search_result_wrapper,
+    project_github_label, reader_integrity, search_result_total_count, writer_integrity,
+    MinIntegrity, PolicyContext, PolicyScopeEntry, ScopeKind,
 };
+
+// Test-only re-exports: helpers used by tests in this file and sibling modules.
+// The cfg(test) gate keeps them out of the non-test public surface.
+
 #[cfg(test)]
-pub use helpers::{has_demotion_label, has_promotion_label};
+pub(crate) use helpers::{
+    commit_integrity, extract_graphql_single_object, extract_items_array,
+    extract_number_as_string, extract_repo_from_item, has_approval_label, has_demotion_label,
+    has_promotion_label, has_refusal_label, is_blocked_user, is_graphql_wrapper, issue_integrity,
+    limit_items_with_log, merged_integrity, none_integrity, pr_integrity, private_scope_label,
+    private_user_label, secret_label,
+};
 
 // Re-export response labeling functions (wrappers that pass PolicyContext)
 pub fn apply_tool_labels(

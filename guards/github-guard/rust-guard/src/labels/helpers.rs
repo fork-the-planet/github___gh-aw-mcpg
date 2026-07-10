@@ -361,7 +361,7 @@ fn build_integrity_labels(normalized_scope: &str, max_level: usize) -> Vec<Strin
         .collect()
 }
 
-pub fn none_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
+pub(crate) fn none_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
     build_integrity_labels(&normalize_scope(scope, ctx), 0)
 }
 
@@ -385,7 +385,7 @@ fn username_in_list(username: &str, list: &[String]) -> bool {
 }
 
 /// Check if a username appears in the configured blocked-users list (case-insensitive).
-pub fn is_blocked_user(username: &str, ctx: &PolicyContext) -> bool {
+pub(crate) fn is_blocked_user(username: &str, ctx: &PolicyContext) -> bool {
     username_in_list(username, &ctx.blocked_users)
 }
 
@@ -668,7 +668,7 @@ fn integrity_for_level(level: &str, scope: &str, ctx: &PolicyContext) -> Vec<Str
 /// - Inspects at most `MAX_REACTIONS_TO_CHECK` reactions to bound API call count.
 /// - When `reactions` data is present but contains no per-user nodes (gateway mode),
 ///   emits a warning at most once per process lifetime and returns `false`.
-pub fn has_maintainer_reaction_with_callback(
+pub(crate) fn has_maintainer_reaction_with_callback(
     item: &Value,
     repo_full_name: &str,
     reaction_list: &[String],
@@ -815,7 +815,7 @@ pub fn has_maintainer_reaction_with_callback(
 ///
 /// Uses the production backend callback. Respects `PolicyContext.endorsement_reactions`
 /// and `PolicyContext.endorser_min_integrity`.
-pub fn has_maintainer_endorsement(item: &Value, repo_full_name: &str, ctx: &PolicyContext) -> bool {
+pub(crate) fn has_maintainer_endorsement(item: &Value, repo_full_name: &str, ctx: &PolicyContext) -> bool {
     has_maintainer_reaction_with_callback(
         item,
         repo_full_name,
@@ -831,7 +831,7 @@ pub fn has_maintainer_endorsement(item: &Value, repo_full_name: &str, ctx: &Poli
 ///
 /// Uses the production backend callback. Respects `PolicyContext.disapproval_reactions`
 /// and `PolicyContext.endorser_min_integrity`.
-pub fn has_maintainer_disapproval(item: &Value, repo_full_name: &str, ctx: &PolicyContext) -> bool {
+pub(crate) fn has_maintainer_disapproval(item: &Value, repo_full_name: &str, ctx: &PolicyContext) -> bool {
     has_maintainer_reaction_with_callback(
         item,
         repo_full_name,
@@ -930,13 +930,13 @@ pub fn ensure_integrity_baseline(
 /// Returns a vec with the "secret" label
 #[cfg(test)]
 #[inline]
-pub fn secret_label() -> Vec<String> {
+pub(crate) fn secret_label() -> Vec<String> {
     vec![label_constants::SECRET.to_string()]
 }
 
 /// Returns a vec with the "private:user" label
 #[inline]
-pub fn private_user_label() -> Vec<String> {
+pub(crate) fn private_user_label() -> Vec<String> {
     vec![label_constants::PRIVATE_USER.to_string()]
 }
 
@@ -949,7 +949,7 @@ pub fn project_github_label(ctx: &PolicyContext) -> Vec<String> {
 /// Returns a vec with a "private:{scope}" label
 /// Returns empty vec if scope is empty
 #[inline]
-pub fn private_scope_label(scope: &str) -> Vec<String> {
+pub(crate) fn private_scope_label(scope: &str) -> Vec<String> {
     if scope.is_empty() {
         return vec![];
     }
@@ -961,7 +961,7 @@ pub fn private_scope_label(scope: &str) -> Vec<String> {
 /// - public scope_kind => ["private"]
 /// - owner scope_kind => ["private:<owner>"]
 /// - repo scope_kind => ["private:<owner>/<repo>"]
-pub fn policy_private_scope_label(
+pub(crate) fn policy_private_scope_label(
     owner: &str,
     repo: &str,
     repo_id: &str,
@@ -1051,13 +1051,13 @@ pub(crate) fn repo_visibility_private_for_repo_id(repo_id: &str) -> Option<bool>
 
 /// Extract a string field from a JSON value, returning a default if missing
 #[inline]
-pub fn get_str_or<'a>(value: &'a Value, field: &str, default: &'a str) -> &'a str {
+pub(crate) fn get_str_or<'a>(value: &'a Value, field: &str, default: &'a str) -> &'a str {
     value.get(field).and_then(|v| v.as_str()).unwrap_or(default)
 }
 
 /// Extract a nested string field (e.g., user.login) from a JSON value
 #[inline]
-pub fn get_nested_str<'a>(value: &'a Value, outer: &str, inner: &str) -> &'a str {
+pub(crate) fn get_nested_str<'a>(value: &'a Value, outer: &str, inner: &str) -> &'a str {
     value
         .get(outer)
         .and_then(|v| v.get(inner))
@@ -1067,7 +1067,7 @@ pub fn get_nested_str<'a>(value: &'a Value, outer: &str, inner: &str) -> &'a str
 
 /// Extract a boolean field from a JSON value, returning a default if missing
 #[inline]
-pub fn get_bool_or(value: &Value, field: &str, default: bool) -> bool {
+pub(crate) fn get_bool_or(value: &Value, field: &str, default: bool) -> bool {
     value
         .get(field)
         .and_then(|v| v.as_bool())
@@ -1078,7 +1078,7 @@ pub fn get_bool_or(value: &Value, field: &str, default: bool) -> bool {
 ///
 /// This helper centralizes the item-limiting logic used in all response labeling
 /// handlers. The `tool_name` is included in the warning message for diagnostics.
-pub fn limit_items_with_log<'a, T>(items: &'a [T], tool_name: &str) -> &'a [T] {
+pub(crate) fn limit_items_with_log<'a, T>(items: &'a [T], tool_name: &str) -> &'a [T] {
     let max = super::constants::MAX_ITEMS_PER_RESPONSE;
     if items.len() > max {
         crate::log_warn(&format!(
@@ -1096,14 +1096,14 @@ pub fn limit_items_with_log<'a, T>(items: &'a [T], tool_name: &str) -> &'a [T] {
 /// Extract a string field from a JSON value
 /// Returns empty string if field doesn't exist or isn't a string
 #[inline]
-pub fn get_string_field(value: &Value, field: &str) -> String {
+pub(crate) fn get_string_field(value: &Value, field: &str) -> String {
     get_str_or(value, field, "").to_string()
 }
 
 /// Format repository ID as "owner/repo"
 /// Returns empty string if either owner or repo is empty
 #[inline]
-pub fn format_repo_id(owner: &str, repo: &str) -> String {
+pub(crate) fn format_repo_id(owner: &str, repo: &str) -> String {
     if owner.is_empty() || repo.is_empty() {
         String::new()
     } else {
@@ -1204,7 +1204,7 @@ pub(crate) fn extract_repo_from_github_url(url: &str) -> Option<String> {
 /// base.repo.full_name, head.repo.full_name, then URL parsing from
 /// repository_url, html_url, and url.
 /// Returns empty string if no repo info found
-pub fn extract_repo_from_item(item: &Value) -> String {
+pub(crate) fn extract_repo_from_item(item: &Value) -> String {
     // Direct full_name (repositories)
     if let Some(name) = item.get(field_names::FULL_NAME).and_then(|v| v.as_str()) {
         return name.to_string();
@@ -1252,7 +1252,7 @@ pub fn extract_repo_from_item(item: &Value) -> String {
 ///   - "/items" for {items: [...]}
 ///   - "/data/repository/pullRequests/nodes" for GraphQL nested format
 ///   - etc.
-pub fn extract_items_array(response: &Value) -> (Option<&Vec<Value>>, &'static str) {
+pub(crate) fn extract_items_array(response: &Value) -> (Option<&Vec<Value>>, &'static str) {
     // REST formats
     if let Some(arr) = response.as_array() {
         return (Some(arr), "");
@@ -1329,13 +1329,13 @@ fn find_graphql_nodes_with_path(response: &Value) -> Option<(&Vec<Value>, &'stat
 
 /// Extract the items array from a GraphQL response.
 /// Traverses data.repository.<field>.nodes and data.search.nodes paths.
-pub fn extract_graphql_nodes(response: &Value) -> Option<&Vec<Value>> {
+pub(crate) fn extract_graphql_nodes(response: &Value) -> Option<&Vec<Value>> {
     find_graphql_nodes_with_path(response).map(|(arr, _)| arr)
 }
 
 /// Returns true if the response is a GraphQL wrapper (has a "data" key).
 /// Used to prevent treating the entire GraphQL object as a single item.
-pub fn is_graphql_wrapper(response: &Value) -> bool {
+pub(crate) fn is_graphql_wrapper(response: &Value) -> bool {
     response.get("data").is_some()
 }
 
@@ -1374,7 +1374,7 @@ pub fn is_mcp_text_wrapper(response: &Value) -> bool {
 
 /// Extract a single object from a GraphQL response for singular queries.
 /// Traverses data.repository.<field> for fields like "issue", "pullRequest".
-pub fn extract_graphql_single_object(response: &Value) -> Option<&Value> {
+pub(crate) fn extract_graphql_single_object(response: &Value) -> Option<&Value> {
     let data = response.get("data")?;
     let repo = data.get("repository")?;
 
@@ -1405,7 +1405,7 @@ pub(crate) fn short_sha(sha: &str) -> &str {
 /// Generate JSON Pointer path for an item index in a collection
 /// Returns a path like "/items/0" or "/0" depending on the items_path
 #[inline]
-pub fn make_item_path(items_path: &str, index: usize) -> String {
+pub(crate) fn make_item_path(items_path: &str, index: usize) -> String {
     if items_path.is_empty() {
         format!("/{}", index)
     } else {
@@ -1423,7 +1423,7 @@ pub fn make_item_path(items_path: &str, index: usize) -> String {
 /// # Returns
 /// * `Some(String)` - The number as a string
 /// * `None` - If the field doesn't exist or isn't a string/number
-pub fn extract_number_as_string(tool_args: &Value, field: &str) -> Option<String> {
+pub(crate) fn extract_number_as_string(tool_args: &Value, field: &str) -> Option<String> {
     tool_args.get(field).and_then(|v| {
         v.as_str()
             .map(String::from)
@@ -1457,7 +1457,7 @@ pub fn writer_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
 
 /// Generate merged-level integrity tags for a scope.
 /// Includes approved and unapproved (hierarchical: merged > approved > unapproved)
-pub fn merged_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
+pub(crate) fn merged_integrity(scope: &str, ctx: &PolicyContext) -> Vec<String> {
     build_integrity_labels(&normalize_scope(scope, ctx), 3)
 }
 
@@ -1499,7 +1499,7 @@ fn label_matches_normalized(label: &str, prefix: &str, scope: &str, base: &str) 
 }
 
 /// Elevate integrity to the max of current and candidate levels for a scope.
-pub fn max_integrity(
+pub(crate) fn max_integrity(
     scope: &str,
     current: Vec<String>,
     candidate: Vec<String>,
@@ -1542,7 +1542,7 @@ pub fn max_integrity(
 /// both represent users with no prior contributions to the specific repo who
 /// are not brand-new to GitHub. The only value that indicates a truly new
 /// GitHub account is `FIRST_TIMER`.
-pub fn author_association_floor_from_str(
+pub(crate) fn author_association_floor_from_str(
     scope: &str,
     association: Option<&str>,
     ctx: &PolicyContext,
@@ -1589,7 +1589,7 @@ fn get_author_association(item: &Value) -> Option<&str> {
 }
 
 /// Check whether an item contains an `author_association` (or `authorAssociation`) field.
-pub fn has_author_association(item: &Value) -> bool {
+pub(crate) fn has_author_association(item: &Value) -> bool {
     get_author_association(item).is_some()
 }
 
@@ -1614,7 +1614,7 @@ pub(crate) fn is_pr_merged(item: &Value) -> bool {
 /// Trusted first-party GitHub bots and any gateway-configured trusted bots are
 /// elevated to approved (writer) integrity regardless of their author_association value.
 /// Users in the trusted_users list are also elevated to approved integrity.
-pub fn author_association_floor(item: &Value, scope: &str, ctx: &PolicyContext) -> Vec<String> {
+pub(crate) fn author_association_floor(item: &Value, scope: &str, ctx: &PolicyContext) -> Vec<String> {
     let author_login = extract_author_login(item);
     if !author_login.is_empty() && is_any_trusted_actor(author_login, ctx) {
         return writer_integrity(scope, ctx);
@@ -1633,7 +1633,7 @@ pub fn author_association_floor(item: &Value, scope: &str, ctx: &PolicyContext) 
 /// - admin, maintain, write => approved (writer integrity)
 /// - triage, read => unapproved (reader integrity)
 /// - none, missing => none
-pub fn collaborator_permission_floor(
+pub(crate) fn collaborator_permission_floor(
     scope: &str,
     permission: Option<&str>,
     ctx: &PolicyContext,
@@ -1683,7 +1683,7 @@ const WRITER_RANK: u8 = 3;
 /// - `ctx`: policy context
 ///
 /// Returns the (potentially elevated) integrity labels.
-pub fn elevate_via_collaborator_permission(
+pub(crate) fn elevate_via_collaborator_permission(
     author_login: &str,
     repo_full_name: &str,
     resource_label: &str,
@@ -1727,7 +1727,7 @@ pub fn elevate_via_collaborator_permission(
 const DEFAULT_BRANCH_NAMES: &[&str] = &["main", "master", "HEAD"];
 
 /// Check if a branch/ref should be treated as default branch context
-pub fn is_default_branch_ref(branch_ref: &str) -> bool {
+pub(crate) fn is_default_branch_ref(branch_ref: &str) -> bool {
     branch_ref.is_empty()
         || DEFAULT_BRANCH_NAMES
             .iter()
@@ -1742,7 +1742,7 @@ fn looks_like_commit_sha(reference: &str) -> bool {
     reference.chars().all(|value| value.is_ascii_hexdigit())
 }
 
-pub fn is_default_branch_commit_context(tool_name: &str, sha_or_ref: &str) -> bool {
+pub(crate) fn is_default_branch_commit_context(tool_name: &str, sha_or_ref: &str) -> bool {
     if is_default_branch_ref(sha_or_ref) {
         return true;
     }
@@ -1787,7 +1787,7 @@ fn apply_post_integrity_adjustments(
 /// - PR with an approval label => at least approved
 /// - Backend enrichment: when `author_association` is missing from the item,
 ///   fetch the individual PR via REST to get the correct association and fork status.
-pub fn pr_integrity(
+pub(crate) fn pr_integrity(
     item: &Value,
     repo_full_name: &str,
     repo_private: bool,
@@ -1930,7 +1930,7 @@ pub fn pr_integrity(
 /// - Backend enrichment: when `author_association` is missing from the item
 ///   (e.g. GitHub MCP Server GraphQL path omits it), fetch the individual issue
 ///   via REST to get the correct association value.
-pub fn issue_integrity(
+pub(crate) fn issue_integrity(
     item: &Value,
     repo_full_name: &str,
     repo_private: bool,
@@ -2017,7 +2017,7 @@ pub fn issue_integrity(
 ///
 /// Note: approval-labels promotion does not apply to commits because GitHub
 /// commits do not carry issue/PR-style labels.
-pub fn commit_integrity(
+pub(crate) fn commit_integrity(
     item: &Value,
     repo_full_name: &str,
     repo_private: bool,
@@ -2123,7 +2123,7 @@ const TRUSTED_FIRST_PARTY_BOTS: &[&str] = &[
 /// - copilot-swe-agent[bot]: GitHub Copilot SWE agent (bot user login from REST API)
 /// - copilot-swe-agent: GitHub Copilot SWE agent (without [bot] suffix)
 /// - app/copilot-swe-agent: GitHub Copilot SWE agent (with app/ prefix, as returned by gh CLI)
-pub fn is_trusted_first_party_bot(username: &str) -> bool {
+pub(crate) fn is_trusted_first_party_bot(username: &str) -> bool {
     TRUSTED_FIRST_PARTY_BOTS
         .iter()
         .any(|b| username.eq_ignore_ascii_case(b))
@@ -2134,7 +2134,7 @@ pub fn is_trusted_first_party_bot(username: &str) -> bool {
 /// This checks the `trusted_bots` list in `PolicyContext`, which is populated from
 /// the gateway configuration's `trustedBots` field. Comparison is case-insensitive.
 /// This list is additive and cannot remove entries from the built-in trusted bot list.
-pub fn is_configured_trusted_bot(username: &str, ctx: &PolicyContext) -> bool {
+pub(crate) fn is_configured_trusted_bot(username: &str, ctx: &PolicyContext) -> bool {
     username_in_list(username, &ctx.trusted_bots)
 }
 
@@ -2144,7 +2144,7 @@ pub fn is_configured_trusted_bot(username: &str, ctx: &PolicyContext) -> bool {
 /// the allow-only policy's `trusted-users` field. Users in this list receive approved
 /// (writer) integrity regardless of their `author_association`. Comparison is
 /// case-insensitive. `blocked_users` takes precedence over `trusted_users`.
-pub fn is_trusted_user(username: &str, ctx: &PolicyContext) -> bool {
+pub(crate) fn is_trusted_user(username: &str, ctx: &PolicyContext) -> bool {
     username_in_list(username, &ctx.trusted_users)
 }
 

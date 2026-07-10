@@ -1699,4 +1699,27 @@ mod tests {
             assert!(secrecy.is_empty(), "{op}: public repo should have empty secrecy");
         }
     }
+
+    #[test]
+    fn apply_tool_labels_deploy_key_management_is_access_sensitive_with_writer_integrity() {
+        let ctx = default_ctx();
+        let args = serde_json::json!({"owner": "octocat", "repo": "hello-world"});
+        let repo_id = "octocat/hello-world";
+        let expected_secrecy = private_label("octocat", "hello-world", repo_id, &ctx);
+        let expected_integrity = writer_integrity(repo_id, &ctx);
+
+        for tool in &["add_deploy_key", "delete_deploy_key"] {
+            let (secrecy, integrity, _desc) =
+                super::apply_tool_labels(tool, &args, repo_id, vec![], vec![], String::new(), &ctx);
+
+            assert_eq!(
+                secrecy, expected_secrecy,
+                "{tool}: deploy key ops must carry access-sensitive (policy private scope) secrecy",
+            );
+            assert_eq!(
+                integrity, expected_integrity,
+                "{tool}: deploy key ops must require writer-level integrity",
+            );
+        }
+    }
 }
