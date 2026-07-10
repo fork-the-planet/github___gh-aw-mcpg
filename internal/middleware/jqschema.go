@@ -103,15 +103,13 @@ type toolResponseFilterVarsCacheKey struct {
 // share a single authoritative definition of the $ENV-disabled gojq compile options.
 var secureCompileOpts = jqutil.SecureCompileOpts
 
-// init compiles the jq schema filter at startup for better performance and validation.
-// Following gojq best practices: compile once, run many times.
+// init compiles the jq schema filter at startup as a canary check.
 //
-// The walk_schema function is registered as a native Go implementation via
-// gojq.WithFunction so that the recursive schema walk runs entirely in Go,
-// avoiding jq interpreter overhead for deeply-nested payloads.
-//
-// This provides fail-fast behavior - if the jq query is invalid, the application
-// will fail at startup rather than at runtime during a tool call.
+// applyJqSchema no longer runs the gojq interpreter at request time — it calls
+// inferSchema directly for lower latency. This init() serves two purposes:
+//  1. Startup validation: panics early if the jqSchemaFilter expression is invalid.
+//  2. Parity canary: TestInferSchema_MatchesJqOutput exercises both paths to detect
+//     any future divergence between inferSchema and the jq reference implementation.
 func init() {
 	query, err := gojq.Parse(jqSchemaFilter)
 	if err != nil {
@@ -129,46 +127,37 @@ func init() {
 		panic(fmt.Sprintf("built-in jq schema filter failed to compile: %v", jqSchemaCompileErr))
 	}
 
-	logger.LogInfo("startup", "jq schema filter compiled successfully - native Go walk_schema, array limit: 2^29 elements, timeout: %v", DefaultJqTimeout)
+	logger.LogInfo("startup", "jq schema filter compiled successfully - native Go walk_schema (direct-call fast path active), array limit: 2^29 elements")
 }
 
 // queryIDBytes is the number of random bytes used to generate a query ID.
 // The resulting hex string has length 2*queryIDBytes (32 characters).
 const queryIDBytes = 16
 
-// applyJqSchema applies the jq schema transformation to JSON data
-// Uses pre-compiled query code for better performance (3-10x faster than parsing on each request)
+// applyJqSchema applies the jq schema transformation to JSON data.
 //
-// Accepts a context for timeout and cancellation support. If the context does not have a deadline,
-// a default timeout of DefaultJqTimeout (5 seconds) is enforced to prevent hangs from:
-// - Malformed jq queries
-// - Extremely large or deeply nested payloads
-// - Infinite loops in query logic
+// The schema walk is implemented as a native Go recursive function (inferSchema),
+// which is called directly here instead of going through the gojq interpreter.
+// This eliminates the per-call overhead of gojq iterator setup, context-with-timeout
+// allocation, and interpreter dispatch — significant savings on the large-payload path
+// where this function is called for every tool response that exceeds the size threshold.
 //
-// Returns the schema as an any object (not a JSON string)
+// Context cancellation is respected: if ctx is already done on entry, an error is returned
+// immediately. This preserves the observable behaviour of the previous gojq-based
+// implementation for callers that supply a pre-cancelled context.
 //
-// Error handling:
-// - Returns compilation errors if init() failed
-// - Returns context.DeadlineExceeded if query times out
-// - Returns enhanced gojq type error messages when available
-// - Properly handles gojq.HaltError for clean halt conditions
+// Returns the schema as an any object (not a JSON string).
 func applyJqSchema(ctx context.Context, jsonData any) (any, error) {
-	// Check if compilation succeeded at init time
-	if jqSchemaCompileErr != nil {
-		return nil, fmt.Errorf("jq schema filter not compiled (check startup logs): %w", jqSchemaCompileErr)
+	// Check context before doing any work, mirroring the behaviour of the former
+	// gojq-based path which checked ctx before running the iterator.
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("jq query execution failed: %w", err)
 	}
 
 	logMiddleware.Printf("applyJqSchema: starting schema inference, dataType=%T", jsonData)
 
-	v, err := runJqCode(ctx, jqSchemaCode, jsonData, "jq schema filter", runJqCodeOptions{
-		ExecutionPrefix:   "jq query",
-		LogDefaultTimeout: true,
-	})
-	if err != nil {
-		return nil, err
-	}
+	v := inferSchema(jsonData)
 
-	// Return the schema object directly (no JSON marshaling needed here)
 	logMiddleware.Printf("applyJqSchema: schema inference completed, resultType=%T", v)
 	return v, nil
 }

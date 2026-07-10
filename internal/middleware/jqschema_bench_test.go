@@ -10,7 +10,7 @@ import (
 )
 
 // BenchmarkApplyJqSchema_CompiledCode benchmarks the current implementation
-// that uses pre-compiled query code (the optimized version)
+// that calls inferSchema directly (bypassing the gojq interpreter for schema walks)
 func BenchmarkApplyJqSchema_CompiledCode(b *testing.B) {
 	tests := []struct {
 		name  string
