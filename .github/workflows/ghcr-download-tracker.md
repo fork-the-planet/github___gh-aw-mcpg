@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  copilot-requests: write
 
 engine: copilot
 

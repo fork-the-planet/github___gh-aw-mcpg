@@ -23,7 +23,13 @@ on:
 timeout-minutes: 60
 max-ai-credits: 1500
 
-permissions: read-all
+permissions:
+  actions: read
+  contents: read
+  discussions: read
+  issues: read
+  pull-requests: read
+  copilot-requests: write
 
 network:
   allowed:

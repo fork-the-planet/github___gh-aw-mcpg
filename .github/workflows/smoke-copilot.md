@@ -13,6 +13,7 @@ permissions:
   issues: read
   pull-requests: read
   actions: read
+  copilot-requests: write
   
 name: Smoke Copilot
 engine:

@@ -8,6 +8,7 @@ permissions:
   contents: read
   issues: read
   actions: read
+  copilot-requests: write
 
 observability:
   otlp:
