@@ -322,10 +322,7 @@ func compileToolResponseFilterInternal[K comparable](
 }
 
 func compileOptsWithVariables(varNames []string) []gojq.CompilerOption {
-	opts := make([]gojq.CompilerOption, 0, len(secureCompileOpts)+1)
-	opts = append(opts, secureCompileOpts...)
-	opts = append(opts, gojq.WithVariables(varNames))
-	return opts
+	return jqutil.CompileOptsWithVariables(varNames)
 }
 
 func buildVarNamesCacheKey(varNames []string) string {

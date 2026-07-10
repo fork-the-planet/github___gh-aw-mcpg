@@ -13,3 +13,14 @@ import "github.com/itchyny/gojq"
 var SecureCompileOpts = []gojq.CompilerOption{
 	gojq.WithEnvironLoader(func() []string { return nil }), // explicitly disable $ENV access (defense-in-depth)
 }
+
+// CompileOptsWithVariables returns a new slice combining SecureCompileOpts with
+// gojq.WithVariables for the given variable names. The returned slice is always
+// a fresh allocation, so callers never mutate the shared SecureCompileOpts
+// backing array.
+func CompileOptsWithVariables(varNames []string) []gojq.CompilerOption {
+	opts := make([]gojq.CompilerOption, 0, len(SecureCompileOpts)+1)
+	opts = append(opts, SecureCompileOpts...)
+	opts = append(opts, gojq.WithVariables(varNames))
+	return opts
+}

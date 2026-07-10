@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/github/gh-aw-mcpg/internal/jqutil"
 	"github.com/github/gh-aw-mcpg/internal/oidc"
 	"github.com/itchyny/gojq"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -142,7 +143,7 @@ func validateToolResponseFiltersWithVars(filters map[string]string, jsonPath str
 			return fmt.Errorf("%s.%s contains an invalid jq expression: %w", jsonPath, toolName, err)
 		}
 		if _, err := gojq.Compile(query,
-			append(secureCompileOpts, gojq.WithVariables(varNames))...,
+			jqutil.CompileOptsWithVariables(varNames)...,
 		); err != nil {
 			return fmt.Errorf("%s.%s contains an invalid jq expression: %w", jsonPath, toolName, err)
 		}
