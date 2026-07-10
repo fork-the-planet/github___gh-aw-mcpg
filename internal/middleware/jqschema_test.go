@@ -947,28 +947,6 @@ func TestApplyJqSchema_TimeoutBehavior(t *testing.T) {
 		assert.Equal(t, "number", schema["level"], "Level should have number type")
 		assert.Contains(t, schema, "child", "Should contain child field")
 	})
-
-	t.Run("returns compilation error when init failed", func(t *testing.T) {
-		// Save the current compiled code and error
-		originalCode := jqSchemaCode
-		originalErr := jqSchemaCompileErr
-
-		// Simulate compilation failure
-		jqSchemaCode = nil
-		jqSchemaCompileErr = assert.AnError
-
-		// Restore after test
-		defer func() {
-			jqSchemaCode = originalCode
-			jqSchemaCompileErr = originalErr
-		}()
-
-		input := map[string]interface{}{"test": "data"}
-		_, err := applyJqSchema(context.Background(), input)
-
-		require.Error(t, err, "Should return error when compilation failed")
-		assert.ErrorContains(t, err, "not compiled", "Error should mention compilation failure")
-	})
 }
 
 // TestApplyJqSchema_ContextTimeout tests timeout behavior with various context configurations
@@ -1687,10 +1665,14 @@ func TestInferSchema(t *testing.T) {
 }
 
 // TestInferSchema_MatchesJqOutput verifies that inferSchema (called directly) produces
-// the same output as applyJqSchema (which invokes inferSchema via the gojq runtime).
+// the same output as the compiled jq expression via jqSchemaCode.RunWithContext.
 // This validates the gojq.WithFunction wiring: that the compiled jq code correctly
 // dispatches to the native Go implementation for all supported input shapes.
+// It acts as a canary to detect any future divergence between inferSchema and the
+// jq reference implementation.
 func TestInferSchema_MatchesJqOutput(t *testing.T) {
+	require.NotNil(t, jqSchemaCode, "jq schema compiled code must not be nil")
+
 	inputs := []interface{}{
 		map[string]interface{}{"name": "test", "count": 42},
 		map[string]interface{}{"user": map[string]interface{}{"id": 123, "active": true}},
@@ -1702,18 +1684,22 @@ func TestInferSchema_MatchesJqOutput(t *testing.T) {
 	for _, input := range inputs {
 		inputJSON, _ := json.Marshal(input)
 		t.Run(string(inputJSON), func(t *testing.T) {
-			jqResult, err := applyJqSchema(context.Background(), input)
-			require.NoError(t, err, "applyJqSchema must not error")
+			// Exercise the compiled jq expression path directly.
+			iter := jqSchemaCode.RunWithContext(context.Background(), input)
+			jqRaw, ok := iter.Next()
+			require.True(t, ok, "jq walk_schema must produce at least one output")
+			_, isErr := jqRaw.(error)
+			require.False(t, isErr, "jq walk_schema must not produce an error: %v", jqRaw)
 
 			goResult := inferSchema(input)
 
-			jqJSON, err := json.Marshal(jqResult)
+			jqJSON, err := json.Marshal(jqRaw)
 			require.NoError(t, err)
 			goJSON, err := json.Marshal(goResult)
 			require.NoError(t, err)
 
 			assert.JSONEq(t, string(jqJSON), string(goJSON),
-				"inferSchema output must match applyJqSchema output")
+				"inferSchema output must match jq walk_schema output")
 		})
 	}
 }

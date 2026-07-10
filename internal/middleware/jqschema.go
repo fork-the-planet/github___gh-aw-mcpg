@@ -151,7 +151,7 @@ func applyJqSchema(ctx context.Context, jsonData any) (any, error) {
 	// Check context before doing any work, mirroring the behaviour of the former
 	// gojq-based path which checked ctx before running the iterator.
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("jq query execution failed: %w", err)
+		return nil, fmt.Errorf("schema inference failed: %w", err)
 	}
 
 	logMiddleware.Printf("applyJqSchema: starting schema inference, dataType=%T", jsonData)
