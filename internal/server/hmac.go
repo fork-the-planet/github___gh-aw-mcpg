@@ -206,5 +206,10 @@ func hmacMiddleware(secret string, next http.HandlerFunc) http.HandlerFunc {
 // applyHMACIfConfigured wraps handler with HMAC validation when secret is non-empty.
 // If secret is empty the handler is returned unchanged (backward-compatible plain HTTP).
 func applyHMACIfConfigured(secret string, handler http.HandlerFunc) http.HandlerFunc {
+	if secret != "" {
+		logHMAC.Print("HMAC secret configured, applying middleware")
+	} else {
+		logHMAC.Print("No HMAC secret configured, skipping middleware")
+	}
 	return applyIfConfigured(secret, handler, hmacMiddleware)
 }

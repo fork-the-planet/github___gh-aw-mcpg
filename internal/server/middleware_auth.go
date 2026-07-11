@@ -62,11 +62,17 @@ func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
 }
 
 func rejectAuthRequest(w http.ResponseWriter, r *http.Request, status int, code, msg, detail string) {
+	logAuth.Printf("Rejecting auth request: status=%d, code=%s, detail=%s, path=%s, remote=%s", status, code, detail, r.URL.Path, r.RemoteAddr)
 	rejectRequest(w, r, status, code, msg, "auth", "authentication_failed", detail)
 }
 
 // applyAuthIfConfigured applies authentication middleware if an API key is provided
 // Returns the handler unchanged if apiKey is empty
 func applyAuthIfConfigured(apiKey string, handler http.HandlerFunc) http.HandlerFunc {
+	if apiKey != "" {
+		logAuth.Print("Auth key configured, applying middleware")
+	} else {
+		logAuth.Print("No auth key configured, skipping middleware")
+	}
 	return applyIfConfigured(apiKey, handler, authMiddleware)
 }
