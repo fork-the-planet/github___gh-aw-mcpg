@@ -39,7 +39,7 @@ func makeTestUnifiedServer(t *testing.T) *UnifiedServer {
 		ctx:       ctx,
 		testMode:  true,
 	}
-	t.Cleanup(func() { us.Close() })
+t.Cleanup(l.Close)
 	return us
 }
 
