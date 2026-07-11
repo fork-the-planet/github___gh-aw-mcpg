@@ -120,11 +120,16 @@ func TestHandleHealth_AllHTTPMethods(t *testing.T) {
 	t.Parallel()
 	us := makeTestUnifiedServer(t)
 
-	methods := []string{
+methods := []string{
+		http.MethodConnect,
+		http.MethodDelete,
 		http.MethodGet,
-		http.MethodPost,
 		http.MethodHead,
 		http.MethodOptions,
+		http.MethodPatch,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodTrace,
 	}
 
 	for _, method := range methods {
