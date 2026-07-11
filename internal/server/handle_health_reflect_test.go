@@ -39,7 +39,7 @@ func makeTestUnifiedServer(t *testing.T) *UnifiedServer {
 		ctx:       ctx,
 		testMode:  true,
 	}
-t.Cleanup(l.Close)
+	t.Cleanup(l.Close)
 	return us
 }
 
@@ -120,7 +120,7 @@ func TestHandleHealth_AllHTTPMethods(t *testing.T) {
 	t.Parallel()
 	us := makeTestUnifiedServer(t)
 
-methods := []string{
+	methods := []string{
 		http.MethodConnect,
 		http.MethodDelete,
 		http.MethodGet,
@@ -206,7 +206,7 @@ func TestHandleReflect_AllHTTPMethods(t *testing.T) {
 	t.Parallel()
 	us := makeTestUnifiedServer(t)
 
-methods := []string{
+	methods := []string{
 		http.MethodConnect,
 		http.MethodDelete,
 		http.MethodGet,
