@@ -222,8 +222,10 @@ func TestVerifySinkVisibility_APIError(t *testing.T) {
 }
 
 func TestFetchRepoVisibility_NetworkError(t *testing.T) {
-	// Use an address that immediately refuses connections.
-	_, err := FetchRepoVisibility(context.Background(), "http://127.0.0.1:1", "octo/repo", "token test")
+server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	serverURL := server.URL
+	server.Close()
+	_, err := FetchRepoVisibility(context.Background(), serverURL, "octo/repo", "token test")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to fetch repo visibility")
 }
