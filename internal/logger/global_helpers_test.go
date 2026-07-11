@@ -170,9 +170,9 @@ func TestInitAndSetGlobalLoggerOnSuccess_DoesNotOverwriteOnError(t *testing.T) {
 	resetAllGlobalLoggers(t)
 	t.Cleanup(func() { resetAllGlobalLoggers(t) })
 
-tmpDir := t.TempDir()
-t.Cleanup(func() { require.NoError(t, CloseAllLoggers()) })
-require.NoError(t, InitJSONLLogger(tmpDir, "test.jsonl"))
+	tmpDir := t.TempDir()
+	t.Cleanup(func() { require.NoError(t, CloseAllLoggers()) })
+	require.NoError(t, InitJSONLLogger(tmpDir, "test.jsonl"))
 
 	globalJSONLMu.RLock()
 	original := globalJSONLLogger
@@ -211,9 +211,9 @@ func TestInitAndSetGlobalNoFileLogger_UsesFallbackOnMkdirError(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-globalServerLoggerMu.RLock()
-logger := globalServerFileLogger
-globalServerLoggerMu.RUnlock()
-require.NotNil(t, logger)
-assert.True(t, logger.useFallback, "mkdir failure should initialize server logger in fallback mode")
+	globalServerLoggerMu.RLock()
+	logger := globalServerFileLogger
+	globalServerLoggerMu.RUnlock()
+	require.NotNil(t, logger)
+	assert.True(t, logger.useFallback, "mkdir failure should initialize server logger in fallback mode")
 }
