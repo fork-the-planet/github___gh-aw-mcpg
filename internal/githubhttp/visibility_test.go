@@ -227,7 +227,7 @@ server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Re
 	server.Close()
 	_, err := FetchRepoVisibility(context.Background(), serverURL, "octo/repo", "token test")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to fetch repo visibility")
+assert.ErrorContains(t, err, "failed to fetch repo visibility")
 }
 
 func TestFetchRepoVisibility_InvalidJSON(t *testing.T) {
