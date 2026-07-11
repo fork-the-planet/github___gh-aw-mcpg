@@ -239,5 +239,5 @@ func TestFetchRepoVisibility_InvalidJSON(t *testing.T) {
 
 	_, err := FetchRepoVisibility(context.Background(), server.URL, "octo/repo", "token test")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to decode repo response")
+assert.ErrorContains(t, err, "failed to decode repo response")
 }
