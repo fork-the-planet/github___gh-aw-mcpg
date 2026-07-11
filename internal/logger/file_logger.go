@@ -24,8 +24,8 @@ var (
 )
 
 // fileLoggerFactory bundles the setup and error-handler for FileLogger.
-var fileLoggerFactory = loggerFactory[*FileLogger]{
-	setup: func(file *os.File, logDir, fileName string) (*FileLogger, error) {
+var fileLoggerFactory = newLoggerFactory(
+	func(file *os.File, logDir, fileName string) (*FileLogger, error) {
 		fl := &FileLogger{
 			logDir:   logDir,
 			fileName: fileName,
@@ -35,7 +35,7 @@ var fileLoggerFactory = loggerFactory[*FileLogger]{
 		log.Printf("Logging to file: %s", filepath.Join(logDir, fileName))
 		return fl, nil
 	},
-	onError: func(err error, logDir, fileName string) (*FileLogger, error) {
+	func(err error, logDir, fileName string) (*FileLogger, error) {
 		// Stderr is used (not stdout) to avoid corrupting the stdout JSON channel that
 		// callers use to receive the gateway configuration output.
 		return fallbackLoggerOnInitError(err, "Failed to initialize log file", "Falling back to stderr for logging", &FileLogger{
@@ -45,14 +45,12 @@ var fileLoggerFactory = loggerFactory[*FileLogger]{
 			logger:      log.New(os.Stderr, "", 0),
 		})
 	},
-}
+)
 
 // InitFileLogger initializes the global file logger
 // If the log directory doesn't exist and can't be created, falls back to stderr
 func InitFileLogger(logDir, fileName string) error {
-	logger, err := initLogger(logDir, fileName, os.O_APPEND, fileLoggerFactory)
-	initGlobalLogger(&globalLoggerMu, &globalFileLogger, logger)
-	return err
+	return initAndSetGlobalLogger(&globalLoggerMu, &globalFileLogger, logDir, fileName, os.O_APPEND, fileLoggerFactory)
 }
 
 // Close closes the log file

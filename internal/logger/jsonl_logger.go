@@ -46,8 +46,8 @@ type JSONLRPCMessage struct {
 }
 
 // jsonlLoggerFactory bundles the setup and error-handler for JSONLLogger.
-var jsonlLoggerFactory = loggerFactory[*JSONLLogger]{
-	setup: func(file *os.File, logDir, fileName string) (*JSONLLogger, error) {
+var jsonlLoggerFactory = newLoggerFactory(
+	func(file *os.File, logDir, fileName string) (*JSONLLogger, error) {
 		jl := &JSONLLogger{
 			logDir:   logDir,
 			fileName: fileName,
@@ -56,24 +56,15 @@ var jsonlLoggerFactory = loggerFactory[*JSONLLogger]{
 		}
 		return jl, nil
 	},
-	onError: func(err error, _ string, _ string) (*JSONLLogger, error) {
+	func(err error, _ string, _ string) (*JSONLLogger, error) {
 		// JSONLLogger has no fallback mode — return the error immediately.
 		return strictLoggerOnInitError[*JSONLLogger](err)
 	},
-}
+)
 
 // InitJSONLLogger initializes the global JSONL logger
 func InitJSONLLogger(logDir, fileName string) error {
-	logger, err := initLogger(logDir, fileName, os.O_APPEND, jsonlLoggerFactory)
-
-	// Only initialize global logger if successful (no error)
-	// Unlike FileLogger/MarkdownLogger which return fallback loggers,
-	// JSONLLogger has no fallback mode, so we should not initialize
-	// the global logger when initialization fails
-	if err == nil {
-		initGlobalLogger(&globalJSONLMu, &globalJSONLLogger, logger)
-	}
-	return err
+	return initAndSetGlobalLoggerOnSuccess(&globalJSONLMu, &globalJSONLLogger, logDir, fileName, os.O_APPEND, jsonlLoggerFactory)
 }
 
 // Close closes the JSONL log file

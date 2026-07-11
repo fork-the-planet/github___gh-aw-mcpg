@@ -26,16 +26,16 @@ var (
 // serverFileLoggerFactory bundles the setup and error-handler for ServerFileLogger.
 // Unlike other factories, setup receives a nil file because ServerFileLogger creates
 // per-serverID files on demand rather than opening a single file at initialization.
-var serverFileLoggerFactory = loggerFactory[*ServerFileLogger]{
-	setup: func(_ *os.File, logDir, _ string) (*ServerFileLogger, error) {
+var serverFileLoggerFactory = newLoggerFactory(
+	func(_ *os.File, logDir, _ string) (*ServerFileLogger, error) {
 		log.Printf("Initialized per-serverID logging in directory: %s", logDir)
 		return newServerFileLogger(logDir, false), nil
 	},
-	onError: func(err error, logDir, _ string) (*ServerFileLogger, error) {
+	func(err error, logDir, _ string) (*ServerFileLogger, error) {
 		return fallbackLoggerOnInitError(err, "Failed to create log directory for server logs",
 			"Falling back to unified logging only", newServerFileLogger(logDir, true))
 	},
-}
+)
 
 func newServerFileLogger(logDir string, useFallback bool) *ServerFileLogger {
 	return &ServerFileLogger{
@@ -48,18 +48,7 @@ func newServerFileLogger(logDir string, useFallback bool) *ServerFileLogger {
 
 // InitServerFileLogger initializes the global server file logger
 func InitServerFileLogger(logDir string) error {
-	var sfl *ServerFileLogger
-	var initErr error
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		sfl, initErr = serverFileLoggerFactory.onError(err, logDir, "")
-	} else {
-		sfl, initErr = serverFileLoggerFactory.setup(nil, logDir, "")
-	}
-	if initErr != nil {
-		return initErr
-	}
-	initGlobalLogger(&globalServerLoggerMu, &globalServerFileLogger, sfl)
-	return nil
+	return initAndSetGlobalNoFileLogger(&globalServerLoggerMu, &globalServerFileLogger, logDir, serverFileLoggerFactory)
 }
 
 // getOrCreateLogger returns a logger for the given serverID, creating it if necessary

@@ -25,8 +25,8 @@ var (
 )
 
 // markdownLoggerFactory bundles the setup and error-handler for MarkdownLogger.
-var markdownLoggerFactory = loggerFactory[*MarkdownLogger]{
-	setup: func(file *os.File, logDir, fileName string) (*MarkdownLogger, error) {
+var markdownLoggerFactory = newLoggerFactory(
+	func(file *os.File, logDir, fileName string) (*MarkdownLogger, error) {
 		ml := &MarkdownLogger{
 			logDir:      logDir,
 			fileName:    fileName,
@@ -35,7 +35,7 @@ var markdownLoggerFactory = loggerFactory[*MarkdownLogger]{
 		}
 		return ml, nil
 	},
-	onError: func(_ error, logDir, fileName string) (*MarkdownLogger, error) {
+	func(_ error, logDir, fileName string) (*MarkdownLogger, error) {
 		// Sets fallback mode (no stdout redirect) when the file cannot be opened.
 		return silentFallbackLoggerOnInitError(&MarkdownLogger{
 			logDir:      logDir,
@@ -43,13 +43,11 @@ var markdownLoggerFactory = loggerFactory[*MarkdownLogger]{
 			useFallback: true,
 		})
 	},
-}
+)
 
 // InitMarkdownLogger initializes the global markdown logger
 func InitMarkdownLogger(logDir, fileName string) error {
-	logger, err := initLogger(logDir, fileName, os.O_TRUNC, markdownLoggerFactory)
-	initGlobalLogger(&globalMarkdownMu, &globalMarkdownLogger, logger)
-	return err
+	return initAndSetGlobalLogger(&globalMarkdownMu, &globalMarkdownLogger, logDir, fileName, os.O_TRUNC, markdownLoggerFactory)
 }
 
 // initializeFile writes the HTML details header on first write

@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -163,4 +164,54 @@ func TestCloseAllLoggers_FirstErrorIsReturned(t *testing.T) {
 	// not from the second closer (JSONLLogger, using secondLogDir).
 	assert.ErrorContains(t, err, firstLogDir,
 		"error should originate from the first closer (FileLogger)")
+}
+
+func TestInitAndSetGlobalLoggerOnSuccess_DoesNotOverwriteOnError(t *testing.T) {
+	resetAllGlobalLoggers(t)
+	t.Cleanup(func() { resetAllGlobalLoggers(t) })
+
+	tmpDir := t.TempDir()
+	require.NoError(t, InitJSONLLogger(tmpDir, "test.jsonl"))
+
+	globalJSONLMu.RLock()
+	original := globalJSONLLogger
+	globalJSONLMu.RUnlock()
+	require.NotNil(t, original)
+
+	err := initAndSetGlobalLoggerOnSuccess(
+		&globalJSONLMu,
+		&globalJSONLLogger,
+		"/proc/self/invalid",
+		"test.jsonl",
+		os.O_APPEND,
+		jsonlLoggerFactory,
+	)
+	require.Error(t, err)
+
+	globalJSONLMu.RLock()
+	current := globalJSONLLogger
+	globalJSONLMu.RUnlock()
+	assert.Same(t, original, current, "failed init should preserve existing global JSONL logger")
+}
+
+func TestInitAndSetGlobalNoFileLogger_UsesFallbackOnMkdirError(t *testing.T) {
+	resetAllGlobalLoggers(t)
+	t.Cleanup(func() { resetAllGlobalLoggers(t) })
+
+	tmpDir := t.TempDir()
+	blockingFile := filepath.Join(tmpDir, "not-a-dir")
+	require.NoError(t, os.WriteFile(blockingFile, []byte("x"), 0644))
+
+	err := initAndSetGlobalNoFileLogger(
+		&globalServerLoggerMu,
+		&globalServerFileLogger,
+		filepath.Join(blockingFile, "subdir"),
+		serverFileLoggerFactory,
+	)
+	require.NoError(t, err)
+
+	globalServerLoggerMu.RLock()
+	require.NotNil(t, globalServerFileLogger)
+	assert.True(t, globalServerFileLogger.useFallback, "mkdir failure should initialize server logger in fallback mode")
+	globalServerLoggerMu.RUnlock()
 }

@@ -59,6 +59,14 @@ type closableLogger interface {
 	Close() error
 }
 
+// newLoggerFactory creates a loggerFactory from setup and error-handler callbacks.
+func newLoggerFactory[T closableLogger](setup loggerSetupFunc[T], onError loggerErrorHandlerFunc[T]) loggerFactory[T] {
+	return loggerFactory[T]{
+		setup:   setup,
+		onError: onError,
+	}
+}
+
 // withGlobalLogger is a generic helper that encapsulates the common pattern for
 // accessing a global logger with proper RWMutex locking and nil-checking.
 //
@@ -116,6 +124,62 @@ func initGlobalLogger[T closableLogger](mu *sync.RWMutex, current *T, newLogger 
 		(*current).Close()
 	}
 	*current = newLogger
+}
+
+// initAndSetGlobalLogger initializes a logger via initLogger and sets it as the
+// global logger regardless of whether initialization returned an error (for
+// loggers that can return a fallback logger on error).
+func initAndSetGlobalLogger[T closableLogger](
+	mu *sync.RWMutex,
+	current *T,
+	logDir, fileName string,
+	flags int,
+	factory loggerFactory[T],
+) error {
+	logger, err := initLogger(logDir, fileName, flags, factory)
+	initGlobalLogger(mu, current, logger)
+	return err
+}
+
+// initAndSetGlobalLoggerOnSuccess initializes a logger via initLogger and sets
+// it as the global logger only when initialization succeeds.
+func initAndSetGlobalLoggerOnSuccess[T closableLogger](
+	mu *sync.RWMutex,
+	current *T,
+	logDir, fileName string,
+	flags int,
+	factory loggerFactory[T],
+) error {
+	logger, err := initLogger(logDir, fileName, flags, factory)
+	if err == nil {
+		initGlobalLogger(mu, current, logger)
+	}
+	return err
+}
+
+// initAndSetGlobalNoFileLogger initializes a logger that does not open a file
+// at init time and only needs directory creation plus factory setup.
+func initAndSetGlobalNoFileLogger[T closableLogger](
+	mu *sync.RWMutex,
+	current *T,
+	logDir string,
+	factory loggerFactory[T],
+) error {
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		logger, initErr := factory.onError(err, logDir, "")
+		if initErr != nil {
+			return initErr
+		}
+		initGlobalLogger(mu, current, logger)
+		return nil
+	}
+
+	logger, err := factory.setup(nil, logDir, "")
+	if err != nil {
+		return err
+	}
+	initGlobalLogger(mu, current, logger)
+	return nil
 }
 
 // closeGlobalLogger is a generic helper that encapsulates the common pattern for

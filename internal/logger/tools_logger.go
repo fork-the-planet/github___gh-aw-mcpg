@@ -38,8 +38,8 @@ var (
 )
 
 // toolsLoggerFactory bundles the setup and error-handler for ToolsLogger.
-var toolsLoggerFactory = loggerFactory[*ToolsLogger]{
-	setup: func(file *os.File, logDir, fileName string) (*ToolsLogger, error) {
+var toolsLoggerFactory = newLoggerFactory(
+	func(file *os.File, logDir, fileName string) (*ToolsLogger, error) {
 		// Close the file immediately - we'll write directly later
 		if file != nil {
 			file.Close()
@@ -55,7 +55,7 @@ var toolsLoggerFactory = loggerFactory[*ToolsLogger]{
 		log.Printf("Tools logging to file: %s", filepath.Join(logDir, fileName))
 		return tl, nil
 	},
-	onError: func(err error, logDir, fileName string) (*ToolsLogger, error) {
+	func(err error, logDir, fileName string) (*ToolsLogger, error) {
 		return fallbackLoggerOnInitError(err, "Failed to initialize tools log file", "Tools logging disabled", &ToolsLogger{
 			logDir:      logDir,
 			fileName:    fileName,
@@ -65,14 +65,12 @@ var toolsLoggerFactory = loggerFactory[*ToolsLogger]{
 			},
 		})
 	},
-}
+)
 
 // InitToolsLogger initializes the global tools logger
 // If the log directory doesn't exist and can't be created, falls back to no-op
 func InitToolsLogger(logDir, fileName string) error {
-	logger, err := initLogger(logDir, fileName, os.O_TRUNC, toolsLoggerFactory)
-	initGlobalLogger(&globalToolsMu, &globalToolsLogger, logger)
-	return err
+	return initAndSetGlobalLogger(&globalToolsMu, &globalToolsLogger, logDir, fileName, os.O_TRUNC, toolsLoggerFactory)
 }
 
 // LogTools logs the tools for a specific server

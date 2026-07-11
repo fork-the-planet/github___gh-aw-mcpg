@@ -38,8 +38,8 @@ var (
 	globalObservedURLDomainsMu     sync.RWMutex
 )
 
-var observedURLDomainsLoggerFactory = loggerFactory[*ObservedURLDomainsLogger]{
-	setup: func(file *os.File, logDir, fileName string) (*ObservedURLDomainsLogger, error) {
+var observedURLDomainsLoggerFactory = newLoggerFactory(
+	func(file *os.File, logDir, fileName string) (*ObservedURLDomainsLogger, error) {
 		if file != nil {
 			file.Close()
 		}
@@ -55,7 +55,7 @@ var observedURLDomainsLoggerFactory = loggerFactory[*ObservedURLDomainsLogger]{
 		log.Printf("Observed URL domains logging to file: %s", filepath.Join(logDir, fileName))
 		return l, nil
 	},
-	onError: func(err error, logDir, fileName string) (*ObservedURLDomainsLogger, error) {
+	func(err error, logDir, fileName string) (*ObservedURLDomainsLogger, error) {
 		return fallbackLoggerOnInitError(err, "Failed to initialize observed URL domains log file", "Observed URL domains logging disabled", &ObservedURLDomainsLogger{
 			logDir:      logDir,
 			fileName:    fileName,
@@ -63,13 +63,11 @@ var observedURLDomainsLoggerFactory = loggerFactory[*ObservedURLDomainsLogger]{
 			useFallback: true,
 		})
 	},
-}
+)
 
 // InitObservedURLDomainsLogger initializes observed-url-domains.json logger.
 func InitObservedURLDomainsLogger(logDir, fileName string) error {
-	l, err := initLogger(logDir, fileName, os.O_TRUNC, observedURLDomainsLoggerFactory)
-	initGlobalLogger(&globalObservedURLDomainsMu, &globalObservedURLDomainsLogger, l)
-	return err
+	return initAndSetGlobalLogger(&globalObservedURLDomainsMu, &globalObservedURLDomainsLogger, logDir, fileName, os.O_TRUNC, observedURLDomainsLoggerFactory)
 }
 
 // LogDomains logs unique domains for a server ID.
