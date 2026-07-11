@@ -62,6 +62,14 @@ When running `awmg` directly (outside `docker run`), useful CLI flags include:
 - `-v`, `-vv`, `-vvv`: Increase verbosity (`info`, `debug`, `trace`).
 - A complete reference for all environment variables — including guard policy, TLS, tracing, authentication tokens, and containerized deployment — is in [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md).
 
+Common operational environment variables include:
+- `MCP_GATEWAY_SHUTDOWN_TIMEOUT`
+- `MCP_GATEWAY_WASM_CACHE_DIR`
+- `MCP_GATEWAY_PAYLOAD_PATH_PREFIX`
+- `MCP_GATEWAY_URL_DOMAIN_AUDIT`
+- `MCP_GATEWAY_TLS_CERT`, `MCP_GATEWAY_TLS_KEY`, `MCP_GATEWAY_CA_CERT`, `MCP_GATEWAY_HMAC_SECRET`
+- `MCP_GATEWAY_GUARD_POLICY_JSON`, `MCP_GATEWAY_GUARDS_SINK_SERVER_IDS`
+
 ## Authentication
 
 The gateway reads a GitHub token from the first non-empty value of these variables (checked in priority order):
@@ -185,9 +193,15 @@ Key configuration fields (gateway-level under `[gateway]` in TOML / `"gateway"` 
 | `agent_id` / `agentId` | Agent/session identifier used for routing and optional auth matching |
 | `api_key` / `apiKey` | Deprecated alias for `agent_id` / `agentId` (accepted with warnings) |
 | `port` | Metadata only; validated (1–65535) but does not control the listen address. Use the `--listen` flag to set the listen address; `MCP_GATEWAY_PORT` is used by `run.sh`/`run_containerized.sh` to build the `--listen` argument, not read directly by `awmg`. |
+| `keepalive_interval` / `keepaliveInterval` | Interval in seconds between keepalive pings sent to HTTP backends (`-1` disables keepalive; default `1500`) |
 | `payload_dir` / `payloadDir` | Directory for large payload storage (must be absolute path) |
+| `payload_path_prefix` / `payloadPathPrefix` | Optional path prefix used when returning `payloadPath` values to clients (for remapped/mounted payload directories) |
 | `payload_size_threshold` / `payloadSizeThreshold` | Size threshold in bytes for payload storage (default: `524288`) |
 | `trusted_bots` / `trustedBots` | Additional bot usernames to treat as trusted with "approved" integrity. Additive to the built-in trusted bot list. Non-empty array when present. Example: `["my-bot[bot]"]` |
+| `force_public_repos` / `forcePublicRepos` | Enables/disables auto-forcing allow-only policy to `repos="public"` when the workflow repository is public (default enabled) |
+| `sink_visibility_exempt_servers` / `sinkVisibilityExemptServers` | Server IDs exempted from default sink-visibility enforcement for write-sink handling |
+| `[gateway.opentelemetry]` / `[gateway.tracing]` (TOML), `gateway.opentelemetry` (JSON stdin) | Nested OpenTelemetry tracing configuration blocks (`opentelemetry` is preferred; legacy TOML `tracing` is still supported) |
+| `guards` (JSON stdin top-level / TOML top-level) | Optional guard definitions and policy configuration used for DIFC enforcement |
 | `customSchemas` (JSON stdin top-level) | Map custom server `type` names to HTTPS JSON schema URLs for custom server validation |
 
 For the full gateway field list (including rate limiting, tracing, keepalive, and more), see **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**.
