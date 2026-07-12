@@ -6,8 +6,11 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
+var logConnLogging = logger.New("mcp:connection_logging")
+
 // logReconnectStart emits the structured log warning that is common to all reconnect paths.
 func (c *Connection) logReconnectStart() {
+	logConnLogging.Printf("Session expired, starting reconnect: serverID=%s", c.serverID)
 	logger.LogWarn("backend", "MCP session expired for %s, attempting to reconnect...", c.serverID)
 }
 
@@ -15,27 +18,33 @@ func (c *Connection) logReconnectStart() {
 // succeeded or failed. It is the common success/failure telemetry shared by all reconnect paths.
 func (c *Connection) logReconnectResult(err error) {
 	if err != nil {
+		logConnLogging.Printf("Reconnect failed: serverID=%s, error=%v", c.serverID, err)
 		logger.LogError("backend", "Session reconnect failed for %s: %v", c.serverID, err)
 	} else {
+		logConnLogging.Printf("Reconnect succeeded: serverID=%s", c.serverID)
 		logger.LogInfo("backend", "Session successfully reconnected for %s", c.serverID)
 	}
 }
 
 func snapshotTags(snapshot *AgentTagsSnapshot) ([]string, []string) {
 	if snapshot == nil {
+		logConnLogging.Print("snapshotTags: no agent tag snapshot attached")
 		return nil, nil
 	}
+	logConnLogging.Printf("snapshotTags: secrecyCount=%d, integrityCount=%d", len(snapshot.Secrecy), len(snapshot.Integrity))
 	return snapshot.Secrecy, snapshot.Integrity
 }
 
 // logOutboundRPCRequest logs an outbound RPC request, optionally attaching agent DIFC tag snapshots.
 func logOutboundRPCRequest(serverID string, method string, payload []byte, snapshot *AgentTagsSnapshot) {
+	logConnLogging.Printf("Outbound RPC request: serverID=%s, method=%s, payloadBytes=%d", serverID, method, len(payload))
 	agentSecrecy, agentIntegrity := snapshotTags(snapshot)
 	logger.LogRPCRequest(logger.RPCDirectionOutbound, serverID, method, payload, agentSecrecy, agentIntegrity)
 }
 
 // logInboundRPCResponse logs an inbound RPC response, optionally attaching agent DIFC tag snapshots.
 func logInboundRPCResponse(serverID string, payload []byte, err error, snapshot *AgentTagsSnapshot) {
+	logConnLogging.Printf("Inbound RPC response: serverID=%s, payloadBytes=%d, hasError=%v", serverID, len(payload), err != nil)
 	agentSecrecy, agentIntegrity := snapshotTags(snapshot)
 	logger.LogRPCResponse(logger.RPCDirectionInbound, serverID, payload, err, agentSecrecy, agentIntegrity)
 }
