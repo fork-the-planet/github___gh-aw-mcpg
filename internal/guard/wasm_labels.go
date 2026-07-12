@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
@@ -156,19 +155,4 @@ func unmarshalWasmResponse(funcName string, data []byte) (map[string]any, error)
 		return nil, fmt.Errorf("failed to unmarshal %s WASM response: %w", funcName, err)
 	}
 	return m, nil
-}
-
-// validateIntegrityField returns an error if raw is not a valid integrity-level
-// string. fieldName is used in the error message (e.g. "disapproval-integrity").
-// It delegates to config.ValidateAndNormalizeIntegrityField for validation.
-//
-// TODO: if this function grows in complexity or is reused outside of this file,
-// move it to guard/validation.go alongside other guard policy validation helpers.
-func validateIntegrityField(fieldName string, raw interface{}) error {
-	s, ok := raw.(string)
-	if !ok {
-		s = ""
-	}
-	_, err := config.ValidateAndNormalizeIntegrityField(fieldName, s, false)
-	return err
 }
