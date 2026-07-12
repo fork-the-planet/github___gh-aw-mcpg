@@ -10,6 +10,23 @@ import (
 
 var logGraphQLRewrite = logger.New("proxy:graphql_rewrite")
 
+// Pre-compiled patterns used in injectFieldsIntoQuery.
+// Compiling these once at package init avoids repeated regexp compilation on
+// every GraphQL request, which is measurably expensive for high-throughput use.
+var (
+	// reFragmentInNodes matches: nodes { ...fragmentName
+	reFragmentInNodes = regexp.MustCompile(`nodes\s*\{\s*\.\.\.(\w+)`)
+
+	// reInlineFragInNodes matches: nodes { ... on Type {
+	reInlineFragInNodes = regexp.MustCompile(`nodes\s*\{[^{}]*\.\.\.\s*on\s+\w+\s*\{`)
+
+	// reInlineFragOpen matches the opening of an inline fragment spread: ... on Type {
+	reInlineFragOpen = regexp.MustCompile(`(\.\.\.\s*on\s+\w+\s*\{)`)
+
+	// reNodesBlock matches the nodes keyword followed by an opening brace.
+	reNodesBlock = regexp.MustCompile(`nodes\s*\{`)
+)
+
 // guardFieldSet defines the GraphQL fields the DIFC guard needs for a
 // specific class of GitHub objects.
 type guardFieldSet struct {
@@ -137,8 +154,7 @@ func injectFieldsIntoQuery(query string, fields []string, safeParents map[string
 
 	// Step 1: Check if the query uses a fragment spread in the nodes.
 	// Pattern: nodes { ...fragmentName }
-	fragmentInNodes := regexp.MustCompile(`nodes\s*\{\s*\.\.\.(\w+)`)
-	if m := fragmentInNodes.FindStringSubmatch(query); m != nil {
+	if m := reFragmentInNodes.FindStringSubmatch(query); m != nil {
 		fragName := m[1]
 		logGraphQLRewrite.Printf("Injecting into named fragment: fragName=%s, fields=%q", fragName, injection)
 		return injectIntoFragment(query, fragName, injection)
@@ -147,13 +163,11 @@ func injectFieldsIntoQuery(query string, fields []string, safeParents map[string
 	// Step 2: Check if nodes contains an inline fragment (... on Type { ... }).
 	// For union/interface types (e.g., SearchResultItem), fields must go
 	// inside the inline fragment, not directly on the nodes level.
-	inlineFragPattern := regexp.MustCompile(`nodes\s*\{[^{}]*\.\.\.\s*on\s+\w+\s*\{`)
-	if inlineFragPattern.MatchString(query) {
+	if reInlineFragInNodes.MatchString(query) {
 		// Find the inline fragment's opening brace and inject after it
-		inlineOpenPattern := regexp.MustCompile(`(\.\.\.\s*on\s+\w+\s*\{)`)
-		if inlineOpenPattern.MatchString(query) {
+		if reInlineFragOpen.MatchString(query) {
 			logGraphQLRewrite.Printf("Injecting into inline fragment: fields=%q", injection)
-			return inlineOpenPattern.ReplaceAllString(query, "${1}"+injection+",")
+			return reInlineFragOpen.ReplaceAllString(query, "${1}"+injection+",")
 		}
 	}
 
@@ -161,8 +175,7 @@ func injectFieldsIntoQuery(query string, fields []string, safeParents map[string
 	// Only inject into nodes blocks whose parent connection field is in the
 	// safeParents set. This prevents injecting fields like authorAssociation
 	// into nodes of types that don't support them (e.g. User, Label, Team).
-	nodesPattern := regexp.MustCompile(`nodes\s*\{`)
-	matches := nodesPattern.FindAllStringIndex(query, -1)
+	matches := reNodesBlock.FindAllStringIndex(query, -1)
 	if len(matches) > 0 {
 		var buf strings.Builder
 		pos := 0
