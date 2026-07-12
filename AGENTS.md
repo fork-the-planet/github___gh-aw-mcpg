@@ -43,7 +43,7 @@ Quick reference for AI agents working with MCP Gateway (Go-based MCP proxy serve
 - `internal/middleware/` - HTTP middleware (jq schema processing)
 - `internal/oidc/` - GitHub Actions OIDC token provider and caching
 - `internal/proxy/` - Filtering HTTP proxy for the GitHub API with DIFC enforcement
-- `internal/sanitize/` - Sensitive data redaction utilities (`SanitizeString`, `SanitizeJSON`, `TruncateSecret`) for safe log output
+- `internal/sanitize/` - Sensitive data redaction utilities (`SanitizeString`, `SanitizeJSON`, `RedactSecret`) for safe log output
 - `internal/server/` - HTTP server (routed/unified modes)
 - `internal/util/` - String, formatting, randomness, and JSON deep-clone utilities
 - `internal/syncutil/` - Concurrency utilities

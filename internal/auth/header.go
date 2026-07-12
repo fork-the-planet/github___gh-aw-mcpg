@@ -85,7 +85,7 @@ func stripAuthScheme(authHeader string) (scheme, value string, matched bool) {
 //   - agentID: The extracted agent/session identifier
 //   - error: ErrMissingAuthHeader if header is empty, nil otherwise
 func ParseAuthHeader(authHeader string) (apiKey string, agentID string, error error) {
-	log.Printf("Parsing auth header: sanitized=%s, length=%d", sanitize.TruncateSecret(authHeader), len(authHeader))
+	log.Printf("Parsing auth header: sanitized=%s, length=%d", sanitize.RedactSecret(authHeader), len(authHeader))
 
 	if authHeader == "" {
 		log.Print("Auth header missing, returning error")
@@ -152,7 +152,7 @@ func ExtractAgentID(authHeader string) string {
 //   - Trimmed token value if Bearer format
 //   - Plain authHeader value otherwise
 func ExtractSessionID(authHeader string) string {
-	log.Printf("Extracting session ID from auth header: sanitized=%s", sanitize.TruncateSecret(authHeader))
+	log.Printf("Extracting session ID from auth header: sanitized=%s", sanitize.RedactSecret(authHeader))
 
 	if authHeader == "" {
 		log.Print("Auth header empty, returning empty session ID")

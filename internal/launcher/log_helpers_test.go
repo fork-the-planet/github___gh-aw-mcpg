@@ -160,7 +160,7 @@ func TestLauncher_LogLaunchStart(t *testing.T) {
 			args:            []string{"run", "-e", "API_KEY=secret-value-12345"},
 			isDirectCommand: false,
 			wantInLog: []string{
-				"secr...", // TruncateSecret shows first 4 chars + "..."
+				"secr...", // RedactSecret shows first 4 chars + "..."
 			},
 		},
 	}

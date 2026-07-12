@@ -62,7 +62,7 @@ func LogConnectionError(errCtx ConnectionErrorContext, err error) {
 	log.Printf("[LAUNCHER]   - Command: %s", errCtx.Command)
 	log.Printf("[LAUNCHER]   - Args: %v", sanitize.SanitizeArgs(errCtx.Args))
 	if len(errCtx.Env) > 0 {
-		log.Printf("[LAUNCHER]   - Env vars: %v", sanitize.TruncateSecretMap(errCtx.Env))
+		log.Printf("[LAUNCHER]   - Env vars: %v", sanitize.RedactSecretMap(errCtx.Env))
 	}
 	if errCtx.RunningInContainer || errCtx.IsDirectCommand {
 		log.Printf("[LAUNCHER]   - Running in container: %v", errCtx.RunningInContainer)
@@ -143,7 +143,7 @@ func (l *Launcher) logEnvPassthrough(args []string) {
 			return
 		}
 		if value != "" {
-			log.Printf("[LAUNCHER] ✓ Env passthrough: %s=%s (from MCPG process)", varName, sanitize.TruncateSecret(value))
+			log.Printf("[LAUNCHER] ✓ Env passthrough: %s=%s (from MCPG process)", varName, sanitize.RedactSecret(value))
 			return
 		}
 		log.Printf("[LAUNCHER] ⚠️  Env passthrough for %s is empty in MCPG process", varName)

@@ -91,7 +91,7 @@ func TestIsMalformedHeader(t *testing.T) {
 	}
 }
 
-func TestTruncateSecret(t *testing.T) {
+func TestRedactSecret(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -150,7 +150,7 @@ func TestTruncateSecret(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := sanitize.TruncateSecret(tt.input)
+			got := sanitize.RedactSecret(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
 	}

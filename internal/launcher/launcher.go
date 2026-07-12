@@ -259,7 +259,7 @@ func (l *Launcher) launchStdioConnection(serverID, sessionID string, serverCfg *
 	l.logEnvPassthrough(serverCfg.Args)
 
 	if len(serverCfg.Env) > 0 {
-		log.Printf("[LAUNCHER] Additional env vars: %v", sanitize.TruncateSecretMap(serverCfg.Env))
+		log.Printf("[LAUNCHER] Additional env vars: %v", sanitize.RedactSecretMap(serverCfg.Env))
 	}
 
 	log.Printf("[LAUNCHER] Starting server with %v timeout", l.startupTimeout)

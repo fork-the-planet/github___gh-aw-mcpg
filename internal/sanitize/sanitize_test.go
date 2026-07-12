@@ -323,7 +323,7 @@ func TestSecretPatternsCount(t *testing.T) {
 	assert.Equal(t, expectedPatternCount, actualCount, "Expected %d secret patterns, got %d", expectedPatternCount, actualCount)
 }
 
-func TestTruncateSecret(t *testing.T) {
+func TestRedactSecret(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -378,13 +378,13 @@ func TestTruncateSecret(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := TruncateSecret(tt.input)
+			got := RedactSecret(tt.input)
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestTruncateSecretMap(t *testing.T) {
+func TestRedactSecretMap(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    map[string]string
@@ -472,7 +472,7 @@ func TestTruncateSecretMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := TruncateSecretMap(tt.input)
+			result := RedactSecretMap(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

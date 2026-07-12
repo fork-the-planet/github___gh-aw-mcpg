@@ -52,7 +52,7 @@ func LoadEnvFile(path string) error {
 		}
 
 		// Log loaded variable (hide sensitive values)
-		logEnvFile.Printf("  Loaded: %s=%s", key, sanitize.TruncateSecret(value))
+		logEnvFile.Printf("  Loaded: %s=%s", key, sanitize.RedactSecret(value))
 		loadedVars++
 	}
 

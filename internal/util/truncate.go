@@ -1,3 +1,7 @@
+// Package util provides generic, reusable string and formatting helpers.
+// This file contains pure string-truncation utilities only; session-ID
+// formatting lives in session.go, and secret/security truncation lives in
+// the sanitize package.
 package util
 
 // Truncate truncates a string to the specified maximum length.
@@ -28,17 +32,6 @@ func TruncateWithSuffix(s string, maxLen int, suffix string) string {
 		return s
 	}
 	return s[:maxLen] + suffix
-}
-
-// FormatSessionIDForLog returns a log-safe session ID representation.
-// Empty session IDs are rendered as "(none)"; non-empty IDs are truncated to
-// the first 8 bytes with an ellipsis when needed.
-func FormatSessionIDForLog(sessionID string) string {
-	const sessionIDLogMaxLen = 8
-	if sessionID == "" {
-		return "(none)"
-	}
-	return Truncate(sessionID, sessionIDLogMaxLen)
 }
 
 // TruncateRunes truncates s to at most maxRunes Unicode code points (runes).

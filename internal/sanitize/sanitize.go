@@ -5,12 +5,12 @@
 //  1. Pattern-based detection: SanitizeString() and SanitizeJSON() use regex patterns
 //     to identify and redact secrets like API keys, tokens, and passwords.
 //
-//  2. Prefix truncation: TruncateSecret() and TruncateSecretMap() show only the first
+//  2. Prefix redaction: RedactSecret() and RedactSecretMap() show only the first
 //     4 characters of values, making them safe for logging without exposing full secrets.
 //
 // Usage Guidelines:
 //
-//   - Use TruncateSecret()/TruncateSecretMap() for auth headers and environment variables
+//   - Use RedactSecret()/RedactSecretMap() for auth headers and environment variables
 //     where you want to preserve a hint of the value for debugging.
 //
 //   - Use SanitizeString()/SanitizeJSON() for full payload sanitization where secrets
@@ -19,10 +19,10 @@
 // Example:
 //
 //	// For auth headers
-//	log.Printf("Auth: %s", sanitize.TruncateSecret(authHeader)) // "ghp_..." instead of full token
+//	log.Printf("Auth: %s", sanitize.RedactSecret(authHeader)) // "ghp_..." instead of full token
 //
 //	// For environment variables
-//	log.Printf("Env: %v", sanitize.TruncateSecretMap(envVars))
+//	log.Printf("Env: %v", sanitize.RedactSecretMap(envVars))
 //
 //	// For JSON payloads
 //	sanitized := sanitize.SanitizeJSON(payload) // Replaces detected secrets with [REDACTED]
@@ -82,11 +82,11 @@ func SanitizeString(message string) string {
 	return result
 }
 
-// TruncateSecret returns a sanitized version of the input string for safe logging.
+// RedactSecret returns a sanitized version of the input string for safe logging.
 // It shows only the first 4 characters followed by "..." to prevent exposing sensitive data.
 // For strings with 4 or fewer characters, it returns only "...".
 // For empty strings, it returns an empty string.
-func TruncateSecret(input string) string {
+func RedactSecret(input string) string {
 	if len(input) == 0 {
 		return ""
 	}
@@ -97,16 +97,16 @@ func TruncateSecret(input string) string {
 	return input[:prefixLen] + "..."
 }
 
-// TruncateSecretMap returns a sanitized version of environment variables
+// RedactSecretMap returns a sanitized version of environment variables
 // where each value is truncated to first 4 characters followed by "..."
 // This prevents sensitive information like API keys from being logged in full.
-func TruncateSecretMap(env map[string]string) map[string]string {
+func RedactSecretMap(env map[string]string) map[string]string {
 	if env == nil {
 		return nil
 	}
 	sanitized := make(map[string]string, len(env))
 	for key, value := range env {
-		sanitized[key] = TruncateSecret(value)
+		sanitized[key] = RedactSecret(value)
 	}
 	return sanitized
 }
@@ -170,7 +170,7 @@ func SanitizeArgs(args []string) []string {
 		// Format: -e VAR=VALUE
 		if i > 0 && args[i-1] == "-e" {
 			if varName, varValue, ok := strings.Cut(arg, "="); ok {
-				sanitized[i] = varName + "=" + TruncateSecret(varValue)
+				sanitized[i] = varName + "=" + RedactSecret(varValue)
 				continue
 			}
 		}

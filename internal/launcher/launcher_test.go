@@ -197,7 +197,7 @@ func TestMixedHTTPAndStdioServers(t *testing.T) {
 	assert.Equal(t, "stdio", stdioServer.Type)
 }
 
-func TestTruncateSecretMap(t *testing.T) {
+func TestRedactSecretMap(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    map[string]string
@@ -266,7 +266,7 @@ func TestTruncateSecretMap(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := sanitize.TruncateSecretMap(tt.input)
+			result := sanitize.RedactSecretMap(tt.input)
 
 			if tt.expected == nil {
 				assert.Nil(t, result)

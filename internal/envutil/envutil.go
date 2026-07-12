@@ -57,7 +57,7 @@ func GetEnvInt(envKey string, defaultValue int) int {
 	if err == nil && value > 0 {
 		return value
 	}
-	logEnvUtil.Printf("GetEnvInt: %s=%q is not a valid positive integer, using default=%d", envKey, sanitize.TruncateSecret(os.Getenv(envKey)), defaultValue)
+	logEnvUtil.Printf("GetEnvInt: %s=%q is not a valid positive integer, using default=%d", envKey, sanitize.RedactSecret(os.Getenv(envKey)), defaultValue)
 	return defaultValue
 }
 
@@ -70,7 +70,7 @@ func GetEnvDuration(envKey string, defaultValue time.Duration) time.Duration {
 		if d, err := time.ParseDuration(envValue); err == nil && d > 0 {
 			return d
 		}
-		logEnvUtil.Printf("GetEnvDuration: %s=%q is not a valid positive duration, using default=%v", envKey, sanitize.TruncateSecret(envValue), defaultValue)
+		logEnvUtil.Printf("GetEnvDuration: %s=%q is not a valid positive duration, using default=%v", envKey, sanitize.RedactSecret(envValue), defaultValue)
 	}
 	return defaultValue
 }
@@ -88,7 +88,7 @@ func GetEnvBool(envKey string, defaultValue bool) bool {
 		case "0", "false", "no", "off":
 			return false
 		}
-		logEnvUtil.Printf("GetEnvBool: %s=%q is not a recognized boolean value, using default=%v", envKey, sanitize.TruncateSecret(envValue), defaultValue)
+		logEnvUtil.Printf("GetEnvBool: %s=%q is not a recognized boolean value, using default=%v", envKey, sanitize.RedactSecret(envValue), defaultValue)
 	}
 	return defaultValue
 }
