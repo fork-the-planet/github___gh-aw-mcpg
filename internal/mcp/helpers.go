@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logHelpers = logger.New("mcp:helpers")
+var logMCPHelpers = logger.New("mcp:helpers")
 
 // marshalToResponse marshals an SDK result into a Response object.
 // This helper reduces code duplication across all MCP method wrappers.
@@ -22,7 +22,7 @@ func marshalToResponse(result interface{}) (*Response, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal result: %w", err)
 	}
-	logHelpers.Printf("marshalToResponse: result_len=%d bytes", len(resultJSON))
+	logMCPHelpers.Printf("marshalToResponse: result_len=%d bytes", len(resultJSON))
 
 	return &Response{
 		JSONRPC: "2.0",
@@ -40,7 +40,7 @@ func unmarshalParams(params interface{}, target interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal params: %w", err)
 	}
-	logHelpers.Printf("unmarshalParams: converting params_json_len=%d bytes to typed struct", len(paramsJSON))
+	logMCPHelpers.Printf("unmarshalParams: converting params_json_len=%d bytes to typed struct", len(paramsJSON))
 	if err := json.Unmarshal(paramsJSON, target); err != nil {
 		return fmt.Errorf("invalid params: %w", err)
 	}
@@ -51,7 +51,7 @@ func unmarshalParams(params interface{}, target interface{}) error {
 // It handles the common pattern of: requireSDKSession → unmarshalParams → fn(params) → marshalToResponse.
 // P is the type of the parameter struct to unmarshal into.
 func callParamMethod[P any](c *Connection, rawParams interface{}, fn func(P) (interface{}, error)) (*Response, error) {
-	logHelpers.Printf("callParamMethod: validating SDK session for serverID=%s", c.serverID)
+	logMCPHelpers.Printf("callParamMethod: validating SDK session for serverID=%s", c.serverID)
 	if err := c.requireSDKSession(); err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func callParamMethod[P any](c *Connection, rawParams interface{}, fn func(P) (in
 	if err := unmarshalParams(rawParams, &params); err != nil {
 		return nil, err
 	}
-	logHelpers.Printf("callParamMethod: invoking SDK operation for serverID=%s", c.serverID)
+	logMCPHelpers.Printf("callParamMethod: invoking SDK operation for serverID=%s", c.serverID)
 	result, err := fn(params)
 	if err != nil {
 		return nil, err

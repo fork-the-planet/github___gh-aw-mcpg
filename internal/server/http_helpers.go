@@ -13,11 +13,11 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logHelpers = logger.New("server:helpers")
+var logServerHelpers = logger.New("server:helpers")
 
 // logRuntimeError logs runtime errors to stdout per spec section 9.2
 func logRuntimeError(errorType, detail string, r *http.Request, serverName *string) {
-	logHelpers.Printf("Logging runtime error: type=%s, detail=%s", errorType, detail)
+	logServerHelpers.Printf("Logging runtime error: type=%s, detail=%s", errorType, detail)
 
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 	requestID := r.Header.Get("X-Request-ID")
@@ -86,19 +86,19 @@ func peekRequestBody(r *http.Request) ([]byte, error) {
 // It reads the body, logs it, and restores it so it can be read again.
 // The backendID parameter is optional and can be empty for unified mode.
 func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
-	logHelpers.Printf("Checking request body: method=%s, hasBody=%v, sessionID=%s", r.Method, r.Body != nil, util.FormatSessionIDForLog(sessionID))
+	logServerHelpers.Printf("Checking request body: method=%s, hasBody=%v, sessionID=%s", r.Method, r.Body != nil, util.FormatSessionIDForLog(sessionID))
 
 	bodyBytes, err := peekRequestBody(r)
 	if err != nil {
-		logHelpers.Printf("Body read failed: err=%v", err)
+		logServerHelpers.Printf("Body read failed: err=%v", err)
 		return
 	}
 	if len(bodyBytes) == 0 {
-		logHelpers.Printf("Skipping body logging: not a POST request, no body present, or empty body")
+		logServerHelpers.Printf("Skipping body logging: not a POST request, no body present, or empty body")
 		return
 	}
 
-	logHelpers.Printf("Request body read: size=%d bytes, sessionID=%s, backendID=%s", len(bodyBytes), util.FormatSessionIDForLog(sessionID), backendID)
+	logServerHelpers.Printf("Request body read: size=%d bytes, sessionID=%s, backendID=%s", len(bodyBytes), util.FormatSessionIDForLog(sessionID), backendID)
 
 	sanitizedBody := sanitize.SanitizeString(string(bodyBytes))
 
@@ -107,5 +107,5 @@ func logHTTPRequestBody(r *http.Request, sessionID, backendID string) {
 	} else {
 		logger.LogDebug("client", "MCP request body, session=%s, body=%s", util.FormatSessionIDForLog(sessionID), sanitizedBody)
 	}
-	logHelpers.Print("Request body logged for debugging")
+	logServerHelpers.Print("Request body logged for debugging")
 }

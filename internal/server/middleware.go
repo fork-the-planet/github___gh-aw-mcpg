@@ -78,7 +78,7 @@ func WithOTELTracing(next http.Handler, tag string) http.Handler {
 //
 // This ensures consistent middleware ordering across both routed and unified server modes.
 func wrapWithMiddleware(handler http.Handler, logTag string, unifiedServer *UnifiedServer, apiKey, hmacSecret string) http.HandlerFunc {
-	logHelpers.Printf("Wrapping handler with middleware: logTag=%s, authEnabled=%v, hmacEnabled=%v", logTag, apiKey != "", hmacSecret != "")
+	logServerHelpers.Printf("Wrapping handler with middleware: logTag=%s, authEnabled=%v, hmacEnabled=%v", logTag, apiKey != "", hmacSecret != "")
 
 	// Wrap SDK handler with detailed logging for JSON-RPC translation debugging
 	loggedHandler := WithSDKLogging(handler, logTag)
@@ -99,7 +99,7 @@ func wrapWithMiddleware(handler http.Handler, logTag string, unifiedServer *Unif
 	// Wrap with OTEL tracing span (outermost, so it covers auth + HMAC + shutdown + logging)
 	tracingHandler := WithOTELTracing(authedHandler, logTag)
 
-	logHelpers.Printf("Middleware wrapping complete: logTag=%s", logTag)
+	logServerHelpers.Printf("Middleware wrapping complete: logTag=%s", logTag)
 	return tracingHandler.ServeHTTP
 }
 
