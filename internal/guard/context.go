@@ -26,7 +26,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var log = logger.New("guard:context")
+var logContext = logger.New("guard:context")
 
 // ContextKey is used for storing values in context
 type ContextKey string
@@ -43,31 +43,31 @@ const (
 // Returns "default" if not found
 func GetAgentIDFromContext(ctx context.Context) string {
 	if agentID, ok := ctx.Value(AgentIDContextKey).(string); ok && agentID != "" {
-		log.Printf("Retrieved agent ID from context: %s", agentID)
+		logContext.Printf("Retrieved agent ID from context: %s", agentID)
 		return agentID
 	}
-	log.Print("Agent ID not found in context, returning default")
+	logContext.Print("Agent ID not found in context, returning default")
 	return "default"
 }
 
 // SetAgentIDInContext sets the agent ID in the context
 func SetAgentIDInContext(ctx context.Context, agentID string) context.Context {
-	log.Printf("Setting agent ID in context: %s", agentID)
+	logContext.Printf("Setting agent ID in context: %s", agentID)
 	return context.WithValue(ctx, AgentIDContextKey, agentID)
 }
 
 // GetRequestStateFromContext retrieves guard request state from context
 func GetRequestStateFromContext(ctx context.Context) RequestState {
 	if state, ok := ctx.Value(RequestStateContextKey).(RequestState); ok {
-		log.Print("Retrieved request state from context")
+		logContext.Print("Retrieved request state from context")
 		return state
 	}
-	log.Print("Request state not found in context")
+	logContext.Print("Request state not found in context")
 	return nil
 }
 
 // SetRequestStateInContext stores guard request state in context
 func SetRequestStateInContext(ctx context.Context, state RequestState) context.Context {
-	log.Print("Setting request state in context")
+	logContext.Print("Setting request state in context")
 	return context.WithValue(ctx, RequestStateContextKey, state)
 }

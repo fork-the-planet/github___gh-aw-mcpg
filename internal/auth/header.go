@@ -44,7 +44,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var log = logger.New("auth:header")
+var logAuth = logger.New("auth:header")
 var logAPIKey = logger.New("auth:apikey")
 
 var (
@@ -85,37 +85,37 @@ func stripAuthScheme(authHeader string) (scheme, value string, matched bool) {
 //   - agentID: The extracted agent/session identifier
 //   - error: ErrMissingAuthHeader if header is empty, nil otherwise
 func ParseAuthHeader(authHeader string) (apiKey string, agentID string, error error) {
-	log.Printf("Parsing auth header: sanitized=%s, length=%d", sanitize.RedactSecret(authHeader), len(authHeader))
+	logAuth.Printf("Parsing auth header: sanitized=%s, length=%d", sanitize.RedactSecret(authHeader), len(authHeader))
 
 	if authHeader == "" {
-		log.Print("Auth header missing, returning error")
+		logAuth.Print("Auth header missing, returning error")
 		return "", "", ErrMissingAuthHeader
 	}
 
 	if scheme, value, matched := stripAuthScheme(authHeader); matched {
-		log.Printf("Detected %s format", scheme)
+		logAuth.Printf("Detected %s format", scheme)
 		return value, value, nil
 	}
 
 	// Per MCP spec 7.1: Authorization header contains API key directly
 	// Use the entire header value as both API key and agent/session ID
-	log.Print("Using plain agent ID format (MCP spec 7.1)")
+	logAuth.Print("Using plain agent ID format (MCP spec 7.1)")
 	return authHeader, authHeader, nil
 }
 
 // ValidateAgentID checks if the provided agent identifier matches the expected value.
 // Returns true if they match, false otherwise.
 func ValidateAgentID(provided, expected string) bool {
-	log.Printf("Validating agent ID: expected_configured=%t", expected != "")
+	logAuth.Printf("Validating agent ID: expected_configured=%t", expected != "")
 
 	if expected == "" {
 		// No agent ID configured, authentication is disabled
-		log.Print("No agent ID configured, authentication disabled")
+		logAuth.Print("No agent ID configured, authentication disabled")
 		return true
 	}
 
 	matches := provided == expected
-	log.Printf("Agent ID validation result: matches=%t", matches)
+	logAuth.Printf("Agent ID validation result: matches=%t", matches)
 	return matches
 }
 
@@ -152,15 +152,15 @@ func ExtractAgentID(authHeader string) string {
 //   - Trimmed token value if Bearer format
 //   - Plain authHeader value otherwise
 func ExtractSessionID(authHeader string) string {
-	log.Printf("Extracting session ID from auth header: sanitized=%s", sanitize.RedactSecret(authHeader))
+	logAuth.Printf("Extracting session ID from auth header: sanitized=%s", sanitize.RedactSecret(authHeader))
 
 	if authHeader == "" {
-		log.Print("Auth header empty, returning empty session ID")
+		logAuth.Print("Auth header empty, returning empty session ID")
 		return ""
 	}
 
 	if scheme, value, matched := stripAuthScheme(authHeader); matched {
-		log.Printf("Detected %s format", scheme)
+		logAuth.Printf("Detected %s format", scheme)
 		if scheme == "Bearer" {
 			// Trim spaces for backward compatibility with older clients
 			return strings.TrimSpace(value)
@@ -169,7 +169,7 @@ func ExtractSessionID(authHeader string) string {
 	}
 
 	// Plain format (per spec 7.1 - API key is session ID)
-	log.Print("Using plain agent ID as session ID")
+	logAuth.Print("Using plain agent ID as session ID")
 	return authHeader
 }
 

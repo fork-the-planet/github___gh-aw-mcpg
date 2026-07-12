@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var debugLog = logger.New("guard:registry")
+var logRegistry = logger.New("guard:registry")
 
 // Registry manages guard instances for different MCP servers
 type Registry struct {
@@ -18,7 +18,7 @@ type Registry struct {
 
 // NewRegistry creates a new guard registry
 func NewRegistry() *Registry {
-	debugLog.Print("Creating new guard registry")
+	logRegistry.Print("Creating new guard registry")
 	return &Registry{
 		guards: make(map[string]Guard),
 	}
@@ -26,7 +26,7 @@ func NewRegistry() *Registry {
 
 // Register registers a guard for a specific server
 func (r *Registry) Register(serverID string, guard Guard) {
-	debugLog.Printf("Registering guard for serverID=%s, guardName=%s", serverID, guard.Name())
+	logRegistry.Printf("Registering guard for serverID=%s, guardName=%s", serverID, guard.Name())
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -36,17 +36,17 @@ func (r *Registry) Register(serverID string, guard Guard) {
 
 // Get retrieves the guard for a server, or returns a noop guard if not found
 func (r *Registry) Get(serverID string) Guard {
-	debugLog.Printf("Getting guard for serverID=%s", serverID)
+	logRegistry.Printf("Getting guard for serverID=%s", serverID)
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	if guard, ok := r.guards[serverID]; ok {
-		debugLog.Printf("Found guard for serverID=%s, guardName=%s", serverID, guard.Name())
+		logRegistry.Printf("Found guard for serverID=%s, guardName=%s", serverID, guard.Name())
 		return guard
 	}
 
 	// Return noop guard as default
-	debugLog.Printf("No guard registered for serverID=%s, returning noop guard", serverID)
+	logRegistry.Printf("No guard registered for serverID=%s, returning noop guard", serverID)
 	return NewNoopGuard()
 }
 
@@ -64,17 +64,17 @@ func (r *Registry) HasNonNoopGuard() bool {
 	defer r.mu.RUnlock()
 	for _, g := range r.guards {
 		if g.Name() != "noop" {
-			debugLog.Printf("HasNonNoopGuard: found non-noop guard=%s, registeredCount=%d", g.Name(), len(r.guards))
+			logRegistry.Printf("HasNonNoopGuard: found non-noop guard=%s, registeredCount=%d", g.Name(), len(r.guards))
 			return true
 		}
 	}
-	debugLog.Printf("HasNonNoopGuard: all %d registered guard(s) are noop", len(r.guards))
+	logRegistry.Printf("HasNonNoopGuard: all %d registered guard(s) are noop", len(r.guards))
 	return false
 }
 
 // Remove removes a guard registration
 func (r *Registry) Remove(serverID string) {
-	debugLog.Printf("Removing guard for serverID=%s", serverID)
+	logRegistry.Printf("Removing guard for serverID=%s", serverID)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	delete(r.guards, serverID)
@@ -90,7 +90,7 @@ func (r *Registry) List() []string {
 	for id := range r.guards {
 		serverIDs = append(serverIDs, id)
 	}
-	debugLog.Printf("List: returning %d registered server ID(s)", len(serverIDs))
+	logRegistry.Printf("List: returning %d registered server ID(s)", len(serverIDs))
 	return serverIDs
 }
 
@@ -103,7 +103,7 @@ func (r *Registry) GetGuardInfo() map[string]string {
 	for serverID, guard := range r.guards {
 		info[serverID] = guard.Name()
 	}
-	debugLog.Printf("GetGuardInfo: returning info for %d guard(s)", len(info))
+	logRegistry.Printf("GetGuardInfo: returning info for %d guard(s)", len(info))
 	return info
 }
 
@@ -152,23 +152,23 @@ func RegisterGuardType(name string, factory GuardFactory) {
 
 // CreateGuard creates a guard instance by name using registered factories
 func CreateGuard(name string) (Guard, error) {
-	debugLog.Printf("Creating guard with name=%s", name)
+	logRegistry.Printf("Creating guard with name=%s", name)
 	registeredGuardsMu.RLock()
 	defer registeredGuardsMu.RUnlock()
 
 	// Handle built-in guards
 	if name == "noop" || name == "" {
-		debugLog.Print("Using built-in noop guard")
+		logRegistry.Print("Using built-in noop guard")
 		return NewNoopGuard(), nil
 	}
 
 	// Try to find in registered factories
 	if factory, ok := registeredGuards[name]; ok {
-		debugLog.Printf("Found factory for guard type: %s", name)
+		logRegistry.Printf("Found factory for guard type: %s", name)
 		return factory()
 	}
 
-	debugLog.Printf("Unknown guard type: %s", name)
+	logRegistry.Printf("Unknown guard type: %s", name)
 	return nil, fmt.Errorf("unknown guard type: %s", name)
 }
 
