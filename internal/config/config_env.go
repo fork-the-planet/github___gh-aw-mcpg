@@ -1,5 +1,21 @@
 package config
 
+// config_env.go — gateway-specific environment variable helpers.
+//
+// This file intentionally layers on top of internal/envutil rather than
+// calling os.Getenv directly. The layering is deliberate:
+//
+//   - internal/envutil provides generic, typed environment-variable accessors
+//     (GetEnvString, GetEnvIntRaw, …) with no knowledge of MCP Gateway semantics.
+//
+//   - This file adds gateway-specific validation rules (port ranges, timeout
+//     bounds, feature-flag defaults) on top of those primitives, keeping the
+//     higher-level policy separate from the lower-level reading mechanism.
+//
+// New MCP_GATEWAY_* environment variables should be added here rather than
+// in envutil, unless the accessor would be genuinely reusable outside the
+// gateway (e.g., a generic typed getter with no domain knowledge).
+
 import (
 	"fmt"
 	"time"

@@ -2,9 +2,11 @@ package httputil
 
 import (
 	"crypto/tls"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewServerTLSConfig(t *testing.T) {
@@ -24,4 +26,31 @@ func TestNewClientTLSConfig(t *testing.T) {
 	assert.NotNil(t, cfg)
 	assert.EqualValues(t, MinTLSVersion, cfg.MinVersion)
 	assert.Empty(t, cfg.Certificates)
+}
+
+func TestConfigureTLSTrustEnvironment(t *testing.T) {
+	t.Run("sets all trust env vars to the given path", func(t *testing.T) {
+		// Unset all keys before the test so we start from a clean state.
+		for _, key := range TLSTrustEnvKeys {
+			t.Setenv(key, "")
+		}
+
+		const caPath = "/tmp/ca.crt"
+		err := ConfigureTLSTrustEnvironment(caPath)
+		require.NoError(t, err)
+
+		for _, key := range TLSTrustEnvKeys {
+			assert.Equal(t, caPath, os.Getenv(key), "expected %s to be set to %s", key, caPath)
+		}
+	})
+
+	t.Run("rejects path with embedded newline", func(t *testing.T) {
+		err := ConfigureTLSTrustEnvironment("/tmp/ca\n.crt")
+		assert.ErrorContains(t, err, "invalid TLS CA cert path contains newline")
+	})
+
+	t.Run("rejects path with embedded carriage return", func(t *testing.T) {
+		err := ConfigureTLSTrustEnvironment("/tmp/ca\r.crt")
+		assert.ErrorContains(t, err, "invalid TLS CA cert path contains newline")
+	})
 }

@@ -20,6 +20,12 @@ import (
 // status code. It embeds httputil.BaseResponseWriter which provides WriteHeader,
 // Write (with implicit-200 capture), and Unwrap for transparent interface
 // delegation (e.g. http.Flusher, http.Hijacker).
+//
+// statusResponseWriter is a pure embed — it adds no methods of its own.
+// All status-capture logic lives in httputil.BaseResponseWriter, which is the
+// canonical embed base for package-specific ResponseWriter wrappers across the
+// codebase. See internal/server/response_writer.go for the server-side variant
+// that additionally buffers the response body for debug logging.
 type statusResponseWriter struct {
 	httputil.BaseResponseWriter
 }

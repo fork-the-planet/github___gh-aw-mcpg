@@ -68,6 +68,9 @@ func initLogFile(logDir, fileName string, flags int) (*os.File, error) {
 // atomicWriteFile writes data to filePath atomically using a temp-file + rename strategy.
 // On rename failure the temp file is removed; a removal error that is not os.IsNotExist
 // is logged as a warning but does not mask the primary rename error.
+//
+// TODO: export as internal/util.AtomicWriteFile (or internal/fileutil) when a
+// second consumer outside the logger package emerges.
 func atomicWriteFile(filePath string, data []byte, perm os.FileMode) error {
 	tempPath := filePath + ".tmp"
 	if err := os.WriteFile(tempPath, data, perm); err != nil {

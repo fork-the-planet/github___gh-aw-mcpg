@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
@@ -18,20 +17,13 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/githubhttp"
 	"github.com/github/gh-aw-mcpg/internal/guard"
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/proxy"
 	"github.com/spf13/cobra"
 )
 
 var logProxyCmd = logger.New("cmd:proxy")
-
-var tlsTrustEnvKeys = []string{
-	"NODE_EXTRA_CA_CERTS",
-	"SSL_CERT_FILE",
-	"GIT_SSL_CAINFO",
-	"CURL_CA_BUNDLE",
-	"REQUESTS_CA_BUNDLE",
-}
 
 // Proxy subcommand flag variables
 var (
@@ -261,7 +253,7 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to generate TLS certificates: %w", err)
 		}
-		if err := configureTLSTrustEnvironment(tlsCfg.CACertPath); err != nil {
+		if err := httputil.ConfigureTLSTrustEnvironment(tlsCfg.CACertPath); err != nil {
 			return err
 		}
 		logger.LogInfo("startup", "TLS certificates generated: ca=%s", tlsCfg.CACertPath)
@@ -333,21 +325,6 @@ func runProxy(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return nil
-}
-
-func configureTLSTrustEnvironment(caCertPath string) error {
-	if strings.ContainsAny(caCertPath, "\r\n") {
-		return fmt.Errorf("invalid TLS CA cert path contains newline")
-	}
-
-	logProxyCmd.Printf("Configuring TLS trust environment: caCertPath=%s, envVars=%v", caCertPath, tlsTrustEnvKeys)
-	for _, key := range tlsTrustEnvKeys {
-		if err := os.Setenv(key, caCertPath); err != nil {
-			return fmt.Errorf("failed to set %s: %w", key, err)
-		}
-	}
-	logProxyCmd.Printf("TLS trust environment configured successfully: %d env vars set", len(tlsTrustEnvKeys))
 	return nil
 }
 

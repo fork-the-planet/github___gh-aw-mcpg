@@ -5,8 +5,20 @@ import (
 	"time"
 )
 
-// Time and duration helpers live in the util package because their output is
-// string formatting used by logging and user-visible status messages.
+// String and time/duration formatting helpers live in the util package because
+// their output is used by logging and user-visible status messages throughout
+// the codebase.
+
+// FormatSessionIDForLog returns a log-safe session ID representation.
+// Empty session IDs are rendered as "(none)"; non-empty IDs are truncated to
+// the first 8 bytes with an ellipsis when needed.
+func FormatSessionIDForLog(sessionID string) string {
+	const sessionIDLogMaxLen = 8
+	if sessionID == "" {
+		return "(none)"
+	}
+	return Truncate(sessionID, sessionIDLogMaxLen)
+}
 
 // FormatFutureTime returns a human-readable representation of a future time,
 // combining an RFC3339 timestamp with a relative countdown (e.g. "2026-05-03T12:00:00Z (in 5.0m)").
