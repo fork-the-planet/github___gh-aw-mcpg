@@ -100,7 +100,7 @@ func TestWriteJSONToFile(t *testing.T) {
 
 	t.Run("error – atomicWriteFile fails when directory does not exist", func(t *testing.T) {
 		// Pass a logDir that does not exist so atomicWriteFile cannot create the temp file.
-missingDir := filepath.Join(t.TempDir(), "missing")
+		missingDir := filepath.Join(t.TempDir(), "missing")
 		err := writeJSONToFile(missingDir, "out.json", map[string]string{}, 0o644)
 		require.Error(t, err)
 		// The error surfaces from atomicWriteFile's os.WriteFile call.
@@ -157,5 +157,5 @@ func TestInitAndSetGlobalNoFileLogger_SetupError(t *testing.T) {
 		tmpDir,
 		errFactory,
 	)
-require.ErrorIs(t, err, os.ErrInvalid, "initAndSetGlobalNoFileLogger must return the factory.setup error")
+	require.ErrorIs(t, err, os.ErrInvalid, "initAndSetGlobalNoFileLogger must return the factory.setup error")
 }
