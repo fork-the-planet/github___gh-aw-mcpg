@@ -492,6 +492,9 @@ func TestIsValidRepoScope(t *testing.T) {
 		{"wildcard in middle", "owner/re*po", false},
 		{"wildcard at start of repo", "owner/*prefix", false},
 		{"double wildcard count", "owner/a*b*", false},
+		// Prefix wildcard with trailing dot in base name is rejected.
+		// e.g. "owner/gh-aw.*" → repoName="gh-aw." → HasSuffix('.') → false.
+		{"prefix wildcard trailing dot", "owner/gh-aw.*", false},
 	}
 
 	for _, tt := range tests {

@@ -89,6 +89,10 @@ func TestFormatConfigError(t *testing.T) {
 		err := fmt.Errorf("config error: %w", inner)
 		assert.Equal(t, "config error: inner error", FormatConfigError(err))
 	})
+
+	t.Run("nil error returns empty string", func(t *testing.T) {
+		assert.Equal(t, "", FormatConfigError(nil))
+	})
 }
 
 func TestLoadFromFile_BothTracingAndOpenTelemetry_OpenTelemetryTakesPrecedence(t *testing.T) {
