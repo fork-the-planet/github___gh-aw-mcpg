@@ -35,7 +35,6 @@ func writeDIFCForbidden(w http.ResponseWriter, message string) {
 // rejectProxyRequest standardizes proxy request rejection by logging, recording
 // a span error, and writing a JSON error response.
 func rejectProxyRequest(w http.ResponseWriter, span oteltrace.Span, status int, code, msg string, err error) {
-	logHandler.Printf("request rejected: status=%d code=%s message=%s err=%v", status, code, msg, err)
 	logger.LogError("proxy", "Request rejected: status=%d code=%s message=%s err=%v", status, code, msg, err)
 	if err == nil {
 		err = errors.New(msg)
@@ -188,7 +187,6 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 
 	if !s.guardInitialized {
 		err := errors.New("proxy enforcement not configured")
-		logHandler.Print("returning 503: proxy enforcement not configured (no --policy flag provided)")
 		rejectProxyRequest(w, difcSpan, http.StatusServiceUnavailable, "service_unavailable", "proxy enforcement not configured", err)
 		return
 	}
