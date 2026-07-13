@@ -463,6 +463,10 @@ fn infer_scope_for_baseline<'a>(
         | "manage_repository_notification_subscription"
         | "create_repository"
         | "fork_repository" => Cow::Borrowed(scope_names::GITHUB),
+        "create_codespace"
+        | "update_codespace"
+        | "delete_codespace"
+        | "stop_codespace" => Cow::Borrowed(scope_names::USER),
         "search_code" | "search_issues" | "search_pull_requests" | "search_commits" => {
             let query = tool_args
                 .get("query")
@@ -1357,6 +1361,57 @@ mod tests {
                 after_baseline,
                 labels::writer_integrity(scope_names::GITHUB, &ctx),
                 "{} integrity should remain github writer-scoped after baseline enforcement",
+                tool
+            );
+        }
+    }
+
+    #[test]
+    fn infer_scope_for_baseline_uses_user_scope_for_codespace_lifecycle_tools() {
+        let tool_args = json!({});
+        for tool in &[
+            "create_codespace",
+            "update_codespace",
+            "delete_codespace",
+            "stop_codespace",
+        ] {
+            let inferred = infer_scope_for_baseline(tool, &tool_args, "");
+            assert_eq!(
+                inferred,
+                scope_names::USER,
+                "{} should infer user baseline scope",
+                tool
+            );
+        }
+    }
+
+    #[test]
+    fn codespace_lifecycle_integrity_preserved_after_baseline() {
+        let ctx = PolicyContext::default();
+        let tool_args = json!({});
+        for tool in &[
+            "create_codespace",
+            "update_codespace",
+            "delete_codespace",
+            "stop_codespace",
+        ] {
+            let (_, integrity, _) = labels::apply_tool_labels(
+                tool,
+                &tool_args,
+                "",
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            let baseline_scope = infer_scope_for_baseline(tool, &tool_args, "");
+            let after_baseline =
+                labels::ensure_integrity_baseline(&baseline_scope, integrity, &ctx);
+
+            assert_eq!(
+                after_baseline,
+                labels::writer_integrity(scope_names::USER, &ctx),
+                "{} integrity should remain user writer-scoped after baseline enforcement",
                 tool
             );
         }
