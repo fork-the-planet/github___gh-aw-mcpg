@@ -34,28 +34,34 @@ func PortRange(port int, jsonPath string) *ValidationError {
 
 // TimeoutPositive validates that a timeout value is at least 1.
 // Returns nil if valid, *ValidationError if invalid.
-// It delegates to PositiveInteger, then overrides the Suggestion with a
-// timeout-specific message: "Use a positive number of seconds (e.g., 30)".
 func TimeoutPositive(timeout int, fieldName, jsonPath string) *ValidationError {
-	if err := PositiveInteger(timeout, fieldName, jsonPath); err != nil {
-		err.Suggestion = "Use a positive number of seconds (e.g., 30)"
-		return err
+	logValidation.Printf("Validating positive timeout: field=%s, value=%d, jsonPath=%s", fieldName, timeout, jsonPath)
+	if timeout < 1 {
+		logValidation.Printf("Positive timeout validation failed: %s=%d is not positive", fieldName, timeout)
+		return newValidationError(
+			fmt.Sprintf("Positive timeout validation failed: %s=%d is not positive", fieldName, timeout),
+			fieldName,
+			fmt.Sprintf("%s must be a positive integer (>= 1), got %d", fieldName, timeout),
+			jsonPath,
+			"Use a positive number of seconds (e.g., 30)",
+		)
 	}
 	return nil
 }
 
 // PositiveInteger validates that a value is at least 1.
 // Returns nil if valid, *ValidationError if invalid.
-// It delegates to TimeoutMinimum with min=1, then overrides Message and
-// Suggestion to use "positive integer" phrasing instead of the generic
-// "must be at least N" wording produced by TimeoutMinimum.
 func PositiveInteger(value int, fieldName, jsonPath string) *ValidationError {
 	logValidation.Printf("Validating positive integer: field=%s, value=%d, jsonPath=%s", fieldName, value, jsonPath)
-	if err := TimeoutMinimum(value, 1, fieldName, jsonPath); err != nil {
+	if value < 1 {
 		logValidation.Printf("Positive integer validation failed: %s=%d is not positive", fieldName, value)
-		err.Message = fmt.Sprintf("%s must be a positive integer (>= 1), got %d", fieldName, value)
-		err.Suggestion = fmt.Sprintf("Use a positive integer (>= 1) for %s", fieldName)
-		return err
+		return newValidationError(
+			fmt.Sprintf("Positive integer validation failed: %s=%d is not positive", fieldName, value),
+			fieldName,
+			fmt.Sprintf("%s must be a positive integer (>= 1), got %d", fieldName, value),
+			jsonPath,
+			fmt.Sprintf("Use a positive integer (>= 1) for %s", fieldName),
+		)
 	}
 	return nil
 }

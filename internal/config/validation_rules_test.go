@@ -157,12 +157,13 @@ func TestTimeoutPositive(t *testing.T) {
 
 func TestPositiveInteger(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     int
-		fieldName string
-		jsonPath  string
-		shouldErr bool
-		errMsg    string
+		name       string
+		value      int
+		fieldName  string
+		jsonPath   string
+		shouldErr  bool
+		errMsg     string
+		suggestion string
 	}{
 		{
 			name:      "valid value 1",
@@ -179,20 +180,22 @@ func TestPositiveInteger(t *testing.T) {
 			shouldErr: false,
 		},
 		{
-			name:      "zero rejected",
-			value:     0,
-			fieldName: "payloadSizeThreshold",
-			jsonPath:  "gateway.payloadSizeThreshold",
-			shouldErr: true,
-			errMsg:    "payloadSizeThreshold must be a positive integer (>= 1), got 0",
+			name:       "zero rejected",
+			value:      0,
+			fieldName:  "payloadSizeThreshold",
+			jsonPath:   "gateway.payloadSizeThreshold",
+			shouldErr:  true,
+			errMsg:     "payloadSizeThreshold must be a positive integer (>= 1), got 0",
+			suggestion: "Use a positive integer (>= 1) for payloadSizeThreshold",
 		},
 		{
-			name:      "negative value rejected",
-			value:     -1,
-			fieldName: "payload_size_threshold",
-			jsonPath:  "gateway.payload_size_threshold",
-			shouldErr: true,
-			errMsg:    "payload_size_threshold must be a positive integer (>= 1), got -1",
+			name:       "negative value rejected",
+			value:      -1,
+			fieldName:  "payload_size_threshold",
+			jsonPath:   "gateway.payload_size_threshold",
+			shouldErr:  true,
+			errMsg:     "payload_size_threshold must be a positive integer (>= 1), got -1",
+			suggestion: "Use a positive integer (>= 1) for payload_size_threshold",
 		},
 	}
 
@@ -205,7 +208,7 @@ func TestPositiveInteger(t *testing.T) {
 				assert.Contains(t, err.Message, tt.errMsg, "Error message should contain expected text")
 				assert.Equal(t, tt.jsonPath, err.JSONPath, "JSONPath should match")
 				assert.Equal(t, tt.fieldName, err.Field, "Field name should match")
-				assert.NotEmpty(t, err.Suggestion, "Suggestion should be non-empty")
+				assert.Equal(t, tt.suggestion, err.Suggestion, "Suggestion should match")
 			} else {
 				require.NoError(t, validationErrAsError(err), "Unexpected validation error")
 			}
