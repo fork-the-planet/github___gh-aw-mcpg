@@ -100,7 +100,8 @@ func TestWriteJSONToFile(t *testing.T) {
 
 	t.Run("error – atomicWriteFile fails when directory does not exist", func(t *testing.T) {
 		// Pass a logDir that does not exist so atomicWriteFile cannot create the temp file.
-		err := writeJSONToFile("/nonexistent/dir/that/cannot/exist", "out.json", map[string]string{}, 0o644)
+missingDir := filepath.Join(t.TempDir(), "missing")
+		err := writeJSONToFile(missingDir, "out.json", map[string]string{}, 0o644)
 		require.Error(t, err)
 		// The error surfaces from atomicWriteFile's os.WriteFile call.
 		assert.Contains(t, err.Error(), "failed to write temp file")
