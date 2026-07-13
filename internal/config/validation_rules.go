@@ -37,7 +37,6 @@ func PortRange(port int, jsonPath string) *ValidationError {
 func TimeoutPositive(timeout int, fieldName, jsonPath string) *ValidationError {
 	logValidation.Printf("Validating positive timeout: field=%s, value=%d, jsonPath=%s", fieldName, timeout, jsonPath)
 	if timeout < 1 {
-		logValidation.Printf("Positive timeout validation failed: %s=%d is not positive", fieldName, timeout)
 		return newValidationError(
 			fmt.Sprintf("Positive timeout validation failed: %s=%d is not positive", fieldName, timeout),
 			fieldName,
