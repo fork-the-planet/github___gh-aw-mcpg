@@ -8,6 +8,15 @@
 //
 // The CA certificate is written to a file so callers can inject it into their
 // trust store (e.g., via NODE_EXTRA_CA_CERTS or update-ca-certificates).
+//
+// TLS helpers are split across two packages:
+//
+//   - internal/proxy (this file): certificate *generation* (GenerateSelfSignedTLS).
+//     This is the only place self-signed certs are created.
+//
+//   - internal/httputil: protocol-level helpers that apply to all TLS listeners
+//     and clients (MinTLSVersion, NewServerTLSConfig, NewClientTLSConfig,
+//     ConfigureTLSTrustEnvironment).
 package proxy
 
 import (
