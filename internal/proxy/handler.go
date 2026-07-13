@@ -32,6 +32,20 @@ func writeDIFCForbidden(w http.ResponseWriter, message string) {
 	httputil.WriteErrorResponse(w, http.StatusForbidden, "difc_forbidden", message)
 }
 
+// rejectProxyRequest standardizes proxy request rejection by logging, recording
+// a span error, and writing a JSON error response.
+func rejectProxyRequest(w http.ResponseWriter, span oteltrace.Span, status int, code, msg string, err error) {
+	logHandler.Printf("request rejected: status=%d code=%s message=%s err=%v", status, code, msg, err)
+	logger.LogError("proxy", "Request rejected: status=%d code=%s message=%s err=%v", status, code, msg, err)
+	if err == nil {
+		err = errors.New(msg)
+	}
+	if span != nil {
+		tracing.RecordSpanError(span, err, msg)
+	}
+	httputil.WriteErrorResponse(w, status, code, msg)
+}
+
 // proxyHandler implements http.Handler and runs the DIFC pipeline on proxied requests.
 type proxyHandler struct {
 	server *Server
@@ -88,7 +102,7 @@ func (h *proxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		graphQLBody, err = io.ReadAll(r.Body)
 		r.Body.Close()
 		if err != nil {
-			httputil.WriteErrorResponse(w, http.StatusBadRequest, "bad_request", "failed to read request body")
+			rejectProxyRequest(w, oteltrace.SpanFromContext(r.Context()), http.StatusBadRequest, "bad_request", "failed to read request body", err)
 			return
 		}
 
@@ -173,11 +187,9 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	defer difcSpan.End()
 
 	if !s.guardInitialized {
-		errMsg := "returning 503: proxy enforcement not configured (no --policy flag provided)"
-		logHandler.Print(errMsg)
-		logger.LogError("proxy", "%s", errMsg)
-		tracing.RecordSpanError(difcSpan, errors.New("proxy enforcement not configured"), "proxy enforcement not configured")
-		httputil.WriteErrorResponse(w, http.StatusServiceUnavailable, "service_unavailable", "proxy enforcement not configured")
+		err := errors.New("proxy enforcement not configured")
+		logHandler.Print("returning 503: proxy enforcement not configured (no --policy flag provided)")
+		rejectProxyRequest(w, difcSpan, http.StatusServiceUnavailable, "service_unavailable", "proxy enforcement not configured", err)
 		return
 	}
 
@@ -208,8 +220,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			return
 		}
 		logHandler.Printf("[DIFC] Phase 1 failed: %v", err)
-		tracing.RecordSpanError(difcSpan, err, "resource labeling failed")
-		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "resource labeling failed")
+		rejectProxyRequest(w, difcSpan, http.StatusBadGateway, "bad_gateway", "resource labeling failed", err)
 		return
 	}
 	if difcSpan.IsRecording() {
@@ -357,7 +368,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	} else {
 		filteredJSON, err := json.Marshal(finalData)
 		if err != nil {
-			httputil.WriteErrorResponse(w, http.StatusInternalServerError, "internal_error", "failed to serialize filtered response")
+			rejectProxyRequest(w, difcSpan, http.StatusInternalServerError, "internal_error", "failed to serialize filtered response", err)
 			return
 		}
 		copyResponseHeaders(w, resp)
@@ -425,18 +436,17 @@ func (h *proxyHandler) forwardAndReadBody(
 	w http.ResponseWriter, ctx context.Context,
 	method, path string, body io.Reader, contentType, clientAuth string,
 ) (*http.Response, []byte) {
+	span := oteltrace.SpanFromContext(ctx)
 	logHandler.Printf("forwardAndReadBody: %s %s", method, path)
 	resp, err := h.server.forwardToGitHub(ctx, method, path, body, contentType, clientAuth)
 	if err != nil {
-		logHandler.Printf("forwardAndReadBody: upstream request failed: method=%s path=%s err=%v", method, path, err)
-		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "upstream request failed")
+		rejectProxyRequest(w, span, http.StatusBadGateway, "bad_gateway", "upstream request failed", err)
 		return nil, nil
 	}
 	defer resp.Body.Close()
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		logHandler.Printf("forwardAndReadBody: body read failed: method=%s path=%s status=%d err=%v", method, path, resp.StatusCode, err)
-		httputil.WriteErrorResponse(w, http.StatusBadGateway, "bad_gateway", "failed to read upstream response")
+		rejectProxyRequest(w, span, http.StatusBadGateway, "bad_gateway", "failed to read upstream response", err)
 		return nil, nil
 	}
 	logHandler.Printf("forwardAndReadBody: %s %s -> status=%d bodyLen=%d", method, path, resp.StatusCode, len(respBody))

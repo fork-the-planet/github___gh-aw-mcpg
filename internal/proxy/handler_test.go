@@ -84,6 +84,16 @@ func assertJSONErrorResponse(t *testing.T, resp *http.Response, wantStatus int, 
 	assert.Equal(t, wantMessage, got.Message)
 }
 
+func TestRejectProxyRequest(t *testing.T) {
+	w := httptest.NewRecorder()
+
+	assert.NotPanics(t, func() {
+		rejectProxyRequest(w, nil, http.StatusBadGateway, "bad_gateway", "upstream request failed", nil)
+	})
+
+	assertJSONErrorResponse(t, w.Result(), http.StatusBadGateway, "bad_gateway", "upstream request failed")
+}
+
 // ─── ServeHTTP: health check ─────────────────────────────────────────────────
 
 func TestServeHTTP_HealthCheck(t *testing.T) {
