@@ -70,8 +70,8 @@ func GenerateSelfSignedTLS(dir string) (*TLSConfig, error) {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create TLS directory %s: %w", dir, err)
 	}
+	logTLS.Printf("TLS directory ensured: %s", dir)
 
-	// --- Generate CA ---
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate CA key: %w", err)
@@ -190,14 +190,20 @@ func randomSerial() (*big.Int, error) {
 	if serial.Sign() == 0 {
 		serial = new(big.Int).Add(serial, big.NewInt(1))
 	}
+	logTLS.Printf("generated random serial number: %s", serial.String())
 	return serial, nil
 }
 
 func writePEM(path, blockType string, derBytes []byte, perm os.FileMode) error {
+	logTLS.Printf("writing PEM file: path=%s, type=%s, size=%d bytes", path, blockType, len(derBytes))
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	return pem.Encode(f, &pem.Block{Type: blockType, Bytes: derBytes})
+	if err := pem.Encode(f, &pem.Block{Type: blockType, Bytes: derBytes}); err != nil {
+		return err
+	}
+	logTLS.Printf("PEM file written successfully: path=%s", path)
+	return nil
 }
