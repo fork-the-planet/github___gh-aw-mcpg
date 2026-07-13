@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
-	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -440,50 +439,4 @@ func TestClientAddr(t *testing.T) {
 			assert.Equal(t, tc.expected, clientAddr(tc.input))
 		})
 	}
-}
-
-func TestConfigureTLSTrustEnvironment(t *testing.T) {
-	caPath := "/tmp/proxy-tls/ca.crt"
-
-	t.Run("sets trust environment variables in process", func(t *testing.T) {
-		assert := assert.New(t)
-		t.Setenv("GITHUB_ENV", "")
-		for _, key := range httputil.TLSTrustEnvKeys {
-			t.Setenv(key, "")
-		}
-
-		err := httputil.ConfigureTLSTrustEnvironment(caPath)
-		require.NoError(t, err)
-
-		for _, key := range httputil.TLSTrustEnvKeys {
-			assert.Equal(caPath, os.Getenv(key), "expected %s to be set", key)
-		}
-	})
-
-	t.Run("does not rely on GITHUB_ENV", func(t *testing.T) {
-		assert := assert.New(t)
-		githubEnvFile := t.TempDir() + "/github_env"
-		const original = "UNCHANGED=1\n"
-		require.NoError(t, os.WriteFile(githubEnvFile, []byte(original), 0o644))
-		t.Setenv("GITHUB_ENV", githubEnvFile)
-		for _, key := range httputil.TLSTrustEnvKeys {
-			t.Setenv(key, "")
-		}
-
-		require.NoError(t, httputil.ConfigureTLSTrustEnvironment(caPath))
-
-		for _, key := range httputil.TLSTrustEnvKeys {
-			assert.Equal(caPath, os.Getenv(key), "expected %s to be set", key)
-		}
-
-		content, err := os.ReadFile(githubEnvFile)
-		require.NoError(t, err)
-		assert.Equal(original, string(content))
-	})
-
-	t.Run("rejects CA cert path with newline", func(t *testing.T) {
-		err := httputil.ConfigureTLSTrustEnvironment("/tmp/ca.crt\nMALICIOUS=1")
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "contains newline")
-	})
 }

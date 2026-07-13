@@ -12,9 +12,9 @@ package config
 //     bounds, feature-flag defaults) on top of those primitives, keeping the
 //     higher-level policy separate from the lower-level reading mechanism.
 //
-// New MCP_GATEWAY_* environment variables should be added here rather than
-// in envutil, unless the accessor would be genuinely reusable outside the
-// gateway (e.g., a generic typed getter with no domain knowledge).
+// Keep this file focused on shared accessor/validation helpers used by
+// gateway config loading. Feature-specific policy may live in its own package
+// (for example, guard-policy parsing and command flag wiring).
 
 import (
 	"fmt"
