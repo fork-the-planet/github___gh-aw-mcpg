@@ -186,8 +186,7 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 	defer difcSpan.End()
 
 	if !s.guardInitialized {
-		err := errors.New("proxy enforcement not configured")
-		rejectProxyRequest(w, difcSpan, http.StatusServiceUnavailable, "service_unavailable", "proxy enforcement not configured", err)
+		rejectProxyRequest(w, difcSpan, http.StatusServiceUnavailable, "service_unavailable", "proxy enforcement not configured", nil)
 		return
 	}
 
@@ -217,7 +216,6 @@ func (h *proxyHandler) handleWithDIFC(w http.ResponseWriter, r *http.Request, pa
 			writeDIFCForbidden(w, deniedErr.Error())
 			return
 		}
-		logHandler.Printf("[DIFC] Phase 1 failed: %v", err)
 		rejectProxyRequest(w, difcSpan, http.StatusBadGateway, "bad_gateway", "resource labeling failed", err)
 		return
 	}
