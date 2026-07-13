@@ -1320,6 +1320,7 @@ func TestConvertStdinConfig_PayloadSizeThreshold(t *testing.T) {
 // wired through convertStdinConfig when set.
 func TestConvertStdinConfig_GatewayOptionalFields(t *testing.T) {
 	forceTrue := true
+	forceFalse := false
 
 	t.Run("payloadDir wired from stdin gateway config", func(t *testing.T) {
 		stdinCfg := &StdinConfig{
@@ -1340,11 +1341,10 @@ func TestConvertStdinConfig_GatewayOptionalFields(t *testing.T) {
 		cfg, err := convertStdinConfig(stdinCfg)
 		require.NoError(t, err)
 		require.NotNil(t, cfg.Gateway)
-		// PayloadDir falls back to the gateway-level default, not the custom override.
-		assert.NotEqual(t, "/custom/payloads", cfg.Gateway.PayloadDir)
+		assert.Equal(t, DefaultPayloadDir, cfg.Gateway.PayloadDir)
 	})
 
-	t.Run("forcePublicRepos wired from stdin gateway config", func(t *testing.T) {
+	t.Run("forcePublicRepos true value preserved", func(t *testing.T) {
 		stdinCfg := &StdinConfig{
 			Gateway: &StdinGatewayConfig{
 				ForcePublicRepos: &forceTrue,
@@ -1355,6 +1355,19 @@ func TestConvertStdinConfig_GatewayOptionalFields(t *testing.T) {
 		require.NotNil(t, cfg.Gateway)
 		require.NotNil(t, cfg.Gateway.ForcePublicRepos)
 		assert.True(t, *cfg.Gateway.ForcePublicRepos)
+	})
+
+	t.Run("forcePublicRepos false value preserved", func(t *testing.T) {
+		stdinCfg := &StdinConfig{
+			Gateway: &StdinGatewayConfig{
+				ForcePublicRepos: &forceFalse,
+			},
+		}
+		cfg, err := convertStdinConfig(stdinCfg)
+		require.NoError(t, err)
+		require.NotNil(t, cfg.Gateway)
+		require.NotNil(t, cfg.Gateway.ForcePublicRepos)
+		assert.False(t, *cfg.Gateway.ForcePublicRepos)
 	})
 
 	t.Run("nil forcePublicRepos leaves field nil", func(t *testing.T) {
@@ -1381,7 +1394,9 @@ func TestConvertStdinConfig_GatewayOptionalFields(t *testing.T) {
 
 	t.Run("empty sinkVisibilityExemptServers leaves field nil", func(t *testing.T) {
 		stdinCfg := &StdinConfig{
-			Gateway: &StdinGatewayConfig{},
+			Gateway: &StdinGatewayConfig{
+				SinkVisibilityExemptServers: []string{},
+			},
 		}
 		cfg, err := convertStdinConfig(stdinCfg)
 		require.NoError(t, err)
