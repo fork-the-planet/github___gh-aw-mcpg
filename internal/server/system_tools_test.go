@@ -56,7 +56,7 @@ func TestNewSysServer(t *testing.T) {
 			server := NewSysServer(tt.serverIDs)
 
 			require.NotNil(server, "NewSysServer should never return nil")
-			assert.Equal(tt.wantCount, len(server.serverIDs), "Server count mismatch")
+			assert.Len(server.serverIDs, tt.wantCount, "Server count mismatch")
 			if len(tt.serverIDs) > 0 {
 				assert.Equal(tt.serverIDs, server.serverIDs, "Server IDs should match")
 			}

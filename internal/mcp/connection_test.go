@@ -436,7 +436,7 @@ func TestConnection_IsHTTP(t *testing.T) {
 
 	// Test GetHTTPHeaders
 	returnedHeaders := conn.GetHTTPHeaders()
-	assert.Equal(t, len(headers), len(returnedHeaders))
+	assert.Len(t, returnedHeaders, len(headers))
 	for k, v := range headers {
 		assert.Equal(t, v, returnedHeaders[k], "Header %s should match the configured value", k)
 	}

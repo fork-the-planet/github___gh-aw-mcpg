@@ -615,7 +615,7 @@ func TestPayloadStorage_LargePayloadPreserved(t *testing.T) {
 
 	// Verify originalSize matches stored content size
 	originalSize := int(dataMap["originalSize"].(float64))
-	assert.Equal(t, len(storedContent), originalSize, "originalSize should match stored content size")
+	assert.Len(t, storedContent, originalSize, "originalSize should match stored content size")
 }
 
 // TestPayloadStorage_DirectoryStructure verifies the directory structure {baseDir}/{sessionID}/{queryID}/payload.json
@@ -1343,7 +1343,7 @@ func TestThresholdBehavior_LargePayloadsUsePayloadDir(t *testing.T) {
 			assert.JSONEq(t, string(originalJSON), string(storedJSON), "Stored content should match original: %s", tt.comment)
 
 			// Verify originalSize matches file size
-			assert.Equal(t, len(fileContent), pm.OriginalSize, "OriginalSize should match file size")
+			assert.Len(t, fileContent, pm.OriginalSize, "OriginalSize should match file size")
 		})
 	}
 }

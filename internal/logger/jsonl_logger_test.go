@@ -3,7 +3,6 @@ package logger
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -952,7 +951,7 @@ func TestLogEntry_EncodeErrorMessage(t *testing.T) {
 	require.Error(t, err)
 	// The original json.UnsupportedTypeError must be unwrappable.
 	var unsupported *json.UnsupportedTypeError
-	assert.True(t, errors.As(err, &unsupported), "wrapped error should be a *json.UnsupportedTypeError")
+	assert.ErrorAs(t, err, &unsupported, "wrapped error should be a *json.UnsupportedTypeError")
 }
 
 // TestLogDifcFilteredItem_NilEntry verifies that LogDifcFilteredItem does not

@@ -140,7 +140,7 @@ func TestRegisterPromptsFromBackend_NoCapability(t *testing.T) {
 func TestRegisterPromptsFromBackend_RequestError(t *testing.T) {
 	promptsListCalled := make(chan struct{}, 10)
 	t.Cleanup(func() {
-		assert.Equal(t, 1, len(promptsListCalled), "expected prompts/list to be called exactly once")
+		assert.Len(t, promptsListCalled, 1, "expected prompts/list to be called exactly once")
 	})
 
 	srv := newStreamableBackendWithPromptsCapability(t, func(w http.ResponseWriter, _ interface{}) {
@@ -162,7 +162,7 @@ func TestRegisterPromptsFromBackend_RequestError(t *testing.T) {
 func TestRegisterPromptsFromBackend_EmptyPromptsList(t *testing.T) {
 	promptsListCalled := make(chan struct{}, 10)
 	t.Cleanup(func() {
-		assert.Equal(t, 1, len(promptsListCalled), "expected prompts/list to be called exactly once")
+		assert.Len(t, promptsListCalled, 1, "expected prompts/list to be called exactly once")
 	})
 
 	srv := newStreamableBackendWithPromptsCapability(t, func(w http.ResponseWriter, reqID interface{}) {
@@ -191,7 +191,7 @@ func TestRegisterPromptsFromBackend_EmptyPromptsList(t *testing.T) {
 func TestRegisterPromptsFromBackend_RegistersPrompts(t *testing.T) {
 	promptsListCalled := make(chan struct{}, 10)
 	t.Cleanup(func() {
-		assert.Equal(t, 1, len(promptsListCalled), "expected prompts/list to be called exactly once")
+		assert.Len(t, promptsListCalled, 1, "expected prompts/list to be called exactly once")
 	})
 
 	srv := newStreamableBackendWithPromptsCapability(t, func(w http.ResponseWriter, reqID interface{}) {

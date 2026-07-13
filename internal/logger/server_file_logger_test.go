@@ -129,7 +129,7 @@ func TestServerFileLoggerConcurrentAccess(t *testing.T) {
 
 		// Count the number of lines
 		lines := strings.Split(strings.TrimSpace(string(content)), "\n")
-		assert.Equal(t, messagesPerServer, len(lines),
+		assert.Len(t, lines, messagesPerServer,
 			"Server %s should have %d log entries, got %d", serverID, messagesPerServer, len(lines))
 	}
 }

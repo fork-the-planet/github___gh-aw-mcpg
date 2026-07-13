@@ -274,7 +274,7 @@ func TestRedactSecretMap(t *testing.T) {
 			}
 
 			require.NotNil(t, result, "Expected non-nil result")
-			assert.Equal(t, len(tt.expected), len(result), "Map length mismatch")
+			assert.Len(t, result, len(tt.expected), "Map length mismatch")
 
 			for key, expectedValue := range tt.expected {
 				assert.Equal(t, expectedValue, result[key], "Value mismatch for key %s", key)

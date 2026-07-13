@@ -565,7 +565,7 @@ func TestNewHTTPConnection_GettersAfterCreation(t *testing.T) {
 
 	// Test GetHTTPHeaders getter
 	returnedHeaders := conn.GetHTTPHeaders()
-	assert.Equal(t, len(customHeaders), len(returnedHeaders), "Should return all headers")
+	assert.Len(t, returnedHeaders, len(customHeaders), "Should return all headers")
 	for key, expectedValue := range customHeaders {
 		assert.Equal(t, expectedValue, returnedHeaders[key], "Header %s should match", key)
 	}
