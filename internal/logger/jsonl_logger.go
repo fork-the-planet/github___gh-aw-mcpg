@@ -22,6 +22,7 @@ type JSONLLogger struct {
 var (
 	globalJSONLLogger *JSONLLogger
 	globalJSONLMu     sync.RWMutex
+	jsonlLoggerRef    = bindGlobalLogger(&globalJSONLMu, &globalJSONLLogger)
 )
 
 const (
@@ -64,14 +65,12 @@ var jsonlLoggerFactory = newLoggerFactory(
 
 // InitJSONLLogger initializes the global JSONL logger
 func InitJSONLLogger(logDir, fileName string) error {
-	return initAndSetGlobalLoggerOnSuccess(&globalJSONLMu, &globalJSONLLogger, logDir, fileName, os.O_APPEND, jsonlLoggerFactory)
+	return jsonlLoggerRef.initOnSuccess(logDir, fileName, os.O_APPEND, jsonlLoggerFactory)
 }
 
 // Close closes the JSONL log file
 func (jl *JSONLLogger) Close() error {
-	return jl.withLock(func() error {
-		return closeLogFile(jl.logFile, &jl.mu, "JSONL")
-	})
+	return closeLogFileWithLock(&jl.lockable, jl.logFile, "JSONL")
 }
 
 // LogMessage logs an RPC message to the JSONL file

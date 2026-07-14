@@ -21,6 +21,7 @@ type FileLogger struct {
 var (
 	globalFileLogger *FileLogger
 	globalLoggerMu   sync.RWMutex
+	fileLoggerRef    = bindGlobalLogger(&globalLoggerMu, &globalFileLogger)
 )
 
 // fileLoggerFactory bundles the setup and error-handler for FileLogger.
@@ -50,14 +51,12 @@ var fileLoggerFactory = newLoggerFactory(
 // InitFileLogger initializes the global file logger
 // If the log directory doesn't exist and can't be created, falls back to stderr
 func InitFileLogger(logDir, fileName string) error {
-	return initAndSetGlobalLogger(&globalLoggerMu, &globalFileLogger, logDir, fileName, os.O_APPEND, fileLoggerFactory)
+	return fileLoggerRef.initWithFallback(logDir, fileName, os.O_APPEND, fileLoggerFactory)
 }
 
 // Close closes the log file
 func (fl *FileLogger) Close() error {
-	return fl.withLock(func() error {
-		return closeLogFile(fl.logFile, &fl.mu, "file")
-	})
+	return closeLogFileWithLock(&fl.lockable, fl.logFile, "file")
 }
 
 // LogLevel represents the severity of a log message

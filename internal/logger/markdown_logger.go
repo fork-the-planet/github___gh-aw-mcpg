@@ -22,6 +22,7 @@ type MarkdownLogger struct {
 var (
 	globalMarkdownLogger *MarkdownLogger
 	globalMarkdownMu     sync.RWMutex
+	markdownLoggerRef    = bindGlobalLogger(&globalMarkdownMu, &globalMarkdownLogger)
 )
 
 // markdownLoggerFactory bundles the setup and error-handler for MarkdownLogger.
@@ -47,7 +48,7 @@ var markdownLoggerFactory = newLoggerFactory(
 
 // InitMarkdownLogger initializes the global markdown logger
 func InitMarkdownLogger(logDir, fileName string) error {
-	return initAndSetGlobalLogger(&globalMarkdownMu, &globalMarkdownLogger, logDir, fileName, os.O_TRUNC, markdownLoggerFactory)
+	return markdownLoggerRef.initWithFallback(logDir, fileName, os.O_TRUNC, markdownLoggerFactory)
 }
 
 // initializeFile writes the HTML details header on first write
@@ -68,19 +69,9 @@ func (ml *MarkdownLogger) initializeFile() error {
 
 // Close closes the log file and writes the closing details tag
 func (ml *MarkdownLogger) Close() error {
-	return ml.withLock(func() error {
-		if ml.logFile != nil {
-			// Write closing details tag before closing
-			footer := "\n</details>\n"
-			if _, err := ml.logFile.WriteString(footer); err != nil {
-				// Even if footer write fails, try to close the file properly
-				return closeLogFile(ml.logFile, &ml.mu, "markdown")
-			}
-
-			// Footer written successfully, now close
-			return closeLogFile(ml.logFile, &ml.mu, "markdown")
-		}
-		return nil
+	return closeLogFileWithCleanup(&ml.lockable, ml.logFile, "markdown", func(file *os.File) error {
+		_, err := file.WriteString("\n</details>\n")
+		return err
 	})
 }
 

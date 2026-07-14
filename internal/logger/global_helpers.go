@@ -59,6 +59,39 @@ type closableLogger interface {
 	Close() error
 }
 
+// globalLoggerRef binds a global logger pointer to its protecting mutex so
+// repeated Init* wrappers only need to specify the initialization policy.
+type globalLoggerRef[T closableLogger] struct {
+	mu      *sync.RWMutex
+	current *T
+}
+
+// bindGlobalLogger packages the global logger pointer and mutex once so
+// per-logger Init* functions can delegate through a shared lifecycle helper.
+func bindGlobalLogger[T closableLogger](mu *sync.RWMutex, current *T) globalLoggerRef[T] {
+	return globalLoggerRef[T]{
+		mu:      mu,
+		current: current,
+	}
+}
+
+// initWithFallback initializes a global logger and installs fallback instances
+// even when initLogger reports an error.
+func (r globalLoggerRef[T]) initWithFallback(logDir, fileName string, flags int, factory loggerFactory[T]) error {
+	return initAndSetGlobalLogger(r.mu, r.current, logDir, fileName, flags, factory)
+}
+
+// initOnSuccess initializes a global logger and preserves the current global
+// instance when initialization fails.
+func (r globalLoggerRef[T]) initOnSuccess(logDir, fileName string, flags int, factory loggerFactory[T]) error {
+	return initAndSetGlobalLoggerOnSuccess(r.mu, r.current, logDir, fileName, flags, factory)
+}
+
+// initNoFile initializes a global logger that creates files lazily or not at all.
+func (r globalLoggerRef[T]) initNoFile(logDir string, factory loggerFactory[T]) error {
+	return initAndSetGlobalNoFileLogger(r.mu, r.current, logDir, factory)
+}
+
 // newLoggerFactory creates a loggerFactory from setup and error-handler callbacks.
 func newLoggerFactory[T closableLogger](setup loggerSetupFunc[T], onError loggerErrorHandlerFunc[T]) loggerFactory[T] {
 	return loggerFactory[T]{

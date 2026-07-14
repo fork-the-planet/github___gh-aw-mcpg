@@ -36,6 +36,7 @@ type ObservedURLDomainsLogger struct {
 var (
 	globalObservedURLDomainsLogger *ObservedURLDomainsLogger
 	globalObservedURLDomainsMu     sync.RWMutex
+	observedURLDomainsLoggerRef    = bindGlobalLogger(&globalObservedURLDomainsMu, &globalObservedURLDomainsLogger)
 )
 
 var observedURLDomainsLoggerFactory = newLoggerFactory(
@@ -67,7 +68,7 @@ var observedURLDomainsLoggerFactory = newLoggerFactory(
 
 // InitObservedURLDomainsLogger initializes observed-url-domains.json logger.
 func InitObservedURLDomainsLogger(logDir, fileName string) error {
-	return initAndSetGlobalLogger(&globalObservedURLDomainsMu, &globalObservedURLDomainsLogger, logDir, fileName, os.O_TRUNC, observedURLDomainsLoggerFactory)
+	return observedURLDomainsLoggerRef.initWithFallback(logDir, fileName, os.O_TRUNC, observedURLDomainsLoggerFactory)
 }
 
 // LogDomains logs unique domains for a server ID.

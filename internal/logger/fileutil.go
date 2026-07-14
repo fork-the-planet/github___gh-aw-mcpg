@@ -35,6 +35,30 @@ func closeLogFile(file *os.File, mu *sync.Mutex, loggerName string) error {
 	return file.Close()
 }
 
+// closeLogFileWithLock centralizes the common Close() skeleton for lockable
+// loggers backed by a single os.File.
+func closeLogFileWithLock(l *lockable, file *os.File, loggerName string) error {
+	return closeLogFileWithCleanup(l, file, loggerName, nil)
+}
+
+// closeLogFileWithCleanup runs optional cleanup while holding the logger mutex,
+// then delegates to closeLogFile for the shared sync-and-close behavior.
+func closeLogFileWithCleanup(
+	l *lockable,
+	file *os.File,
+	loggerName string,
+	cleanup func(*os.File) error,
+) error {
+	return l.withLock(func() error {
+		if file != nil && cleanup != nil {
+			if err := cleanup(file); err != nil {
+				return closeLogFile(file, &l.mu, loggerName)
+			}
+		}
+		return closeLogFile(file, &l.mu, loggerName)
+	})
+}
+
 // initLogFile handles the common logic for initializing a log file.
 // It creates the log directory if needed and opens the log file with the specified flags.
 //

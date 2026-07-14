@@ -20,8 +20,8 @@ import (
 //	    })
 //	}
 //
-// The withLock helper (defined on each logger type) acquires the mutex, executes the
-// callback, then releases the mutex — ensuring the lock is always released via defer.
+// The withLock helper (promoted from the embedded lockable type) acquires the mutex,
+// executes the callback, then releases the mutex — ensuring the lock is always released via defer.
 //
 // Why this pattern?
 //
@@ -56,8 +56,9 @@ import (
 //	    })
 //	}
 //
-// When adding a new logger type, add a withLock helper and follow this pattern to ensure
-// consistent, safe Close() behavior.
+// When adding a new single-file logger type, embed lockable and prefer the
+// closeLogFileWithLock / closeLogFileWithCleanup helpers so the sync/close lifecycle
+// stays centralized.
 
 // Initialization Pattern for Logger Types
 //
@@ -71,9 +72,9 @@ import (
 // The setup and error-handler callbacks are defined as named package-level functions
 // (e.g., setupFileLogger, handleFileLoggerError) and bundled into a package-level
 // loggerFactory[T] variable to aid readability and testability:
-// The small per-logger Init*/setup*/handle* wrappers are intentional even though they
-// look similar: each logger type exposes a stable public API and keeps fallback semantics
-// explicit at the call site (stdout fallback, silent fallback, strict error, etc.).
+// The per-logger Init* functions stay as the public API, but they delegate through
+// bindGlobalLogger in global_helpers.go so the mutex/global-pointer wiring and init
+// policy are centralized while fallback semantics remain explicit at the call site.
 //
 //	var fileLoggerFactory = loggerFactory[*FileLogger]{
 //	    setup:   setupFileLogger,
@@ -158,11 +159,9 @@ import (
 // After initialization, all logger types register themselves as global loggers
 // using the generic initGlobal*Logger() helpers from global_helpers.go:
 //
-//  - initGlobalFileLogger()
-//  - initGlobalJSONLLogger()
-//  - initGlobalMarkdownLogger()
-//  - initGlobalServerFileLogger()
-//  - initGlobalToolsLogger()
+//  - bindGlobalLogger(...).initWithFallback(...)
+//  - bindGlobalLogger(...).initOnSuccess(...)
+//  - bindGlobalLogger(...).initNoFile(...)
 //
 // These helpers ensure thread-safe initialization with proper cleanup of any
 // existing logger instance.
@@ -181,10 +180,10 @@ import (
 // Adding a New Logger Type:
 //
 // When adding a new logger type:
-//  1. Implement Close() method following the Close Pattern (above)
+//  1. Implement Close() using closeLogFileWithLock / closeLogFileWithCleanup when applicable
 //  2. Add type to closableLogger constraint in global_helpers.go
-//  3. Use initLogger() for initialization with appropriate fallback strategy
-//  4. Add initGlobal*Logger() helper and inline the close closure in registry.go
+//  3. Use bindGlobalLogger(...) plus the appropriate init* method for initialization
+//  4. Add startup/cleanup registry entries in registry.go
 //  5. Document the fallback strategy and use case
 //
 // This consistent pattern ensures:

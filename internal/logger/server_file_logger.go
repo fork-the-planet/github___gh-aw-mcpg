@@ -21,6 +21,7 @@ type ServerFileLogger struct {
 var (
 	globalServerFileLogger *ServerFileLogger
 	globalServerLoggerMu   sync.RWMutex
+	serverFileLoggerRef    = bindGlobalLogger(&globalServerLoggerMu, &globalServerFileLogger)
 )
 
 // serverFileLoggerFactory bundles the setup and error-handler for ServerFileLogger.
@@ -48,7 +49,7 @@ func newServerFileLogger(logDir string, useFallback bool) *ServerFileLogger {
 
 // InitServerFileLogger initializes the global server file logger
 func InitServerFileLogger(logDir string) error {
-	return initAndSetGlobalNoFileLogger(&globalServerLoggerMu, &globalServerFileLogger, logDir, serverFileLoggerFactory)
+	return serverFileLoggerRef.initNoFile(logDir, serverFileLoggerFactory)
 }
 
 // getOrCreateLogger returns a logger for the given serverID, creating it if necessary

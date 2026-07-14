@@ -35,6 +35,7 @@ type ToolsLogger struct {
 var (
 	globalToolsLogger *ToolsLogger
 	globalToolsMu     sync.RWMutex
+	toolsLoggerRef    = bindGlobalLogger(&globalToolsMu, &globalToolsLogger)
 )
 
 // toolsLoggerFactory bundles the setup and error-handler for ToolsLogger.
@@ -70,7 +71,7 @@ var toolsLoggerFactory = newLoggerFactory(
 // InitToolsLogger initializes the global tools logger
 // If the log directory doesn't exist and can't be created, falls back to no-op
 func InitToolsLogger(logDir, fileName string) error {
-	return initAndSetGlobalLogger(&globalToolsMu, &globalToolsLogger, logDir, fileName, os.O_TRUNC, toolsLoggerFactory)
+	return toolsLoggerRef.initWithFallback(logDir, fileName, os.O_TRUNC, toolsLoggerFactory)
 }
 
 // LogTools logs the tools for a specific server
