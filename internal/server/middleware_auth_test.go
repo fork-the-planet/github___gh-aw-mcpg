@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -171,6 +172,68 @@ func TestApplyIfConfigured_WithoutKey(t *testing.T) {
 	wrapped(rr, req)
 
 	assert.True(t, called)
+}
+
+func TestApplyIfConfiguredWithLog_WithKey(t *testing.T) {
+	t.Parallel()
+
+	middlewareCalled := false
+	middleware := func(key string, h http.HandlerFunc) http.HandlerFunc {
+		middlewareCalled = true
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Wrapped", key)
+			h(w, r)
+		}
+	}
+
+	logged := ""
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrapped := applyIfConfiguredWithLog("my-key", handler, middleware, func(args ...any) {
+		logged = fmt.Sprint(args...)
+	}, "middleware enabled", "middleware disabled")
+
+	require.True(t, middlewareCalled, "middleware factory should be called when key is non-empty")
+	assert.Equal(t, "middleware enabled", logged)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+	wrapped(rr, req)
+
+	assert.Equal(t, "my-key", rr.Header().Get("X-Wrapped"))
+}
+
+func TestApplyIfConfiguredWithLog_WithoutKey(t *testing.T) {
+	t.Parallel()
+
+	middlewareCalled := false
+	middleware := func(_ string, h http.HandlerFunc) http.HandlerFunc {
+		middlewareCalled = true
+		return h
+	}
+
+	called := false
+	logged := ""
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrapped := applyIfConfiguredWithLog("", handler, middleware, func(args ...any) {
+		logged = fmt.Sprint(args...)
+	}, "middleware enabled", "middleware disabled")
+
+	assert.False(t, middlewareCalled, "middleware factory should NOT be called when key is empty")
+	assert.Equal(t, "middleware disabled", logged)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+	wrapped(rr, req)
+
+	assert.True(t, called)
+	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 func TestApplyAuthIfConfigured_WithKey(t *testing.T) {

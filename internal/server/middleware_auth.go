@@ -19,6 +19,16 @@ func applyIfConfigured(key string, handler http.HandlerFunc, middleware func(str
 	return handler
 }
 
+// applyIfConfiguredWithLog logs whether a middleware is active before applying it.
+func applyIfConfiguredWithLog(key string, handler http.HandlerFunc, middleware func(string, http.HandlerFunc) http.HandlerFunc, logFn func(...any), enabledMsg, disabledMsg string) http.HandlerFunc {
+	if key != "" {
+		logFn(enabledMsg)
+	} else {
+		logFn(disabledMsg)
+	}
+	return applyIfConfigured(key, handler, middleware)
+}
+
 // authMiddleware implements API key authentication per spec section 7.1
 // Per spec: Authorization header MUST contain the API key directly.
 //
@@ -38,20 +48,23 @@ func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
 
 		if authHeader == "" {
 			// Spec 7.1: Missing token returns 401
-			rejectAuthRequest(w, r, http.StatusUnauthorized, "unauthorized", "missing Authorization header", "missing_auth_header")
+			logAuth.Printf("Rejecting auth request: status=%d, code=%s, detail=%s, path=%s, remote=%s", http.StatusUnauthorized, "unauthorized", "missing_auth_header", r.URL.Path, r.RemoteAddr)
+			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "missing Authorization header", "auth", "authentication_failed", "missing_auth_header")
 			return
 		}
 
 		// Spec 7.2 item 3: Malformed Authorization headers (null bytes, non-printable
 		// control characters) must return 400 Bad Request, not 401.
 		if auth.IsMalformedHeader(authHeader) {
-			rejectAuthRequest(w, r, http.StatusBadRequest, "bad_request", "malformed Authorization header", "malformed_auth_header")
+			logAuth.Printf("Rejecting auth request: status=%d, code=%s, detail=%s, path=%s, remote=%s", http.StatusBadRequest, "bad_request", "malformed_auth_header", r.URL.Path, r.RemoteAddr)
+			rejectRequest(w, r, http.StatusBadRequest, "bad_request", "malformed Authorization header", "auth", "authentication_failed", "malformed_auth_header")
 			return
 		}
 
 		// Spec 7.1: Authorization header must contain API key directly.
 		if subtle.ConstantTimeCompare([]byte(authHeader), []byte(apiKey)) != 1 {
-			rejectAuthRequest(w, r, http.StatusUnauthorized, "unauthorized", "invalid API key", "invalid_api_key")
+			logAuth.Printf("Rejecting auth request: status=%d, code=%s, detail=%s, path=%s, remote=%s", http.StatusUnauthorized, "unauthorized", "invalid_api_key", r.URL.Path, r.RemoteAddr)
+			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "invalid API key", "auth", "authentication_failed", "invalid_api_key")
 			return
 		}
 
@@ -61,18 +74,15 @@ func authMiddleware(apiKey string, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func rejectAuthRequest(w http.ResponseWriter, r *http.Request, status int, code, msg, detail string) {
-	logAuth.Printf("Rejecting auth request: status=%d, code=%s, detail=%s, path=%s, remote=%s", status, code, detail, r.URL.Path, r.RemoteAddr)
-	rejectRequest(w, r, status, code, msg, "auth", "authentication_failed", detail)
-}
-
 // applyAuthIfConfigured applies authentication middleware if an API key is provided
 // Returns the handler unchanged if apiKey is empty
 func applyAuthIfConfigured(apiKey string, handler http.HandlerFunc) http.HandlerFunc {
-	if apiKey != "" {
-		logAuth.Print("Auth key configured, applying middleware")
-	} else {
-		logAuth.Print("No auth key configured, skipping middleware")
-	}
-	return applyIfConfigured(apiKey, handler, authMiddleware)
+	return applyIfConfiguredWithLog(
+		apiKey,
+		handler,
+		authMiddleware,
+		logAuth.Print,
+		"Auth key configured, applying middleware",
+		"No auth key configured, skipping middleware",
+	)
 }

@@ -40,9 +40,8 @@ func logRuntimeError(errorType, detail string, r *http.Request, serverName *stri
 // previously duplicated across auth and handler code paths.
 //
 // This is the canonical rejection entry point for all middleware and handler code.
-// New middleware should call rejectRequest directly, or define a thin wrapper
-// (like rejectAuthRequest in middleware_auth.go or rejectHMACRequest in hmac.go)
-// that wires in the appropriate log category and error type constants.
+// New middleware should call rejectRequest directly, optionally emitting any
+// component-specific debug logging before rejection.
 //
 // Parameters:
 //   - logCategory: category for the structured log (e.g. "auth")
