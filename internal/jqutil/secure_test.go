@@ -1,6 +1,7 @@
 package jqutil
 
 import (
+	"context"
 	"testing"
 
 	"github.com/itchyny/gojq"
@@ -17,7 +18,7 @@ func TestSecureCompileOpts_DisablesENV(t *testing.T) {
 	code, err := gojq.Compile(query, SecureCompileOpts...)
 	require.NoError(t, err)
 
-	iter := code.Run(nil)
+	iter := code.RunWithContext(context.Background(), nil)
 	v, ok := iter.Next()
 	require.True(t, ok, "expected a result from $ENV query")
 
@@ -36,7 +37,7 @@ func TestSecureCompileOpts_AllowsNormalFilters(t *testing.T) {
 	require.NoError(t, err)
 
 	input := map[string]any{"name": "test-value", "count": 42}
-	iter := code.Run(input)
+	iter := code.RunWithContext(context.Background(), input)
 	v, ok := iter.Next()
 	require.True(t, ok)
 	assert.Equal(t, "test-value", v)
@@ -56,7 +57,7 @@ func TestCompileOptsWithVariables(t *testing.T) {
 	code, err := gojq.Compile(query, opts...)
 	require.NoError(t, err)
 
-	iter := code.Run(nil, "hello", 42)
+	iter := code.RunWithContext(context.Background(), nil, "hello", 42)
 	v, ok := iter.Next()
 	require.True(t, ok)
 

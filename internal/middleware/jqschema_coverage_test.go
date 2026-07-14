@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/github/gh-aw-mcpg/internal/jqutil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -587,7 +588,7 @@ func TestCompileOptsWithVariables_DoesNotMutateSharedSecureOpts(t *testing.T) {
 	t.Parallel()
 
 	initialLen := len(secureCompileOpts)
-	opts := compileOptsWithVariables([]string{"$toolID"})
+	opts := jqutil.CompileOptsWithVariables([]string{"$toolID"})
 
 	assert.Len(t, secureCompileOpts, initialLen)
 	assert.Len(t, opts, initialLen+1)

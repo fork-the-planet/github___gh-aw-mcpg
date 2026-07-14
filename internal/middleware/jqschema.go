@@ -271,7 +271,7 @@ func CompileToolResponseFilterWithVars(filter string, varNames []string) (*gojq.
 	return compileToolResponseFilterInternal(
 		cacheKey,
 		filter,
-		compileOptsWithVariables(varNames),
+		jqutil.CompileOptsWithVariables(varNames),
 		"CompileToolResponseFilterWithVars",
 		fmt.Sprintf(", vars=%v", varNames),
 	)
@@ -308,10 +308,6 @@ func compileToolResponseFilterInternal[K comparable](
 	filterCodeCache.Store(cacheKey, code)
 	logMiddleware.Printf("%s: filter compiled and cached successfully", logFunctionName)
 	return code, nil
-}
-
-func compileOptsWithVariables(varNames []string) []gojq.CompilerOption {
-	return jqutil.CompileOptsWithVariables(varNames)
 }
 
 func buildVarNamesCacheKey(varNames []string) string {
