@@ -5191,13 +5191,14 @@ mod tests {
             "unlock_issue",
             "unlock_pull_request",
         ] {
+            let expected_desc = format!("resource:{op}");
             let (secrecy, integrity, desc) = apply_tool_labels(
                 op,
                 &tool_args,
                 repo_id,
                 vec![],
                 provided_integrity.clone(),
-                String::new(),
+                expected_desc.clone(),
                 &ctx,
             );
 
@@ -5206,7 +5207,10 @@ mod tests {
                 integrity, provided_integrity,
                 "{op}: should inherit provided integrity unchanged"
             );
-            assert!(desc.is_empty(), "{op}: desc should remain the provided default");
+            assert_eq!(
+                desc, expected_desc,
+                "{op}: desc should remain the provided default"
+            );
         }
     }
 
