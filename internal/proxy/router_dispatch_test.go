@@ -111,10 +111,9 @@ func TestRouteMatchKeyDispatchCorrectness(t *testing.T) {
 	}
 }
 
-// BenchmarkMatchRoute_Issues benchmarks MatchRoute on an issue sub-resource path.
-// Before the dispatch optimisation, this required trying ~5 regexps on average
-// before reaching the issues bucket and finding a match. After optimisation it
-// tries only the 3-4 routes in the "issues" bucket.
+// BenchmarkMatchRoute_Issues benchmarks dispatch overhead on an issue path.
+// This path matched the first route before dispatching and still does afterward,
+// so it serves as a control for the overhead added to an existing fast path.
 func BenchmarkMatchRoute_Issues(b *testing.B) {
 	path := "/repos/github/gh-aw-mcpg/issues/123/comments"
 	for b.Loop() {
