@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -216,4 +217,69 @@ func TestInitAndSetGlobalNoFileLogger_UsesFallbackOnMkdirError(t *testing.T) {
 	globalServerLoggerMu.RUnlock()
 	require.NotNil(t, logger)
 	assert.True(t, logger.useFallback, "mkdir failure should initialize server logger in fallback mode")
+}
+
+// TestInitAndSetGlobalNoFileLogger_FactorySetupError verifies that
+// initAndSetGlobalNoFileLogger propagates errors from factory.setup.
+func TestInitAndSetGlobalNoFileLogger_FactorySetupError(t *testing.T) {
+	resetAllGlobalLoggers(t)
+	t.Cleanup(func() { resetAllGlobalLoggers(t) })
+
+	setupErr := errors.New("setup failed")
+	factory := newLoggerFactory(
+		func(_ *os.File, _, _ string) (*ServerFileLogger, error) {
+			return nil, setupErr
+		},
+		func(err error, logDir, _ string) (*ServerFileLogger, error) {
+			return newServerFileLogger(logDir, true), nil
+		},
+	)
+
+	tmpDir := t.TempDir()
+	err := initAndSetGlobalNoFileLogger(&globalServerLoggerMu, &globalServerFileLogger, tmpDir, factory)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, setupErr)
+}
+
+// TestInitAndSetGlobalNoFileLogger_OnErrorReturnsError verifies that
+// initAndSetGlobalNoFileLogger propagates errors from factory.onError when
+// the directory cannot be created.
+func TestInitAndSetGlobalNoFileLogger_OnErrorReturnsError(t *testing.T) {
+	resetAllGlobalLoggers(t)
+	t.Cleanup(func() { resetAllGlobalLoggers(t) })
+
+	onErrorErr := errors.New("onError failed")
+	factory := newLoggerFactory(
+		func(_ *os.File, logDir, _ string) (*ServerFileLogger, error) {
+			return newServerFileLogger(logDir, false), nil
+		},
+		func(_ error, logDir, _ string) (*ServerFileLogger, error) {
+			return nil, onErrorErr
+		},
+	)
+
+	// Use a path that cannot be created (file used as parent directory).
+	tmpDir := t.TempDir()
+	blockingFile := filepath.Join(tmpDir, "not-a-dir")
+	require.NoError(t, os.WriteFile(blockingFile, []byte("x"), 0644))
+
+	err := initAndSetGlobalNoFileLogger(
+		&globalServerLoggerMu,
+		&globalServerFileLogger,
+		filepath.Join(blockingFile, "subdir"),
+		factory,
+	)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, onErrorErr)
+}
+
+// TestWriteJSONToFile_MarshalError verifies that writeJSONToFile returns an error
+// when the provided data cannot be marshaled to JSON.
+func TestWriteJSONToFile_MarshalError(t *testing.T) {
+	tmpDir := t.TempDir()
+	// Channels are not JSON-marshalable.
+	err := writeJSONToFile(tmpDir, "out.json", make(chan int), 0o644)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to marshal JSON data")
+	assert.Contains(t, err.Error(), "out.json")
 }
