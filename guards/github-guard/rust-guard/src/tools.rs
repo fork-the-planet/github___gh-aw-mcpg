@@ -160,12 +160,12 @@ pub fn is_delete_operation(tool_name: &str) -> bool {
 }
 
 /// Check if a tool is a lock operation
-pub fn is_lock_operation(tool_name: &str) -> bool {
+pub(crate) fn is_lock_operation(tool_name: &str) -> bool {
     tool_name.starts_with("lock_")
 }
 
 /// Check if a tool is an unlock operation
-pub fn is_unlock_operation(tool_name: &str) -> bool {
+pub(crate) fn is_unlock_operation(tool_name: &str) -> bool {
     tool_name.starts_with("unlock_")
 }
 
