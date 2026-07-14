@@ -102,7 +102,7 @@ The gateway supports OpenTelemetry distributed tracing. Set these variables to e
 | Variable | Description |
 |----------|-------------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP endpoint (e.g., `http://localhost:4318`); tracing is disabled when empty |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated `key=value` headers for OTLP export (W3C Baggage format); used as fallback when not set in TOML config, and required when using JSON stdin because `gateway.opentelemetry.headers` is not supported there |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Comma-separated `key=value` headers for OTLP export (W3C Baggage format); used as fallback when not set in TOML config. With JSON stdin, use this variable for shared OTLP headers because `gateway.opentelemetry.headers` is not supported there |
 | `GH_AW_OTLP_ENDPOINTS` | Comma-separated OTLP URLs (or JSON array with per-endpoint `headers`) for multi-backend fan-out; all listed endpoints receive every span. Takes precedence over `OTEL_EXPORTER_OTLP_ENDPOINT`. |
 | `OTEL_SERVICE_NAME` | Service name reported in traces (default: `mcp-gateway`) |
 
