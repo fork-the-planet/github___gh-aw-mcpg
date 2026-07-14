@@ -278,7 +278,7 @@ func TestInitAndSetGlobalNoFileLogger_OnErrorReturnsError(t *testing.T) {
 func TestWriteJSONToFile_MarshalError(t *testing.T) {
 	tmpDir := t.TempDir()
 	// Channels are not JSON-marshalable.
-	err := writeJSONToFile(tmpDir, "out.json", make(chan int), 0o644)
+	err := writeJSONToFile(tmpDir, "out.json", make(chan int), 0644)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to marshal JSON data")
 	assert.Contains(t, err.Error(), "out.json")
