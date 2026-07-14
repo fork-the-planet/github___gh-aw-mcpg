@@ -201,7 +201,9 @@ func writePEM(path, blockType string, derBytes []byte, perm os.FileMode) error {
 		return err
 	}
 	if err := pem.Encode(f, &pem.Block{Type: blockType, Bytes: derBytes}); err != nil {
-		_ = f.Close()
+		if closeErr := f.Close(); closeErr != nil {
+			logTLS.Printf("failed to close file after encoding error: %v", closeErr)
+		}
 		return err
 	}
 	if err := f.Close(); err != nil {
