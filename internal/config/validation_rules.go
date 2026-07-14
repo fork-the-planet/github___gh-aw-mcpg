@@ -32,36 +32,44 @@ func PortRange(port int, jsonPath string) *ValidationError {
 	return nil
 }
 
-// TimeoutPositive validates that a timeout value is at least 1.
-// Returns nil if valid, *ValidationError if invalid.
-func TimeoutPositive(timeout int, fieldName, jsonPath string) *ValidationError {
-	logValidation.Printf("Validating positive timeout: field=%s, value=%d, jsonPath=%s", fieldName, timeout, jsonPath)
-	if timeout < 1 {
+func validatePositiveIntegerRule(value int, fieldName, jsonPath, logLabel, failureLabel, suggestion string) *ValidationError {
+	logValidation.Printf("Validating %s: field=%s, value=%d, jsonPath=%s", logLabel, fieldName, value, jsonPath)
+	if value < 1 {
 		return newValidationError(
-			fmt.Sprintf("Positive timeout validation failed: %s=%d is not positive", fieldName, timeout),
+			fmt.Sprintf("%s validation failed: %s=%d is not positive", failureLabel, fieldName, value),
 			fieldName,
-			fmt.Sprintf("%s must be a positive integer (>= 1), got %d", fieldName, timeout),
+			fmt.Sprintf("%s must be a positive integer (>= 1), got %d", fieldName, value),
 			jsonPath,
-			"Use a positive number of seconds (e.g., 30)",
+			suggestion,
 		)
 	}
 	return nil
 }
 
+// TimeoutPositive validates that a timeout value is at least 1.
+// Returns nil if valid, *ValidationError if invalid.
+func TimeoutPositive(timeout int, fieldName, jsonPath string) *ValidationError {
+	return validatePositiveIntegerRule(
+		timeout,
+		fieldName,
+		jsonPath,
+		"positive timeout",
+		"Positive timeout",
+		"Use a positive number of seconds (e.g., 30)",
+	)
+}
+
 // PositiveInteger validates that a value is at least 1.
 // Returns nil if valid, *ValidationError if invalid.
 func PositiveInteger(value int, fieldName, jsonPath string) *ValidationError {
-	logValidation.Printf("Validating positive integer: field=%s, value=%d, jsonPath=%s", fieldName, value, jsonPath)
-	if value < 1 {
-		return newValidationError(
-			fmt.Sprintf("Positive integer validation failed: %s=%d is not positive", fieldName, value),
-			fieldName,
-			fmt.Sprintf("%s must be a positive integer (>= 1), got %d", fieldName, value),
-			jsonPath,
-			fmt.Sprintf("Use a positive integer (>= 1) for %s", fieldName),
-		)
-	}
-	return nil
+	return validatePositiveIntegerRule(
+		value,
+		fieldName,
+		jsonPath,
+		"positive integer",
+		"Positive integer",
+		fmt.Sprintf("Use a positive integer (>= 1) for %s", fieldName),
+	)
 }
 
 // TimeoutMinimum validates that a timeout value is at least min.

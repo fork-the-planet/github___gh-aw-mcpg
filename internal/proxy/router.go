@@ -461,30 +461,152 @@ var routes = []route{
 	},
 }
 
+// routeDispatch maps a dispatch key (e.g. "issues", "pulls", "search") to the
+// indices into routes that could match that key. Built once at package init.
+// Routes that cannot be bucketed (e.g. the generic repo catch-all) are stored
+// under the empty string key and are always tried after the keyed routes.
+var routeDispatch map[string][]int
+
+func init() {
+	routeDispatch = buildRouteDispatch(routes)
+}
+
+// buildRouteDispatch derives a dispatch key from each compiled route pattern
+// and groups route indices by that key.
+//
+// Dispatch key rules (applied to the route's regexp source string):
+//   - Patterns starting with "^/repos/([^/]+)/([^/]+)/FIXED/..." → key = "FIXED"
+//   - Patterns starting with "^/repos/([^/]+)/([^/]+)(?:/...)?$" (generic catch-all) → key = ""
+//   - All other patterns → key = first fixed path segment after "^/"
+//
+// Routes with key "" are treated as catch-all and tried after any keyed match fails.
+func buildRouteDispatch(rs []route) map[string][]int {
+	const repoPrefix = `^/repos/([^/]+)/([^/]+)/`
+	const repoCatchAll = `^/repos/([^/]+)/([^/]+)`
+
+	m := make(map[string][]int)
+	for i, r := range rs {
+		src := r.pattern.String()
+		switch {
+		case strings.HasPrefix(src, repoPrefix):
+			// Extract the fixed segment immediately after /repos/owner/repo/
+			rest := src[len(repoPrefix):]
+			seg := fixedSegment(rest)
+			m[seg] = append(m[seg], i)
+		case strings.HasPrefix(src, repoCatchAll):
+			// Generic /repos/:owner/:repo catch-all — always tried
+			m[""] = append(m[""], i)
+		default:
+			// Top-level paths like /search/..., /user, /notifications, /orgs/...
+			rest := strings.TrimPrefix(src, "^/")
+			seg := fixedSegment(rest)
+			m[seg] = append(m[seg], i)
+		}
+	}
+	return m
+}
+
+// fixedSegment extracts the first fixed (non-regex) segment from a pattern fragment.
+// It reads characters up to the first '/', '(', '[', '$', or '?' and returns
+// the resulting string, which uniquely identifies the URL sub-path category.
+func fixedSegment(s string) string {
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '/', '(', '[', '$', '?':
+			return s[:i]
+		}
+	}
+	return s
+}
+
+// routeMatchKey computes the dispatch key for an incoming URL path that has
+// already had its query string stripped.
+//
+//   - Paths matching /repos/X/Y/SEGMENT/... → "SEGMENT"
+//   - Paths matching /repos/X/Y exactly → ""  (catch-all repo route)
+//   - Other paths → first segment after leading "/"
+func routeMatchKey(path string) string {
+	const slash = '/'
+	if !strings.HasPrefix(path, "/repos/") {
+		// Top-level: /search/code → "search", /notifications → "notifications"
+		rest := strings.TrimPrefix(path, "/")
+		if idx := strings.IndexByte(rest, slash); idx >= 0 {
+			return rest[:idx]
+		}
+		return rest
+	}
+	// Strip "/repos/"
+	rest := path[len("/repos/"):]
+	// Skip owner segment
+	idx := strings.IndexByte(rest, slash)
+	if idx < 0 {
+		return "" // just /repos/owner — no match expected
+	}
+	rest = rest[idx+1:]
+	// Skip repo segment
+	idx = strings.IndexByte(rest, slash)
+	if idx < 0 {
+		return "" // /repos/owner/repo — catch-all
+	}
+	rest = rest[idx+1:]
+	// Extract the sub-resource segment (e.g. "issues", "pulls", "actions")
+	if idx = strings.IndexByte(rest, slash); idx >= 0 {
+		return rest[:idx]
+	}
+	return rest
+}
+
 // MatchRoute matches a REST API path to a guard tool name.
 // The path should NOT include the /api/v3 prefix.
+//
+// Uses a dispatch map keyed by the fixed sub-resource segment (e.g. "issues",
+// "pulls", "actions") to narrow down the candidate routes before regexp
+// matching. This reduces the average number of regexp evaluations from O(N)
+// across all 49 routes to O(k) where k is the number of routes in the bucket
+// (typically 1–14 instead of up to 49).
 func MatchRoute(path string) *RouteMatch {
 	// Strip query string
 	if idx := strings.IndexByte(path, '?'); idx >= 0 {
 		path = path[:idx]
 	}
 
-	for _, r := range routes {
+	key := routeMatchKey(path)
+	bucketIndices := routeDispatch[key]
+	catchallIndices := routeDispatch[""]
+
+	tryMatch := func(idx int) *RouteMatch {
+		r := routes[idx]
 		matches := r.pattern.FindStringSubmatch(path)
-		if matches != nil {
-			args := r.extractArgs(matches)
-			m := &RouteMatch{
-				ToolName: r.toolName,
-				Args:     args,
-			}
-			if owner, ok := args[argOwner].(string); ok {
-				m.Owner = owner
-			}
-			if repo, ok := args[argRepo].(string); ok {
-				m.Repo = repo
-			}
-			logRouter.Printf("matched %s → tool=%s owner=%s repo=%s", path, m.ToolName, m.Owner, m.Repo)
+		if matches == nil {
+			return nil
+		}
+		args := r.extractArgs(matches)
+		m := &RouteMatch{
+			ToolName: r.toolName,
+			Args:     args,
+		}
+		if owner, ok := args[argOwner].(string); ok {
+			m.Owner = owner
+		}
+		if repo, ok := args[argRepo].(string); ok {
+			m.Repo = repo
+		}
+		logRouter.Printf("matched %s → tool=%s owner=%s repo=%s", path, m.ToolName, m.Owner, m.Repo)
+		return m
+	}
+
+	// Try keyed routes first (most specific)
+	for _, idx := range bucketIndices {
+		if m := tryMatch(idx); m != nil {
 			return m
+		}
+	}
+	// Fall back to catch-all routes (e.g. generic /repos/:owner/:repo)
+	if key != "" {
+		for _, idx := range catchallIndices {
+			if m := tryMatch(idx); m != nil {
+				return m
+			}
 		}
 	}
 

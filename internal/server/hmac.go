@@ -117,10 +117,6 @@ func computeHMAC(secret, timestamp, nonce, path string, body []byte) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-func rejectHMACRequest(w http.ResponseWriter, r *http.Request, status int, code, msg, detail string) {
-	rejectRequest(w, r, status, code, msg, "auth", "hmac_validation_failed", detail)
-}
-
 // hmacMiddleware validates that each incoming request carries a correctly signed
 // HMAC-SHA256 signature.  It enforces:
 //
@@ -143,7 +139,7 @@ func hmacMiddleware(secret string, next http.HandlerFunc) http.HandlerFunc {
 
 		if timestamp == "" || nonce == "" || sig == "" {
 			logHMAC.Printf("HMAC rejected: missing headers, remote=%s path=%s", r.RemoteAddr, r.URL.Path)
-			rejectHMACRequest(w, r, http.StatusUnauthorized, "unauthorized", "missing HMAC signature headers", "missing_hmac_headers")
+			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "missing HMAC signature headers", "auth", "hmac_validation_failed", "missing_hmac_headers")
 			return
 		}
 
@@ -151,13 +147,13 @@ func hmacMiddleware(secret string, next http.HandlerFunc) http.HandlerFunc {
 		tsUnix, err := strconv.ParseInt(timestamp, 10, 64)
 		if err != nil {
 			logHMAC.Printf("HMAC rejected: invalid timestamp %q, remote=%s", timestamp, r.RemoteAddr)
-			rejectHMACRequest(w, r, http.StatusUnauthorized, "unauthorized", "invalid HMAC timestamp", "invalid_timestamp")
+			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "invalid HMAC timestamp", "auth", "hmac_validation_failed", "invalid_timestamp")
 			return
 		}
 		age := time.Since(time.Unix(tsUnix, 0))
 		if age > hmacMaxAgeSecs*time.Second || age < -(hmacMaxAgeSecs*time.Second) {
 			logHMAC.Printf("HMAC rejected: timestamp too old/future age=%v, remote=%s", age, r.RemoteAddr)
-			rejectHMACRequest(w, r, http.StatusUnauthorized, "unauthorized", "HMAC timestamp out of acceptable window", "stale_timestamp")
+			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "HMAC timestamp out of acceptable window", "auth", "hmac_validation_failed", "stale_timestamp")
 			return
 		}
 
@@ -166,7 +162,7 @@ func hmacMiddleware(secret string, next http.HandlerFunc) http.HandlerFunc {
 		// signature verification to avoid poisoning the cache with invalid requests.
 		if cache.seenNonce(nonce) {
 			logHMAC.Printf("HMAC rejected: replay detected (pre-check) nonce=%s, remote=%s", nonce, r.RemoteAddr)
-			rejectHMACRequest(w, r, http.StatusUnauthorized, "unauthorized", "HMAC nonce already used (replay detected)", "replay_detected")
+			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "HMAC nonce already used (replay detected)", "auth", "hmac_validation_failed", "replay_detected")
 			return
 		}
 
@@ -175,7 +171,7 @@ func hmacMiddleware(secret string, next http.HandlerFunc) http.HandlerFunc {
 		if r.Body != nil && r.Body != http.NoBody {
 			body, err = io.ReadAll(r.Body)
 			if err != nil {
-				rejectHMACRequest(w, r, http.StatusBadRequest, "bad_request", "failed to read request body", "body_read_error")
+				rejectRequest(w, r, http.StatusBadRequest, "bad_request", "failed to read request body", "auth", "hmac_validation_failed", "body_read_error")
 				return
 			}
 			r.Body = io.NopCloser(bytes.NewReader(body))
@@ -184,7 +180,7 @@ func hmacMiddleware(secret string, next http.HandlerFunc) http.HandlerFunc {
 		expected := computeHMAC(secret, timestamp, nonce, r.URL.Path, body)
 		if !hmac.Equal([]byte(sig), []byte(expected)) {
 			logHMAC.Printf("HMAC rejected: signature mismatch, remote=%s path=%s", r.RemoteAddr, r.URL.Path)
-			rejectHMACRequest(w, r, http.StatusUnauthorized, "unauthorized", "invalid HMAC signature", "signature_mismatch")
+			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "invalid HMAC signature", "auth", "hmac_validation_failed", "signature_mismatch")
 			return
 		}
 
@@ -194,7 +190,7 @@ func hmacMiddleware(secret string, next http.HandlerFunc) http.HandlerFunc {
 		// exactly one of them will win here; the other is correctly rejected.
 		if !cache.checkAndSet(nonce) {
 			logHMAC.Printf("HMAC rejected: replay detected (post-check) nonce=%s, remote=%s", nonce, r.RemoteAddr)
-			rejectHMACRequest(w, r, http.StatusUnauthorized, "unauthorized", "HMAC nonce already used (replay detected)", "replay_detected")
+			rejectRequest(w, r, http.StatusUnauthorized, "unauthorized", "HMAC nonce already used (replay detected)", "auth", "hmac_validation_failed", "replay_detected")
 			return
 		}
 
@@ -206,10 +202,12 @@ func hmacMiddleware(secret string, next http.HandlerFunc) http.HandlerFunc {
 // applyHMACIfConfigured wraps handler with HMAC validation when secret is non-empty.
 // If secret is empty the handler is returned unchanged (backward-compatible plain HTTP).
 func applyHMACIfConfigured(secret string, handler http.HandlerFunc) http.HandlerFunc {
-	if secret != "" {
-		logHMAC.Print("HMAC secret configured, applying middleware")
-	} else {
-		logHMAC.Print("No HMAC secret configured, skipping middleware")
-	}
-	return applyIfConfigured(secret, handler, hmacMiddleware)
+	return applyIfConfiguredWithLog(
+		secret,
+		handler,
+		hmacMiddleware,
+		logHMAC.Print,
+		"HMAC secret configured, applying middleware",
+		"No HMAC secret configured, skipping middleware",
+	)
 }

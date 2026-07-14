@@ -29,6 +29,7 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "create_issue",
     "create_linked_branch",  // gh issue develop — creates a linked branch via GraphQL createLinkedBranch
     "create_or_update_file",
+    "create_project",            // gh project create — GraphQL createProjectV2
     "create_project_draft_item", // gh project item-create — adds a draft issue via GraphQL addProjectV2DraftIssue
     "create_project_field",      // gh project field-create — creates a Projects v2 field
     "create_pull_request",
@@ -36,6 +37,7 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "create_release", // POST /repos/.../releases
     "create_repository",
     "create_repository_autolink", // gh repo autolink create — POST /repos/.../autolinks
+    "delete_actions_cache", // gh cache delete — DELETE /repos/.../actions/caches/{id|?key=...}
     "delete_codespace", // gh codespace delete — DELETE /user/codespaces/{name} or /orgs/{org}/members/{user}/codespaces/{name}
     "delete_deploy_key",
     "delete_file",
@@ -50,7 +52,9 @@ pub const WRITE_OPERATIONS: &[&str] = &[
     "delete_release_asset",     // gh release delete-asset — deletes a release asset
     "delete_repository",           // gh repo delete — permanently deletes a repository
     "delete_repository_autolink",  // gh repo autolink delete — DELETE /repos/.../autolinks/{id}
+    "delete_secret",               // gh secret delete — deletes org/repo/env/user codespaces secrets
     "delete_ssh_key",              // gh ssh-key delete — removes a user SSH auth/signing key
+    "delete_variable",             // gh variable delete — deletes org/repo/environment Actions variables
     "delete_workflow_run",      // gh run delete — deletes a workflow run record
     "delete_workflow_run_logs", // deprecated alias for actions_run_trigger (DELETE run logs)
     "disable_workflow",         // gh workflow disable
@@ -160,12 +164,12 @@ pub fn is_delete_operation(tool_name: &str) -> bool {
 }
 
 /// Check if a tool is a lock operation
-pub fn is_lock_operation(tool_name: &str) -> bool {
+pub(crate) fn is_lock_operation(tool_name: &str) -> bool {
     tool_name.starts_with("lock_")
 }
 
 /// Check if a tool is an unlock operation
-pub fn is_unlock_operation(tool_name: &str) -> bool {
+pub(crate) fn is_unlock_operation(tool_name: &str) -> bool {
     tool_name.starts_with("unlock_")
 }
 
@@ -337,7 +341,11 @@ mod tests {
             "delete_workflow_run",
             "stop_codespace",
             "create_codespace",
+            "create_project",
             "delete_codespace",
+            "delete_actions_cache",
+            "delete_secret",
+            "delete_variable",
             "update_codespace",
         ] {
             assert!(

@@ -5175,6 +5175,45 @@ mod tests {
         assert_eq!(desc, "issue:github/copilot#7");
     }
 
+    #[test]
+    fn test_apply_tool_labels_lock_unlock_inherit_provided_labels() {
+        let ctx = default_ctx();
+        let repo_id = "github/copilot";
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot"
+        });
+        let provided_integrity = reader_integrity(repo_id, &ctx);
+
+        for op in &[
+            "lock_issue",
+            "lock_pull_request",
+            "unlock_issue",
+            "unlock_pull_request",
+        ] {
+            let expected_desc = format!("resource:{op}");
+            let (secrecy, integrity, desc) = apply_tool_labels(
+                op,
+                &tool_args,
+                repo_id,
+                vec![],
+                provided_integrity.clone(),
+                expected_desc.clone(),
+                &ctx,
+            );
+
+            assert!(secrecy.is_empty(), "{op}: public repo should produce empty secrecy");
+            assert_eq!(
+                integrity, provided_integrity,
+                "{op}: should inherit provided integrity unchanged"
+            );
+            assert_eq!(
+                desc, expected_desc,
+                "{op}: desc should remain the provided default"
+            );
+        }
+    }
+
     // =========================================================================
     // transfer_repository tests
     // =========================================================================
