@@ -68,7 +68,7 @@ Common operational environment variables include:
 - `MCP_GATEWAY_PAYLOAD_DIR` — large payload storage directory (must be absolute path; default: `/tmp/jq-payloads`)
 - `MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD` — size threshold in bytes for payload storage (default: `524288`)
 - `MCP_GATEWAY_SESSION_TIMEOUT` — session timeout for stateful unified/routed MCP sessions (default: `6h`)
-- `MCP_GATEWAY_TOOL_TIMEOUT` — global tool invocation timeout fallback when `gateway.toolTimeout` is not set (default: `60`)
+- `MCP_GATEWAY_TOOL_TIMEOUT` — global tool invocation timeout fallback when JSON stdin `gateway.toolTimeout` is not set (built-in default: `60`)
 - `MCP_GATEWAY_FORCE_PUBLIC_REPOS` — when `true` (default), auto-forces `repos="public"` allow-only policy when workflow repo is public
 - `MCP_GATEWAY_AGENT_ID` — agent identifier for env validation and containerized startup checks
 - `MCP_GATEWAY_API_KEY` — *deprecated alias for `MCP_GATEWAY_AGENT_ID`*; still accepted with a deprecation warning, prefer `MCP_GATEWAY_AGENT_ID`
