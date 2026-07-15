@@ -466,6 +466,47 @@ func TestBuildDIFCFilteredNotice_ItemWithNoDescription(t *testing.T) {
 	assert.Contains(t, notice, "1 item(s)")
 }
 
+// TestBuildDIFCFilteredNotice_ItemWithDescOnly verifies that an item with a description
+// but no reason is included in the inline notice using only the description.
+func TestBuildDIFCFilteredNotice_ItemWithDescOnly(t *testing.T) {
+	f := &difc.FilteredCollectionLabeledData{
+		Filtered: []difc.FilteredItemDetail{
+			newTestFilteredItem(nil, "issue:org/repo#42", "", nil, nil),
+		},
+		TotalCount: 1,
+	}
+
+	notice := buildDIFCFilteredNotice(f)
+
+	assert.NotEmpty(t, notice)
+	assert.Contains(t, notice, "[Filtered]")
+	assert.Contains(t, notice, "1 item(s)")
+	assert.Contains(t, notice, "issue:org/repo#42")
+	// No parenthesized reason should appear.
+	assert.NotContains(t, notice, "()")
+}
+
+// TestBuildDIFCFilteredNotice_ItemWithReasonOnly verifies that an item with a reason
+// but no description is included in the inline notice using only the reason.
+func TestBuildDIFCFilteredNotice_ItemWithReasonOnly(t *testing.T) {
+	f := &difc.FilteredCollectionLabeledData{
+		Filtered: []difc.FilteredItemDetail{
+			{
+				Item:   difc.LabeledItem{Data: "raw", Labels: difc.NewLabeledResource("")},
+				Reason: "integrity too low",
+			},
+		},
+		TotalCount: 1,
+	}
+
+	notice := buildDIFCFilteredNotice(f)
+
+	assert.NotEmpty(t, notice)
+	assert.Contains(t, notice, "[Filtered]")
+	assert.Contains(t, notice, "1 item(s)")
+	assert.Contains(t, notice, "integrity too low")
+}
+
 // TestBuildDIFCFilteredNotice_SecrecyViolation verifies that secrecy-blocked items
 // produce a notice that says "secrecy policy", not "integrity policy".
 func TestBuildDIFCFilteredNotice_SecrecyViolation(t *testing.T) {
