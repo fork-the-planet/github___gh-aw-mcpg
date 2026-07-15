@@ -504,7 +504,8 @@ func TestBuildDIFCFilteredNotice_ItemWithReasonOnly(t *testing.T) {
 	assert.NotEmpty(t, notice)
 	assert.Contains(t, notice, "[Filtered]")
 	assert.Contains(t, notice, "1 item(s)")
-	assert.Contains(t, notice, "integrity too low")
+	assert.Contains(t, notice, "are not shown: integrity too low")
+	assert.NotContains(t, notice, "raw")
 }
 
 // TestBuildDIFCFilteredNotice_SecrecyViolation verifies that secrecy-blocked items
