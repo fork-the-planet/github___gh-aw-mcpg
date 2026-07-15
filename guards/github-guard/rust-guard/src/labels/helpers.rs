@@ -391,13 +391,19 @@ pub(crate) fn is_blocked_user(username: &str, ctx: &PolicyContext) -> bool {
 
 /// Extract GitHub label names from a content item's `labels` array.
 ///
-/// Returns the `name` field from each element of the item's `labels` array.
+/// Handles two shapes emitted by different GitHub API paths:
+/// - REST/proxy shape: `[{"name": "x", ...}]` — extract the `name` field.
+/// - MCP tool shape:   `["x"]`               — the element itself is the string.
 fn extract_github_label_names(item: &Value) -> Vec<&str> {
     item.get("labels")
         .and_then(|v| v.as_array())
         .map(|arr| {
             arr.iter()
-                .filter_map(|label| label.get("name").and_then(|v| v.as_str()))
+                .filter_map(|label| {
+                    label
+                        .as_str()
+                        .or_else(|| label.get("name").and_then(|v| v.as_str()))
+                })
                 .collect()
         })
         .unwrap_or_default()
@@ -3792,6 +3798,41 @@ mod tests {
         };
         let item = serde_json::json!({"number": 1, "title": "no labels field"});
         assert!(!has_approval_label(&item, &ctx));
+    }
+
+    // -----------------------------------------------------------------------
+    // Bare-string label shape (MCP tool path, issue #9382)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_has_approval_label_matches_bare_string_label() {
+        // MCP issue_read returns labels as bare strings, not objects.
+        let ctx = PolicyContext {
+            approval_labels: vec!["approved".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({"labels": ["approved"]});
+        assert!(has_approval_label(&item, &ctx));
+    }
+
+    #[test]
+    fn test_has_approval_label_bare_string_case_insensitive() {
+        let ctx = PolicyContext {
+            approval_labels: vec!["approved".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({"labels": ["APPROVED"]});
+        assert!(has_approval_label(&item, &ctx));
+    }
+
+    #[test]
+    fn test_has_refusal_label_matches_bare_string_label() {
+        let ctx = PolicyContext {
+            refusal_labels: vec!["spam".to_string()],
+            ..Default::default()
+        };
+        let item = serde_json::json!({"labels": ["SPAM"]});
+        assert!(has_refusal_label(&item, &ctx));
     }
 
     #[test]
