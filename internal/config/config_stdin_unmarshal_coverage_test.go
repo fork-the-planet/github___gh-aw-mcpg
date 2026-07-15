@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -154,7 +155,9 @@ func TestStdinServerConfig_UnmarshalJSON_ErrorPaths(t *testing.T) {
 		err := server.UnmarshalJSON(data)
 		require.NoError(t, err)
 		assert.Equal(t, "customValue", server.AdditionalProperties["customField"])
-		assert.Equal(t, float64(42), server.AdditionalProperties["anotherExtra"])
+		// Numbers are stored as json.Number (not float64) to preserve precision for
+		// large integers such as 9007199254740993 that cannot be represented by float64.
+		assert.Equal(t, json.Number("42"), server.AdditionalProperties["anotherExtra"])
 		// Known fields must not appear in AdditionalProperties.
 		_, typeExists := server.AdditionalProperties["type"]
 		assert.False(t, typeExists, "known field 'type' should not appear in AdditionalProperties")

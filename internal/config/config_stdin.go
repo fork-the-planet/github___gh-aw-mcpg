@@ -3,6 +3,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os"
 
 	"github.com/github/gh-aw-mcpg/internal/logger"
+	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
 var logStdin = logger.New("config:config_stdin")
@@ -205,10 +207,18 @@ func (s *StdinServerConfig) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// Now unmarshal into a map to capture all fields
-	var allFields map[string]interface{}
-	if err := json.Unmarshal(data, &allFields); err != nil {
-		return err
+	// Now unmarshal into a map to capture all fields.
+	// Use jsonschema.UnmarshalJSON (which calls decoder.UseNumber()) so that
+	// numbers are stored as json.Number rather than float64.  This preserves
+	// precision for large integers such as 9007199254740993 that cannot be
+	// represented exactly as float64.
+	allFieldsObj, parseErr := jsonschema.UnmarshalJSON(bytes.NewReader(data))
+	if parseErr != nil {
+		return parseErr
+	}
+	allFields, ok := allFieldsObj.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("expected JSON object for server config, got %T", allFieldsObj)
 	}
 
 	// Known fields in the struct

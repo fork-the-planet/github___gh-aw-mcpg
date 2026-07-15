@@ -239,3 +239,43 @@ func TestValidateServerAgainstSchema_TypeMismatchInAdditionalProperties(t *testi
 		"wrong type for an additional property should cause a schema validation error")
 	assert.Contains(t, err.Error(), "does not match custom schema")
 }
+
+// TestValidateServerAgainstSchema_LargeIntegerPrecision is a regression test that
+// verifies large integers (beyond float64 safe range) in additional properties are
+// preserved with full precision throughout the validation path.
+//
+// 9007199254740993 == 2^53+1 cannot be represented exactly as float64
+// (it rounds to 9007199254740992).  If UnmarshalJSON uses encoding/json the
+// const constraint below would fail even though the original JSON is correct.
+func TestValidateServerAgainstSchema_LargeIntegerPrecision(t *testing.T) {
+	const largeInt = `9007199254740993`
+
+	// Schema constrains "seq-id" to the exact large-integer value.
+	schema := compileSchemaForTest(t, `{
+		"type": "object",
+		"required": ["seq-id"],
+		"properties": {
+			"seq-id": {"const": `+largeInt+`}
+		}
+	}`)
+
+	// Parse the server config through the real UnmarshalJSON path so that the
+	// large integer travels through StdinServerConfig.UnmarshalJSON and lands
+	// in AdditionalProperties.
+	serverJSON := []byte(`{
+		"type": "stdio",
+		"container": "ghcr.io/example/server:latest",
+		"seq-id": ` + largeInt + `
+	}`)
+
+	var server StdinServerConfig
+	require.NoError(t, server.UnmarshalJSON(serverJSON))
+
+	err := validateServerAgainstSchema(
+		"test-server", &server, schema,
+		"https://test.example.com/schema.json",
+		"mcpServers.test-server",
+	)
+	assert.NoError(t, err,
+		"large integer 9007199254740993 must be preserved without float64 rounding")
+}
