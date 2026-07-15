@@ -33,7 +33,6 @@ func TestLoggerNamespacesMatchFileConventions(t *testing.T) {
 		"internal/guard/write_sink.go":           {"guard:write-sink"},
 		"internal/launcher/connection_pool.go":   {"launcher:pool"},
 		"internal/launcher/health_monitor.go":    {"launcher:health"},
-		"internal/server/gateway_tls.go":         {"server:tls"},
 		"internal/server/http_helpers.go":        {"server:helpers"},
 		"internal/server/http_server.go":         {"server:http_server", "server:transport"},
 		"internal/server/middleware_auth.go":     {"server:auth"},

@@ -2,9 +2,10 @@
 //
 // TLS helpers are split across two packages:
 //
-//   - internal/httputil (this package): protocol-level helpers that apply to
-//     all TLS listeners and clients (MinTLSVersion, NewServerTLSConfig,
-//     NewClientTLSConfig, ConfigureTLSTrustEnvironment).
+//   - internal/httputil (this file): protocol-level helpers and file-loading
+//     helpers that apply to all TLS listeners and clients:
+//     MinTLSVersion, NewServerTLSConfig, NewClientTLSConfig,
+//     ConfigureTLSTrustEnvironment, LoadGatewayTLS.
 //
 //   - internal/proxy: certificate *generation* (GenerateSelfSignedTLS) lives
 //     there because it is only needed when the proxy runs in self-signed mode.
@@ -13,6 +14,7 @@ package httputil
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"os"
 	"strings"
@@ -79,4 +81,52 @@ func ConfigureTLSTrustEnvironment(caCertPath string) error {
 	}
 	logTLS.Printf("TLS trust environment configured successfully: %d env vars set", len(tlsTrustEnvKeys))
 	return nil
+}
+
+// LoadGatewayTLS loads a TLS configuration for the gateway HTTP server from PEM
+// certificate and key files. When caPath is non-empty the returned config
+// requires client certificates signed by that CA (mutual TLS / mTLS).
+//
+// Pass an empty caPath to use one-way TLS (server-only authentication).
+//
+// Example — one-way TLS (server cert only):
+//
+//	tlsCfg, err := LoadGatewayTLS("/path/server.crt", "/path/server.key", "")
+//
+// Example — mutual TLS (client certs required):
+//
+//	tlsCfg, err := LoadGatewayTLS("/path/server.crt", "/path/server.key", "/path/ca.crt")
+func LoadGatewayTLS(certPath, keyPath, caPath string) (*tls.Config, error) {
+	logTLS.Printf("loading gateway TLS: cert=%s, key=%s, ca=%s", certPath, keyPath, caPath)
+
+	serverCert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load server TLS certificate/key: %w", err)
+	}
+	logTLS.Printf("server TLS key pair loaded: certChainLen=%d", len(serverCert.Certificate))
+
+	cfg := NewServerTLSConfig(serverCert)
+
+	if caPath != "" {
+		caPEM, err := os.ReadFile(caPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CA certificate: %w", err)
+		}
+
+		caPool := x509.NewCertPool()
+		if !caPool.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("failed to parse CA certificate from %s", caPath)
+		}
+		logTLS.Printf("CA certificate pool built: ca=%s", caPath)
+
+		// Require and verify client certificates signed by the provided CA.
+		cfg.ClientCAs = caPool
+		cfg.ClientAuth = tls.RequireAndVerifyClientCert
+		logTLS.Printf("mTLS enabled: client certificates required, CA=%s", caPath)
+	} else {
+		logTLS.Print("one-way TLS configured: client certificates not required")
+	}
+
+	logTLS.Printf("gateway TLS configuration ready: minVersion=%s, mtls=%v", tls.VersionName(cfg.MinVersion), caPath != "")
+	return cfg, nil
 }

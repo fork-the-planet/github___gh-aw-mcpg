@@ -14,9 +14,9 @@
 //   - internal/proxy (this file): certificate *generation* (GenerateSelfSignedTLS).
 //     This is the only place self-signed certs are created.
 //
-//   - internal/httputil: protocol-level helpers that apply to all TLS listeners
-//     and clients (MinTLSVersion, NewServerTLSConfig, NewClientTLSConfig,
-//     ConfigureTLSTrustEnvironment).
+//   - internal/httputil: protocol-level helpers and file-loading helpers that
+//     apply to all TLS listeners and clients (MinTLSVersion, NewServerTLSConfig,
+//     NewClientTLSConfig, ConfigureTLSTrustEnvironment, LoadGatewayTLS).
 package proxy
 
 import (
