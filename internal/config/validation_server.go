@@ -320,7 +320,7 @@ func validateServerAgainstSchema(name string, server *StdinServerConfig, schema 
 
 	// Convert server config to a map that includes both struct fields and additional properties
 	// This ensures custom fields are validated against the custom schema
-	var serverMap map[string]interface{}
+	serverMap := make(map[string]interface{})
 
 	// Marshal the struct to JSON first
 	serverJSON, err := json.Marshal(server)
@@ -340,7 +340,7 @@ func validateServerAgainstSchema(name string, server *StdinServerConfig, schema 
 	if obj, ok := serverObj.(map[string]interface{}); ok {
 		serverMap = obj
 	} else {
-		serverMap = make(map[string]interface{})
+		logValidation.Printf("unexpected: server config parsed to non-object type, using empty map for validation: name=%s", name)
 	}
 
 	// Merge additional properties (custom fields) into the map
