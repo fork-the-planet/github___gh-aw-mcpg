@@ -16,6 +16,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/guard"
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/server"
 	"github.com/github/gh-aw-mcpg/internal/tracing"
@@ -450,7 +451,7 @@ func run(cmd *cobra.Command, args []string) error {
 	tlsEnabled := hasCert && hasKey
 	var tlsCfg *tls.Config
 	if tlsEnabled {
-		tlsCfg, err = server.LoadGatewayTLS(tlsCertPath, tlsKeyPath, tlsCAPath)
+		tlsCfg, err = httputil.LoadGatewayTLS(tlsCertPath, tlsKeyPath, tlsCAPath)
 		if err != nil {
 			_ = listener.Close()
 			return fmt.Errorf("failed to configure TLS: %w", err)

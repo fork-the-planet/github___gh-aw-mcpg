@@ -1,4 +1,4 @@
-package server
+package httputil_test
 
 import (
 	"crypto/ecdsa"
@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/proxy"
 )
 
@@ -214,7 +215,7 @@ func TestLoadGatewayTLS_ServerOnly(t *testing.T) {
 	tlsCfg, err := proxy.GenerateSelfSignedTLS(dir)
 	require.NoError(t, err)
 
-	cfg, err := LoadGatewayTLS(tlsCfg.CertPath, tlsCfg.KeyPath, "")
+	cfg, err := httputil.LoadGatewayTLS(tlsCfg.CertPath, tlsCfg.KeyPath, "")
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
@@ -229,7 +230,7 @@ func TestLoadGatewayTLS_MutualTLS(t *testing.T) {
 	tlsCfg, err := proxy.GenerateSelfSignedTLS(dir)
 	require.NoError(t, err)
 
-	cfg, err := LoadGatewayTLS(tlsCfg.CertPath, tlsCfg.KeyPath, tlsCfg.CACertPath)
+	cfg, err := httputil.LoadGatewayTLS(tlsCfg.CertPath, tlsCfg.KeyPath, tlsCfg.CACertPath)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
@@ -242,7 +243,7 @@ func TestLoadGatewayTLS_ServerServesMTLS(t *testing.T) {
 	certs, err := generateMTLSCerts(t, dir)
 	require.NoError(t, err)
 
-	cfg, err := LoadGatewayTLS(certs.serverCertPath, certs.serverKeyPath, certs.caCertPath)
+	cfg, err := httputil.LoadGatewayTLS(certs.serverCertPath, certs.serverKeyPath, certs.caCertPath)
 	require.NoError(t, err)
 
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -267,7 +268,7 @@ func TestLoadGatewayTLS_ServerServesMTLS(t *testing.T) {
 }
 
 func TestLoadGatewayTLS_InvalidCertPath(t *testing.T) {
-	_, err := LoadGatewayTLS("/nonexistent/cert.pem", "/nonexistent/key.pem", "")
+	_, err := httputil.LoadGatewayTLS("/nonexistent/cert.pem", "/nonexistent/key.pem", "")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "failed to load server TLS certificate/key")
 }
@@ -277,7 +278,7 @@ func TestLoadGatewayTLS_InvalidCAPath(t *testing.T) {
 	tlsCfg, err := proxy.GenerateSelfSignedTLS(dir)
 	require.NoError(t, err)
 
-	_, err = LoadGatewayTLS(tlsCfg.CertPath, tlsCfg.KeyPath, "/nonexistent/ca.pem")
+	_, err = httputil.LoadGatewayTLS(tlsCfg.CertPath, tlsCfg.KeyPath, "/nonexistent/ca.pem")
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "failed to read CA certificate")
 }
@@ -291,7 +292,7 @@ func TestLoadGatewayTLS_MalformedCA(t *testing.T) {
 	badCA := dir + "/bad-ca.pem"
 	require.NoError(t, os.WriteFile(badCA, []byte("NOT A VALID PEM"), 0644))
 
-	_, err = LoadGatewayTLS(tlsCfg.CertPath, tlsCfg.KeyPath, badCA)
+	_, err = httputil.LoadGatewayTLS(tlsCfg.CertPath, tlsCfg.KeyPath, badCA)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "failed to parse CA certificate")
 }
