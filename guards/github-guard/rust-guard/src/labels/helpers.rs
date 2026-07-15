@@ -520,7 +520,6 @@ pub fn has_promotion_label(item: &Value, ctx: &PolicyContext) -> bool {
 
 /// Check whether a content item carries the configured built-in demotion label
 /// (case-insensitive). Returns `false` when `demotion_label` is empty (feature disabled).
-#[cfg(test)]
 pub fn has_demotion_label(item: &Value, ctx: &PolicyContext) -> bool {
     item_has_config_label(item, &ctx.demotion_label)
 }
