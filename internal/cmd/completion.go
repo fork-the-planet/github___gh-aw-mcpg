@@ -50,8 +50,10 @@ PowerShell:
 		ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
 		Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			shell := args[0]
+			debugLog.Printf("Generating shell completion script: shell=%s", shell)
 			out := cmd.OutOrStdout()
-			switch args[0] {
+			switch shell {
 			case "bash":
 				return cmd.Root().GenBashCompletionV2(out, true)
 			case "zsh":
@@ -63,7 +65,8 @@ PowerShell:
 			default:
 				// This default case should never be reached due to Args validation
 				// above, but is included for defensive programming.
-				return fmt.Errorf("unsupported shell type: %s", args[0])
+				debugLog.Printf("Unsupported shell type requested: %s", shell)
+				return fmt.Errorf("unsupported shell type: %s", shell)
 			}
 		},
 	}
