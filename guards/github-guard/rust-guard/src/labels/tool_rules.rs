@@ -502,6 +502,7 @@ pub fn apply_tool_labels(
             // S = public (empty)
             // I = project:github - GitHub's data
             secrecy = vec![];
+            baseline_scope = Cow::Borrowed(scope_names::GITHUB);
             integrity = project_github_label(ctx);
         }
 
