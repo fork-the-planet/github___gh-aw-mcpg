@@ -463,10 +463,46 @@ fn infer_scope_for_baseline<'a>(
         | "manage_repository_notification_subscription"
         | "create_repository"
         | "fork_repository" => Cow::Borrowed(scope_names::GITHUB),
-        "create_codespace"
-        | "update_codespace"
-        | "delete_codespace"
-        | "stop_codespace" => Cow::Borrowed(scope_names::USER),
+        "create_codespace" | "update_codespace" | "delete_codespace" | "stop_codespace" => {
+            Cow::Borrowed(scope_names::USER)
+        }
+        "set_secret" | "delete_secret" | "set_variable" | "delete_variable" => {
+            let org = tool_args
+                .get("org")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())
+                .or_else(|| {
+                    tool_args
+                        .get("org_name")
+                        .and_then(Value::as_str)
+                        .filter(|value| !value.is_empty())
+                })
+                .or_else(|| {
+                    tool_args
+                        .get("organization")
+                        .and_then(Value::as_str)
+                        .filter(|value| !value.is_empty())
+                })
+                .or_else(|| {
+                    tool_args
+                        .get("organization_name")
+                        .and_then(Value::as_str)
+                        .filter(|value| !value.is_empty())
+                });
+            if let Some(org) = org {
+                Cow::Owned(org.to_string())
+            } else {
+                let owner = tool_args.get("owner").and_then(Value::as_str).unwrap_or("");
+                let repo = tool_args.get("repo").and_then(Value::as_str).unwrap_or("");
+                if !owner.is_empty() && repo.is_empty() {
+                    Cow::Owned(owner.to_string())
+                } else if matches!(tool_name, "set_secret" | "delete_secret") {
+                    Cow::Borrowed(scope_names::USER)
+                } else {
+                    Cow::Borrowed("")
+                }
+            }
+        }
         "search_code" | "search_issues" | "search_pull_requests" | "search_commits" => {
             let query = tool_args
                 .get("query")
@@ -476,6 +512,97 @@ fn infer_scope_for_baseline<'a>(
             Cow::Owned(repo_from_query)
         }
         _ => Cow::Borrowed(""),
+    }
+}
+
+fn build_label_resource_output(
+    input: &LabelResourceInput,
+    ctx: &PolicyContext,
+) -> LabelResourceOutput {
+    // Extract owner/repo for scoped tags
+    let (_, _, repo_id) = extract_repo_info(&input.tool_args);
+
+    // Build initial labels
+    let desc = format!("resource:{}", input.tool_name);
+    let secrecy: Vec<String> = vec![];
+    let mut integrity: Vec<String> = vec![];
+    let mut operation = "read";
+
+    // Classify operation with scoped integrity tags
+    if tools::is_write_operation(&input.tool_name) {
+        operation = "write";
+        if !repo_id.is_empty() {
+            integrity = if tools::is_merge_operation(&input.tool_name)
+                || tools::is_delete_operation(&input.tool_name)
+            {
+                labels::writer_integrity(&repo_id, ctx)
+            } else {
+                labels::reader_integrity(&repo_id, ctx)
+            };
+        }
+    }
+
+    if tools::is_read_write_operation(&input.tool_name) {
+        operation = "read-write";
+        // Writer-level baseline
+        if !repo_id.is_empty() {
+            integrity = labels::writer_integrity(&repo_id, ctx);
+        }
+    }
+
+    // Apply tool-specific labels
+    let (final_secrecy, final_integrity, final_desc) = labels::apply_tool_labels(
+        &input.tool_name,
+        &input.tool_args,
+        &repo_id,
+        secrecy,
+        integrity,
+        desc,
+        ctx,
+    );
+
+    let baseline_scope = infer_scope_for_baseline(&input.tool_name, &input.tool_args, &repo_id);
+    let final_integrity = labels::ensure_integrity_baseline(&baseline_scope, final_integrity, ctx);
+
+    // Unconditionally blocked tools: override integrity to blocked_integrity so the
+    // DIFC evaluator always denies them.  This must happen after ensure_integrity_baseline
+    // because that helper would otherwise raise blocked-level tags to none-level.
+    let final_integrity = if tools::is_blocked_tool(&input.tool_name) {
+        log_info(&format!(
+            "    tool '{}' is unconditionally blocked — overriding integrity to blocked",
+            input.tool_name
+        ));
+        let scope = if repo_id.is_empty() {
+            scope_names::GLOBAL
+        } else {
+            &repo_id
+        };
+        blocked_integrity(scope, ctx)
+    } else {
+        final_integrity
+    };
+
+    // Log computed labels
+    log_info(&format!("    desc={}", final_desc));
+    if final_secrecy.is_empty() {
+        log_info("    secrecy=[] (public)");
+    } else {
+        log_info(&format!("    secrecy={:?}", final_secrecy));
+    }
+    if final_integrity.is_empty() {
+        log_info("    integrity=[] (untrusted)");
+    } else {
+        log_info(&format!("    integrity={:?}", final_integrity));
+    }
+    log_info(&format!("    operation={}", operation));
+
+    LabelResourceOutput {
+        resource: ResourceLabels {
+            description: final_desc,
+            secrecy: final_secrecy.into(),
+            integrity: final_integrity.into(),
+        },
+        operation,
     }
 }
 
@@ -795,93 +922,8 @@ pub extern "C" fn label_resource(
 
     log_info(&format!("    tool_name={}", input.tool_name));
 
-    // Extract owner/repo for scoped tags
-    let (_, _, repo_id) = extract_repo_info(&input.tool_args);
     let ctx = get_runtime_policy_context();
-
-    // Build initial labels
-    let desc = format!("resource:{}", input.tool_name);
-    let secrecy: Vec<String> = vec![];
-    let mut integrity: Vec<String> = vec![];
-    let mut operation = "read";
-
-    // Classify operation with scoped integrity tags
-    if tools::is_write_operation(&input.tool_name) {
-        operation = "write";
-        if !repo_id.is_empty() {
-            integrity = if tools::is_merge_operation(&input.tool_name)
-                || tools::is_delete_operation(&input.tool_name)
-            {
-                labels::writer_integrity(&repo_id, &ctx)
-            } else {
-                labels::reader_integrity(&repo_id, &ctx)
-            };
-        }
-    }
-
-    if tools::is_read_write_operation(&input.tool_name) {
-        operation = "read-write";
-        // Writer-level baseline
-        if !repo_id.is_empty() {
-            integrity = labels::writer_integrity(&repo_id, &ctx);
-        }
-    }
-
-    // Apply tool-specific labels
-    let (final_secrecy, final_integrity, final_desc) = labels::apply_tool_labels(
-        &input.tool_name,
-        &input.tool_args,
-        &repo_id,
-        secrecy,
-        integrity,
-        desc,
-        &ctx,
-    );
-
-    let baseline_scope = infer_scope_for_baseline(&input.tool_name, &input.tool_args, &repo_id);
-    let final_integrity = labels::ensure_integrity_baseline(&baseline_scope, final_integrity, &ctx);
-
-    // Unconditionally blocked tools: override integrity to blocked_integrity so the
-    // DIFC evaluator always denies them.  This must happen after ensure_integrity_baseline
-    // because that helper would otherwise raise blocked-level tags to none-level.
-    let final_integrity = if tools::is_blocked_tool(&input.tool_name) {
-        log_info(&format!(
-            "    tool '{}' is unconditionally blocked — overriding integrity to blocked",
-            input.tool_name
-        ));
-        let scope = if repo_id.is_empty() {
-            scope_names::GLOBAL
-        } else {
-            &repo_id
-        };
-        blocked_integrity(scope, &ctx)
-    } else {
-        final_integrity
-    };
-
-    // Log computed labels
-    log_info(&format!("    desc={}", final_desc));
-    if final_secrecy.is_empty() {
-        log_info("    secrecy=[] (public)");
-    } else {
-        log_info(&format!("    secrecy={:?}", final_secrecy));
-    }
-    if final_integrity.is_empty() {
-        log_info("    integrity=[] (untrusted)");
-    } else {
-        log_info(&format!("    integrity={:?}", final_integrity));
-    }
-    log_info(&format!("    operation={}", operation));
-
-    // Build output
-    let output = LabelResourceOutput {
-        resource: ResourceLabels {
-            description: final_desc,
-            secrecy: final_secrecy.into(),
-            integrity: final_integrity.into(),
-        },
-        operation,
-    };
+    let output = build_label_resource_output(&input, &ctx);
 
     // Serialize output
     let output_json = match serde_json::to_string(&output) {
@@ -1026,7 +1068,12 @@ pub extern "C" fn label_response(
     let output_preview = safe_preview(&output_json, PREVIEW_MAX_BYTES);
     log_info(&format!("    output_preview={}", output_preview));
 
-    let n = try_write_json_output(&output_json, output_ptr, output_size, "label_response/legacy");
+    let n = try_write_json_output(
+        &output_json,
+        output_ptr,
+        output_size,
+        "label_response/legacy",
+    );
     if n < 0 {
         log_info("<<< label_response returning 0 (output write failed)");
         0
@@ -1386,6 +1433,47 @@ mod tests {
     }
 
     #[test]
+    fn infer_scope_for_baseline_uses_org_and_user_scopes_for_secret_and_variable_writes() {
+        let org_args = json!({ "org": "github" });
+        let owner_only_args = json!({ "owner": "github" });
+        let user_args = json!({});
+
+        for tool in &[
+            "set_secret",
+            "delete_secret",
+            "set_variable",
+            "delete_variable",
+        ] {
+            assert_eq!(
+                infer_scope_for_baseline(tool, &org_args, ""),
+                "github",
+                "{tool} should infer org baseline scope from explicit org fields"
+            );
+            assert_eq!(
+                infer_scope_for_baseline(tool, &owner_only_args, ""),
+                "github",
+                "{tool} should infer org baseline scope from owner-only synthetic CLI args"
+            );
+        }
+
+        for tool in &["set_secret", "delete_secret"] {
+            assert_eq!(
+                infer_scope_for_baseline(tool, &user_args, ""),
+                scope_names::USER,
+                "{tool} should infer user baseline scope for user-scoped secret writes"
+            );
+        }
+
+        for tool in &["set_variable", "delete_variable"] {
+            assert_eq!(
+                infer_scope_for_baseline(tool, &user_args, ""),
+                "",
+                "{tool} should not infer user baseline scope without repo or org context"
+            );
+        }
+    }
+
+    #[test]
     fn codespace_lifecycle_integrity_preserved_after_baseline() {
         let ctx = PolicyContext::default();
         let tool_args = json!({});
@@ -1413,6 +1501,91 @@ mod tests {
                 labels::writer_integrity(scope_names::USER, &ctx),
                 "{} integrity should remain user writer-scoped after baseline enforcement",
                 tool
+            );
+        }
+    }
+
+    #[test]
+    fn scope_sensitive_secret_and_variable_integrity_preserved_after_baseline() {
+        let ctx = PolicyContext::default();
+        let org_args = json!({ "org": "github" });
+        let user_args = json!({});
+
+        for tool in &[
+            "set_secret",
+            "delete_secret",
+            "set_variable",
+            "delete_variable",
+        ] {
+            let (_, integrity, _) =
+                labels::apply_tool_labels(tool, &org_args, "", vec![], vec![], String::new(), &ctx);
+            let baseline_scope = infer_scope_for_baseline(tool, &org_args, "");
+            let after_baseline =
+                labels::ensure_integrity_baseline(&baseline_scope, integrity, &ctx);
+
+            assert_eq!(
+                after_baseline,
+                labels::writer_integrity("github", &ctx),
+                "{tool} integrity should remain org writer-scoped after baseline enforcement"
+            );
+        }
+
+        for tool in &["set_secret", "delete_secret"] {
+            let (_, integrity, _) = labels::apply_tool_labels(
+                tool,
+                &user_args,
+                "",
+                vec![],
+                vec![],
+                String::new(),
+                &ctx,
+            );
+            let baseline_scope = infer_scope_for_baseline(tool, &user_args, "");
+            let after_baseline =
+                labels::ensure_integrity_baseline(&baseline_scope, integrity, &ctx);
+
+            assert_eq!(
+                after_baseline,
+                labels::writer_integrity(scope_names::USER, &ctx),
+                "{tool} integrity should remain user writer-scoped after baseline enforcement"
+            );
+        }
+    }
+
+    #[test]
+    fn build_label_resource_output_preserves_scope_sensitive_writer_integrity() {
+        let ctx = PolicyContext::default();
+        let cases = [
+            (
+                "set_secret",
+                json!({ "org": "github" }),
+                labels::writer_integrity("github", &ctx),
+            ),
+            (
+                "delete_secret",
+                json!({}),
+                labels::writer_integrity(scope_names::USER, &ctx),
+            ),
+            (
+                "set_variable",
+                json!({ "owner": "github" }),
+                labels::writer_integrity("github", &ctx),
+            ),
+        ];
+
+        for (tool_name, tool_args, expected_integrity) in cases {
+            let output = build_label_resource_output(
+                &LabelResourceInput {
+                    tool_name: tool_name.to_string(),
+                    tool_args,
+                },
+                &ctx,
+            );
+
+            assert_eq!(output.operation, "write");
+            assert_eq!(
+                output.resource.integrity, expected_integrity,
+                "{tool_name} should preserve scoped writer integrity through label_resource"
             );
         }
     }
