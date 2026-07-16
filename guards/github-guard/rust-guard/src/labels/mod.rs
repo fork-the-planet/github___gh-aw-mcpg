@@ -5794,6 +5794,90 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_unstar_repository_public_secrecy_github_integrity() {
+        let ctx = default_ctx();
+        let tool_args = json!({
+            "owner": "github",
+            "repo": "copilot"
+        });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "unstar_repository",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert!(
+            secrecy.is_empty(),
+            "unstar_repository should have empty (public) secrecy — starring is a public action"
+        );
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "unstar_repository should have project:github integrity"
+        );
+    }
+
+    #[test]
+    fn test_apply_tool_labels_search_users_public_secrecy_github_integrity() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "query": "octocat" });
+
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "search_users",
+            &tool_args,
+            "",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert!(
+            secrecy.is_empty(),
+            "search_users must have empty (public) secrecy — public user profiles"
+        );
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "search_users must have project:github integrity — GitHub-controlled user data"
+        );
+    }
+
+    #[test]
+    fn test_apply_tool_labels_search_users_with_repo_context() {
+        let ctx = default_ctx();
+        let tool_args = json!({ "query": "octocat" });
+
+        // Even with a repo_id, search_users is not repo-scoped: the baseline_scope is
+        // overridden to GITHUB so the integrity is always project:github regardless of
+        // the calling repo context.
+        let (secrecy, integrity, _desc) = apply_tool_labels(
+            "search_users",
+            &tool_args,
+            "github/copilot",
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        assert!(
+            secrecy.is_empty(),
+            "search_users must have empty (public) secrecy — public user profiles"
+        );
+        assert_eq!(
+            integrity,
+            project_github_label(&ctx),
+            "search_users with repo context must still have project:github integrity"
+        );
+    }
+
+    #[test]
     fn test_apply_tool_labels_enable_toolset_public_secrecy_writer_integrity() {
         let ctx = default_ctx();
         let tool_args = json!({ "toolset": "advanced" });
