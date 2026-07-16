@@ -218,19 +218,7 @@ pub fn apply_tool_labels(
 
         // === Issue dependency / pin / unpin writes (repo-scoped write) ===
         // S = S(repo); I = writer
-        "issue_dependency_write" | "pin_issue" | "unpin_issue" => {
-            if !owner.is_empty() && !repo.is_empty() {
-                if let Some(issue_num) =
-                    extract_number_as_string(tool_args, field_names::ISSUE_NUMBER)
-                {
-                    desc = format!("issue:{}/{}#{}", owner, repo, issue_num);
-                }
-            }
-            secrecy = apply_repo_visibility_secrecy(&owner, &repo, repo_id, secrecy, ctx);
-            integrity = writer_integrity(repo_id, ctx);
-        }
-
-        "transfer_issue" => {
+        "issue_dependency_write" | "pin_issue" | "transfer_issue" | "unpin_issue" => {
             if !owner.is_empty() && !repo.is_empty() {
                 if let Some(issue_num) =
                     extract_number_as_string(tool_args, field_names::ISSUE_NUMBER)
@@ -793,6 +781,9 @@ pub fn apply_tool_labels(
                 if !explicit_org.is_empty() {
                     explicit_org
                 } else if repo.is_empty() {
+                    // Synthetic CLI coverage uses owner-only arguments for org-scoped writes.
+                    // User-scoped secret writes do not include an owner, so owner-without-repo
+                    // is treated as an org-level operation here.
                     owner.clone()
                 } else {
                     String::new()
@@ -806,7 +797,7 @@ pub fn apply_tool_labels(
                 secrecy = private_scope_label(&org);
                 baseline_scope = Cow::Owned(org.clone());
                 integrity = writer_integrity(&org, ctx);
-            } else {
+            } else if matches!(tool_name, "set_secret" | "delete_secret") {
                 secrecy = private_user_label();
                 baseline_scope = Cow::Borrowed(scope_names::USER);
                 integrity = writer_integrity(scope_names::USER, ctx);
