@@ -55,7 +55,7 @@ jobs:
           fetch-depth: 0
           
       - name: Set up Go
-        uses: actions/setup-go@v6.5.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           cache: false
@@ -188,7 +188,7 @@ jobs:
           echo "✓ Using release tag: $RELEASE_TAG"
           
       - name: Set up Go
-        uses: actions/setup-go@v6.5.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           cache: false  # Disabled for release security - prevent cache poisoning attacks
@@ -313,7 +313,7 @@ jobs:
         uses: actions/checkout@v7.0.0
 
       - name: Set up Go
-        uses: actions/setup-go@v6.5.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           cache: false  # Disabled for release security - prevent cache poisoning attacks
