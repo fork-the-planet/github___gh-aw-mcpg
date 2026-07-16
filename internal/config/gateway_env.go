@@ -17,6 +17,7 @@ package config
 // (for example, guard-policy parsing and command flag wiring).
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -40,7 +41,7 @@ func parseAndValidateIntEnv(envKey string, validate func(int) *ValidationError) 
 
 	if validationErr := validate(value); validationErr != nil {
 		logConfig.Printf("%s=%d failed validation: %s", envKey, value, validationErr.Message)
-		return 0, false, fmt.Errorf("%s", validationErr.Message)
+		return 0, false, errors.New(validationErr.Message)
 	}
 
 	logConfig.Printf("%s resolved to %d", envKey, value)

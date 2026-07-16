@@ -1,6 +1,7 @@
 package difc
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -110,7 +111,7 @@ func FormatViolationError(result *EvaluationResult, agentSecrecy *SecrecyLabel, 
 	msg.WriteString(fmt.Sprintf("  Secrecy: %v\n", resource.Secrecy.Label.GetTags()))
 	msg.WriteString(fmt.Sprintf("  Integrity: %v\n", resource.Integrity.Label.GetTags()))
 
-	return fmt.Errorf("%s", msg.String())
+	return errors.New(msg.String())
 }
 
 // formatIntegrityLevel converts a list of integrity tags into a human-readable
