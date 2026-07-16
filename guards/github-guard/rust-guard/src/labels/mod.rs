@@ -5878,6 +5878,60 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_tool_labels_create_agent_task_secrecy_is_repo_scoped() {
+        // create_agent_task is blocked via is_blocked_tool(); integrity is overridden to
+        // blocked_integrity in label_resource. This test verifies the secrecy assignment
+        // that occurs before that override: with a known-private repo the arm must produce
+        // the private scope label, distinguishing it from the no-op default path.
+        //
+        // Use an owner/repo that no other test references to avoid polluting the shared
+        // visibility cache.
+        let owner = "create-agent-task-owner";
+        let repo = "create-agent-task-repo";
+        let repo_id = "create-agent-task-owner/create-agent-task-repo";
+
+        // Pre-populate the repo visibility cache so apply_repo_visibility_secrecy receives
+        // Some(true) (private) without needing a live backend.
+        fn private_repo_callback(
+            tool: &str,
+            _args: &str,
+            buffer: &mut [u8],
+        ) -> Result<usize, i32> {
+            if tool != "search_repositories" {
+                return Err(-1);
+            }
+            let payload = serde_json::json!({
+                "items": [{"full_name": "create-agent-task-owner/create-agent-task-repo", "private": true}]
+            })
+            .to_string();
+            let bytes = payload.as_bytes();
+            buffer[..bytes.len()].copy_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        let _ = super::backend::is_repo_private_with_callback(private_repo_callback, owner, repo);
+
+        let ctx = default_ctx();
+        let tool_args = json!({ "owner": owner, "repo": repo });
+
+        let (secrecy, _integrity, _desc) = apply_tool_labels(
+            "create_agent_task",
+            &tool_args,
+            repo_id,
+            vec![],
+            vec![],
+            String::new(),
+            &ctx,
+        );
+
+        let expected = super::helpers::policy_private_scope_label(owner, repo, repo_id, &ctx);
+        assert_eq!(
+            secrecy,
+            expected,
+            "create_agent_task with a private repo must carry the private repo secrecy label"
+        );
+    }
+
+    #[test]
     fn test_apply_tool_labels_enable_toolset_public_secrecy_writer_integrity() {
         let ctx = default_ctx();
         let tool_args = json!({ "toolset": "advanced" });
