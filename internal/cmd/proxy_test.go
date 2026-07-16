@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -42,9 +43,9 @@ func TestDetectGuardWasm_ViaWasmGuardsDir(t *testing.T) {
 	// Create a temporary directory that mimics the MCP_GATEWAY_WASM_GUARDS_DIR layout:
 	//   <root>/github/00-github-guard.wasm
 	rootDir := t.TempDir()
-	githubDir := rootDir + "/github"
+	githubDir := filepath.Join(rootDir, "github")
 	require.NoError(t, os.MkdirAll(githubDir, 0o755))
-	wasmFile := githubDir + "/00-github-guard.wasm"
+	wasmFile := filepath.Join(githubDir, "00-github-guard.wasm")
 	require.NoError(t, os.WriteFile(wasmFile, []byte("fake wasm"), 0o644))
 
 	t.Setenv("MCP_GATEWAY_WASM_GUARDS_DIR", rootDir)
@@ -63,7 +64,7 @@ func TestDetectGuardWasm_WasmGuardsDirEmpty(t *testing.T) {
 
 	// Create a directory structure with no .wasm files.
 	rootDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(rootDir+"/github", 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(rootDir, "github"), 0o755))
 
 	t.Setenv("MCP_GATEWAY_WASM_GUARDS_DIR", rootDir)
 
@@ -72,8 +73,8 @@ func TestDetectGuardWasm_WasmGuardsDirEmpty(t *testing.T) {
 		"detectGuardWasm should return empty when WASM_GUARDS_DIR/github/ contains no .wasm files")
 }
 
+// TestDetectGuardWasm_FileExists verifies that detectGuardWasm returns the
 // containerGuardWasmPath when that file is present on the filesystem.
-// This test creates a temporary file at the expected path to simulate the container environment.
 func TestDetectGuardWasm_FileExists(t *testing.T) {
 	// Skip if we cannot write to /guards/github/; test can only run where the
 	// directory is pre-created (e.g. the production container image).
