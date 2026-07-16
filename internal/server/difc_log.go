@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -102,7 +103,7 @@ func buildDIFCSingleItemFilteredError(detail difc.FilteredItemDetail) error {
 		msg = fmt.Sprintf("%s (%s)", msg, detail.Reason)
 	}
 	logDifcLog.Printf("buildDIFCSingleItemFilteredError: description=%s, policy=%s, reason=%s", desc, policyLabel, detail.Reason)
-	return fmt.Errorf("%s", msg)
+	return errors.New(msg)
 }
 
 // buildDIFCFilteredNotice builds a human-readable notice for the agent when items are
