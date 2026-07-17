@@ -100,7 +100,7 @@ func logRPCMessageToAll(direction RPCMessageDirection, messageType RPCMessageTyp
 	// Sanitize the payload string once, then share across all sinks.
 	// SanitizeString runs 10 compiled regex patterns; computing it once and
 	// passing the result to both preview builders and the JSONL logger avoids
-	// running the same patterns three times per RPC hop.
+	// running the same patterns a second time per RPC hop.
 	sanitized := sanitize.SanitizeString(string(payload))
 
 	// Log to text file (with larger payload preview)
