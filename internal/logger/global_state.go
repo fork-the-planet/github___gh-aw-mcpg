@@ -297,7 +297,7 @@ var logFuncs = map[LogLevel]func(string, string, ...interface{}){
 // The withGlobalLogger helper is used in:
 //   - file_logger.go: logWithLevel (for FileLogger)
 //   - markdown_logger.go: logWithMarkdown (for MarkdownLogger)
-//   - jsonl_logger.go: LogRPCMessageJSONLWithTags (for JSONLLogger)
+//   - jsonl_logger.go: LogRPCMessageJSONLWithTags and logRPCMessageJSONLWithTagsAndSanitized (for JSONLLogger)
 //   - server_file_logger.go: logWithLevelAndServer (for ServerFileLogger)
 //   - tools_logger.go: LogToolsForServer (for ToolsLogger)
 //   - rpc_logger.go: logRPCMessageToAll and LogRPCMessage (for MarkdownLogger)

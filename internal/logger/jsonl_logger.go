@@ -106,6 +106,12 @@ func LogRPCMessageJSONL(direction RPCMessageDirection, messageType RPCMessageTyp
 // LogRPCMessageJSONLWithTags logs an RPC message to the global JSONL logger with optional agent tag snapshots.
 // It uses the withGlobalLogger helper from global_helpers.go to handle mutex locking and nil-checking.
 func LogRPCMessageJSONLWithTags(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payloadBytes []byte, err error, agentSecrecy, agentIntegrity []string) {
+	logRPCMessageJSONLWithTagsAndSanitized(direction, messageType, serverID, method, sanitize.SanitizeJSON(payloadBytes), err, agentSecrecy, agentIntegrity)
+}
+
+// logRPCMessageJSONLWithTagsAndSanitized is the internal variant that accepts a pre-sanitized
+// payload to avoid redundant regex passes when the caller already holds a sanitized copy.
+func logRPCMessageJSONLWithTagsAndSanitized(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, sanitizedPayload json.RawMessage, err error, agentSecrecy, agentIntegrity []string) {
 	withGlobalLogger(&globalJSONLMu, &globalJSONLLogger, func(logger *JSONLLogger) {
 		entry := &JSONLRPCMessage{
 			Timestamp: time.Now().UTC().Format(jsonTimestampLayout),
@@ -114,7 +120,7 @@ func LogRPCMessageJSONLWithTags(direction RPCMessageDirection, messageType RPCMe
 			Direction: string(direction),
 			ServerID:  serverID,
 			Method:    method,
-			Payload:   sanitize.SanitizeJSON(payloadBytes),
+			Payload:   sanitizedPayload,
 		}
 
 		if len(agentSecrecy) > 0 {
