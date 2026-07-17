@@ -744,7 +744,7 @@ func TestWriteSinkGuard_AuditURLsInBody_Disabled(t *testing.T) {
 
 	// The file may exist but must contain no domain entries.
 	domainsFile := filepath.Join(logDir, "observed-url-domains.json")
-data, readErr := os.ReadFile(domainsFile)
+	data, readErr := os.ReadFile(domainsFile)
 	require.NoError(t, readErr)
 	var observed map[string][]string
 	require.NoError(t, json.Unmarshal(data, &observed))
@@ -768,7 +768,7 @@ func TestWriteSinkGuard_AuditURLsInBody_NilArgs(t *testing.T) {
 	require.NoError(t, err)
 
 	domainsFile := filepath.Join(logDir, "observed-url-domains.json")
-data, readErr := os.ReadFile(domainsFile)
+	data, readErr := os.ReadFile(domainsFile)
 	require.NoError(t, readErr)
 	var observed map[string][]string
 	require.NoError(t, json.Unmarshal(data, &observed))
@@ -795,7 +795,7 @@ func TestWriteSinkGuard_AuditURLsInBody_NoURLs(t *testing.T) {
 	require.NoError(t, err)
 
 	domainsFile := filepath.Join(logDir, "observed-url-domains.json")
-data, readErr := os.ReadFile(domainsFile)
+	data, readErr := os.ReadFile(domainsFile)
 	require.NoError(t, readErr)
 	var observed map[string][]string
 	require.NoError(t, json.Unmarshal(data, &observed))
