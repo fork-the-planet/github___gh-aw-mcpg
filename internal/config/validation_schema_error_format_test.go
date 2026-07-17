@@ -28,7 +28,13 @@ func TestFormatErrorContext(t *testing.T) {
 			name:         "additionalProperties error kind",
 			errorKind:    &kind.AdditionalProperties{Properties: []string{"foo"}},
 			prefix:       "  ",
-			wantContains: []string{"Configuration contains field(s)", "typos", "  Details:"},
+			wantContains: []string{"Unexpected field(s): foo", "typos", "  Details:"},
+		},
+		{
+			name:         "additionalProperties error kind without field list falls back to generic message",
+			errorKind:    &kind.AdditionalProperties{Properties: nil},
+			prefix:       "",
+			wantContains: []string{"Configuration contains field(s)", "typos"},
 		},
 		{
 			name:         "additionalItems error kind",
@@ -40,13 +46,13 @@ func TestFormatErrorContext(t *testing.T) {
 			name:         "type mismatch error kind",
 			errorKind:    &kind.Type{Got: "string", Want: []string{"integer"}},
 			prefix:       "  ",
-			wantContains: []string{"Type mismatch", "correct type", "  Details:"},
+			wantContains: []string{"Type mismatch", "expected integer", "got string", "  Details:"},
 		},
 		{
 			name:         "enum validation error kind",
 			errorKind:    &kind.Enum{Got: "bad", Want: []any{"a", "b", "c"}},
 			prefix:       "",
-			wantContains: []string{"Invalid value", "restricted set", "allowed values"},
+			wantContains: []string{"Invalid value", "allowed values: a, b, c"},
 		},
 		{
 			name:         "const error kind",
@@ -58,13 +64,13 @@ func TestFormatErrorContext(t *testing.T) {
 			name:         "required field error kind",
 			errorKind:    &kind.Required{Missing: []string{"container"}},
 			prefix:       "  ",
-			wantContains: []string{"Required field(s) are missing", "  Details:"},
+			wantContains: []string{"Missing required field(s): container", "  Details:"},
 		},
 		{
 			name:         "dependentRequired error kind",
 			errorKind:    &kind.DependentRequired{Prop: "x", Missing: []string{"y"}},
 			prefix:       "",
-			wantContains: []string{"Required field(s) are missing", "Add the required"},
+			wantContains: []string{"Missing required field(s) for", "x", "y", "Add the required"},
 		},
 		{
 			name:         "pattern validation error kind",
@@ -121,12 +127,42 @@ func TestFormatErrorContext(t *testing.T) {
 			wantContains: []string{"doesn't match any of the expected formats"},
 		},
 		{
-			name: "unrecognized error kind returns empty string",
-			// kind.Not is a real ErrorKind not handled by the formatErrorContext switch,
-			// so it represents the "no context hint" path.
-			errorKind:      &kind.Not{},
-			prefix:         "",
-			wantNotContain: []string{"Details:"},
+			name:         "not error kind gets specific context",
+			errorKind:    &kind.Not{},
+			prefix:       "",
+			wantContains: []string{"Details:", "must not match"},
+		},
+		{
+			name:         "contains error kind gets specific context",
+			errorKind:    &kind.Contains{},
+			prefix:       "",
+			wantContains: []string{"Details:", "contains"},
+		},
+		{
+			name:         "minContains error kind gets contains context",
+			errorKind:    &kind.MinContains{Got: []int{}, Want: 2},
+			prefix:       "",
+			wantContains: []string{"Details:", "contains"},
+		},
+		{
+			name:         "maxContains error kind gets contains context",
+			errorKind:    &kind.MaxContains{Got: []int{0, 1, 2}, Want: 1},
+			prefix:       "",
+			wantContains: []string{"Details:", "contains"},
+		},
+		{
+			name:         "uniqueItems error kind gets specific context",
+			errorKind:    &kind.UniqueItems{Duplicates: [2]int{0, 2}},
+			prefix:       "",
+			wantContains: []string{"Details:", "unique"},
+		},
+		{
+			name: "truly unhandled error kind falls back to generic context",
+			// kind.Group is handled but kind.Schema is not, use it to exercise default.
+			// Any kind not in the switch falls through to the default generic fallback.
+			errorKind:    &kind.Schema{Location: "/some/path"},
+			prefix:       "",
+			wantContains: []string{"Details:", "documentation"},
 		},
 		{
 			name:         "prefix is prepended to output lines",
@@ -214,6 +250,27 @@ func TestDetailForKeyword(t *testing.T) {
 			wantKey:           "oneOf",
 			wantLinesLen:      2,
 			wantLine0Contains: "doesn't match any of the expected formats",
+		},
+		{
+			name:              "not returns prohibited condition details",
+			keyword:           "not",
+			wantKey:           "not",
+			wantLinesLen:      2,
+			wantLine0Contains: "must not match",
+		},
+		{
+			name:              "contains returns array contains details",
+			keyword:           "contains",
+			wantKey:           "contains",
+			wantLinesLen:      2,
+			wantLine0Contains: "Array does not satisfy",
+		},
+		{
+			name:              "uniqueItems returns uniqueness details",
+			keyword:           "uniqueItems",
+			wantKey:           "uniqueItems",
+			wantLinesLen:      2,
+			wantLine0Contains: "unique",
 		},
 		{
 			name:    "unknown keyword returns empty key and nil lines",
