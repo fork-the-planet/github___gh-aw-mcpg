@@ -723,3 +723,84 @@ func TestWriteSinkGuard_SinkVisibility_Public_MultipleTaintedTags(t *testing.T) 
 	assert.False(t, result.IsAllowed(),
 		"public sink must block agents with ANY non-empty secrecy (GitLost defense)")
 }
+
+// TestWriteSinkGuard_AuditURLsInBody_Disabled verifies that auditURLsInBody is a no-op
+// when URL domain auditing is disabled (the default).
+func TestWriteSinkGuard_AuditURLsInBody_Disabled(t *testing.T) {
+	logDir := t.TempDir()
+	logger.InitGatewayLoggers(logDir)
+	t.Cleanup(func() {
+		logger.SetURLDomainAuditEnabled(false)
+		require.NoError(t, logger.CloseAllLoggers())
+	})
+	// Audit is disabled — no domains should be recorded.
+	logger.SetURLDomainAuditEnabled(false)
+
+	g := NewWriteSinkGuard([]string{"*"})
+	_, _, err := g.LabelResource(context.Background(), "create_issue", map[string]any{
+		"body": "See https://example.com for details",
+	}, nil, nil)
+	require.NoError(t, err)
+
+	// The file may exist but must contain no domain entries.
+	domainsFile := filepath.Join(logDir, "observed-url-domains.json")
+	data, readErr := os.ReadFile(domainsFile)
+	if readErr == nil {
+		var observed map[string][]string
+		require.NoError(t, json.Unmarshal(data, &observed))
+		assert.Empty(t, observed["write-sink"], "no domains should be recorded when audit is disabled")
+	}
+}
+
+// TestWriteSinkGuard_AuditURLsInBody_NilArgs verifies that auditURLsInBody is a no-op
+// when the tool arguments are nil.
+func TestWriteSinkGuard_AuditURLsInBody_NilArgs(t *testing.T) {
+	logDir := t.TempDir()
+	logger.InitGatewayLoggers(logDir)
+	t.Cleanup(func() {
+		logger.SetURLDomainAuditEnabled(false)
+		require.NoError(t, logger.CloseAllLoggers())
+	})
+	logger.SetURLDomainAuditEnabled(true)
+
+	g := NewWriteSinkGuard([]string{"*"})
+	// Nil args — function must not panic and must not record any domains.
+	_, _, err := g.LabelResource(context.Background(), "create_issue", nil, nil, nil)
+	require.NoError(t, err)
+
+	domainsFile := filepath.Join(logDir, "observed-url-domains.json")
+	data, readErr := os.ReadFile(domainsFile)
+	if readErr == nil {
+		var observed map[string][]string
+		require.NoError(t, json.Unmarshal(data, &observed))
+		assert.Empty(t, observed["write-sink"], "no domains should be recorded for nil args")
+	}
+}
+
+// TestWriteSinkGuard_AuditURLsInBody_NoURLs verifies that auditURLsInBody is a no-op
+// when the tool arguments contain no recognizable URLs.
+func TestWriteSinkGuard_AuditURLsInBody_NoURLs(t *testing.T) {
+	logDir := t.TempDir()
+	logger.InitGatewayLoggers(logDir)
+	t.Cleanup(func() {
+		logger.SetURLDomainAuditEnabled(false)
+		require.NoError(t, logger.CloseAllLoggers())
+	})
+	logger.SetURLDomainAuditEnabled(true)
+
+	g := NewWriteSinkGuard([]string{"*"})
+	// Args with no URLs — no domains should be recorded.
+	_, _, err := g.LabelResource(context.Background(), "create_issue", map[string]any{
+		"title": "Fix the bug",
+		"body":  "No external links here.",
+	}, nil, nil)
+	require.NoError(t, err)
+
+	domainsFile := filepath.Join(logDir, "observed-url-domains.json")
+	data, readErr := os.ReadFile(domainsFile)
+	if readErr == nil {
+		var observed map[string][]string
+		require.NoError(t, json.Unmarshal(data, &observed))
+		assert.Empty(t, observed["write-sink"], "no domains should be recorded when args contain no URLs")
+	}
+}
