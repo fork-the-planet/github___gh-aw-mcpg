@@ -469,6 +469,7 @@ var routeDispatch map[string][]int
 
 func init() {
 	routeDispatch = buildRouteDispatch(routes)
+	logRouter.Printf("Route dispatch table built: routes=%d, buckets=%d", len(routes), len(routeDispatch))
 }
 
 // buildRouteDispatch derives a dispatch key from each compiled route pattern
@@ -503,6 +504,7 @@ func buildRouteDispatch(rs []route) map[string][]int {
 			m[seg] = append(m[seg], i)
 		}
 	}
+	logRouter.Printf("buildRouteDispatch: indexed %d routes into %d dispatch buckets (catch-all=%d)", len(rs), len(m), len(m[""]))
 	return m
 }
 
@@ -573,6 +575,7 @@ func MatchRoute(path string) *RouteMatch {
 	key := routeMatchKey(path)
 	bucketIndices := routeDispatch[key]
 	catchallIndices := routeDispatch[""]
+	logRouter.Printf("MatchRoute: path=%s, dispatchKey=%q, bucketSize=%d, catchallSize=%d", path, key, len(bucketIndices), len(catchallIndices))
 
 	tryMatch := func(idx int) *RouteMatch {
 		r := routes[idx]
