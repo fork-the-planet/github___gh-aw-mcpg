@@ -97,9 +97,10 @@ func newRPCMessageInfoFromSanitized(direction RPCMessageDirection, messageType R
 // logRPCMessageToAll routes a single RPC message to all log sinks (text, markdown, JSONL).
 // It uses the withGlobalLogger helper from global_helpers.go to handle mutex locking and nil-checking.
 func logRPCMessageToAll(direction RPCMessageDirection, messageType RPCMessageType, serverID, method string, payload []byte, err error, agentSecrecy, agentIntegrity []string) {
-	// Sanitize the payload string once, then truncate to different preview lengths.
-	// SanitizeString runs 10 compiled regex patterns; sharing the sanitized string
-	// between the text and markdown previews halves the sanitization work per RPC hop.
+	// Sanitize the payload string once, then share across all sinks.
+	// SanitizeString runs 10 compiled regex patterns; computing it once and
+	// passing the result to both preview builders and the JSONL logger avoids
+	// running the same patterns three times per RPC hop.
 	sanitized := sanitize.SanitizeString(string(payload))
 
 	// Log to text file (with larger payload preview)
@@ -112,8 +113,9 @@ func logRPCMessageToAll(direction RPCMessageDirection, messageType RPCMessageTyp
 		logger.Log(LogLevelDebug, "rpc", "%s", formatRPCMessageMarkdown(infoMarkdown))
 	})
 
-	// Log to JSONL file (full payload, sanitized)
-	LogRPCMessageJSONLWithTags(direction, messageType, serverID, method, payload, err, agentSecrecy, agentIntegrity)
+	// Log to JSONL file (full payload, sanitized).
+	// Use the pre-sanitized string variant to avoid running the 10 regex patterns again.
+	logRPCMessageJSONLWithTagsAndSanitized(direction, messageType, serverID, method, sanitize.SanitizeJSONFromString(sanitized), err, agentSecrecy, agentIntegrity)
 }
 
 // LogRPCRequest logs an RPC request message to text, markdown, and JSONL logs.

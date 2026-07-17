@@ -114,9 +114,14 @@ func RedactSecretMap(env map[string]string) map[string]string {
 // SanitizeJSON sanitizes a JSON payload by applying regex patterns to the entire string
 // It takes raw bytes, applies regex sanitization in one pass, and returns sanitized bytes
 func SanitizeJSON(payloadBytes []byte) json.RawMessage {
-	// Apply regex sanitization to the entire string in one pass
-	sanitized := SanitizeString(string(payloadBytes))
+	return SanitizeJSONFromString(SanitizeString(string(payloadBytes)))
+}
 
+// SanitizeJSONFromString compacts an already-sanitized JSON string into a
+// json.RawMessage. It skips the regex sanitization pass — callers that have
+// already called SanitizeString on the payload string can use this to avoid
+// running the 10 compiled regex patterns a second time.
+func SanitizeJSONFromString(sanitized string) json.RawMessage {
 	// Use json.Compact to validate and compact in one pass (avoids a full unmarshal+marshal cycle)
 	var buf bytes.Buffer
 	if err := json.Compact(&buf, []byte(sanitized)); err != nil {

@@ -813,3 +813,61 @@ func BenchmarkSanitizeJSON_WithPrettyPrint(b *testing.B) {
 		_ = SanitizeJSON(input)
 	}
 }
+
+// TestSanitizeJSONFromString verifies that SanitizeJSONFromString produces the same
+// output as SanitizeJSON when the caller pre-sanitizes the string, and that it correctly
+// handles already-sanitized inputs without running the regex patterns again.
+func TestSanitizeJSONFromString(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name:  "clean compact JSON",
+			input: `{"method":"tools/list","id":1}`,
+		},
+		{
+			name:  "already redacted payload",
+			input: `{"token":"[REDACTED]","id":2}`,
+		},
+		{
+			name:  "pretty-printed JSON",
+			input: "{\n  \"session\": \"abc\",\n  \"ok\": true\n}",
+		},
+		{
+			name:  "invalid JSON falls back to error envelope",
+			input: `not valid json {`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SanitizeJSONFromString(tt.input)
+			require.NotNil(t, got)
+			// Must always be valid JSON
+			var tmp interface{}
+			err := json.Unmarshal(got, &tmp)
+			assert.NoError(t, err, "SanitizeJSONFromString must always return valid JSON")
+		})
+	}
+}
+
+// TestSanitizeJSONFromString_Consistency verifies that SanitizeJSONFromString(SanitizeString(s))
+// produces the same result as SanitizeJSON([]byte(s)) for clean payloads.
+func TestSanitizeJSONFromString_Consistency(t *testing.T) {
+	input := `{"method":"tools/call","id":42,"params":{"name":"search_code"}}`
+	direct := SanitizeJSON([]byte(input))
+	twoStep := SanitizeJSONFromString(SanitizeString(input))
+	assert.Equal(t, string(direct), string(twoStep), "SanitizeJSONFromString(SanitizeString) must match SanitizeJSON")
+}
+
+// BenchmarkSanitizeJSONFromString_Compact benchmarks the fast path used by
+// logRPCMessageToAll: sanitize once with SanitizeString, compact with SanitizeJSONFromString.
+func BenchmarkSanitizeJSONFromString_Compact(b *testing.B) {
+	input := `{"session":"abc123","tool":"github___get_file_contents","result":{"content":"hello world","path":"README.md"}}`
+	sanitized := SanitizeString(input)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = SanitizeJSONFromString(sanitized)
+	}
+}
