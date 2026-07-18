@@ -12,7 +12,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/server"
 )
 
-var logDriver = logger.New("testutil:driver")
+var logDriver = logger.New("mcptest:driver")
 
 // TestDriver manages test servers and the gateway for integration testing
 type TestDriver struct {
