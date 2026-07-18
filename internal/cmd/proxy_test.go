@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/github/gh-aw-mcpg/internal/difc"
+	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,14 +16,14 @@ import (
 )
 
 // TestDetectGuardWasm_FileNotFound tests that detectGuardWasm returns empty string
-// when the baked-in guard at containerGuardWasmPath does not exist and
+// when the baked-in guard at guard.ContainerGuardWasmPath does not exist and
 // MCP_GATEWAY_WASM_GUARDS_DIR is not set.
 // In standard test environments (non-container), the baked-in guard is absent.
 func TestDetectGuardWasm_FileNotFound(t *testing.T) {
 	// Confirm the baked-in path does not exist in this environment
-	_, err := os.Stat(containerGuardWasmPath)
+	_, err := os.Stat(guard.ContainerGuardWasmPath)
 	if err == nil {
-		t.Skipf("baked-in guard found at %s (running in container) — skipping 'not found' test", containerGuardWasmPath)
+		t.Skipf("baked-in guard found at %s (running in container) — skipping 'not found' test", guard.ContainerGuardWasmPath)
 	}
 
 	// Ensure the env-var fallback is disabled too.
@@ -36,8 +37,8 @@ func TestDetectGuardWasm_FileNotFound(t *testing.T) {
 // MCP_GATEWAY_WASM_GUARDS_DIR/github/*.wasm when the baked-in container guard is absent.
 func TestDetectGuardWasm_ViaWasmGuardsDir(t *testing.T) {
 	// Only meaningful when not running in a container with the baked-in guard.
-	if _, err := os.Stat(containerGuardWasmPath); err == nil {
-		t.Skipf("baked-in guard found at %s — fallback test not applicable", containerGuardWasmPath)
+	if _, err := os.Stat(guard.ContainerGuardWasmPath); err == nil {
+		t.Skipf("baked-in guard found at %s — fallback test not applicable", guard.ContainerGuardWasmPath)
 	}
 
 	// Create a temporary directory that mimics the MCP_GATEWAY_WASM_GUARDS_DIR layout:
@@ -58,8 +59,8 @@ func TestDetectGuardWasm_ViaWasmGuardsDir(t *testing.T) {
 // TestDetectGuardWasm_WasmGuardsDirEmpty verifies that detectGuardWasm returns empty
 // when MCP_GATEWAY_WASM_GUARDS_DIR is set but contains no .wasm files for github.
 func TestDetectGuardWasm_WasmGuardsDirEmpty(t *testing.T) {
-	if _, err := os.Stat(containerGuardWasmPath); err == nil {
-		t.Skipf("baked-in guard found at %s — fallback test not applicable", containerGuardWasmPath)
+	if _, err := os.Stat(guard.ContainerGuardWasmPath); err == nil {
+		t.Skipf("baked-in guard found at %s — fallback test not applicable", guard.ContainerGuardWasmPath)
 	}
 
 	// Create a directory structure with no .wasm files.
@@ -73,15 +74,37 @@ func TestDetectGuardWasm_WasmGuardsDirEmpty(t *testing.T) {
 		"detectGuardWasm should return empty when WASM_GUARDS_DIR/github/ contains no .wasm files")
 }
 
+// TestDetectGuardWasm_WasmGuardsDirError verifies that detectGuardWasm returns empty
+// when MCP_GATEWAY_WASM_GUARDS_DIR is set and FindServerWASMGuardFile returns an error
+// (e.g. the "github" path inside the dir exists but is a file, not a directory).
+// This exercises the err != nil branch on the FindServerWASMGuardFile call.
+func TestDetectGuardWasm_WasmGuardsDirError(t *testing.T) {
+	if _, err := os.Stat(guard.ContainerGuardWasmPath); err == nil {
+		t.Skipf("baked-in guard found at %s — error-path test not applicable", guard.ContainerGuardWasmPath)
+	}
+
+	// Create a root dir where "github" is a regular file rather than a directory.
+	// FindServerWASMGuardFile will return an error in this case.
+	rootDir := t.TempDir()
+	githubPath := filepath.Join(rootDir, "github")
+	require.NoError(t, os.WriteFile(githubPath, []byte("not a dir"), 0o644))
+
+	t.Setenv("MCP_GATEWAY_WASM_GUARDS_DIR", rootDir)
+
+	// detectGuardWasm should gracefully handle the error and return "".
+	result := detectGuardWasm()
+	assert.Empty(t, result, "detectGuardWasm should return empty when FindServerWASMGuardFile errors")
+}
+
 // TestDetectGuardWasm_FileExists verifies that detectGuardWasm returns the
-// containerGuardWasmPath when that file is present on the filesystem.
+// guard.ContainerGuardWasmPath when that file is present on the filesystem.
 func TestDetectGuardWasm_FileExists(t *testing.T) {
 	// Skip if we cannot write to /guards/github/; test can only run where the
 	// directory is pre-created (e.g. the production container image).
-	if _, err := os.Stat(containerGuardWasmPath); err == nil {
+	if _, err := os.Stat(guard.ContainerGuardWasmPath); err == nil {
 		// File already exists (running in container): just verify the function works.
 		result := detectGuardWasm()
-		assert.Equal(t, containerGuardWasmPath, result,
+		assert.Equal(t, guard.ContainerGuardWasmPath, result,
 			"detectGuardWasm should return the baked-in path when the file exists")
 	}
 	// If the file does not exist and we cannot create it (no permission), skip.
@@ -314,8 +337,8 @@ func TestNewProxyCmd_OTLPServiceNameDefaultFromEnv(t *testing.T) {
 // MCP_GATEWAY_WASM_GUARDS_DIR is not set.
 func TestNewProxyCmd_GuardWasmRequiredWhenNoBakedInGuard(t *testing.T) {
 	// This test is only meaningful when running outside a container.
-	if _, err := os.Stat(containerGuardWasmPath); err == nil {
-		t.Skipf("baked-in guard found at %s — in container, --guard-wasm is optional", containerGuardWasmPath)
+	if _, err := os.Stat(guard.ContainerGuardWasmPath); err == nil {
+		t.Skipf("baked-in guard found at %s — in container, --guard-wasm is optional", guard.ContainerGuardWasmPath)
 	}
 
 	// Disable the env-var fallback so the flag is truly required.
@@ -343,12 +366,12 @@ func TestNewProxyCmd_GuardWasmFlagHelpText(t *testing.T) {
 	flag := cmd.Flags().Lookup("guard-wasm")
 	require.NotNil(t, flag, "--guard-wasm flag should exist")
 
-	_, err := os.Stat(containerGuardWasmPath)
+	_, err := os.Stat(guard.ContainerGuardWasmPath)
 	if err == nil {
 		// In container environment: help text should mention auto-detected path
 		assert.Contains(t, flag.Usage, "auto-detected",
 			"--guard-wasm help should mention auto-detected when baked-in guard exists")
-		assert.Contains(t, flag.Usage, containerGuardWasmPath,
+		assert.Contains(t, flag.Usage, guard.ContainerGuardWasmPath,
 			"--guard-wasm help should include the detected path")
 	} else {
 		// Not in container: help text should say required

@@ -1588,7 +1588,7 @@ fn extract_author_login(item: &Value) -> &str {
 /// Extract the `author_association` field from an item, checking both the
 /// snake_case REST form (`author_association`) and the camelCase GraphQL form
 /// (`authorAssociation`). Returns `None` if neither is present or is not a string.
-fn get_author_association(item: &Value) -> Option<&str> {
+pub(crate) fn get_author_association(item: &Value) -> Option<&str> {
     item.get("author_association")
         .and_then(|v| v.as_str())
         .or_else(|| item.get("authorAssociation").and_then(|v| v.as_str()))

@@ -120,3 +120,56 @@ func TestConfigureWasmCompilationCache(t *testing.T) {
 		})
 	})
 }
+
+func TestSetupWasmCompilationCache(t *testing.T) {
+	t.Run("returns resolved dir and non-nil cleanup on success", func(t *testing.T) {
+		ctx := context.Background()
+		cacheDir := t.TempDir()
+
+		resolvedDir, cleanup, err := setupWasmCompilationCache(ctx, true, cacheDir, "/tmp/logs")
+		require.NoError(t, err)
+		assert.Equal(t, cacheDir, resolvedDir)
+		assert.NotNil(t, cleanup)
+
+		t.Cleanup(func() {
+			cleanup()
+			require.NoError(t, guard.ConfigureGlobalCompilationCache(ctx, ""))
+		})
+	})
+
+	t.Run("falls back to in-memory cache when disk cache init fails", func(t *testing.T) {
+		ctx := context.Background()
+		tempFile, err := os.CreateTemp(t.TempDir(), "not-a-dir")
+		require.NoError(t, err)
+		require.NoError(t, tempFile.Close())
+
+		// Passing a file path (not a directory) as the cache dir triggers the
+		// disk-backed cache to fail and fall back to an in-memory cache.
+		// Verify that the helper surfaces the fallback successfully: no error,
+		// empty resolvedDir (in-memory), and a non-nil cleanup func.
+		resolvedDir, cleanup, err := setupWasmCompilationCache(ctx, true, tempFile.Name(), "/tmp/logs")
+		require.NoError(t, err)
+		assert.Empty(t, resolvedDir, "fallback in-memory cache should return empty dir")
+		assert.NotNil(t, cleanup)
+
+		t.Cleanup(func() {
+			cleanup()
+			require.NoError(t, guard.ConfigureGlobalCompilationCache(ctx, ""))
+		})
+	})
+
+	t.Run("cleanup function does not panic when called", func(t *testing.T) {
+		ctx := context.Background()
+		cacheDir := t.TempDir()
+
+		_, cleanup, err := setupWasmCompilationCache(ctx, true, cacheDir, "/tmp/logs")
+		require.NoError(t, err)
+		require.NotNil(t, cleanup)
+
+		require.NotPanics(t, cleanup)
+
+		t.Cleanup(func() {
+			require.NoError(t, guard.ConfigureGlobalCompilationCache(ctx, ""))
+		})
+	})
+}

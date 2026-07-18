@@ -3,7 +3,7 @@ package cmd
 // DIFC (Decentralized Information Flow Control) related flags
 
 import (
-	"os"
+	"fmt"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
@@ -23,12 +23,28 @@ var (
 	allowOnlyMinInt   string
 )
 
-// containerGuardWasmPath is the baked-in guard path in the container image.
-const containerGuardWasmPath = "/guards/github/00-github-guard.wasm"
+// registerGuardsModeFlag registers the --guards-mode flag and its completion
+// on cmd, storing the value in target. Both the serve (root) command and the
+// proxy subcommand share this helper to keep flag description, default, and
+// completion in one place.
+func registerGuardsModeFlag(cmd *cobra.Command, target *string) {
+	cmd.Flags().StringVar(target, "guards-mode", difc.DefaultEnforcementMode(),
+		"Guards enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads)")
+	cmd.RegisterFlagCompletionFunc("guards-mode", cobra.FixedCompletions(
+		difc.ValidModes, cobra.ShellCompDirectiveNoFileComp))
+}
 
+// validateGuardsMode returns a user-facing error when mode is not a recognised
+// enforcement mode string.
+func validateGuardsMode(mode string) error {
+	if _, err := difc.ParseEnforcementMode(mode); err != nil {
+		return fmt.Errorf("invalid --guards-mode flag: %w", err)
+	}
+	return nil
+}
 func init() {
 	RegisterFlag(func(cmd *cobra.Command) {
-		cmd.Flags().StringVar(&difcMode, "guards-mode", difc.DefaultEnforcementMode(), "Guards enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads)")
+		registerGuardsModeFlag(cmd, &difcMode)
 		cmd.Flags().StringVar(&difcSinkServerIDs, "guards-sink-server-ids", envutil.GetEnvString("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", ""), "Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots")
 		cmd.Flags().StringVar(&guardPolicyJSON, "guard-policy-json", envutil.GetEnvString(config.EnvGuardPolicyJSON, ""), "Guard policy JSON (e.g. {\"allow-only\":{\"repos\":\"public\",\"min-integrity\":\"none\"}})")
 		cmd.Flags().BoolVar(&allowOnlyPublic, "allowonly-scope-public", envutil.GetEnvBool(config.EnvAllowOnlyScopePublic, false), "Use public AllowOnly scope")
@@ -40,27 +56,16 @@ func init() {
 
 // detectGuardWasm returns the path to the WASM guard module to use as the
 // default for the --guard-wasm flag. It checks in order:
-//  1. The baked-in container guard at containerGuardWasmPath.
+//  1. The baked-in container guard at guard.ContainerGuardWasmPath.
 //  2. The first .wasm file under $MCP_GATEWAY_WASM_GUARDS_DIR/github/.
 //
 // Returns an empty string when no guard can be auto-detected, which causes
 // --guard-wasm to be marked as required.
 func detectGuardWasm() string {
-	debugLog.Printf("Checking for baked-in guard at %s", containerGuardWasmPath)
-	if _, err := os.Stat(containerGuardWasmPath); err == nil {
-		debugLog.Printf("Auto-detected baked-in guard: %s", containerGuardWasmPath)
-		return containerGuardWasmPath
-	}
-
-	// Fall back to MCP_GATEWAY_WASM_GUARDS_DIR/github/*.wasm if the env var is set.
-	// This allows operators who set MCP_GATEWAY_WASM_GUARDS_DIR to satisfy the
-	// --guard-wasm requirement without passing it explicitly on the CLI.
-	// Note: MarkFlagRequired only fires on CLI-set flags, so the env var must be
-	// translated to a concrete default here at flag-registration time.
-	if wasmPath, found, err := guard.FindServerWASMGuardFile("github"); err != nil {
-		debugLog.Printf("WASM guard discovery via %s failed: %v", guard.WASMGuardsDirEnvVar, err)
+	if wasmPath, found, err := guard.FindGuardFile("github"); err != nil {
+		debugLog.Printf("WASM guard discovery failed: %v", err)
 	} else if found {
-		debugLog.Printf("Auto-detected guard via %s: %s", guard.WASMGuardsDirEnvVar, wasmPath)
+		debugLog.Printf("Auto-detected guard: %s", wasmPath)
 		return wasmPath
 	}
 
