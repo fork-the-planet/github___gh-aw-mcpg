@@ -304,6 +304,82 @@ func TestOverrideToPublicScope_NoConfig_NoOp(t *testing.T) {
 	}, "overrideToPublicScope should not panic with nil config")
 }
 
+// TestOverrideToPublicScope_GlobalPolicy_NilAllowOnly_InjectsNewPolicy verifies that
+// overrideToPublicScope creates a fresh AllowOnly block when the global policy exists
+// but has no AllowOnly yet (and no WriteSink — so it is not the write-sink-only case).
+func TestOverrideToPublicScope_GlobalPolicy_NilAllowOnly_InjectsNewPolicy(t *testing.T) {
+	t.Setenv("GITHUB_REPOSITORY", "test-owner/test-repo")
+
+	// Global policy with no AllowOnly and no WriteSink.
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"github": {Type: "http"},
+		},
+		GuardPolicy: &config.GuardPolicy{},
+	}
+	us := newMinimalUnifiedServerForGuardTest(cfg)
+
+	us.overrideToPublicScope("github")
+
+	require.NotNil(t, cfg.GuardPolicy.AllowOnly,
+		"overrideToPublicScope should inject AllowOnly when global policy has none")
+	assert.Equal(t, "public", cfg.GuardPolicy.AllowOnly.Repos)
+	assert.Equal(t, config.IntegrityNone, cfg.GuardPolicy.AllowOnly.MinIntegrity)
+}
+
+// TestOverrideToPublicScope_ServerNotInConfig_NoOp verifies that overrideToPublicScope
+// does nothing when the given serverID is not in the server config map.
+func TestOverrideToPublicScope_ServerNotInConfig_NoOp(t *testing.T) {
+	t.Setenv("GITHUB_REPOSITORY", "test-owner/test-repo")
+
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"github": {Type: "http"},
+		},
+	}
+	us := newMinimalUnifiedServerForGuardTest(cfg)
+
+	// "nonexistent" is not in the Servers map — should be a no-op.
+	assert.NotPanics(t, func() {
+		us.overrideToPublicScope("nonexistent")
+	})
+	// Ensure the existing server config is unmodified.
+	assert.Nil(t, cfg.Servers["github"].GuardPolicies)
+}
+
+// TestOverrideToPublicScope_PerServerPolicy_NilAllowOnly_InjectsPolicy verifies that
+// overrideToPublicScope creates a fresh AllowOnly entry when the per-server policy map
+// is non-empty but contains no recognized policy keys (allow-only or write-sink).
+// In this case ParseServerGuardPolicy returns (nil, nil) and the override injects
+// allow-only directly.
+func TestOverrideToPublicScope_PerServerPolicy_NilAllowOnly_InjectsPolicy(t *testing.T) {
+	t.Setenv("GITHUB_REPOSITORY", "test-owner/test-repo")
+
+	// A map with an unrecognized key (no "allow-only" / "write-sink" / "repos").
+	// ParseServerGuardPolicy returns (nil, nil) for this input, exercising the
+	// policy==nil branch in overrideToPublicScope (line ~664).
+	cfg := &config.Config{
+		Servers: map[string]*config.ServerConfig{
+			"github": {
+				Type: "http",
+				GuardPolicies: map[string]interface{}{
+					"custom-key": "some-value",
+				},
+			},
+		},
+	}
+	us := newMinimalUnifiedServerForGuardTest(cfg)
+
+	us.overrideToPublicScope("github")
+
+	// After the override, allow-only must have been injected into the map.
+	allowOnlyRaw, ok := cfg.Servers["github"].GuardPolicies["allow-only"]
+	require.True(t, ok, "allow-only key should be present after override")
+	allowOnly, ok := allowOnlyRaw.(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "public", allowOnly["repos"])
+}
+
 // TestShouldForcePublicRepos_ResultCached verifies that the API is called only
 // once even when shouldForcePublicRepos is called multiple times.
 func TestShouldForcePublicRepos_ResultCached(t *testing.T) {
