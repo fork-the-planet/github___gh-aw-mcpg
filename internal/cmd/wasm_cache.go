@@ -14,6 +14,7 @@ import (
 
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/guard"
+	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
 func defaultWasmCacheDir(logDir string) string {
@@ -69,4 +70,21 @@ func configureWasmCompilationCache(ctx context.Context, flagChanged bool, flagVa
 		debugLog.Print("WASM compilation cache fallback configured: mode=in-memory")
 		return "", nil
 	}
+}
+
+// setupWasmCompilationCache configures the WASM compilation cache and returns
+// a cleanup function that must be deferred by the caller to release cache
+// resources on shutdown. resolvedDir is the cache directory that was configured;
+// an empty string indicates an in-memory cache is in use.
+func setupWasmCompilationCache(ctx context.Context, flagChanged bool, cacheDir, logDir string) (resolvedDir string, cleanup func(), err error) {
+	resolvedDir, err = configureWasmCompilationCache(ctx, flagChanged, cacheDir, logDir, logger.StartupWarn)
+	if err != nil {
+		return "", nil, err
+	}
+	cleanupCtx := context.WithoutCancel(ctx)
+	return resolvedDir, func() {
+		if err := guard.CloseGlobalCompilationCache(cleanupCtx); err != nil {
+			logger.LogError("shutdown", "Failed to close WASM compilation cache: %v", err)
+		}
+	}, nil
 }

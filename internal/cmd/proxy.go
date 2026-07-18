@@ -15,7 +15,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/githubhttp"
-	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/proxy"
@@ -150,16 +149,11 @@ func runProxy(cmd *cobra.Command, args []string) error {
 
 	logger.LogInfo("startup", "MCPG Proxy starting: listen=%s, guard=%s, mode=%s, tls=%v", proxyListen, proxyGuardWasm, proxyDIFCMode, proxyTLS)
 
-	resolvedWasmCacheDir, err := configureWasmCompilationCache(ctx, cmd.Flags().Changed("wasm-cache-dir"), proxyWasmCacheDir, proxyLogDir, logger.StartupWarn)
+	resolvedWasmCacheDir, cleanupWasmCache, err := setupWasmCompilationCache(ctx, cmd.Flags().Changed("wasm-cache-dir"), proxyWasmCacheDir, proxyLogDir)
 	if err != nil {
 		return err
 	}
-	cleanupCtx := context.WithoutCancel(ctx)
-	defer func() {
-		if err := guard.CloseGlobalCompilationCache(cleanupCtx); err != nil {
-			logger.LogError("shutdown", "Failed to close WASM compilation cache: %v", err)
-		}
-	}()
+	defer cleanupWasmCache()
 	logger.LogInfo("startup", "WASM compilation cache directory: %s", resolvedWasmCacheDir)
 
 	// Initialize OpenTelemetry tracer provider for the proxy server.
