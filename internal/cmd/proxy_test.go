@@ -73,6 +73,28 @@ func TestDetectGuardWasm_WasmGuardsDirEmpty(t *testing.T) {
 		"detectGuardWasm should return empty when WASM_GUARDS_DIR/github/ contains no .wasm files")
 }
 
+// TestDetectGuardWasm_WasmGuardsDirError verifies that detectGuardWasm returns empty
+// when MCP_GATEWAY_WASM_GUARDS_DIR is set and FindServerWASMGuardFile returns an error
+// (e.g. the "github" path inside the dir exists but is a file, not a directory).
+// This exercises the err != nil branch on the FindServerWASMGuardFile call.
+func TestDetectGuardWasm_WasmGuardsDirError(t *testing.T) {
+	if _, err := os.Stat(containerGuardWasmPath); err == nil {
+		t.Skipf("baked-in guard found at %s — error-path test not applicable", containerGuardWasmPath)
+	}
+
+	// Create a root dir where "github" is a regular file rather than a directory.
+	// FindServerWASMGuardFile will return an error in this case.
+	rootDir := t.TempDir()
+	githubPath := filepath.Join(rootDir, "github")
+	require.NoError(t, os.WriteFile(githubPath, []byte("not a dir"), 0o644))
+
+	t.Setenv("MCP_GATEWAY_WASM_GUARDS_DIR", rootDir)
+
+	// detectGuardWasm should gracefully handle the error and return "".
+	result := detectGuardWasm()
+	assert.Empty(t, result, "detectGuardWasm should return empty when FindServerWASMGuardFile errors")
+}
+
 // TestDetectGuardWasm_FileExists verifies that detectGuardWasm returns the
 // containerGuardWasmPath when that file is present on the filesystem.
 func TestDetectGuardWasm_FileExists(t *testing.T) {
