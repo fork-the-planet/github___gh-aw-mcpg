@@ -15,7 +15,6 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
-	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/server"
@@ -179,16 +178,11 @@ func run(cmd *cobra.Command, args []string) error {
 	logger.LogInfoToMarkdown("startup", "Starting MCPG with config: %s, listen: %s, log-dir: %s", configSource, listenAddr, logDir)
 	debugLog.Printf("Starting MCPG with config: %s, listen: %s", configSource, listenAddr)
 
-	resolvedWasmCacheDir, cacheErr := configureWasmCompilationCache(ctx, cmd.Flags().Changed("wasm-cache-dir"), wasmCacheDir, logDir, logger.StartupWarn)
+	resolvedWasmCacheDir, cleanupWasmCache, cacheErr := setupWasmCompilationCache(ctx, cmd.Flags().Changed("wasm-cache-dir"), wasmCacheDir, logDir)
 	if cacheErr != nil {
 		return cacheErr
 	}
-	cleanupCtx := context.WithoutCancel(ctx)
-	defer func() {
-		if err := guard.CloseGlobalCompilationCache(cleanupCtx); err != nil {
-			logger.LogError("shutdown", "Failed to close WASM compilation cache: %v", err)
-		}
-	}()
+	defer cleanupWasmCache()
 	logger.StartupInfo("WASM compilation cache directory: %s", resolvedWasmCacheDir)
 
 	// Validate execution environment if requested
@@ -500,8 +494,8 @@ func applyLaunchAndGuardsOverrides(cmd *cobra.Command, cfg *config.Config) error
 	guardsModeFlagChanged := cmd.Flags().Changed("guards-mode")
 	_, guardsModeEnvSet := os.LookupEnv("MCP_GATEWAY_GUARDS_MODE")
 	if guardsModeFlagChanged || guardsModeEnvSet {
-		if _, err := difc.ParseEnforcementMode(difcMode); err != nil {
-			return fmt.Errorf("invalid --guards-mode flag: %w", err)
+		if err := validateGuardsMode(difcMode); err != nil {
+			return err
 		}
 		cfg.DIFCMode = difcMode
 	}

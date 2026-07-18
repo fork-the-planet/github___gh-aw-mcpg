@@ -3,14 +3,16 @@ package mcptest
 import (
 	"context"
 	"fmt"
-	"log"
 	"os/exec"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
+	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/server"
 )
+
+var logDriver = logger.New("mcptest:driver")
 
 // TestDriver manages test servers and the gateway for integration testing
 type TestDriver struct {
@@ -32,7 +34,7 @@ func NewTestDriver() *TestDriver {
 
 // AddTestServer adds a test server with the given ID and configuration
 func (td *TestDriver) AddTestServer(serverID string, config *ServerConfig) error {
-	log.Printf("[TestDriver] Adding test server: %s (tools: %d, resources: %d)",
+	logDriver.Printf("Adding test server: serverID=%s, toolCount=%d, resourceCount=%d",
 		serverID, len(config.Tools), len(config.Resources))
 
 	server := NewServer(config)
@@ -45,7 +47,7 @@ func (td *TestDriver) AddTestServer(serverID string, config *ServerConfig) error
 
 // StartGateway starts the AWMG gateway on top of the test servers
 func (td *TestDriver) StartGateway() error {
-	log.Printf("[TestDriver] Starting gateway with %d test servers", len(td.testServers))
+	logDriver.Printf("Starting gateway with %d test servers", len(td.testServers))
 
 	cfg := &config.Config{
 		Servers: make(map[string]*config.ServerConfig),
@@ -65,7 +67,7 @@ func (td *TestDriver) StartGateway() error {
 	}
 
 	td.gatewayUS = us
-	log.Printf("[TestDriver] Gateway started successfully")
+	logDriver.Print("Gateway started successfully")
 	return nil
 }
 
@@ -81,7 +83,7 @@ func (td *TestDriver) CreateStdioTransport(serverID string) (sdk.Transport, erro
 		return nil, fmt.Errorf("server %s not found", serverID)
 	}
 
-	log.Printf("[TestDriver] Creating transport for server: %s", serverID)
+	logDriver.Printf("Creating in-memory transport for serverID=%s", serverID)
 
 	// Create in-memory transports that connect to each other
 	serverTransport, clientTransport := sdk.NewInMemoryTransports()
@@ -89,7 +91,7 @@ func (td *TestDriver) CreateStdioTransport(serverID string) (sdk.Transport, erro
 	// Start the test server with the server transport
 	go func() {
 		if err := testServer.GetServer().Run(td.ctx, serverTransport); err != nil {
-			log.Printf("[TestDriver] Server %s stopped: %v", serverID, err)
+			logDriver.Printf("Test server stopped: serverID=%s, err=%v", serverID, err)
 		}
 	}()
 
@@ -105,6 +107,7 @@ func CreateCommandTransport(ctx context.Context, command string, args ...string)
 
 // Stop stops the test driver and all test servers
 func (td *TestDriver) Stop() {
+	logDriver.Printf("Stopping test driver: serverCount=%d", len(td.testServers))
 	if td.gatewayUS != nil {
 		td.gatewayUS.Close()
 	}
@@ -114,5 +117,5 @@ func (td *TestDriver) Stop() {
 	if td.cancel != nil {
 		td.cancel()
 	}
-	log.Printf("[TestDriver] Stopped")
+	logDriver.Print("Test driver stopped")
 }

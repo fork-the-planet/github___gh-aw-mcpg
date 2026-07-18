@@ -13,10 +13,8 @@ import (
 	"syscall"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
-	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
 	"github.com/github/gh-aw-mcpg/internal/githubhttp"
-	"github.com/github/gh-aw-mcpg/internal/guard"
 	"github.com/github/gh-aw-mcpg/internal/httputil"
 	"github.com/github/gh-aw-mcpg/internal/logger"
 	"github.com/github/gh-aw-mcpg/internal/proxy"
@@ -109,7 +107,7 @@ Local usage:
 	cmd.Flags().StringVarP(&proxyListen, "listen", "l", "127.0.0.1:8080", "Proxy listen address")
 	cmd.Flags().StringVar(&proxyLogDir, "log-dir", defaultProxyLogDir, "Log file directory")
 	cmd.Flags().StringVar(&proxyWasmCacheDir, "wasm-cache-dir", resolveWasmCacheDir(false, "", defaultProxyLogDir), "Directory for disk-backed wazero compilation cache (default: sibling of <log-dir>, named wazero-cache)")
-	cmd.Flags().StringVar(&proxyDIFCMode, "guards-mode", difc.DefaultEnforcementMode(), "DIFC enforcement mode: strict, filter, propagate")
+	registerGuardsModeFlag(cmd, &proxyDIFCMode)
 	cmd.Flags().StringVar(&proxyAPIURL, "github-api-url", "", "Upstream GitHub API URL (default: auto-derived from GITHUB_API_URL or GITHUB_SERVER_URL, falls back to https://api.github.com)")
 	cmd.Flags().BoolVar(&proxyForcePublicRepo, "force-public-repos", envutil.GetEnvBool(config.EnvForcePublicRepos, true), "When true (default), forces repos=\"public\" at runtime if the workflow repo is public. Set to false to disable.")
 	cmd.Flags().BoolVar(&proxyTLS, "tls", false, "Enable HTTPS with auto-generated self-signed certificates")
@@ -125,12 +123,6 @@ Local usage:
 	if defaultGuard == "" {
 		cmd.MarkFlagRequired("guard-wasm")
 	}
-
-	// Enum completions for the proxy command's own DIFC flag.
-	// Note: rootCmd registers guards-mode completion separately for the root
-	// command's distinct flag definition; keep both registrations in place.
-	cmd.RegisterFlagCompletionFunc("guards-mode", cobra.FixedCompletions(
-		difc.ValidModes, cobra.ShellCompDirectiveNoFileComp))
 
 	// Use MarkFlagDirname for directory flags (cobra best practice)
 	for _, dirFlag := range []string{"log-dir", "wasm-cache-dir", "tls-dir"} {
@@ -148,8 +140,8 @@ func runProxy(cmd *cobra.Command, args []string) error {
 
 	logProxyCmd.Printf("Starting proxy: listen=%s, guard=%s, mode=%s, tls=%v", proxyListen, proxyGuardWasm, proxyDIFCMode, proxyTLS)
 
-	if _, err := difc.ParseEnforcementMode(proxyDIFCMode); err != nil {
-		return fmt.Errorf("invalid --guards-mode flag: %w", err)
+	if err := validateGuardsMode(proxyDIFCMode); err != nil {
+		return err
 	}
 
 	// Initialize loggers
@@ -157,16 +149,11 @@ func runProxy(cmd *cobra.Command, args []string) error {
 
 	logger.LogInfo("startup", "MCPG Proxy starting: listen=%s, guard=%s, mode=%s, tls=%v", proxyListen, proxyGuardWasm, proxyDIFCMode, proxyTLS)
 
-	resolvedWasmCacheDir, err := configureWasmCompilationCache(ctx, cmd.Flags().Changed("wasm-cache-dir"), proxyWasmCacheDir, proxyLogDir, logger.StartupWarn)
+	resolvedWasmCacheDir, cleanupWasmCache, err := setupWasmCompilationCache(ctx, cmd.Flags().Changed("wasm-cache-dir"), proxyWasmCacheDir, proxyLogDir)
 	if err != nil {
 		return err
 	}
-	cleanupCtx := context.WithoutCancel(ctx)
-	defer func() {
-		if err := guard.CloseGlobalCompilationCache(cleanupCtx); err != nil {
-			logger.LogError("shutdown", "Failed to close WASM compilation cache: %v", err)
-		}
-	}()
+	defer cleanupWasmCache()
 	logger.LogInfo("startup", "WASM compilation cache directory: %s", resolvedWasmCacheDir)
 
 	// Initialize OpenTelemetry tracer provider for the proxy server.

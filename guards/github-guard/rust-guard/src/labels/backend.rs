@@ -9,8 +9,8 @@ use std::sync::{Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
-use super::constants::{MEDIUM_BUFFER_SIZE, SMALL_BUFFER_SIZE};
-use super::helpers::is_pr_merged;
+use super::constants::{field_names, MEDIUM_BUFFER_SIZE, SMALL_BUFFER_SIZE};
+use super::helpers::{get_author_association, is_pr_merged};
 
 /// Backend callback signature used for GitHub MCP tool calls.
 pub type GithubMcpCallback = fn(&str, &str, &mut [u8]) -> Result<usize, i32>;
@@ -336,13 +336,13 @@ pub fn get_pull_request_facts_with_callback(
     let base_full_name = pr
         .get("base")
         .and_then(|b| b.get("repo"))
-        .and_then(|r| r.get("full_name"))
+        .and_then(|r| r.get(field_names::FULL_NAME))
         .and_then(|v| v.as_str());
 
     let head_full_name = pr
         .get("head")
         .and_then(|h| h.get("repo"))
-        .and_then(|r| r.get("full_name"))
+        .and_then(|r| r.get(field_names::FULL_NAME))
         .and_then(|v| v.as_str());
 
     let is_forked = match (base_full_name, head_full_name) {
@@ -354,15 +354,11 @@ pub fn get_pull_request_facts_with_callback(
 
     let is_merged = is_pr_merged(&pr);
 
-    let author_association = pr
-        .get("author_association")
-        .or_else(|| pr.get("authorAssociation"))
-        .and_then(|v| v.as_str())
-        .map(String::from);
+    let author_association = get_author_association(&pr).map(String::from);
 
     let author_login = pr
         .get("user")
-        .and_then(|u| u.get("login"))
+        .and_then(|u| u.get(field_names::LOGIN))
         .and_then(|v| v.as_str())
         .map(String::from);
 
@@ -425,15 +421,11 @@ pub fn get_issue_author_info_with_callback(
     let response = serde_json::from_str::<Value>(response_str).ok()?;
     let issue = super::extract_mcp_response(&response);
 
-    let author_association = issue
-        .get("author_association")
-        .or_else(|| issue.get("authorAssociation"))
-        .and_then(|v| v.as_str())
-        .map(String::from);
+    let author_association = get_author_association(&issue).map(String::from);
 
     let author_login = issue
         .get("user")
-        .and_then(|u| u.get("login"))
+        .and_then(|u| u.get(field_names::LOGIN))
         .and_then(|v| v.as_str())
         .map(String::from);
 
@@ -560,7 +552,7 @@ pub fn get_collaborator_permission_with_callback(
     #[cfg(test)]
     let login = data
         .get("user")
-        .and_then(|u| u.get("login"))
+        .and_then(|u| u.get(field_names::LOGIN))
         .and_then(|v| v.as_str())
         .map(String::from);
 
