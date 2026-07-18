@@ -469,6 +469,84 @@ func TestResolveServerMode(t *testing.T) {
 	}
 }
 
+func TestApplyLaunchAndGuardsOverrides(t *testing.T) {
+	origDIFCMode := difcMode
+	origSequentialLaunch := sequentialLaunch
+	t.Cleanup(func() {
+		difcMode = origDIFCMode
+		sequentialLaunch = origSequentialLaunch
+	})
+
+	newCmd := func() *cobra.Command {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().StringVar(&difcMode, "guards-mode", "strict", "")
+		cmd.Flags().BoolVar(&sequentialLaunch, "sequential-launch", false, "")
+		return cmd
+	}
+
+	t.Run("preserves config values when no overrides are set", func(t *testing.T) {
+		cfg := &config.Config{
+			DIFCMode:         "propagate",
+			SequentialLaunch: true,
+		}
+		cmd := newCmd()
+
+		err := applyLaunchAndGuardsOverrides(cmd, cfg)
+		require.NoError(t, err)
+		assert.Equal(t, "propagate", cfg.DIFCMode)
+		assert.True(t, cfg.SequentialLaunch)
+	})
+
+	t.Run("applies guards mode when flag is explicitly set", func(t *testing.T) {
+		cfg := &config.Config{
+			DIFCMode: "propagate",
+		}
+		cmd := newCmd()
+		require.NoError(t, cmd.Flags().Set("guards-mode", "filter"))
+
+		err := applyLaunchAndGuardsOverrides(cmd, cfg)
+		require.NoError(t, err)
+		assert.Equal(t, "filter", cfg.DIFCMode)
+	})
+
+	t.Run("applies sequential launch when flag is explicitly set", func(t *testing.T) {
+		cfg := &config.Config{
+			SequentialLaunch: false,
+		}
+		cmd := newCmd()
+		require.NoError(t, cmd.Flags().Set("sequential-launch", "true"))
+
+		err := applyLaunchAndGuardsOverrides(cmd, cfg)
+		require.NoError(t, err)
+		assert.True(t, cfg.SequentialLaunch)
+	})
+
+	t.Run("applies guards mode from env-backed default", func(t *testing.T) {
+		t.Setenv("MCP_GATEWAY_GUARDS_MODE", "filter")
+		cfg := &config.Config{
+			DIFCMode: "propagate",
+		}
+		cmd := newCmd()
+		difcMode = "filter"
+
+		err := applyLaunchAndGuardsOverrides(cmd, cfg)
+		require.NoError(t, err)
+		assert.Equal(t, "filter", cfg.DIFCMode)
+	})
+
+	t.Run("returns error for invalid explicit guards mode", func(t *testing.T) {
+		cfg := &config.Config{
+			DIFCMode: "strict",
+		}
+		cmd := newCmd()
+		require.NoError(t, cmd.Flags().Set("guards-mode", "invalid"))
+
+		err := applyLaunchAndGuardsOverrides(cmd, cfg)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid --guards-mode flag")
+	})
+}
+
 // TestWriteGatewayConfig_WildcardAddresses tests that wildcard bind addresses
 // (0.0.0.0 and ::) are replaced with 127.0.0.1 in the output client URLs,
 // since clients cannot connect to wildcard addresses directly.

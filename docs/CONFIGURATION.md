@@ -563,7 +563,7 @@ headers = "Authorization=Bearer ${OTEL_TOKEN}"
 
 | Option | TOML | CLI Flag | Env Var | Default |
 |--------|------|----------|---------|---------|
-| Sequential launch | `gateway.sequential_launch` | `--sequential-launch` | — | `false` |
+| Sequential launch | `sequential_launch` | `--sequential-launch` | — | `false` |
 | Guards mode | `guards_mode` | `--guards-mode` | `MCP_GATEWAY_GUARDS_MODE` | `strict` |
 
 **Environment Variable Features**:
