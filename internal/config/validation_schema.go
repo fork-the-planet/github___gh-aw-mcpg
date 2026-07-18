@@ -150,7 +150,7 @@ func fetchSchema(url string) ([]byte, error) {
 // newCompiler creates a JSON Schema compiler using the library defaults (Draft 2020-12).
 //
 // Note: this compiler has no custom loader set via UseLoader(). Schemas that contain
-// $ref pointers to other remote URLs fail compilation with a loader error (for example,
+// remote $ref pointers fail compilation with a loader error (for example,
 // "no URLLoader set").
 // The embedded mcp-gateway-config.schema.json is self-contained, so this is not a
 // problem for the main validation path. Custom server schemas fetched by
@@ -464,23 +464,15 @@ func formatErrorContext(ve *jsonschema.ValidationError, prefix string) string {
 	case *kind.Contains:
 		addFromKeyword("contains")
 	case *kind.MinContains:
-		if k.Want > 0 {
-			addDetail("minContains",
-				fmt.Sprintf("Details: Array must contain at least %d matching item(s), found %d", k.Want, len(k.Got)),
-				"  → Add items matching the required schema until the minimum is satisfied",
-			)
-		} else {
-			addFromKeyword("minContains")
-		}
+		addDetail("minContains",
+			fmt.Sprintf("Details: Array must contain at least %d matching item(s), found %d", k.Want, len(k.Got)),
+			"  → Add items matching the required schema until the minimum is satisfied",
+		)
 	case *kind.MaxContains:
-		if k.Want >= 0 {
-			addDetail("maxContains",
-				fmt.Sprintf("Details: Array must contain at most %d matching item(s), found %d", k.Want, len(k.Got)),
-				"  → Remove items matching the required schema until the maximum is satisfied",
-			)
-		} else {
-			addFromKeyword("maxContains")
-		}
+		addDetail("maxContains",
+			fmt.Sprintf("Details: Array must contain at most %d matching item(s), found %d", k.Want, len(k.Got)),
+			"  → Remove items matching the required schema until the maximum is satisfied",
+		)
 	case *kind.UniqueItems:
 		addFromKeyword("uniqueItems")
 	case *kind.Minimum, *kind.Maximum, *kind.ExclusiveMinimum, *kind.ExclusiveMaximum,
