@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -62,8 +63,13 @@ var (
 	// logSchema is the debug logger for schema validation
 	logSchema = logger.New("config:validation_schema")
 
-	// Schema caching to avoid recompiling the JSON schema on every validation
-	// This improves performance by compiling the schema once and reusing it
+	// Schema caching to avoid recompiling the JSON schema on every validation.
+	// This improves performance by compiling the schema once and reusing it.
+	//
+	// schemaOnce intentionally provides no reset path: if compilation fails (e.g. due
+	// to a corrupted embed), the error is cached and returned on every subsequent call
+	// until the binary is replaced. A reset path would allow transient success after a
+	// permanent structural failure and is therefore deliberately omitted.
 	schemaOnce   sync.Once
 	cachedSchema *jsonschema.Schema
 	schemaErr    error
@@ -142,6 +148,14 @@ func fetchSchema(url string) ([]byte, error) {
 }
 
 // newCompiler creates a JSON Schema compiler using the library defaults (Draft 2020-12).
+//
+// Note: this compiler has no custom loader set via UseLoader(). Schemas that contain
+// remote $ref pointers fail compilation with a loader error (for example,
+// "no URLLoader set").
+// The embedded mcp-gateway-config.schema.json is self-contained, so this is not a
+// problem for the main validation path. Custom server schemas fetched by
+// validateServerAgainstSchema are also compiled with this compiler and therefore must
+// also be self-contained (no remote $ref dependencies).
 func newCompiler() *jsonschema.Compiler {
 	return jsonschema.NewCompiler()
 }
@@ -328,6 +342,31 @@ func detailForKeyword(keyword string) (string, []string) {
 			"Details: Configuration doesn't match any of the expected formats",
 			"  → Review the structure and ensure it matches one of the valid configuration types",
 		}
+	case "not":
+		return "not", []string{
+			"Details: Value matches a constraint that it must not match",
+			"  → Remove or change the value so it does not satisfy the prohibited condition",
+		}
+	case "contains":
+		return "contains", []string{
+			"Details: Array does not satisfy the required contains constraint",
+			"  → Ensure the array contains at least one item matching the required schema",
+		}
+	case "minContains":
+		return "minContains", []string{
+			"Details: Array does not meet the minimum number of matching items",
+			"  → Add items matching the required schema until the minimum is satisfied",
+		}
+	case "maxContains":
+		return "maxContains", []string{
+			"Details: Array exceeds the maximum number of matching items",
+			"  → Remove items matching the required schema until the maximum is satisfied",
+		}
+	case "uniqueItems":
+		return "uniqueItems", []string{
+			"Details: Array items must be unique — duplicate values are not allowed",
+			"  → Remove duplicate entries from the array",
+		}
 	}
 	return "", nil
 }
@@ -355,23 +394,100 @@ func formatErrorContext(ve *jsonschema.ValidationError, prefix string) string {
 	}
 
 	// Dispatch on ErrorKind type for robust keyword identification.
-	switch ve.ErrorKind.(type) {
-	case *kind.AdditionalProperties, *kind.AdditionalItems:
+	// Each case extracts concrete field data from the kind struct where available
+	// to produce actionable error messages. The default branch provides a generic
+	// fallback so every validation error gets at least some guidance.
+	switch k := ve.ErrorKind.(type) {
+	case *kind.AdditionalProperties:
+		if len(k.Properties) > 0 {
+			quotedProperties := make([]string, len(k.Properties))
+			for i, p := range k.Properties {
+				quotedProperties[i] = strconv.Quote(p)
+			}
+			addDetail("additionalProperties",
+				fmt.Sprintf("Details: Unexpected field(s): %s", strings.Join(quotedProperties, ", ")),
+				"  → Check for typos in field names or remove unsupported fields",
+			)
+		} else {
+			addFromKeyword("additionalProperties")
+		}
+	case *kind.AdditionalItems:
 		addFromKeyword("additionalProperties")
 	case *kind.Type:
-		addFromKeyword("type")
-	case *kind.Enum, *kind.Const:
+		if len(k.Want) > 0 {
+			addDetail("type",
+				fmt.Sprintf("Details: Type mismatch - expected %s, got %s", strings.Join(k.Want, " or "), k.Got),
+				"  → Verify the value is the correct type (string, number, boolean, object, array)",
+			)
+		} else {
+			addFromKeyword("type")
+		}
+	case *kind.Enum:
+		if len(k.Want) > 0 {
+			values := make([]string, len(k.Want))
+			for i, v := range k.Want {
+				values[i] = fmt.Sprintf("%v", v)
+			}
+			addDetail("enum",
+				fmt.Sprintf("Details: Invalid value - allowed values: %s", strings.Join(values, ", ")),
+				"  → Use one of the allowed values listed above",
+			)
+		} else {
+			addFromKeyword("enum")
+		}
+	case *kind.Const:
 		addFromKeyword("enum")
-	case *kind.Required, *kind.DependentRequired:
-		addFromKeyword("required")
+	case *kind.Required:
+		if len(k.Missing) > 0 {
+			addDetail("required",
+				fmt.Sprintf("Details: Missing required field(s): %s", strings.Join(k.Missing, ", ")),
+				"  → Add the required field(s) to your configuration",
+			)
+		} else {
+			addFromKeyword("required")
+		}
+	case *kind.DependentRequired:
+		if len(k.Missing) > 0 {
+			addDetail("required",
+				fmt.Sprintf("Details: Missing required field(s) for %q: %s", k.Prop, strings.Join(k.Missing, ", ")),
+				"  → Add the required field(s) to your configuration",
+			)
+		} else {
+			addFromKeyword("required")
+		}
 	case *kind.Pattern:
 		addFromKeyword("pattern")
 	case *kind.OneOf, *kind.AnyOf:
 		addFromKeyword("oneOf")
+	case *kind.Not:
+		addFromKeyword("not")
+	case *kind.Contains:
+		addFromKeyword("contains")
+	case *kind.MinContains:
+		addDetail("minContains",
+			fmt.Sprintf("Details: Array must contain at least %d matching item(s), found %d", k.Want, len(k.Got)),
+			"  → Add items matching the required schema until the minimum is satisfied",
+		)
+	case *kind.MaxContains:
+		addDetail("maxContains",
+			fmt.Sprintf("Details: Array must contain at most %d matching item(s), found %d", k.Want, len(k.Got)),
+			"  → Remove items matching the required schema until the maximum is satisfied",
+		)
+	case *kind.UniqueItems:
+		addFromKeyword("uniqueItems")
 	case *kind.Minimum, *kind.Maximum, *kind.ExclusiveMinimum, *kind.ExclusiveMaximum,
 		*kind.MinLength, *kind.MaxLength, *kind.MinItems, *kind.MaxItems,
 		*kind.MinProperties, *kind.MaxProperties:
 		addFromKeyword("range")
+	default:
+		// Generic fallback for any ErrorKind not specifically handled above.
+		// This ensures every validation error gets at least some context rather
+		// than silently producing no detail. The LocalizedString already gives
+		// the specific reason; this hint directs users to the documentation.
+		addDetail("generic",
+			"Details: See the error message above for more information",
+			"  → Review the MCP Gateway configuration documentation for valid values",
+		)
 	}
 
 	return sb.String()
