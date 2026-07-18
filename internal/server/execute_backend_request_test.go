@@ -144,8 +144,8 @@ func TestExecuteBackendRequest_TransportError(t *testing.T) {
 func TestExecuteBackendRequest_UnmarshalError(t *testing.T) {
 	backend := newCustomBackend(t, "unmarshal-error-server", func(w http.ResponseWriter, method string, reqID interface{}, _ interface{}) {
 		w.Header().Set("Content-Type", "application/json")
-		// Return a valid tools/call payload; executeBackendRequest unmarshalling into
-		// strictResult should fail.
+		// Return a valid tools/call response whose JSON shape is incompatible with
+		// strictResult so executeBackendRequest's unmarshal step fails.
 		json.NewEncoder(w).Encode(map[string]interface{}{ //nolint:errcheck
 			"jsonrpc": "2.0",
 			"id":      reqID,
@@ -253,9 +253,9 @@ func TestExecuteBackendRequest_InterfaceType(t *testing.T) {
 	assert.NotNil(t, got)
 }
 
-// TestExecuteBackendRequest_MultipleRequests verifies that multiple requests to the
-// same backend succeed.
-func TestExecuteBackendRequest_MultipleRequests(t *testing.T) {
+// TestExecuteBackendRequest_SessionIsolation verifies that multiple sessions can
+// use the same backend successfully.
+func TestExecuteBackendRequest_SessionIsolation(t *testing.T) {
 	backend := newCustomBackend(t, "session-server", func(w http.ResponseWriter, method string, reqID interface{}, _ interface{}) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{ //nolint:errcheck
@@ -270,14 +270,14 @@ func TestExecuteBackendRequest_MultipleRequests(t *testing.T) {
 
 	l := newExecuteBackendTestLauncher(t, "session-server", backend.URL)
 
-	type okResult struct {
+	type toolsResult struct {
 		Tools []struct {
 			Name string `json:"name"`
 		} `json:"tools"`
 	}
 
-	r1, err1 := executeBackendRequest[okResult](context.Background(), l, "session-server", "session-A", "tools/list", nil)
-	r2, err2 := executeBackendRequest[okResult](context.Background(), l, "session-server", "session-B", "tools/list", nil)
+	r1, err1 := executeBackendRequest[toolsResult](context.Background(), l, "session-server", "session-A", "tools/list", nil)
+	r2, err2 := executeBackendRequest[toolsResult](context.Background(), l, "session-server", "session-B", "tools/list", nil)
 
 	require.NoError(t, err1)
 	require.NoError(t, err2)
