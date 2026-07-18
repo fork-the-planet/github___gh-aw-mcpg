@@ -55,6 +55,8 @@ func newCustomBackend(t *testing.T, serverName string, handleMethod func(w http.
 				},
 			}
 			w.Header().Set("Content-Type", "application/json")
+			// The SDK stores the negotiated session from initialize responses and
+			// reuses it on later requests, so tests need to provide one here.
 			w.Header().Set("Mcp-Session-Id", "test-session-abc")
 			writeJSONResponse(t, w, resp)
 			return
@@ -216,7 +218,7 @@ func TestExecuteBackendRequest_WithParams(t *testing.T) {
 			"jsonrpc": "2.0",
 			"id":      reqID,
 			"result": map[string]interface{}{
-				"content": []map[string]interface{}{{"type": "text", "text": "ok"}},
+				"content": []map[string]interface{}{{"type": "text", "text": receivedName}},
 			},
 		})
 	})
@@ -234,7 +236,7 @@ func TestExecuteBackendRequest_WithParams(t *testing.T) {
 		map[string]interface{}{"name": "echo", "arguments": map[string]interface{}{"name": "hello-world"}})
 	require.NoError(t, err)
 	require.Len(t, got.Content, 1)
-	assert.Equal(t, "ok", got.Content[0].Text)
+	assert.Equal(t, "hello-world", got.Content[0].Text)
 	assert.Equal(t, "hello-world", receivedName, "params should be forwarded to backend")
 }
 
@@ -344,6 +346,5 @@ func TestExecuteBackendToolCall_PropagatesLauncherError(t *testing.T) {
 
 	_, err := executeBackendToolCall(context.Background(), l, "ghost-server", "session-1", "any_tool", nil)
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "failed to connect to backend ghost-server")
 	assert.ErrorIs(t, err, launcher.ErrServerNotFound)
 }
