@@ -561,10 +561,10 @@ headers = "Authorization=Bearer ${OTEL_TOKEN}"
 
 **TOML-only / CLI-only options** (not available in JSON stdin):
 
-| Option | CLI Flag | Env Var | Default |
-|--------|----------|---------|---------|
-| Sequential launch | `--sequential-launch` | — | `false` |
-| Guards mode | `--guards-mode` | `MCP_GATEWAY_GUARDS_MODE` | `strict` |
+| Option | TOML | CLI Flag | Env Var | Default |
+|--------|------|----------|---------|---------|
+| Sequential launch | `gateway.sequential_launch` | `--sequential-launch` | — | `false` |
+| Guards mode | `guards_mode` | `--guards-mode` | `MCP_GATEWAY_GUARDS_MODE` | `strict` |
 
 **Environment Variable Features**:
 - **Passthrough**: Set value to empty string (`""`) to pass through from host
