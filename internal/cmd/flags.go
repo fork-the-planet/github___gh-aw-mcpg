@@ -26,9 +26,6 @@
 //
 // This keeps the env-var name co-located with the flag declaration.
 //
-// Exception: difc.DefaultEnforcementMode() is kept as a named helper because
-// it contains validation logic beyond a simple env lookup.
-//
 // When adding a new flag with an environment variable override:
 //  1. Use envutil.GetEnv* directly in the RegisterFlag call.
 //  2. Document the environment variable in AGENTS.md and README.md.
@@ -36,7 +33,6 @@ package cmd
 
 import (
 	"github.com/github/gh-aw-mcpg/internal/config"
-	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/spf13/cobra"
 )
 
@@ -87,11 +83,7 @@ func registerFlagCompletions(cmd *cobra.Command) {
 		debugLog.Printf("Failed to register --env filename completion: %v", err)
 	}
 
-	// Enum completions for DIFC flags.
-	// Note: the proxy subcommand registers its own guards-mode completion for its
-	// separately-declared flag; keep both registrations in place.
-	cmd.RegisterFlagCompletionFunc("guards-mode", cobra.FixedCompletions(
-		difc.ValidModes, cobra.ShellCompDirectiveNoFileComp))
+	// Enum completions for allowonly flags.
 	cmd.RegisterFlagCompletionFunc("allowonly-min-integrity", cobra.FixedCompletions(
 		config.AllIntegrityLevels(), cobra.ShellCompDirectiveNoFileComp))
 

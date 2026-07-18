@@ -3,6 +3,7 @@ package cmd
 // DIFC (Decentralized Information Flow Control) related flags
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/github/gh-aw-mcpg/internal/config"
@@ -26,9 +27,29 @@ var (
 // containerGuardWasmPath is the baked-in guard path in the container image.
 const containerGuardWasmPath = "/guards/github/00-github-guard.wasm"
 
+// registerGuardsModeFlag registers the --guards-mode flag and its completion
+// on cmd, storing the value in target. Both the serve (root) command and the
+// proxy subcommand share this helper to keep flag description, default, and
+// completion in one place.
+func registerGuardsModeFlag(cmd *cobra.Command, target *string) {
+	cmd.Flags().StringVar(target, "guards-mode", difc.DefaultEnforcementMode(),
+		"Guards enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads)")
+	cmd.RegisterFlagCompletionFunc("guards-mode", cobra.FixedCompletions(
+		difc.ValidModes, cobra.ShellCompDirectiveNoFileComp))
+}
+
+// validateGuardsMode returns a user-facing error when mode is not a recognised
+// enforcement mode string.
+func validateGuardsMode(mode string) error {
+	if _, err := difc.ParseEnforcementMode(mode); err != nil {
+		return fmt.Errorf("invalid --guards-mode flag: %w", err)
+	}
+	return nil
+}
+
 func init() {
 	RegisterFlag(func(cmd *cobra.Command) {
-		cmd.Flags().StringVar(&difcMode, "guards-mode", difc.DefaultEnforcementMode(), "Guards enforcement mode: strict (deny violations), filter (remove denied tools), or propagate (auto-adjust agent labels on reads)")
+		registerGuardsModeFlag(cmd, &difcMode)
 		cmd.Flags().StringVar(&difcSinkServerIDs, "guards-sink-server-ids", envutil.GetEnvString("MCP_GATEWAY_GUARDS_SINK_SERVER_IDS", ""), "Comma-separated server IDs whose RPC JSONL logs should include agent secrecy/integrity tag snapshots")
 		cmd.Flags().StringVar(&guardPolicyJSON, "guard-policy-json", envutil.GetEnvString(config.EnvGuardPolicyJSON, ""), "Guard policy JSON (e.g. {\"allow-only\":{\"repos\":\"public\",\"min-integrity\":\"none\"}})")
 		cmd.Flags().BoolVar(&allowOnlyPublic, "allowonly-scope-public", envutil.GetEnvBool(config.EnvAllowOnlyScopePublic, false), "Use public AllowOnly scope")
