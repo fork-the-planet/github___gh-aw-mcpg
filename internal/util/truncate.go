@@ -42,7 +42,7 @@ func TruncateWithSuffix(s string, maxLen int, suffix string) string {
 // an empty string.
 //
 // Performance: avoids allocating a []rune slice in the common "no truncation needed"
-// case by using a two-stage check:
+// case by using a three-stage check:
 //  1. If len(s) <= maxRunes (bytes), there are definitely <= maxRunes runes (each rune
 //     is at least 1 byte), so return s immediately with zero allocation.
 //  2. Otherwise count runes via utf8.RuneCountInString; if the count fits, return s.
@@ -64,7 +64,13 @@ func TruncateRunes(s string, maxRunes int) string {
 	n := 0
 	for i := range s {
 		if n == maxRunes {
-			return s[:i]
+			result := s[:i]
+			// Normalize any invalid UTF-8 bytes to utf8.RuneError, matching the
+			// behavior of the previous []rune-based implementation.
+			if !utf8.ValidString(result) {
+				return string([]rune(result))
+			}
+			return result
 		}
 		n++
 	}

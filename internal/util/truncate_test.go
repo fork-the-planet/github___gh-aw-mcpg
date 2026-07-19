@@ -208,6 +208,12 @@ func TestTruncateRunes(t *testing.T) {
 			maxRunes: 10,
 			expected: "",
 		},
+		{
+			name:     "malformed UTF-8 truncated normalizes to RuneError",
+			input:    "\xffa",
+			maxRunes: 1,
+			expected: "\xef\xbf\xbd", // utf8.RuneError encoded as UTF-8
+		},
 	}
 
 	for _, tt := range tests {
