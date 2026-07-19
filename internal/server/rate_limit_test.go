@@ -101,7 +101,7 @@ func TestIsRateLimitText(t *testing.T) {
 // extractRateLimitErrorText
 // ---------------------------------------------------------------------------
 
-func TestExtractRateLimitErrorText(t *testing.T) {
+func TestExtractRateLimitErrorTextBranches(t *testing.T) {
 	t.Parallel()
 
 	t.Run("non-map result returns default message", func(t *testing.T) {
