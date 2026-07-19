@@ -174,7 +174,7 @@ func TestExtractRateLimitErrorTextBranches(t *testing.T) {
 				},
 			},
 		})
-assert.Equal(t, "secondary rate limit triggeredadditional info", got)
+		assert.Equal(t, "secondary rate limit triggeredadditional info", got)
 	})
 }
 
@@ -182,7 +182,7 @@ assert.Equal(t, "secondary rate limit triggeredadditional info", got)
 // isRateLimitToolResult
 // ---------------------------------------------------------------------------
 
-func TestIsRateLimitToolResult(t *testing.T) {
+func TestIsRateLimitToolResultBranches(t *testing.T) {
 	t.Parallel()
 
 	t.Run("non-map result returns false", func(t *testing.T) {
