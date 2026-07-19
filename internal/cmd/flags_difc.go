@@ -3,8 +3,6 @@ package cmd
 // DIFC (Decentralized Information Flow Control) related flags
 
 import (
-	"fmt"
-
 	"github.com/github/gh-aw-mcpg/internal/config"
 	"github.com/github/gh-aw-mcpg/internal/difc"
 	"github.com/github/gh-aw-mcpg/internal/envutil"
@@ -34,14 +32,6 @@ func registerGuardsModeFlag(cmd *cobra.Command, target *string) {
 		difc.ValidModes, cobra.ShellCompDirectiveNoFileComp))
 }
 
-// validateGuardsMode returns a user-facing error when mode is not a recognised
-// enforcement mode string.
-func validateGuardsMode(mode string) error {
-	if _, err := difc.ParseEnforcementMode(mode); err != nil {
-		return fmt.Errorf("invalid --guards-mode flag: %w", err)
-	}
-	return nil
-}
 func init() {
 	RegisterFlag(func(cmd *cobra.Command) {
 		registerGuardsModeFlag(cmd, &difcMode)
@@ -73,7 +63,7 @@ func detectGuardWasm() string {
 	return ""
 }
 
-func resolveGuardPolicyOverride(cmd *cobra.Command) (*config.GuardPolicy, string, error) {
+func resolveGuardPolicyFromFlags(cmd *cobra.Command) (*config.GuardPolicy, string, error) {
 	cliGuardPolicyChanged := cmd.Flags().Changed("guard-policy-json")
 	cliChanged := cliGuardPolicyChanged ||
 		cmd.Flags().Changed("allowonly-scope-public") ||

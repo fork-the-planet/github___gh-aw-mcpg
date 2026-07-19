@@ -119,7 +119,8 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 		return nil, fmt.Errorf("invalid repos value: expected all, public, or non-empty array of scoped strings")
 	}
 
-	if err := validateIntegrityField(integrityFieldName, integrityRaw); err != nil {
+	integrityStr, _ := integrityRaw.(string) // non-string values normalize to "" and are rejected by the validator
+	if _, err := config.ValidateAndNormalizeIntegrityField(integrityFieldName, integrityStr, false); err != nil {
 		return nil, err
 	}
 
@@ -173,14 +174,16 @@ func buildStrictLabelAgentPayload(policy interface{}) (map[string]interface{}, e
 
 	// Validate disapproval-integrity if present.
 	if disIntRaw, ok := allowOnly["disapproval-integrity"]; ok {
-		if err := validateIntegrityField("disapproval-integrity", disIntRaw); err != nil {
+		disIntStr, _ := disIntRaw.(string) // non-string values normalize to "" and are rejected by the validator
+		if _, err := config.ValidateAndNormalizeIntegrityField("disapproval-integrity", disIntStr, false); err != nil {
 			return nil, err
 		}
 	}
 
 	// Validate endorser-min-integrity if present.
 	if endMinRaw, ok := allowOnly["endorser-min-integrity"]; ok {
-		if err := validateIntegrityField("endorser-min-integrity", endMinRaw); err != nil {
+		endMinStr, _ := endMinRaw.(string) // non-string values normalize to "" and are rejected by the validator
+		if _, err := config.ValidateAndNormalizeIntegrityField("endorser-min-integrity", endMinStr, false); err != nil {
 			return nil, err
 		}
 	}

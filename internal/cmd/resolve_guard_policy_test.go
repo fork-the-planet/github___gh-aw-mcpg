@@ -33,7 +33,7 @@ func makeGuardPolicyTestCmd() *cobra.Command {
 func TestResolveGuardPolicyOverride_NoOverride(t *testing.T) {
 	cmd := makeGuardPolicyTestCmd()
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	assert.Nil(t, policy, "Policy should be nil when no flags or env vars are set")
@@ -48,7 +48,7 @@ func TestResolveGuardPolicyOverride_CLIGuardPolicyJSON(t *testing.T) {
 	validJSON := `{"allow-only":{"repos":"public","min-integrity":"none"}}`
 	require.NoError(t, cmd.Flags().Set("guard-policy-json", validJSON))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy, "Policy should not be nil when guard-policy-json is set")
@@ -64,7 +64,7 @@ func TestResolveGuardPolicyOverride_CLIGuardPolicyJSON_Invalid(t *testing.T) {
 
 	require.NoError(t, cmd.Flags().Set("guard-policy-json", "not-valid-json"))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.Error(t, err, "Should return an error for invalid JSON")
 	assert.Nil(t, policy)
@@ -80,7 +80,7 @@ func TestResolveGuardPolicyOverride_CLIGuardPolicyJSON_WhitespaceOnly(t *testing
 	// Setting a flag to whitespace marks it as changed but trimmed value is empty
 	require.NoError(t, cmd.Flags().Set("guard-policy-json", "   "))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	// When guard-policy-json is changed but trimmed to empty, BuildAllowOnlyPolicy is called
 	// with all zero values → scopeCount=0 AND minIntegrity="" → returns nil, nil
@@ -97,7 +97,7 @@ func TestResolveGuardPolicyOverride_CLIAllowOnlyPublic(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("allowonly-scope-public", "true"))
 	require.NoError(t, cmd.Flags().Set("allowonly-min-integrity", "none"))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy, "Policy should not be nil")
@@ -114,7 +114,7 @@ func TestResolveGuardPolicyOverride_CLIAllowOnlyOwner(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("allowonly-scope-owner", "myorg"))
 	require.NoError(t, cmd.Flags().Set("allowonly-min-integrity", "approved"))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy)
@@ -137,7 +137,7 @@ func TestResolveGuardPolicyOverride_CLIAllowOnlyOwnerAndRepo(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("allowonly-scope-repo", "myrepo"))
 	require.NoError(t, cmd.Flags().Set("allowonly-min-integrity", "merged"))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy)
@@ -153,7 +153,7 @@ func TestResolveGuardPolicyOverride_CLIRepoWithoutOwner(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("allowonly-scope-repo", "myrepo"))
 	require.NoError(t, cmd.Flags().Set("allowonly-min-integrity", "none"))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.Error(t, err, "Should return error when repo is set without owner")
 	assert.ErrorContains(t, err, "owner", "Error should mention owner")
@@ -168,7 +168,7 @@ func TestResolveGuardPolicyOverride_CLIAllowOnlyMinIntegrityOnly(t *testing.T) {
 
 	require.NoError(t, cmd.Flags().Set("allowonly-min-integrity", "none"))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.Error(t, err, "Should return error when only min-integrity is set without a scope")
 	assert.ErrorContains(t, err, "scope", "Error should mention scope")
@@ -184,7 +184,7 @@ func TestResolveGuardPolicyOverride_EnvGuardPolicyJSON(t *testing.T) {
 	validJSON := `{"allow-only":{"repos":"public","min-integrity":"none"}}`
 	t.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", validJSON)
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy)
@@ -200,7 +200,7 @@ func TestResolveGuardPolicyOverride_EnvGuardPolicyJSON_Invalid(t *testing.T) {
 
 	t.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", "not-valid-json")
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.Error(t, err, "Should return error for invalid JSON in env var")
 	assert.Nil(t, policy)
@@ -215,7 +215,7 @@ func TestResolveGuardPolicyOverride_EnvAllowOnlyPublic(t *testing.T) {
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "true")
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "none")
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy)
@@ -232,7 +232,7 @@ func TestResolveGuardPolicyOverride_EnvAllowOnlyOwner(t *testing.T) {
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_OWNER", "someorg")
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "approved")
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy)
@@ -249,7 +249,7 @@ func TestResolveGuardPolicyOverride_EnvAllowOnlyRepo(t *testing.T) {
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", "somerepo")
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "merged")
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy)
@@ -265,7 +265,7 @@ func TestResolveGuardPolicyOverride_EnvAllowOnlyRepoWithoutOwner(t *testing.T) {
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_REPO", "somerepo")
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "none")
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.Error(t, err, "Should return error when repo is set without owner")
 	assert.Nil(t, policy)
@@ -279,7 +279,7 @@ func TestResolveGuardPolicyOverride_EnvMinIntegrityOnly(t *testing.T) {
 
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "none")
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	// scopeCount=0, minIntegrity="none" → scopeCount != 1 → error
 	require.Error(t, err, "Should error when only min-integrity is set without a scope")
@@ -299,7 +299,7 @@ func TestResolveGuardPolicyOverride_CLITakesPrecedenceOverEnv(t *testing.T) {
 	cliJSON := `{"allow-only":{"repos":["myorg/*"],"min-integrity":"approved"}}`
 	require.NoError(t, cmd.Flags().Set("guard-policy-json", cliJSON))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy)
@@ -319,7 +319,7 @@ func TestResolveGuardPolicyOverride_CLIAllowOnlyTakesPrecedenceOverEnvGuardPolic
 	require.NoError(t, cmd.Flags().Set("allowonly-scope-public", "true"))
 	require.NoError(t, cmd.Flags().Set("allowonly-min-integrity", "approved"))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy)
@@ -341,7 +341,7 @@ func TestResolveGuardPolicyOverride_EnvGuardPolicyJSONTakesPrecedenceOverAllowOn
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_SCOPE_PUBLIC", "true")
 	t.Setenv("MCP_GATEWAY_ALLOWONLY_MIN_INTEGRITY", "approved")
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	require.NotNil(t, policy)
@@ -382,7 +382,7 @@ func TestResolveGuardPolicyOverride_EnvGuardPolicyJSONWhitespace(t *testing.T) {
 
 	t.Setenv("MCP_GATEWAY_GUARD_POLICY_JSON", "   ")
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	// Whitespace-only is trimmed to "", so the env branch is skipped
 	// No AllowOnly env vars set either, so returns nil
@@ -399,7 +399,7 @@ func TestResolveGuardPolicyOverride_CLIInvalidMinIntegrity(t *testing.T) {
 	require.NoError(t, cmd.Flags().Set("allowonly-scope-public", "true"))
 	require.NoError(t, cmd.Flags().Set("allowonly-min-integrity", "invalid-integrity"))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.Error(t, err, "Should error on invalid min-integrity value")
 	assert.ErrorContains(t, err, "min-integrity")
@@ -419,7 +419,7 @@ func TestResolveGuardPolicyOverride_AllFlagsUnchanged(t *testing.T) {
 	assert.False(t, cmd.Flags().Changed("allowonly-scope-repo"))
 	assert.False(t, cmd.Flags().Changed("allowonly-min-integrity"))
 
-	policy, source, err := resolveGuardPolicyOverride(cmd)
+	policy, source, err := resolveGuardPolicyFromFlags(cmd)
 
 	require.NoError(t, err)
 	assert.Nil(t, policy)

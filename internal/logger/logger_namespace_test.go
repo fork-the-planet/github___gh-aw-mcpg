@@ -33,11 +33,11 @@ func TestLoggerNamespacesMatchFileConventions(t *testing.T) {
 		// The following files use intentionally shorter or semantically clearer namespaces
 		// instead of the full file-name-derived form. These are preserved for backward
 		// compatibility with existing DEBUG filter configurations.
-		"internal/config/config_core.go":    {"config:config"},
-		"internal/config/config_feature.go": {"config:feature"},
-		"internal/envutil/expand_env_args.go": {"envutil:expand"},
-		"internal/guard/wasm_lifecycle.go":    {"guard:wasm"},
-		"internal/guard/write_sink.go":        {"guard:write-sink"},
+		"internal/config/config_core.go":       {"config:config"},
+		"internal/config/config_feature.go":    {"config:feature"},
+		"internal/envutil/expand_env_args.go":  {"envutil:expand"},
+		"internal/guard/wasm_lifecycle.go":     {"guard:wasm"},
+		"internal/guard/write_sink.go":         {"guard:write-sink"},
 		"internal/launcher/connection_pool.go": {"launcher:pool"},
 		"internal/launcher/health_monitor.go":  {"launcher:health"},
 		"internal/server/http_helpers.go":      {"server:helpers"},

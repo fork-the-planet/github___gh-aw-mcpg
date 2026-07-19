@@ -185,6 +185,27 @@ func TestInitProvider_NoEndpoint_ReturnsNoopProvider(t *testing.T) {
 	assert.IsType(t, noop.NewTracerProvider(), tp)
 }
 
+// TestInitProvider_AllExportersFail verifies that InitProvider returns an error when
+// every OTLP exporter fails to initialize (e.g. cancelled context).
+func TestInitProvider_AllExportersFail(t *testing.T) {
+	// A pre-cancelled context causes otlptracehttp.New to return an error
+	// immediately, exercising the "len(exporters) == 0" error path.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	t.Setenv("GH_AW_OTLP_ENDPOINTS", "")
+
+	cfg := &config.TracingConfig{
+		Endpoint:    "http://localhost:14318",
+		ServiceName: "test-service",
+	}
+
+	provider, err := tracing.InitProvider(ctx, cfg)
+	require.Error(t, err, "InitProvider should return an error when all exporters fail")
+	assert.Nil(t, provider)
+	assert.Contains(t, err.Error(), "failed to create any OTLP trace exporters")
+}
+
 func TestInitProvider_EmptyEndpoint_ReturnsNoopProvider(t *testing.T) {
 	ctx := context.Background()
 	t.Setenv("GH_AW_OTLP_ENDPOINTS", "") // prevent ambient CI env from overriding noop path

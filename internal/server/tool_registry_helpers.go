@@ -49,6 +49,7 @@ type launchResult struct {
 // This distinction relies on internal SDK behaviour and must be re-verified on every SDK upgrade.
 // Verified correct for go-sdk v1.6.1 (see server.go:Server.AddTool vs AddTool[In,Out]).
 func registerToolWithoutValidation(server *sdk.Server, tool *sdk.Tool, handler func(context.Context, *sdk.CallToolRequest, interface{}) (*sdk.CallToolResult, interface{}, error)) {
+	logToolRegistryHelpers.Printf("Registering tool without validation: %s", tool.Name)
 	server.AddTool(tool, func(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
 		result, _, err := handler(ctx, req, nil)
 		return result, err
@@ -76,11 +77,13 @@ func fetchBackendList[T any](
 	handleResponseError func(code int, message string) error,
 	handleParseError func(error) error,
 ) error {
+	logToolRegistryHelpers.Printf("Fetching backend list: serverID=%s, method=%s", serverID, method)
 	result, err := conn.SendRequestWithServerID(ctx, method, nil, serverID)
 	if err != nil {
 		return handleRequestError(err)
 	}
 	if result.Error != nil {
+		logToolRegistryHelpers.Printf("Backend list error response: serverID=%s, method=%s, code=%d", serverID, method, result.Error.Code)
 		return handleResponseError(result.Error.Code, result.Error.Message)
 	}
 	if err := json.Unmarshal(result.Result, listResult); err != nil {
@@ -106,6 +109,8 @@ func (e *registrationErrors) finish() {
 	if len(e.failed) > 0 {
 		logger.LogError("backend", "Tool registration incomplete: %d of %d backends failed: %v — agents will not see tools from these servers",
 			len(e.failed), e.total, e.failed)
+	} else {
+		logToolRegistryHelpers.Printf("Tool registration complete: all %d backend(s) registered successfully", e.total)
 	}
 }
 
