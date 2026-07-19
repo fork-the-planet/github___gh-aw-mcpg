@@ -312,7 +312,8 @@ func TestValidateIntegrityField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateIntegrityField(tt.fieldName, tt.raw)
+			s, _ := tt.raw.(string) // non-string inputs normalize to "" and are rejected by ValidateAndNormalizeIntegrityField
+			_, err := config.ValidateAndNormalizeIntegrityField(tt.fieldName, s, false)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.wantErrContains != "" {

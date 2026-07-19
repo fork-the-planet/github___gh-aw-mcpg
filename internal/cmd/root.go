@@ -237,7 +237,7 @@ func run(cmd *cobra.Command, args []string) error {
 		cfg.Gateway = &config.GatewayConfig{}
 	}
 
-	policyOverride, policySource, err := resolveGuardPolicyOverride(cmd)
+	policyOverride, policySource, err := resolveGuardPolicyFromFlags(cmd)
 	if err != nil {
 		return fmt.Errorf("invalid guard policy configuration: %w", err)
 	}
@@ -494,8 +494,8 @@ func applyLaunchAndGuardsOverrides(cmd *cobra.Command, cfg *config.Config) error
 	guardsModeFlagChanged := cmd.Flags().Changed("guards-mode")
 	_, guardsModeEnvSet := os.LookupEnv("MCP_GATEWAY_GUARDS_MODE")
 	if guardsModeFlagChanged || guardsModeEnvSet {
-		if err := validateGuardsMode(difcMode); err != nil {
-			return err
+		if _, err := difc.ParseEnforcementMode(difcMode); err != nil {
+			return fmt.Errorf("invalid --guards-mode flag: %w", err)
 		}
 		cfg.DIFCMode = difcMode
 	}
