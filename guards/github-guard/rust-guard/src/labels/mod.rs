@@ -40,9 +40,12 @@ pub mod tool_rules;
 pub use helpers::{
     blocked_integrity, ensure_integrity_baseline, extract_repo_info,
     extract_repo_info_from_search_query, is_mcp_text_wrapper, is_search_result_wrapper,
-    project_github_label, reader_integrity, search_result_total_count, writer_integrity,
-    MinIntegrity, PolicyContext, PolicyScopeEntry, ScopeKind,
+    reader_integrity, search_result_total_count, writer_integrity, MinIntegrity, PolicyContext,
+    PolicyScopeEntry, ScopeKind,
 };
+
+#[cfg(test)]
+pub use helpers::project_github_label;
 
 // Test-only re-exports: helpers used by tests in this file and sibling modules.
 // The cfg(test) gate keeps them out of the non-test public surface.
@@ -1366,9 +1369,9 @@ mod tests {
         let value = json!({"flag": true, "other": false, "count": 42});
         assert!(get_bool_or(&value, "flag", false));
         assert!(!get_bool_or(&value, "other", true));
-        assert_eq!(get_bool_or(&value, "missing", true), true);
+        assert!(get_bool_or(&value, "missing", true));
         // Non-bool field returns default
-        assert_eq!(get_bool_or(&value, "count", false), false);
+        assert!(!get_bool_or(&value, "count", false));
     }
 
     #[test]
