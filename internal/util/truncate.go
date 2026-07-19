@@ -66,7 +66,9 @@ func TruncateRunes(s string, maxRunes int) string {
 		if n == maxRunes {
 			result := s[:i]
 			// Normalize any invalid UTF-8 bytes to utf8.RuneError, matching the
-			// behavior of the previous []rune-based implementation.
+			// behavior of the previous []rune-based implementation. The ValidString
+			// check only runs in the truncation path (stage 3); the fast paths above
+			// return before reaching this point for all valid-UTF-8 inputs.
 			if !utf8.ValidString(result) {
 				return string([]rune(result))
 			}
