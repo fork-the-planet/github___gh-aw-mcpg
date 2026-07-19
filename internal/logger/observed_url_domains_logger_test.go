@@ -90,7 +90,7 @@ func TestInitObservedURLDomainsLogger_FallbackOnBadDir(t *testing.T) {
 	// The global logger should be a fallback instance (not nil).
 	globalObservedURLDomainsMu.RLock()
 	assert.NotNil(t, globalObservedURLDomainsLogger, "fallback logger should still be set")
-	assert.True(t, globalObservedURLDomainsLogger.jsonFileSink.useFallback, "logger should be in fallback mode")
+	assert.True(t, globalObservedURLDomainsLogger.useFallback, "logger should be in fallback mode")
 	globalObservedURLDomainsMu.RUnlock()
 }
 
