@@ -104,6 +104,7 @@ fn get_first_non_empty_field(tool_args: &Value, field_names: &[&str]) -> String 
 ///   1. `author_association` floor
 ///   2. Trusted bot/user elevation to writer level
 ///   3. Collaborator-permission fallback for org repos
+#[allow(clippy::too_many_arguments)]
 fn resolve_author_integrity(
     owner: &str,
     repo: &str,
@@ -144,6 +145,7 @@ fn resolve_author_integrity(
 /// `always_enrich` = false for list calls (per-item response labeling handles
 /// refinement); = true for single-issue reads where the full enrichment is
 /// applied at request time.
+#[allow(clippy::too_many_arguments)]
 fn apply_issue_read_enrichment(
     owner: &str,
     repo: &str,

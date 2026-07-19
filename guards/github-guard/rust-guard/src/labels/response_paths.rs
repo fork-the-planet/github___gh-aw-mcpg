@@ -182,84 +182,81 @@ pub fn label_response_paths(
                 .unwrap_or("");
             if tool_name == "pull_request_read" && !method.is_empty() && method != "get" {
                 // Fall through — use resource-level labels
-            } else {
-                if let Some(repo_item_ctx) = resolve_repo_item_context(
-                    tool_name,
-                    tool_args,
-                    &actual_response,
-                    "search_pull_requests",
-                    "list_pull_requests",
-                    ctx,
-                ) {
-                    let mut labeled_paths = Vec::with_capacity(repo_item_ctx.limited_items.len());
+            } else if let Some(repo_item_ctx) = resolve_repo_item_context(
+                tool_name,
+                tool_args,
+                &actual_response,
+                "search_pull_requests",
+                "list_pull_requests",
+                ctx,
+            ) {
+                let mut labeled_paths = Vec::with_capacity(repo_item_ctx.limited_items.len());
 
-                    for (i, item) in repo_item_ctx.limited_items.iter().enumerate() {
-                        // Extract repo from each item (may differ for search results)
-                        let item_repo = extract_repo_from_item(item);
-                        let repo_for_labels = if item_repo.is_empty() {
-                            &repo_item_ctx.default_repo
-                        } else {
-                            &item_repo
-                        };
+                for (i, item) in repo_item_ctx.limited_items.iter().enumerate() {
+                    // Extract repo from each item (may differ for search results)
+                    let item_repo = extract_repo_from_item(item);
+                    let repo_for_labels = if item_repo.is_empty() {
+                        &repo_item_ctx.default_repo
+                    } else {
+                        &item_repo
+                    };
 
-                        let base_repo = item
-                            .get("base")
-                            .and_then(|b| b.get("repo"))
-                            .and_then(|r| r.get(field_names::FULL_NAME))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-                        let head_repo = item
-                            .get("head")
-                            .and_then(|h| h.get("repo"))
-                            .and_then(|r| r.get(field_names::FULL_NAME))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("");
-                        let is_forked = if !base_repo.is_empty() && !head_repo.is_empty() {
-                            Some(!base_repo.eq_ignore_ascii_case(head_repo))
-                        } else {
-                            None
-                        };
+                    let base_repo = item
+                        .get("base")
+                        .and_then(|b| b.get("repo"))
+                        .and_then(|r| r.get(field_names::FULL_NAME))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let head_repo = item
+                        .get("head")
+                        .and_then(|h| h.get("repo"))
+                        .and_then(|r| r.get(field_names::FULL_NAME))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    let is_forked = if !base_repo.is_empty() && !head_repo.is_empty() {
+                        Some(!base_repo.eq_ignore_ascii_case(head_repo))
+                    } else {
+                        None
+                    };
 
-                        let item_repo_private =
-                            repo_visibility_private_for_repo_id(repo_for_labels)
-                                .unwrap_or(repo_item_ctx.default_repo_private);
+                    let item_repo_private = repo_visibility_private_for_repo_id(repo_for_labels)
+                        .unwrap_or(repo_item_ctx.default_repo_private);
 
-                        let pr_number = extract_resource_number(item, "pr", repo_for_labels);
-                        let integrity =
-                            pr_integrity(item, repo_for_labels, item_repo_private, is_forked, ctx);
-                        let path = make_item_path(repo_item_ctx.items_path, i);
+                    let pr_number = extract_resource_number(item, "pr", repo_for_labels);
+                    let integrity =
+                        pr_integrity(item, repo_for_labels, item_repo_private, is_forked, ctx);
+                    let path = make_item_path(repo_item_ctx.items_path, i);
 
-                        labeled_paths.push(crate::PathLabel {
-                            path,
-                            labels: crate::ResourceLabels {
-                                description: format!("pr:{}#{}", repo_for_labels, pr_number),
-                                secrecy: if tool_name == "search_pull_requests" {
-                                    repo_visibility_secrecy_for_repo_id(repo_for_labels, ctx).into()
-                                } else {
-                                    repo_item_ctx.default_secrecy_shared.clone()
-                                },
-                                integrity: integrity.into(),
-                            },
-                        });
-                    }
-
-                    return Some(PathLabelResult {
-                        labeled_paths,
-                        default_labels: Some(crate::ResourceLabels {
-                            description: "pull_request".to_string(),
-                            secrecy: repo_item_ctx.default_secrecy_shared.clone(),
-                            integrity: if repo_item_ctx.default_repo_private {
-                                writer_integrity(&repo_item_ctx.default_repo, ctx)
+                    labeled_paths.push(crate::PathLabel {
+                        path,
+                        labels: crate::ResourceLabels {
+                            description: format!("pr:{}#{}", repo_for_labels, pr_number),
+                            secrecy: if tool_name == "search_pull_requests" {
+                                repo_visibility_secrecy_for_repo_id(repo_for_labels, ctx).into()
                             } else {
-                                none_integrity(&repo_item_ctx.default_repo, ctx)
-                            }
-                            .into(),
-                        }),
-                        items_path: (!repo_item_ctx.items_path.is_empty())
-                            .then_some(repo_item_ctx.items_path),
+                                repo_item_ctx.default_secrecy_shared.clone()
+                            },
+                            integrity: integrity.into(),
+                        },
                     });
                 }
-            } // end else (non-sub-method)
+
+                return Some(PathLabelResult {
+                    labeled_paths,
+                    default_labels: Some(crate::ResourceLabels {
+                        description: "pull_request".to_string(),
+                        secrecy: repo_item_ctx.default_secrecy_shared.clone(),
+                        integrity: if repo_item_ctx.default_repo_private {
+                            writer_integrity(&repo_item_ctx.default_repo, ctx)
+                        } else {
+                            none_integrity(&repo_item_ctx.default_repo, ctx)
+                        }
+                        .into(),
+                    }),
+                    items_path: (!repo_item_ctx.items_path.is_empty())
+                        .then_some(repo_item_ctx.items_path),
+                });
+            }
         }
 
         // === Issues - label by author contributor status ===
@@ -272,66 +269,62 @@ pub fn label_response_paths(
                 .unwrap_or("");
             if tool_name == "issue_read" && !method.is_empty() && method != "get" {
                 // Fall through — use resource-level labels
-            } else {
-                if let Some(repo_item_ctx) = resolve_repo_item_context(
-                    tool_name,
-                    tool_args,
-                    &actual_response,
-                    "search_issues",
-                    "list_issues",
-                    ctx,
-                ) {
-                    let mut labeled_paths = Vec::with_capacity(repo_item_ctx.limited_items.len());
+            } else if let Some(repo_item_ctx) = resolve_repo_item_context(
+                tool_name,
+                tool_args,
+                &actual_response,
+                "search_issues",
+                "list_issues",
+                ctx,
+            ) {
+                let mut labeled_paths = Vec::with_capacity(repo_item_ctx.limited_items.len());
 
-                    for (i, item) in repo_item_ctx.limited_items.iter().enumerate() {
-                        // Extract repo from each item (may differ for search results)
-                        let item_repo = extract_repo_from_item(item);
-                        let repo_for_labels = if item_repo.is_empty() {
-                            &repo_item_ctx.default_repo
-                        } else {
-                            &item_repo
-                        };
+                for (i, item) in repo_item_ctx.limited_items.iter().enumerate() {
+                    // Extract repo from each item (may differ for search results)
+                    let item_repo = extract_repo_from_item(item);
+                    let repo_for_labels = if item_repo.is_empty() {
+                        &repo_item_ctx.default_repo
+                    } else {
+                        &item_repo
+                    };
 
-                        let item_repo_private =
-                            repo_visibility_private_for_repo_id(repo_for_labels)
-                                .unwrap_or(repo_item_ctx.default_repo_private);
+                    let item_repo_private = repo_visibility_private_for_repo_id(repo_for_labels)
+                        .unwrap_or(repo_item_ctx.default_repo_private);
 
-                        let issue_number = extract_resource_number(item, "issue", repo_for_labels);
-                        let integrity =
-                            issue_integrity(item, repo_for_labels, item_repo_private, ctx);
-                        let path = make_item_path(repo_item_ctx.items_path, i);
+                    let issue_number = extract_resource_number(item, "issue", repo_for_labels);
+                    let integrity = issue_integrity(item, repo_for_labels, item_repo_private, ctx);
+                    let path = make_item_path(repo_item_ctx.items_path, i);
 
-                        labeled_paths.push(crate::PathLabel {
-                            path,
-                            labels: crate::ResourceLabels {
-                                description: format!("issue:{}#{}", repo_for_labels, issue_number),
-                                secrecy: if tool_name == "search_issues" {
-                                    repo_visibility_secrecy_for_repo_id(repo_for_labels, ctx).into()
-                                } else {
-                                    repo_item_ctx.default_secrecy_shared.clone()
-                                },
-                                integrity: integrity.into(),
-                            },
-                        });
-                    }
-
-                    return Some(PathLabelResult {
-                        labeled_paths,
-                        default_labels: Some(crate::ResourceLabels {
-                            description: "issue".to_string(),
-                            secrecy: repo_item_ctx.default_secrecy_shared.clone(),
-                            integrity: if repo_item_ctx.default_repo_private {
-                                writer_integrity(&repo_item_ctx.default_repo, ctx)
+                    labeled_paths.push(crate::PathLabel {
+                        path,
+                        labels: crate::ResourceLabels {
+                            description: format!("issue:{}#{}", repo_for_labels, issue_number),
+                            secrecy: if tool_name == "search_issues" {
+                                repo_visibility_secrecy_for_repo_id(repo_for_labels, ctx).into()
                             } else {
-                                none_integrity(&repo_item_ctx.default_repo, ctx)
-                            }
-                            .into(),
-                        }),
-                        items_path: (!repo_item_ctx.items_path.is_empty())
-                            .then_some(repo_item_ctx.items_path),
+                                repo_item_ctx.default_secrecy_shared.clone()
+                            },
+                            integrity: integrity.into(),
+                        },
                     });
                 }
-            } // end else (non-sub-method)
+
+                return Some(PathLabelResult {
+                    labeled_paths,
+                    default_labels: Some(crate::ResourceLabels {
+                        description: "issue".to_string(),
+                        secrecy: repo_item_ctx.default_secrecy_shared.clone(),
+                        integrity: if repo_item_ctx.default_repo_private {
+                            writer_integrity(&repo_item_ctx.default_repo, ctx)
+                        } else {
+                            none_integrity(&repo_item_ctx.default_repo, ctx)
+                        }
+                        .into(),
+                    }),
+                    items_path: (!repo_item_ctx.items_path.is_empty())
+                        .then_some(repo_item_ctx.items_path),
+                });
+            }
         }
 
         // === Commits - label by branch ===
@@ -369,7 +362,7 @@ pub fn label_response_paths(
                     };
 
                     let commit_sha = get_str_or(item, "sha", "unknown");
-                    let short_sha = short_sha(&commit_sha);
+                    let short_sha = short_sha(commit_sha);
 
                     let integrity = commit_integrity(
                         item,
@@ -632,7 +625,7 @@ pub fn label_response_paths(
                     };
 
                     labeled_paths.push(crate::PathLabel {
-                        path: make_item_path(&items_path, i),
+                        path: make_item_path(items_path, i),
                         labels: crate::ResourceLabels {
                             description: {
                                 let type_lower: Cow<'_, str> = match item_type {
