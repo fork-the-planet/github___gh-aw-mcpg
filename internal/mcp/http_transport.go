@@ -51,7 +51,7 @@ const streamableMaxRetries = -1
 // requestIDCounter is used to generate unique request IDs for HTTP requests
 var requestIDCounter uint64
 
-var logHTTP = logger.New("mcp:http_transport")
+var logHTTP = logger.ForFile()
 
 // httpRequestResult contains the result of an HTTP request execution
 type httpRequestResult struct {

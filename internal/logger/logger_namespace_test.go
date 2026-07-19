@@ -25,7 +25,7 @@ func TestLoggerNamespacesMatchFileConventions(t *testing.T) {
 	internalRoot := filepath.Join(repoRoot, "internal")
 
 	exceptionNamespaces := map[string][]string{
-		"internal/auth/header.go":                {"auth:header", "auth:apikey"},
+		"internal/auth/header.go":                {"auth:apikey"},
 		"internal/config/config_core.go":         {"config:config"},
 		"internal/config/config_feature.go":      {"config:feature"},
 		"internal/envutil/expand_env_args.go":    {"envutil:expand"},
@@ -34,7 +34,7 @@ func TestLoggerNamespacesMatchFileConventions(t *testing.T) {
 		"internal/launcher/connection_pool.go":   {"launcher:pool"},
 		"internal/launcher/health_monitor.go":    {"launcher:health"},
 		"internal/server/http_helpers.go":        {"server:helpers"},
-		"internal/server/http_server.go":         {"server:http_server", "server:transport"},
+		"internal/server/http_server.go":         {"server:transport"},
 		"internal/server/middleware_auth.go":     {"server:auth"},
 		"internal/server/sdk_logging.go":         {"server:sdk-frontend"},
 		"internal/server/session_auto_init.go":   {"server:auto-init"},

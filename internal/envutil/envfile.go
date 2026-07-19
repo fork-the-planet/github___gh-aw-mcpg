@@ -10,7 +10,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/sanitize"
 )
 
-var logEnvFile = logger.New("envutil:envfile")
+var logEnvFile = logger.ForFile()
 
 // LoadEnvFile reads a .env file and sets environment variables.
 // Lines beginning with '#' and blank lines are ignored.

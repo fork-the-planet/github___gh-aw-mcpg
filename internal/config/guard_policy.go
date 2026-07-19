@@ -9,7 +9,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logGuardPolicy = logger.New("config:guard_policy")
+var logGuardPolicy = logger.ForFile()
 
 const (
 	IntegrityNone       = "none"

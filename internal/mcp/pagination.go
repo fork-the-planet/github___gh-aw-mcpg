@@ -6,7 +6,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logPagination = logger.New("mcp:pagination")
+var logPagination = logger.ForFile()
 
 // paginatedPage holds a single page of results from a paginated SDK list call.
 type paginatedPage[T any] struct {

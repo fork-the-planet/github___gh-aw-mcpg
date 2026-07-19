@@ -10,7 +10,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/sanitize"
 )
 
-var logGitHub = logger.New("envutil:github")
+var logGitHub = logger.ForFile()
 
 // DefaultGitHubAPIBaseURL is the default GitHub API base URL.
 const DefaultGitHubAPIBaseURL = "https://api.github.com"

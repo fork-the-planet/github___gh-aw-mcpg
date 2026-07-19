@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logSys = logger.New("sys:container")
+var logSys = logger.ForFile()
 
 // containerIndicators lists the cgroup path substrings that indicate a container environment.
 var containerIndicators = []string{"docker", "containerd", "kubepods", "lxc"}

@@ -6,7 +6,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logLabels = logger.New("difc:labels")
+var logLabels = logger.ForFile()
 
 // Tag represents a single DIFC tag (e.g., "repo:owner/name", "agent:demo-agent")
 type Tag string

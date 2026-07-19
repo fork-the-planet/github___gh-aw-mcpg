@@ -11,7 +11,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logHandlers = logger.New("server:handlers")
+var logHandlers = logger.ForFile()
 
 // HandleReflect returns an http.HandlerFunc that handles the /reflect endpoint.
 func HandleReflect(unifiedServer *UnifiedServer) http.HandlerFunc {

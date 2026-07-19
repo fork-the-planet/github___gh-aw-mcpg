@@ -4,7 +4,7 @@ package config
 
 import "github.com/github/gh-aw-mcpg/internal/logger"
 
-var logTracingCfg = logger.New("config:config_tracing")
+var logTracingCfg = logger.ForFile()
 
 // DefaultTracingSampleRate is the default sample rate for tracing (100% sampling).
 const DefaultTracingSampleRate = 1.0

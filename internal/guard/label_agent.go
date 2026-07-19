@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logLabelAgent = logger.New("guard:label_agent")
+var logLabelAgent = logger.ForFile()
 
 // RunLabelAgentForAgent is a convenience wrapper around RunLabelAgent that resolves
 // agent labels from the registry instead of requiring the caller to do so. It calls

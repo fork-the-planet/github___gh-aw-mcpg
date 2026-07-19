@@ -10,7 +10,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/sanitize"
 )
 
-var logEnvUtil = logger.New("envutil:envutil")
+var logEnvUtil = logger.ForFile()
 
 // HasEnvVar reports whether the named environment variable is present in the
 // process environment, regardless of whether its value is empty.

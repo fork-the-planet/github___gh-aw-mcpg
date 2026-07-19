@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -78,6 +80,22 @@ func New(namespace string) *Logger {
 		lastLog:   time.Now(),
 		color:     color,
 	}
+}
+
+// ForFile creates a new Logger with a namespace automatically derived from the calling
+// file's path. The namespace follows the "package:filename" convention where package is
+// the last directory component of the file path and filename is the Go source file name
+// without the .go extension. This eliminates manually maintained namespace strings.
+//
+// Example: a call from internal/server/unified.go yields namespace "server:unified".
+func ForFile() *Logger {
+	_, file, _, ok := runtime.Caller(1)
+	if !ok {
+		return New("unknown:unknown")
+	}
+	pkg := filepath.Base(filepath.Dir(file))
+	filename := strings.TrimSuffix(filepath.Base(file), ".go")
+	return New(pkg + ":" + filename)
 }
 
 // selectColor selects a color for the namespace based on its hash.

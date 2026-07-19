@@ -10,7 +10,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logHTTP = logger.New("httputil:httputil")
+var logHTTP = logger.ForFile()
 
 // WriteJSONResponse sets the Content-Type header, writes the status code, and encodes
 // body as JSON. It centralises the three-line pattern used across HTTP handlers.

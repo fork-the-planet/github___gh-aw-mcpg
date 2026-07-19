@@ -61,7 +61,7 @@ var schemaErrPrinter = message.NewPrinter(language.English)
 
 var (
 	// logSchema is the debug logger for schema validation
-	logSchema = logger.New("config:validation_schema")
+	logSchema = logger.ForFile()
 
 	// Schema caching to avoid recompiling the JSON schema on every validation.
 	// This improves performance by compiling the schema once and reusing it.

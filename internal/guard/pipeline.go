@@ -9,7 +9,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logPipeline = logger.New("guard:pipeline")
+var logPipeline = logger.ForFile()
 
 // PipelineInput holds the shared inputs used across DIFC pipeline phases 0–2, 4, and 6.
 // Both the HTTP proxy and the MCP unified server populate this struct and pass it to

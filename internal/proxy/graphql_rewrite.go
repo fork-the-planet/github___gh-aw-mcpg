@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logGraphQLRewrite = logger.New("proxy:graphql_rewrite")
+var logGraphQLRewrite = logger.ForFile()
 
 // Pre-compiled patterns used in injectFieldsIntoQuery.
 // Compiling these once at package init avoids repeated regexp compilation on

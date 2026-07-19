@@ -10,7 +10,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logVisibility = logger.New("githubhttp:visibility")
+var logVisibility = logger.ForFile()
 
 // RepoVisibility represents the visibility of a GitHub repository.
 type RepoVisibility string

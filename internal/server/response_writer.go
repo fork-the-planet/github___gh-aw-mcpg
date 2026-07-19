@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logResponseWriter = logger.New("server:response_writer")
+var logResponseWriter = logger.ForFile()
 
 // responseWriter wraps http.ResponseWriter to capture response body and status code.
 // It embeds httputil.BaseResponseWriter for shared status-code capture logic, and

@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logRegistry = logger.New("guard:registry")
+var logRegistry = logger.ForFile()
 
 // Registry manages guard instances for different MCP servers
 type Registry struct {

@@ -23,7 +23,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logHandler = logger.New("proxy:handler")
+var logHandler = logger.ForFile()
 
 // writeDIFCForbidden writes a 403 JSON response for DIFC policy violations.
 // Uses the shared WriteErrorResponse helper so that the response shape is consistent

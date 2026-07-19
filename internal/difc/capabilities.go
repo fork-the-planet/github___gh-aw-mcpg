@@ -2,7 +2,7 @@ package difc
 
 import "github.com/github/gh-aw-mcpg/internal/logger"
 
-var logCapabilities = logger.New("difc:capabilities")
+var logCapabilities = logger.ForFile()
 
 // Capabilities represents the global set of tags available in the system
 // This is used to validate and discover available DIFC tags

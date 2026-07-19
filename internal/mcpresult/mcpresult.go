@@ -6,7 +6,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logMCPResult = logger.New("mcpresult:mcpresult")
+var logMCPResult = logger.ForFile()
 
 // NormalizeContentItems normalizes an MCP "content" field into a slice of item
 // maps. It supports both []interface{} values produced by json.Unmarshal and

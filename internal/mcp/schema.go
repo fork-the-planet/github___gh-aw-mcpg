@@ -4,7 +4,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logSchema = logger.New("mcp:schema")
+var logSchema = logger.ForFile()
 
 // NormalizeInputSchema ensures tool input schemas are valid for the MCP SDK
 // The MCP SDK requires that object type schemas have a "properties" field,

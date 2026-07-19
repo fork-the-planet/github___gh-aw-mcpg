@@ -43,7 +43,7 @@ const DefaultRateLimitThreshold = 3
 // before transitioning to HALF-OPEN to probe one request.
 const DefaultRateLimitCooldown = 60 * time.Second
 
-var logCircuitBreaker = logger.New("server:circuit_breaker")
+var logCircuitBreaker = logger.ForFile()
 
 // circuitBreaker implements a per-backend rate-limit circuit breaker.
 //

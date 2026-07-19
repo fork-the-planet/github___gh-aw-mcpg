@@ -7,7 +7,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logReflect = logger.New("difc:reflect")
+var logReflect = logger.ForFile()
 
 // ReflectedAgentLabels is the JSON shape for an agent's current DIFC labels.
 type ReflectedAgentLabels struct {

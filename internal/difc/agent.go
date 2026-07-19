@@ -7,7 +7,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/syncutil"
 )
 
-var logAgent = logger.New("difc:agent")
+var logAgent = logger.ForFile()
 
 // AgentLabels associates each agent with their DIFC labels
 // Tracks what secrecy and integrity tags an agent has accumulated

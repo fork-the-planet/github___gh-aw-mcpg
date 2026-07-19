@@ -9,7 +9,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logSink = logger.New("difc:sink_server_ids")
+var logSink = logger.ForFile()
 
 var (
 	sinkServerIDsMu sync.RWMutex

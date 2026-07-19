@@ -24,7 +24,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/tracing"
 )
 
-var logProxy = logger.New("proxy:proxy")
+var logProxy = logger.ForFile()
 
 const (
 	// DefaultGitHubAPIBase is the upstream GitHub API URL.

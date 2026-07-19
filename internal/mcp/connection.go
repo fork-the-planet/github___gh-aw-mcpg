@@ -22,7 +22,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var logConn = logger.New("mcp:connection")
+var logConn = logger.ForFile()
 
 // defaultConnectTimeout is the fallback connect timeout used when the configured timeout
 // is non-positive or otherwise invalid.

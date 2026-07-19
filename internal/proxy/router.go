@@ -10,7 +10,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logRouter = logger.New("proxy:router")
+var logRouter = logger.ForFile()
 
 // Argument key constants used when building route args maps.
 // Centralising these strings avoids typo-prone bare literals scattered across the file.

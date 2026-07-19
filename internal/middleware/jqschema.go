@@ -24,7 +24,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var logMiddleware = logger.New("middleware:jqschema")
+var logMiddleware = logger.ForFile()
 
 // DefaultJqTimeout is the default timeout for jq query execution (5 seconds)
 // This prevents malformed queries or large payloads from causing hangs

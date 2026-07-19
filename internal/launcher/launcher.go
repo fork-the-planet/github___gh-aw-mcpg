@@ -18,7 +18,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/sys"
 )
 
-var logLauncher = logger.New("launcher:launcher")
+var logLauncher = logger.ForFile()
 
 // ErrServerNotFound is returned by getServerConfig when the requested server ID
 // is not present in the gateway configuration.

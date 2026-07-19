@@ -21,7 +21,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var logProxyCmd = logger.New("cmd:proxy")
+var logProxyCmd = logger.ForFile()
 
 // Proxy subcommand flag variables
 var (

@@ -23,7 +23,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
-var logUnified = logger.New("server:unified")
+var logUnified = logger.ForFile()
 
 const rateLimitExceededStatus = "rate limit exceeded"
 

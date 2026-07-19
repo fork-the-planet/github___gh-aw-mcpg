@@ -14,7 +14,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-var logStdin = logger.New("config:config_stdin")
+var logStdin = logger.ForFile()
 
 // StdinConfig represents the JSON configuration format read from stdin.
 type StdinConfig struct {

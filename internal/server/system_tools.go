@@ -10,7 +10,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var logSys = logger.New("server:system_tools")
+var logSys = logger.ForFile()
 
 // SysServer implements the MCPG system tools
 type SysServer struct {

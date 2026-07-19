@@ -21,7 +21,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logOIDC = logger.New("oidc:provider")
+var logOIDC = logger.ForFile()
 
 // tokenRefreshMargin is how far before expiry we proactively refresh a cached token.
 const tokenRefreshMargin = 60 * time.Second

@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/version"
 )
 
-var logHealth = logger.New("server:health")
+var logHealth = logger.ForFile()
 
 // HealthResponse represents the JSON structure for the /health endpoint response
 // as defined in MCP Gateway Specification section 8.1.1

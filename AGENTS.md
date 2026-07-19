@@ -282,20 +282,27 @@ make agent-finished
 ```go
 import "github.com/github/gh-aw-mcpg/internal/logger"
 
-// Create a logger with namespace following pkg:filename convention
-var log = logger.New("pkg:filename")
+// Create a logger with namespace auto-derived from the calling file (PREFERRED)
+var logComponent = logger.ForFile()
 
 // Log debug messages
 // - Writes to stderr with colors and time diffs (when DEBUG matches namespace)
 // - Also writes to file logger as text-only (always, when logger is enabled)
-log.Printf("Processing %d items", count)
-log.Print("Simple debug message")
+logComponent.Printf("Processing %d items", count)
+logComponent.Print("Simple debug message")
 
 // Check if logging is enabled before expensive operations
-if log.Enabled() {
-    log.Printf("Expensive debug info: %+v", expensiveOperation())
+if logComponent.Enabled() {
+    logComponent.Printf("Expensive debug info: %+v", expensiveOperation())
 }
 ```
+
+`logger.ForFile()` automatically derives the namespace as `"package:filename"` from the calling
+file path (e.g., a call in `internal/server/unified.go` yields `"server:unified"`). This
+eliminates manually maintained namespace strings and prevents namespace drift.
+
+Use `logger.New("pkg:component")` only when a custom namespace is intentionally different from
+the file name (e.g., a file that maintains backward-compatible debug namespace for users).
 
 **For operational/file logging, use the file logger directly:**
 
@@ -311,7 +318,7 @@ logger.LogError("category", "Operation failed: %v", err)
 logger.LogDebug("category", "Debug details: %+v", details)
 ```
 
-**Note:** Debug loggers created with `logger.New()` now write to both stderr (with colors/time diffs) and the file logger (text-only). This provides real-time colored output during development while ensuring all debug logs are captured to file for production troubleshooting.
+**Note:** Debug loggers created with `logger.ForFile()` and `logger.New()` write to both stderr (with colors/time diffs) and the file logger (text-only). This provides real-time colored output during development while ensuring all debug logs are captured to file for production troubleshooting.
 
 **Logging Categories:**
 - `startup` - Gateway initialization and configuration
@@ -326,26 +333,23 @@ logger.LogDebug("category", "Debug details: %+v", details)
 - Be consistent with existing loggers in the codebase
 
 **Logger Variable Naming Convention:**
-- **Use descriptive names** that match the component: `var log<Component> = logger.New("pkg:component")`
-- Examples: `var logLauncher = logger.New("launcher:launcher")`, `var logConfig = logger.New("config:config")`
+- **Use descriptive names** that match the component: `var log<Component> = logger.ForFile()`
+- Examples: `var logLauncher = logger.ForFile()`, `var logHandlers = logger.ForFile()`
 - **Avoid generic `log` name** when it might conflict with standard library or when the file already imports `log` package
 - Capitalize the component part after 'log' (e.g., `logAuth` with capital 'A', `logLauncher` with capital 'L')
 - This convention makes it clear which logger is being used and reduces naming collisions
-- For components with very short files or temporary code, generic `log` is acceptable but descriptive is preferred
 
-**Examples of good logger naming:**
+**Examples of good logger declarations:**
 ```go
-// Descriptive - clearly indicates the component (RECOMMENDED)
-var logLauncher = logger.New("launcher:launcher")
-var logPool = logger.New("launcher:pool")
-var logConfig = logger.New("config:config")
-var logValidation = logger.New("config:validation")
-var logUnified = logger.New("server:unified")
-var logRouted = logger.New("server:routed")
+// Using ForFile() - namespace is auto-derived from file path (RECOMMENDED)
+var logLauncher = logger.ForFile()   // in launcher/launcher.go → "launcher:launcher"
+var logValidation = logger.ForFile() // in config/validation.go → "config:validation"
+var logUnified = logger.ForFile()    // in server/unified.go    → "server:unified"
+var logRouted = logger.ForFile()     // in server/routed.go     → "server:routed"
 
-// Generic - acceptable for simple cases but less clear
-var log = logger.New("auth:header")
-var log = logger.New("sys:sys")
+// Using New() - only for intentionally custom namespaces
+var logPool = logger.New("launcher:pool")   // in connection_pool.go, custom shorter name
+var logConfig = logger.New("config:config") // in config_core.go, intentional short name
 ```
 
 

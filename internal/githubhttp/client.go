@@ -11,7 +11,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logHTTP = logger.New("githubhttp:client")
+var logHTTP = logger.ForFile()
 
 // GitHubUserAgent is the User-Agent header value sent on all GitHub API requests.
 const GitHubUserAgent = "awmg/1.0"

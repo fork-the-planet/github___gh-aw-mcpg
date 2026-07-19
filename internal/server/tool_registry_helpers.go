@@ -12,7 +12,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var logToolRegistryHelpers = logger.New("server:tool_registry_helpers")
+var logToolRegistryHelpers = logger.ForFile()
 
 // launchResult stores the result of a backend server launch.
 type launchResult struct {

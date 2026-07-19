@@ -10,7 +10,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logDocker = logger.New("sys:docker")
+var logDocker = logger.ForFile()
 
 // containerIDPattern validates that a container ID only contains valid characters (hex digits).
 // Container IDs are 64 character hex strings, but short form (12 chars) is also valid.

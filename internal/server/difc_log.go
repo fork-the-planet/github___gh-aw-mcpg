@@ -11,7 +11,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logDifcLog = logger.New("server:difc_log")
+var logDifcLog = logger.ForFile()
 
 // logFilteredItems logs structured details for every item removed by DIFC filtering.
 // Each item is written as a [DIFC-FILTERED] JSON entry to both the unified and

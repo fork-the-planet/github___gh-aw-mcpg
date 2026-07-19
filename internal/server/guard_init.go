@@ -14,7 +14,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logGuardInit = logger.New("server:guard_init")
+var logGuardInit = logger.ForFile()
 
 // legacyPolicySource is returned by resolveGuardPolicy when no explicit policy
 // is configured and the caller should fall back to legacy session-label semantics.

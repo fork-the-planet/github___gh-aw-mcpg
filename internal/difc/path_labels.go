@@ -10,7 +10,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/mcpresult"
 )
 
-var logPathLabels = logger.New("difc:path_labels")
+var logPathLabels = logger.ForFile()
 
 // PathLabels represents a collection of labeled paths in a JSON response.
 // Guards return this structure to indicate which elements in the response

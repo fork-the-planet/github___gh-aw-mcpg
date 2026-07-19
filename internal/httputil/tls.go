@@ -22,7 +22,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logTLS = logger.New("httputil:tls")
+var logTLS = logger.ForFile()
 
 // MinTLSVersion is the minimum TLS version enforced across all gateway listeners
 // and clients. Centralizing this constant ensures a single point of change if

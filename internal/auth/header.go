@@ -44,7 +44,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logAuth = logger.New("auth:header")
+var logAuth = logger.ForFile()
 var logAPIKey = logger.New("auth:apikey")
 
 var (

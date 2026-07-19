@@ -31,7 +31,7 @@ const (
 	nonceTTL = 2 * hmacMaxAgeSecs * time.Second
 )
 
-var logHMAC = logger.New("server:hmac")
+var logHMAC = logger.ForFile()
 
 // nonceCache tracks recently-seen nonces to detect replay attacks.
 // Nonces are held for nonceTTL seconds after first use, then evicted.

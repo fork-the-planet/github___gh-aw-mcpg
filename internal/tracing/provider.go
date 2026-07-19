@@ -40,7 +40,7 @@ import (
 
 const instrumentationName = "github.com/github/gh-aw-mcpg"
 
-var logTracing = logger.New("tracing:provider")
+var logTracing = logger.ForFile()
 
 // Provider wraps an OpenTelemetry TracerProvider and provides a Shutdown method.
 type Provider struct {

@@ -13,7 +13,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var logHTTPServer = logger.New("server:http_server")
+var logHTTPServer = logger.ForFile()
 var logTransport = logger.New("server:transport")
 
 // newSDKServer creates a new MCP SDK server with the given implementation name and debug logger.

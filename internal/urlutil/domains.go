@@ -9,7 +9,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logDomains = logger.New("urlutil:domains")
+var logDomains = logger.ForFile()
 
 // urlPattern requires a non-empty hostname candidate and then captures the rest
 // of the URL until common delimiter characters. The (?i) flag makes the scheme

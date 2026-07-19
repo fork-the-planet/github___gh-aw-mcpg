@@ -9,7 +9,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logGraphQL = logger.New("proxy:graphql")
+var logGraphQL = logger.ForFile()
 
 // GraphQLRequest represents a parsed GraphQL request body.
 type GraphQLRequest struct {

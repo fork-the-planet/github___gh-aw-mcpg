@@ -12,7 +12,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logCollab = logger.New("githubhttp:collaborator")
+var logCollab = logger.ForFile()
 
 // ParseCollaboratorPermissionArgs extracts and validates the owner, repo, and
 // username fields from an args map for a get_collaborator_permission call.

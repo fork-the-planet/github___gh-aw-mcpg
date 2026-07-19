@@ -430,9 +430,9 @@ Use the logger package for debug logging:
 ```go
 import "github.com/github/gh-aw-mcpg/internal/logger"
 
-// Create a logger with namespace following pkg:filename convention
+// Create a logger with namespace auto-derived from the calling file (PREFERRED)
 // Use descriptive variable names (e.g., logLauncher, logConfig) for clarity
-var logComponent = logger.New("pkg:filename")
+var logComponent = logger.ForFile()
 
 // Log debug messages (only shown when DEBUG environment variable matches)
 logComponent.Printf("Processing %d items", count)
@@ -443,9 +443,15 @@ if logComponent.Enabled() {
 }
 ```
 
+`logger.ForFile()` automatically derives the namespace as `"package:filename"` from the calling
+file path, eliminating manually maintained namespace strings and preventing drift.
+
+Use `logger.New("pkg:component")` only when a custom namespace is intentionally different from
+the file name (e.g., preserving a short backward-compatible debug namespace).
+
 **Logger Variable Naming Convention:**
-- **Prefer descriptive names**: `var log<Component> = logger.New("pkg:component")`
-- Examples: `var logLauncher = logger.New("launcher:launcher")`
+- **Prefer descriptive names**: `var log<Component> = logger.ForFile()`
+- Examples: `var logLauncher = logger.ForFile()`, `var logHandlers = logger.ForFile()`
 - Avoid generic `log` when it might conflict with standard library
 - Capitalize the component part after 'log' (e.g., `logAuth` with capital 'A', `logLauncher` with capital 'L')
 

@@ -38,7 +38,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logTLS = logger.New("proxy:tls")
+var logTLS = logger.ForFile()
 
 // TLSConfig holds the paths to the generated certificate files.
 type TLSConfig struct {

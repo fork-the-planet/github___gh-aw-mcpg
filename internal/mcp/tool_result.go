@@ -9,7 +9,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var logToolResult = logger.New("mcp:tool_result")
+var logToolResult = logger.ForFile()
 
 func marshalValueToTextContentResult(value interface{}) (*sdk.CallToolResult, error) {
 	dataBytes, err := json.Marshal(value)

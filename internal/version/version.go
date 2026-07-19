@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logVersion = logger.New("version:version")
+var logVersion = logger.ForFile()
 
 // readBuildInfo is a package-level variable wrapping debug.ReadBuildInfo to
 // allow test injection without changing the public API.

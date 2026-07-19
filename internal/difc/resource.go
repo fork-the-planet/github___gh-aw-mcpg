@@ -2,7 +2,7 @@ package difc
 
 import "github.com/github/gh-aw-mcpg/internal/logger"
 
-var logResource = logger.New("difc:resource")
+var logResource = logger.ForFile()
 
 // Resource represents an external system with label requirements (deprecated - use LabeledResource)
 type Resource struct {

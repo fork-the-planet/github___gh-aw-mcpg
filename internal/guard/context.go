@@ -26,7 +26,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logContext = logger.New("guard:context")
+var logContext = logger.ForFile()
 
 // ContextKey is used for storing values in context
 type ContextKey string

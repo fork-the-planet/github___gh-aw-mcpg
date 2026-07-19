@@ -17,7 +17,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logSession = logger.New("server:session")
+var logSession = logger.ForFile()
 
 // extractSessionIDFromRequest extracts the session ID from X-Agent-ID and
 // Authorization headers. Returns "" if neither header is present or valid.

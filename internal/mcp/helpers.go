@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logMCPHelpers = logger.New("mcp:helpers")
+var logMCPHelpers = logger.ForFile()
 
 // marshalToResponse marshals an SDK result into a Response object.
 // This helper reduces code duplication across all MCP method wrappers.

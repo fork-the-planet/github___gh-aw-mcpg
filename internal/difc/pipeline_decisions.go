@@ -2,7 +2,7 @@ package difc
 
 import "github.com/github/gh-aw-mcpg/internal/logger"
 
-var logPipeline = logger.New("difc:pipeline_decisions")
+var logPipeline = logger.ForFile()
 
 // CoarseCheckOutcome is the typed result of a Phase 2 coarse-grained access check.
 type CoarseCheckOutcome int

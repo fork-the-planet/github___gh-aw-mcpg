@@ -7,7 +7,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logNoop = logger.New("guard:noop")
+var logNoop = logger.ForFile()
 
 // NoopGuard is the default guard that performs no DIFC labeling
 // It allows all operations by returning empty labels (no restrictions)

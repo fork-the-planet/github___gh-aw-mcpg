@@ -11,7 +11,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var logRouted = logger.New("server:routed")
+var logRouted = logger.ForFile()
 
 // rejectIfShutdown is a middleware that rejects requests with HTTP 503 when gateway is shutting down
 // Per spec 5.1.3: "Immediately reject any new RPC requests to /mcp/{server-name} endpoints with HTTP 503"

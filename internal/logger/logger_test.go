@@ -724,3 +724,20 @@ func TestLogger_Print_WithColors(t *testing.T) {
 	assert.Contains(t, output, "\033[", "Print() output should contain ANSI color codes when colors enabled")
 	assert.Contains(t, output, colorReset, "Print() output should contain color reset code")
 }
+
+// TestForFile verifies that ForFile derives the correct namespace from the calling file.
+func TestForFile(t *testing.T) {
+	t.Parallel()
+
+	// ForFile() is called from logger_test.go in the "logger" package.
+	// Expected namespace: "logger:logger_test"
+	log := ForFile()
+	assert.Equal(t, "logger:logger_test", log.namespace)
+}
+
+// TestForFile_Enabled verifies that ForFile respects the DEBUG environment variable.
+func TestForFile_Enabled(t *testing.T) {
+	t.Setenv("DEBUG", "logger:*")
+	log := ForFile()
+	assert.True(t, log.Enabled(), "ForFile logger should be enabled when DEBUG matches its derived namespace")
+}

@@ -9,7 +9,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/sys"
 )
 
-var logEnv = logger.New("config:validation_env")
+var logEnv = logger.ForFile()
 
 // RequiredEnvVars lists the environment variables that must be set for the gateway to operate
 var RequiredEnvVars = []string{

@@ -6,7 +6,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logConnLogging = logger.New("mcp:connection_logging")
+var logConnLogging = logger.ForFile()
 
 // logReconnectStart emits the structured log warning that is common to all reconnect paths.
 func (c *Connection) logReconnectStart() {

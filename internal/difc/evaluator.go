@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/logger"
 )
 
-var logEvaluator = logger.New("difc:evaluator")
+var logEvaluator = logger.ForFile()
 
 // DIFC mode string constants - use these for consistent mode references
 const (

@@ -8,7 +8,7 @@ import (
 	"github.com/github/gh-aw-mcpg/internal/util"
 )
 
-var logTransform = logger.New("proxy:response_transform")
+var logTransform = logger.ForFile()
 
 // rewrapSearchResponse re-wraps filtered items into the original search response
 // envelope. GitHub search endpoints return {"total_count": N, "items": [...]};
